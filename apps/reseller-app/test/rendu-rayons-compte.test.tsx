@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { mountApp, wire, wiredEnv, type Route } from './rendu';
 import { resetFiles } from './doubles/expo-file-system';
-import { RAYONS_BOUTIK } from '../src/vitrine/rayons';
+import { RAYONS } from '../src/vitrine/rayons';
 
 /**
  * ═══ RENDU-RÉEL — RAYONS-REVENDEUR-1 (founder, 2026-08-23: « during reseller
@@ -144,7 +144,7 @@ describe('the ENTRANCE — she chooses her rayons while signing up', () => {
     const screen = await mountApp();
     expect(screen.shows('Créer mon compte'), `on screen: ${JSON.stringify(screen.texts())}`).toBe(true);
     // The walk follows the MIRROR, never a hand-picked three.
-    for (const rayon of RAYONS_BOUTIK) {
+    for (const rayon of RAYONS) {
       expect(screen.shows(rayon.titre), rayon.titre).toBe(true);
       for (const c of rayon.categories) expect(screen.canPress(c), c).toBe(true);
     }
@@ -222,6 +222,49 @@ describe('OPPORTUNITÉS — her rayons narrow the whole screen', () => {
     const screen = await mountApp();
     await screen.press('Opportunités');
     expect(screen.shows('Aucun produit à afficher'), `on screen: ${JSON.stringify(screen.texts())}`).toBe(true);
+    screen.unmount();
+  });
+});
+
+describe('RAYONS-HERITES-1 — a compte that chose « shoes » in the id era sees today’s « Chaussures » products, under ONE chip', () => {
+  it('Escarpins (published as « Chaussures ») render for a `shoes` selection; the chips row carries « Chaussures » once even when the feed spells the rayon both ways', async () => {
+    await seedCompte(['shoes']);
+    const deuxOrthographes: Route[] = [
+      (path) =>
+        path === '/supply-projections'
+          ? {
+              status: 200,
+              json: {
+                offers: [
+                  ...FEED.map((f) => ({
+                    productVersionId: f.pv, offerVersion: 'ov-1', basePrice: 10_000, resellerCommission: 1_000,
+                    available: 5, productName: f.nom, assetRefs: [], category: f.cat,
+                  })),
+                  {
+                    productVersionId: 'pv-sh', offerVersion: 'ov-1', basePrice: 7_000, resellerCommission: 700,
+                    available: 2, productName: 'Sandales anciennes', assetRefs: [], category: 'shoes',
+                  },
+                ],
+                diagnostic: { status: 'ok', refusals: [] },
+              },
+            }
+          : null,
+      ...routes().slice(1),
+    ];
+    wire(deuxOrthographes);
+    const screen = await mountApp();
+    await screen.press('Opportunités');
+
+    expect(screen.shows('Escarpins'), `on screen: ${JSON.stringify(screen.texts())}`).toBe(true);
+    expect(screen.shows('Sandales anciennes')).toBe(true);
+    for (const dehors of ['Bazin riche', 'Sac en cuir', 'Poussette double', 'Vase émaillé', 'Coiffeuse dorée']) {
+      expect(screen.shows(dehors), dehors).toBe(false);
+    }
+    // ONE chip for the rayon — `press` would refuse two controls with one label.
+    expect(screen.canPress('Chaussures')).toBe(true);
+    await screen.press('Chaussures');
+    expect(screen.shows('Escarpins')).toBe(true);
+    expect(screen.shows('Sandales anciennes')).toBe(true);
     screen.unmount();
   });
 });

@@ -175,12 +175,20 @@ describe('the approved dependencies (founder rulings) — nothing else', () => {
     // `expo/bundledNativeModules.json` pins for SDK 57 (read, not guessed) —
     // Expo Go ships its native half, so it reaches his phone over the air.
     expect(pkg.dependencies['expo-linear-gradient']).toBe('~57.0.1');
-    // the only deps beyond the pre-WO set are exactly these twelve
+    // TAXONOMIE-CANON-1 — @platform/taxonomy, FOUNDER ORDER 2026-09-16 (« fix the
+    // 3 that is still open » — the category list's home is platform-contracts):
+    // the platform's own data package (canon 3.14.0) — the shelves Boutik+'s
+    // wizard publishes from and this app's pickers offer, ONE list. Pure data,
+    // RN-safe root entry, no intra-family dep, no native surface: a FIRST-PARTY
+    // canon package like ui-tokens, not a third-party dependency.
+    expect(pkg.dependencies['@platform/taxonomy']).toMatch(/^git\+https:\/\/github\.com\/beurni2\/platform-contracts\.git#[0-9a-f]{40}&path:packages\/taxonomy$/);
+    // the only deps beyond the pre-WO set are exactly these thirteen
     const before = new Set([
       '@platform/ui-tokens', 'expo', 'expo-status-bar', 'expo-updates', 'react', 'react-native',
     ]);
     const added = Object.keys(pkg.dependencies).filter((d) => !before.has(d));
     expect(added.sort()).toEqual([
+      '@platform/taxonomy',
       '@shop-plus/reseller-money',
       'expo-audio', 'expo-crypto', 'expo-file-system', 'expo-font', 'expo-haptics',
       'expo-image-manipulator', 'expo-image-picker', 'expo-linear-gradient', 'expo-video',
@@ -190,10 +198,12 @@ describe('the approved dependencies (founder rulings) — nothing else', () => {
     // The two `react-native-*` names are ENUMERATED, not pattern-matched: a
     // prefix rule would silently admit the next community module someone adds,
     // and admitting a native dependency is exactly the decision that must stay
-    // the founder's rather than a regex's.
+    // the founder's rather than a regex's. `@platform/*` is the canon family
+    // consumed from platform-contracts at a pinned sha (ui-tokens sits in the
+    // pre-WO set for the same reason) — first-party, like the workspace one.
     const NON_EXPO_ALLOWED = new Set(['react-native-svg', 'react-native-webview']);
     for (const d of added) {
-      expect(d.startsWith('@shop-plus/') || d.startsWith('expo') || NON_EXPO_ALLOWED.has(d), d).toBe(true);
+      expect(d.startsWith('@shop-plus/') || d.startsWith('@platform/') || d.startsWith('expo') || NON_EXPO_ALLOWED.has(d), d).toBe(true);
     }
   });
 });

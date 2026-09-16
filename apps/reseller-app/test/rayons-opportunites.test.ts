@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { categoriesPresentes, filtrerOffres, labelCategorie } from '../src/vitrine/rayons';
+import { categoriesPresentes, filtrerOffres, filtrerParSelection, labelCategorie } from '../src/vitrine/rayons';
 import type { Offer } from '../src/vitrine/offers';
 
 /** CATEGORIES-OPPORTUNITES-1 — the three pure functions, pinned value by value. */
@@ -47,5 +47,26 @@ describe('filtrerOffres — matches the WIRE value, never the label', () => {
   });
   it('a category no offer carries yields the honest empty list — never a fallback', () => {
     expect(filtrerOffres(feed, 'Vase')).toEqual([]);
+  });
+});
+
+/**
+ * RAYONS-HERITES-1 (founder, 2026-09-16: « fix the 3 that is still open ») —
+ * an account that chose `shoes` in the id era and a product Boutik+ publishes
+ * as « Chaussures » today are ONE rayon: they match, they count once, they
+ * share one chip.
+ */
+describe('RAYONS-HERITES-1 — a canon-era id and its shelf label are one rayon everywhere', () => {
+  const feed = [offre('a', 'shoes'), offre('b', 'Chaussures'), offre('c', 'Poussette'), offre('d', 'fashion_bags_fabrics')];
+  it('categoriesPresentes lists the rayon ONCE, under its label, in first-appearance order; the id with no twin stays itself', () => {
+    expect(categoriesPresentes(feed)).toEqual(['Chaussures', 'Poussette', 'fashion_bags_fabrics']);
+  });
+  it('filtrerOffres on the label OR the id keeps BOTH spellings’ products', () => {
+    expect(filtrerOffres(feed, 'Chaussures').map((o) => o.productVersionId)).toEqual(['a', 'b']);
+    expect(filtrerOffres(feed, 'shoes').map((o) => o.productVersionId)).toEqual(['a', 'b']);
+  });
+  it('a selection saved as `shoes` narrows to today’s « Chaussures » products too — the reseller who chose in the id era sees the feed again', () => {
+    expect(filtrerParSelection(feed, ['shoes']).map((o) => o.productVersionId)).toEqual(['a', 'b']);
+    expect(filtrerParSelection(feed, ['fashion_bags_fabrics']).map((o) => o.productVersionId)).toEqual(['d']);
   });
 });

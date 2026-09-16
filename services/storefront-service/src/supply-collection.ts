@@ -55,6 +55,12 @@ export const SUPPLY_TARGET_BINDING = 'service-binding:OFFER';
  * `/listings/`, so this route is registered with `===`, deliberately.
  */
 export const SUPPLY_COLLECTION_ROUTE = '/supply-projections';
+/** DIAGNOSTIC-OFFRE-1 (founder, 2026-09-16) — the founder's own read of what
+ *  this Worker's supply road served and what it refused, and why: the
+ *  diagnostic WITHOUT the offers' economics, on key C alone (never a session,
+ *  never open). Exact match, like its parent: `/supply-projections/diagnostic`
+ *  is not a prefix of anything. */
+export const SUPPLY_DIAGNOSTIC_ROUTE = '/supply-projections/diagnostic';
 
 /** One offer as the reseller browse surface needs it — the canon projection's
  *  eight fields, unaltered. No zone: boutik strips location as supplier-identifying. */

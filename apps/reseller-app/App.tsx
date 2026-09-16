@@ -28,7 +28,7 @@ import { resolveStorefrontService, deriveShortCode, saveRefusalToastKey, publier
 import type { Storefront } from './src/vitrine/customize/storefront';
 import { loadOrMintIdentity, remintIdentity } from './src/identity/store';
 import { resolveOfferSource, type Offer, type OfferFeed } from './src/vitrine/offers';
-import { categoriesPresentes, filtrerOffres, filtrerParSelection, labelCategorie, RAYONS_BOUTIK, autresRayons } from './src/vitrine/rayons';
+import { categoriesPresentes, filtrerOffres, filtrerParSelection, labelCategorie, rayonCanon, RAYONS, autresRayons } from './src/vitrine/rayons';
 import type { ResellerIdentity } from './src/identity/mint';
 import { expoIdentityStore, expoRandomBytes } from './src/identity/expoStore';
 import { FileAttente, type QueueEntry } from './src/offline/queue';
@@ -4793,6 +4793,9 @@ function ChoixRayons({ choisis, autres, onBasculer, desactive }: {
   desactive: boolean;
 }) {
   const chip = (c: string) => {
+    // `choisis` are RAYONS already (the leaf seeds her book through
+    // `rayonCanon`, the entrance picks from the shelves), so the exact match
+    // is the whole test — a canonical compare here would guard nothing.
     const choisi = choisis.includes(c);
     return (
       <Pressable
@@ -4812,7 +4815,7 @@ function ChoixRayons({ choisis, autres, onBasculer, desactive }: {
   // wraps them in a Card; the entrance's white card already is one).
   return (
     <View style={styles.profilCarte}>
-      {RAYONS_BOUTIK.map((rayon) => (
+      {RAYONS.map((rayon) => (
         <View key={rayon.titre} style={styles.profilCarte}>
           <Text style={styles.profilRangTitre}>{rayon.titre}</Text>
           <View style={styles.compteRayonsRow}>{rayon.categories.map(chip)}</View>
@@ -5045,13 +5048,17 @@ function EcranProfilRayons({ compte, profil, rayons, onRecharger, onSauver, onRe
   onSauver: (patch: ProfilPatch, toastKey: string) => Promise<Sauvegarde>;
   onRetour: () => void;
 }) {
-  const [cats, setCats] = useState<readonly string[]>(typeof profil === 'object' ? profil.categories ?? [] : []);
+  // RAYONS-HERITES-1 — her picks are RAYONS, not spellings: a canon-era id
+  // the book still holds (`shoes`) is seeded as its shelf's category
+  // (« Chaussures »), so one chip stands for it, and the next save SHE makes
+  // writes the label back — the only migration, and never a silent one.
+  const [cats, setCats] = useState<readonly string[]>(typeof profil === 'object' ? (profil.categories ?? []).map(rayonCanon) : []);
   const [plein, setPlein] = useState(false);
   const [envoi, setEnvoi] = useState(false);
   const [msgKey, setMsgKey] = useState<string | null>(null);
   useEffect(() => {
     if (typeof profil !== 'object') return;
-    setCats(profil.categories ?? []);
+    setCats((profil.categories ?? []).map(rayonCanon));
   }, [profil]);
 
   if (compte === null || compte === undefined) return <FeuilleHorsLigne etat="sans_compte" onRecharger={onRecharger} />;

@@ -5,7 +5,7 @@ import { StorefrontMediaService, type MediaKind } from './media/service.js';
 import { absoluteAssetRefs, joinVitrineProduct, toStorefrontView, whatsappDigits, type VitrineProductRecord } from './customer-projection.js';
 import { resolveStorefrontStore, type StorefrontStoreEnv } from './storefront-store.js';
 import { resolveSupplySource, type SupplySourceEnv } from './supply-source.js';
-import { SUPPLY_COLLECTION_ROUTE, readSupplyCollection } from './supply-collection.js';
+import { SUPPLY_COLLECTION_ROUTE, SUPPLY_DIAGNOSTIC_ROUTE, readSupplyCollection } from './supply-collection.js';
 import { decodeSur } from './decode-sur.js';
 
 /**
@@ -681,10 +681,36 @@ async function handleSupplyCollection(env?: StorefrontServiceEnv): Promise<Respo
   );
 }
 
+/**
+ * DIAGNOSTIC-OFFRE-1 (founder, 2026-09-16: « fix the 3 that is still open » —
+ * the video product he could not see, and could not ask the service about).
+ * The SAME read as the browse collection, answered as a DIAGNOSIS: which
+ * products this Worker served (id and name, no price, no commission), which
+ * it refused and why (the consumer's own reason, kept by `readSupplyCollection`
+ * exactly so an operator can be answered), the producer's HTTP status and the
+ * target it called. Gated on key C in `worker/index.ts` — his credential, never
+ * a session: a reseller sees an honest empty state, never a diagnosis.
+ */
+async function handleSupplyDiagnostic(env?: StorefrontServiceEnv): Promise<Response> {
+  const result = await readSupplyCollection(env, new Date().toISOString());
+  return Response.json(
+    {
+      status: result.status,
+      served: result.offers.map((o) => ({ productVersionId: o.productVersionId, productName: o.productName })),
+      refusals: result.refusals,
+      ...(result.httpStatus !== undefined ? { httpStatus: result.httpStatus } : {}),
+      ...(result.target !== undefined ? { target: result.target } : {}),
+    },
+    { status: 200, headers: { 'Cache-Control': 'no-store' } },
+  );
+}
+
 export const handleRequest = async (request: Request, env?: StorefrontServiceEnv): Promise<Response> => {
   const url = new URL(request.url);
   // POST /media/upload — a WRITE route: NO CORS (never buyer-facing).
   if (request.method === 'POST' && url.pathname === '/media/upload') return handleMediaUpload(request, env);
+  // DIAGNOSTIC-OFFRE-1 — exact match, before its parent's exact match.
+  if (request.method === 'GET' && url.pathname === SUPPLY_DIAGNOSTIC_ROUTE) return handleSupplyDiagnostic(env);
   // BROWSE-SUPPLY-1 — EXACT match, never a prefix. `/supply-projections` does not
   // start with `/supply-projection/`, which is precisely how a prefix-based auth
   // check failed open on boutik's side; the gate in `worker/index.ts` matches this

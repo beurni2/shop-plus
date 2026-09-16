@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Miniflare } from 'miniflare';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { OPS_SECRET, seance, type Seance } from './seance';
+import { cleC, OPS_SECRET, seance, type Seance } from './seance';
 import type { StorefrontView } from '../src/customer-projection.js';
 
 /**
@@ -1331,5 +1331,102 @@ describe('SERVICE-PROVENANCE-1 — /health answers which build is live', () => {
     expect(wf).toContain("require('./node_modules/@platform/contracts/package.json').version");
     // …and the stamp is resolved BEFORE the bundle step, or it would define nothing
     expect(wf.indexOf('Resolve the provenance stamp')).toBeLessThan(wf.indexOf('bundle:worker:combined'));
+  });
+});
+
+/**
+ * ═══ SWEEP-CLIP-1 + DIAGNOSTIC-OFFRE-1 (founder, 2026-09-16: « fix the 3 that
+ * is still open ») — THE VIDEO PRODUCT THAT NEVER REACHED THE FEED, AND THE
+ * DOOR HE HAD NO WAY TO ASK ═══
+ *
+ * A SEPARATE Worker with its own producer, so the fixture is the whole story:
+ * one product whose clip key opens on a phone-shaped run (served now — a media
+ * reference is not free text), one product whose NAME carries a phone number
+ * (refused, closed — the sweep is still honest). The LEDGER decides twice: the
+ * browse read her app makes, and the founder's diagnostic on key C.
+ */
+describe('SWEEP-CLIP-1 + DIAGNOSTIC-OFFRE-1 — the clip key is served; the founder reads what was refused and why', () => {
+  const CLE_MALCHANCEUSE = 'media/70123456-c9e2-4a1b-8d3f-0a1b2c3d4e5f';
+  const VIDEO = {
+    productVersionId: 'pv-video-1', offerVersion: 'ov-video', basePrice: 8_000, resellerCommission: 600, available: 3,
+    productName: 'Coiffeuse dorée', assetRefs: [] as string[], category: 'Maison', videoRef: CLE_MALCHANCEUSE,
+  };
+  const FUITE = {
+    productVersionId: 'pv-fuite-1', offerVersion: 'ov-fuite', basePrice: 5_000, resellerCommission: 400, available: 2,
+    productName: 'Sac cuir 70123456', assetRefs: [] as string[], category: 'Sacs',
+  };
+  const persistSweep = mkdtempSync(join(tmpdir(), 'combined-sweep-'));
+  const mfSweep = new Miniflare({
+    modules: true,
+    scriptPath: SCRIPT,
+    durableObjects: { STOREFRONT: 'StorefrontDO', LISTING: 'ListingDO', COMPTES: 'ResellerAccountsDO' },
+    r2Buckets: ['BUCKET'],
+    durableObjectsPersist: persistSweep,
+    bindings: { CHECKOUT_OPS_SECRET: OPS_SECRET, PRODUCT_MEDIA_BASE, MEDIA_PUBLIC_BASE },
+    serviceBindings: {
+      OFFER: async (request: Request) => {
+        const asOf = new Date().toISOString();
+        if (new URL(request.url).pathname === '/supply-projections') {
+          return Response.json({ asOf, items: [{ version: 1, asOf, value: VIDEO }, { version: 1, asOf, value: FUITE }] });
+        }
+        return Response.json({ service: 'offer-service', status: 'not_found' }, { status: 404 });
+      },
+    },
+  });
+  let elle: Seance;
+  beforeAll(async () => {
+    elle = await seance(mfSweep, 'sweep');
+  });
+  afterAll(async () => {
+    await mfSweep.dispose();
+    rmSync(persistSweep, { recursive: true, force: true });
+  });
+
+  it('her browse read SERVES the product whose clip key reads like a phone number, clip made absolute; the product whose NAME carries one is refused, closed', async () => {
+    const res = await mfSweep.dispatchFetch('http://c/supply-projections', { method: 'GET', headers: elle.bearer });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      offers: { productVersionId: string; productName: string; videoRef?: string }[];
+      diagnostic: { status: string; refusals: { productVersionId?: string; reason: string }[] };
+    };
+    expect(body.offers.map((o) => o.productVersionId)).toEqual(['pv-video-1']);
+    expect(body.offers[0]!.productName).toBe('Coiffeuse dorée');
+    expect(body.offers[0]!.videoRef).toBe(`${PRODUCT_MEDIA_BASE.replace(/\/+$/, '')}/${CLE_MALCHANCEUSE}`);
+    expect(body.diagnostic.status).toBe('ok');
+    expect(body.diagnostic.refusals).toEqual([{ productVersionId: 'pv-fuite-1', reason: 'identity_material_refused' }]);
+  });
+
+  it('GET /supply-projections/diagnostic is KEY C ALONE: no credential → 401, her session → 401 (the same non-oracle 401), key C → the diagnosis WITHOUT the economics', async () => {
+    const ouvert = await mfSweep.dispatchFetch('http://c/supply-projections/diagnostic', { method: 'GET' });
+    expect(ouvert.status).toBe(401);
+    expect((await ouvert.json()) as unknown).toEqual({ error: 'unauthorized' });
+    const session = await mfSweep.dispatchFetch('http://c/supply-projections/diagnostic', { method: 'GET', headers: elle.bearer });
+    expect(session.status).toBe(401);
+    expect((await session.json()) as unknown).toEqual({ error: 'unauthorized' });
+
+    const res = await mfSweep.dispatchFetch('http://c/supply-projections/diagnostic', { method: 'GET', headers: cleC });
+    expect(res.status).toBe(200);
+    expect(res.headers.get('Cache-Control')).toBe('no-store');
+    const text = await res.text();
+    const body = JSON.parse(text) as {
+      status: string;
+      served: { productVersionId: string; productName: string }[];
+      refusals: { productVersionId?: string; reason: string }[];
+      target?: { base?: string };
+    };
+    expect(body.status).toBe('ok');
+    expect(body.served).toEqual([{ productVersionId: 'pv-video-1', productName: 'Coiffeuse dorée' }]);
+    expect(body.refusals).toEqual([{ productVersionId: 'pv-fuite-1', reason: 'identity_material_refused' }]);
+    expect(body.target?.base).toBe('service-binding:OFFER');
+    // A diagnosis, never a payload mirror: no price, no commission, no offers.
+    for (const banned of ['basePrice', 'resellerCommission', '"offers"', '8000', '5000']) {
+      expect(text.includes(banned), `the diagnostic must not carry ${banned}`).toBe(false);
+    }
+  });
+
+  it('on a Worker with NO key C set, the door is CLOSED even to a bearer — fail closed, one identical 401', async () => {
+    const res = await mfNoSecret.dispatchFetch('http://c/supply-projections/diagnostic', { method: 'GET', headers: { Authorization: 'Bearer anything' } });
+    expect(res.status).toBe(401);
+    expect((await res.json()) as unknown).toEqual({ error: 'unauthorized' });
   });
 });

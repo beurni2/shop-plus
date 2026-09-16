@@ -58,6 +58,19 @@ export type SupplyVerdict =
  *  consumer catches (audit D3). */
 const CONTACT_NUMBER = /(?<!\d[\s.\-/]?)(?:(?:\+|00)\s?226[\s.\-/]?)?[2567](?:[\s.\-/]?\d){7}(?![\s.\-/]?\d)/;
 
+/**
+ * SWEEP-CLIP-1 (founder, 2026-09-16: « fix the 3 that is still open » — the
+ * video product that never reached the feed). The value scan is for FREE TEXT
+ * a supplier types (a name, a note). `videoRef` is not typed by anyone: it is
+ * the media service's own opaque `media/{uuid}` key — the string twin of the
+ * `assetRefs` array, which was never scanned. A uuid whose first segment
+ * happens to read as eight digits led by 2, 5, 6 or 7 made the WHOLE product
+ * vanish, silently to her, for the one product that carried a clip. STATED
+ * BOUND: this skips exactly the one string-typed media reference; every other
+ * string value (ids included) is still swept, fail closed.
+ */
+const REFERENCE_KEYS: ReadonlySet<string> = new Set(['videoRef']);
+
 function hasIdentityLeak(raw: unknown): boolean {
   if (raw === null || typeof raw !== 'object') return false;
   const value = (raw as { value?: unknown }).value;
@@ -65,8 +78,9 @@ function hasIdentityLeak(raw: unknown): boolean {
   const entries = Object.entries(value as Record<string, unknown>);
   // 1) an identity-shaped KEY (supplierPhone, pickup, adresse …): the field leak.
   if (entries.some(([k]) => IDENTITY_LEAK.test(k))) return true;
-  // 2) a phone number hidden in a free-text value (audit D3), fail closed.
-  return entries.some(([, v]) => typeof v === 'string' && CONTACT_NUMBER.test(v));
+  // 2) a phone number hidden in a free-text value (audit D3), fail closed —
+  //    a media reference is not text (SWEEP-CLIP-1).
+  return entries.some(([k, v]) => !REFERENCE_KEYS.has(k) && typeof v === 'string' && CONTACT_NUMBER.test(v));
 }
 
 /**

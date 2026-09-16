@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { mountApp, wire, wiredEnv, type Route, type Screen, type Wire } from './rendu';
 import { resetFiles } from './doubles/expo-file-system';
-import { RAYONS_BOUTIK } from '../src/vitrine/rayons';
+import { RAYONS } from '../src/vitrine/rayons';
 
 /**
  * ═══ RENDU-RÉEL — PROFIL-REVENDEUR-1 (founder, 2026-08-25: « create a profile
@@ -336,7 +336,7 @@ describe('RAYONS-CANON-1 — « Mes rayons » offers Boutik+’s WHOLE taxonomy,
     // THE WALK FOLLOWS THE MIRROR, never a hand-picked three: all 8 shelves,
     // all 30 categories, choosable although the feed is empty (written red
     // first — the founder's Maison product had no chip to reach it).
-    for (const rayon of RAYONS_BOUTIK) {
+    for (const rayon of RAYONS) {
       expect(screen.shows(rayon.titre), rayon.titre).toBe(true);
       for (const c of rayon.categories) {
         expect(screen.canPress(c), `${c} — on screen: ${JSON.stringify(screen.texts())}`).toBe(true);
@@ -616,6 +616,33 @@ describe('CERCLE-PROFIL-1 — the Cercle lives on her page now, and the dock is 
     await screen.press('Mon Cercle');
     const horsDock = screen.texts().filter((t) => !['Accueil', 'Opportunités', 'Ma Vitrine', 'Gains', 'Profil'].includes(t));
     expect(horsDock.length).toBeGreaterThan(2);
+    screen.unmount();
+  });
+});
+
+describe('RAYONS-HERITES-1 — an id-era rayon on her account is ONE chip, ticked; her next save writes the label', () => {
+  it('« shoes » on the book: the hub counts one rayon; « Mes rayons » ticks ONE « Chaussures » (no « Autres rayons »); saving without a change sends « Chaussures » — the migration is hers, never silent', async () => {
+    await seedCompte(['shoes']);
+    const serveur = profilInitial(['shoes']);
+    const fils = wire(routes(serveur, {}, []));
+    const screen = await mountApp();
+    await screen.press('Profil');
+    expect(screen.shows('1 rayon sur 5')).toBe(true);
+    await screen.press('Mes rayons');
+
+    expect(screen.shows('Autres rayons'), 'the id has a twin on a shelf — nothing to put under « Autres »').toBe(false);
+    expect(screen.shows('Vos choix : Chaussures')).toBe(true);
+    expect(screen.shows('1 sur 5')).toBe(true);
+    // ONE control answers to the label — `press` would refuse two.
+    await screen.press('Chaussures');
+    expect(screen.shows(AUCUN), 'the tick came off — it was the same rayon').toBe(true);
+    await screen.press('Chaussures');
+    expect(screen.shows('Vos choix : Chaussures')).toBe(true);
+
+    await screen.press('Enregistrer');
+    expect(lectures(fils)[1]!.body).toEqual({ categories: ['Chaussures'] });
+    expect(screen.shows('Mon profil')).toBe(true);
+    expect(screen.shows('1 rayon sur 5')).toBe(true);
     screen.unmount();
   });
 });

@@ -21,7 +21,7 @@ import {
 } from './reseller-accounts-do.js';
 import { DLQ_NAME, DeadLetterDO } from './dead-letter-do.js';
 import { checkoutPreflight, handleRequest, withReadCors, type StorefrontServiceEnv } from '../src/index.js';
-import { SUPPLY_COLLECTION_ROUTE } from '../src/supply-collection.js';
+import { SUPPLY_COLLECTION_ROUTE, SUPPLY_DIAGNOSTIC_ROUTE } from '../src/supply-collection.js';
 import { signPrice } from '../src/publish-price.js';
 import { resolveSupplySource } from '../src/supply-source.js';
 import { orderIdForQuote } from '../src/order-core.js';
@@ -1634,6 +1634,18 @@ export default {
     //     boutik's side. `isListings` above is the same idiom and the reason this
     //     one is written with `===`.
     const isSupplyCollection = pathname === SUPPLY_COLLECTION_ROUTE;
+    //   · /supply-projections/diagnostic (DIAGNOSTIC-OFFRE-1, founder 2026-09-16)
+    //     — the founder's OWN read of what the supply road served and refused,
+    //     and why. KEY C ALONE: never a session (a reseller sees an honest empty
+    //     state, never a diagnosis — the same rule the collection's diagnostic
+    //     field already states), never open. The one identical 401 otherwise,
+    //     computed before any dispatch. Exact match, like its parent: this path
+    //     is `===` its own string and starts no prefix the gates below read.
+    if (request.method === 'GET' && pathname === SUPPLY_DIAGNOSTIC_ROUTE) {
+      const refused = await rejectUnauthorizedOpsRead(request, env);
+      if (refused) return refused;
+      return handleRequest(request, env);
+    }
     /**
      * ═══ RESELLER-AUTH-1 (AUDIT-SHOP-1 slice a2a) — WHO IS CALLING, AND WHAT IS HERS ═══
      *

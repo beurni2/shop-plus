@@ -11,6 +11,7 @@ onlyBuiltDependencies:
   - "@platform/i18n"
   - "@platform/ui-tokens"
   - "@platform/certification"
+  - "@platform/taxonomy"
   # workerd: the real Workers runtime used by the commerce-core reservation-DO
   # adversarial tests (WO-1.1); its postinstall places the binary.
   - "workerd"
