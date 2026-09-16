@@ -65,14 +65,25 @@ const CONTACT_NUMBER = /(?<!\d[\s.\-/]?)(?:(?:\+|00)\s?226[\s.\-/]?)?[2567](?:[\
  * the media service's own opaque `media/{uuid}` key — the string twin of the
  * `assetRefs` array, which was never scanned. A uuid whose first segment
  * happens to read as eight digits led by 2, 5, 6 or 7 made the WHOLE product
- * vanish, silently to her, for the one product that carried a clip. STATED
- * BOUND: this skips exactly the one string-typed media reference; every other
- * string value (ids included) is still swept, fail closed. The wire itself does
- * not enforce that a ref is opaque (`AssetRefSchema` is a non-empty string) —
- * the bound is the PRODUCER's, exactly as it has been for `assetRefs` since
- * v2.0.0, and the value is never rendered as text on any surface.
+ * vanish, silently to her, for the one product that carried a clip. The wire
+ * itself does not enforce that a ref is opaque (`AssetRefSchema` is a
+ * non-empty string) — the bound is the PRODUCER's, exactly as it has been for
+ * `assetRefs` since v2.0.0, and the value is never rendered as text on any
+ * surface.
+ *
+ * SWEEP-ID-1 (founder report, 2026-09-16, after SWEEP-CLIP-1 shipped: « the
+ * product with the video is still not showing »). The clip key was not the
+ * string that sank it: its PRODUCT VERSION ID was — `b7875351-6d7…`, whose
+ * « 7875351-6 » the pattern reads as the mobile 78 75 35 16 (one hyphen is a
+ * permitted separator). Boutik+ served the product; this sweep refused it by
+ * its own name, and the nine other products were served only because their
+ * uuids happened to be clean. So the skip is now the CLASS, not one field: the
+ * values the PRODUCER MINTS and nobody types — `productVersionId`,
+ * `offerVersion`, `videoRef` — are references, never text. STATED BOUND: the
+ * typed strings (`productName`, `category`, any future free-text field) are
+ * still swept, fail closed; an identity-shaped KEY is still refused first.
  */
-const REFERENCE_KEYS: ReadonlySet<string> = new Set(['videoRef']);
+const REFERENCE_KEYS: ReadonlySet<string> = new Set(['productVersionId', 'offerVersion', 'videoRef']);
 
 function hasIdentityLeak(raw: unknown): boolean {
   if (raw === null || typeof raw !== 'object') return false;

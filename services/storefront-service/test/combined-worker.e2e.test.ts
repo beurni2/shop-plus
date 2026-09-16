@@ -1344,6 +1344,13 @@ describe('SERVICE-PROVENANCE-1 — /health answers which build is live', () => {
  * reference is not free text), one product whose NAME carries a phone number
  * (refused, closed — the sweep is still honest). The LEDGER decides twice: the
  * browse read her app makes, and the founder's diagnostic on key C.
+ *
+ * SWEEP-ID-1 (founder report 2026-09-16, with the clip skip already live: « the
+ * product with the video is still not showing »): a third product carrying the
+ * founder's REAL id shape — `b7875351-6d7…`, whose « 7875351-6 » the pattern
+ * read as the mobile 78 75 35 16 — is served now: a producer-minted id is a
+ * reference, never text. Boutik+'s live list said this product was live all
+ * along; the refusal was this Worker's, by the product's own name.
  */
 describe('SWEEP-CLIP-1 + DIAGNOSTIC-OFFRE-1 — the clip key is served; the founder reads what was refused and why', () => {
   const CLE_MALCHANCEUSE = 'media/70123456-c9e2-4a1b-8d3f-0a1b2c3d4e5f';
@@ -1354,6 +1361,11 @@ describe('SWEEP-CLIP-1 + DIAGNOSTIC-OFFRE-1 — the clip key is served; the foun
   const FUITE = {
     productVersionId: 'pv-fuite-1', offerVersion: 'ov-fuite', basePrice: 5_000, resellerCommission: 400, available: 2,
     productName: 'Sac cuir 70123456', assetRefs: [] as string[], category: 'Sacs',
+  };
+  const ID_DU_FONDATEUR = 'b7875351-6d7f-4a2b-8c3d-e5f6a7b8c9d0';
+  const FONDATEUR = {
+    productVersionId: ID_DU_FONDATEUR, offerVersion: '1', basePrice: 12_000, resellerCommission: 900, available: 5,
+    productName: 'Lampe de chevet', assetRefs: [] as string[], category: 'Maison', videoRef: 'media/7c3d5a1e-2b4f-4c6e-9a8b-1d2e3f4a5b6c',
   };
   const persistSweep = mkdtempSync(join(tmpdir(), 'combined-sweep-'));
   const mfSweep = new Miniflare({
@@ -1367,7 +1379,7 @@ describe('SWEEP-CLIP-1 + DIAGNOSTIC-OFFRE-1 — the clip key is served; the foun
       OFFER: async (request: Request) => {
         const asOf = new Date().toISOString();
         if (new URL(request.url).pathname === '/supply-projections') {
-          return Response.json({ asOf, items: [{ version: 1, asOf, value: VIDEO }, { version: 1, asOf, value: FUITE }] });
+          return Response.json({ asOf, items: [{ version: 1, asOf, value: VIDEO }, { version: 1, asOf, value: FONDATEUR }, { version: 1, asOf, value: FUITE }] });
         }
         return Response.json({ service: 'offer-service', status: 'not_found' }, { status: 404 });
       },
@@ -1382,15 +1394,17 @@ describe('SWEEP-CLIP-1 + DIAGNOSTIC-OFFRE-1 — the clip key is served; the foun
     rmSync(persistSweep, { recursive: true, force: true });
   });
 
-  it('her browse read SERVES the product whose clip key reads like a phone number, clip made absolute; the product whose NAME carries one is refused, closed', async () => {
+  it('her browse read SERVES the product whose clip key reads like a phone number (clip made absolute) AND the founder’s product whose ID does (SWEEP-ID-1); the product whose NAME carries one is refused, closed', async () => {
     const res = await mfSweep.dispatchFetch('http://c/supply-projections', { method: 'GET', headers: elle.bearer });
     expect(res.status).toBe(200);
     const body = (await res.json()) as {
       offers: { productVersionId: string; productName: string; videoRef?: string }[];
       diagnostic: { status: string; refusals: { productVersionId?: string; reason: string }[] };
     };
-    expect(body.offers.map((o) => o.productVersionId)).toEqual(['pv-video-1']);
+    expect(body.offers.map((o) => o.productVersionId)).toEqual(['pv-video-1', ID_DU_FONDATEUR]);
     expect(body.offers[0]!.productName).toBe('Coiffeuse dorée');
+    expect(body.offers[1]!.productName).toBe('Lampe de chevet');
+    expect(body.offers[1]!.videoRef, 'the founder’s clip rides with it, absolutized').toBe(`${PRODUCT_MEDIA_BASE.replace(/\/+$/, '')}/${FONDATEUR.videoRef}`);
     expect(body.offers[0]!.videoRef).toBe(`${PRODUCT_MEDIA_BASE.replace(/\/+$/, '')}/${CLE_MALCHANCEUSE}`);
     expect(body.diagnostic.status).toBe('ok');
     expect(body.diagnostic.refusals).toEqual([{ productVersionId: 'pv-fuite-1', reason: 'identity_material_refused' }]);
@@ -1417,11 +1431,14 @@ describe('SWEEP-CLIP-1 + DIAGNOSTIC-OFFRE-1 — the clip key is served; the foun
     };
     expect(body.status).toBe('ok');
     expect(body.httpStatus, 'the producer’s own status — an operator’s first clue').toBe(200);
-    expect(body.served).toEqual([{ productVersionId: 'pv-video-1', productName: 'Coiffeuse dorée' }]);
+    expect(body.served).toEqual([
+      { productVersionId: 'pv-video-1', productName: 'Coiffeuse dorée' },
+      { productVersionId: ID_DU_FONDATEUR, productName: 'Lampe de chevet' },
+    ]);
     expect(body.refusals).toEqual([{ productVersionId: 'pv-fuite-1', reason: 'identity_material_refused' }]);
     expect(body.target?.base).toBe('service-binding:OFFER');
     // A diagnosis, never a payload mirror: no price, no commission, no offers.
-    for (const banned of ['basePrice', 'resellerCommission', '"offers"', '8000', '5000']) {
+    for (const banned of ['basePrice', 'resellerCommission', '"offers"', '8000', '5000', '12000']) {
       expect(text.includes(banned), `the diagnostic must not carry ${banned}`).toBe(false);
     }
   });

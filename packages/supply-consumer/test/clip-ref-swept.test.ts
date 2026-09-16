@@ -56,3 +56,41 @@ describe('SWEEP-CLIP-1 — a media reference is not free text: the clip key is n
     if (verdict.status === 'rejected') expect(verdict.reason).toBe('identity_material_refused');
   });
 });
+
+/**
+ * ═══ SWEEP-ID-1 — FOUNDER REPORT (2026-09-16, after SWEEP-CLIP-1 was live):
+ * « When I select the category maison on opportunité the product with the
+ * video is still not showing » ═══
+ *
+ * The live check read Boutik+'s own list: the video product is LIVE there,
+ * rayon « Maison », stock 5, clip attached. Its product version id begins
+ * `b7875351-6d7…` — and « 7875351-6 » is, to the sweep, the mobile 78 75 35 16
+ * (a single hyphen is a permitted separator; the « b » before and the « d »
+ * after satisfy both bounds). The nine other products' ids happen to carry no
+ * such run. Written red first: the founder's exact id shape was refused.
+ */
+const ID_DU_FONDATEUR = 'b7875351-6d7f-4a2b-8c3d-e5f6a7b8c9d0';
+
+describe('SWEEP-ID-1 — a producer-minted identifier is not free text: the product version id is never read as a phone number', () => {
+  it('the founder’s product — its id opening on « 7875351-6 » — is SERVED, with its video', () => {
+    const verdict = consumeSupplyItem(value({ productVersionId: ID_DU_FONDATEUR, videoRef: CLE_ORDINAIRE }), NOW);
+    expect(verdict.status).toBe('fresh');
+    if (verdict.status === 'fresh') {
+      expect(verdict.projection.productVersionId).toBe(ID_DU_FONDATEUR);
+      expect(verdict.projection.videoRef).toBe(CLE_ORDINAIRE);
+    }
+  });
+  it('an offer version that happens to be phone-shaped is served too (minted, never typed)', () => {
+    expect(consumeSupplyItem(value({ offerVersion: '70123456' }), NOW).status).toBe('fresh');
+  });
+  it('CONTROL — the SAME run in the category (typed by a supplier) is still refused, closed', () => {
+    const verdict = consumeSupplyItem(value({ category: 'Maison 7875351-6' }), NOW);
+    expect(verdict.status).toBe('rejected');
+    if (verdict.status === 'rejected') expect(verdict.reason).toBe('identity_material_refused');
+  });
+  it('CONTROL — the name still refuses it (the SWEEP-CLIP-1 control holds with the wider skip)', () => {
+    const verdict = consumeSupplyItem(value({ productVersionId: ID_DU_FONDATEUR, productName: 'Coiffeuse 78 75 35 16' }), NOW);
+    expect(verdict.status).toBe('rejected');
+    if (verdict.status === 'rejected') expect(verdict.reason).toBe('identity_material_refused');
+  });
+});
