@@ -855,6 +855,60 @@ describe('PROFIL-REVENDEUR-1 — each section patches alone, and the BOOK answer
     expect(relu.json['email']).toBe(elle.email);
     expect('categories' in relu.json).toBe(false);
   }, 60_000);
+
+  /**
+   * RAYONS-CANON-1 (founder, 2026-09-12) — THE SEAM: the app's OWN account
+   * port (`resolveCompteService`, imported from the app, never re-implemented)
+   * against the built Worker on workerd, carrying Boutik+'s taxonomy labels
+   * that leave Shop+ for the first time — an `&` and a straight apostrophe
+   * among them. The LEDGER decides: the roster (key C) and a fresh read, never
+   * the save's own answer. The account book bounds only shape (a trimmed
+   * string ≤ 64 chars, at most five), so the bytes must come back untouched.
+   */
+  it('RAYONS-CANON-1 seam — through the app’s port: « Maison », « Assiettes & couverts enfant », « Jeux d’extérieur » save, read back and roster byte-identical; [] clears', async () => {
+    const elle = await activer();
+    const fetchAvant = globalThis.fetch;
+    const baseAvant = process.env['EXPO_PUBLIC_STOREFRONT_BASE'];
+    globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+      // workerd's dispatch takes the same init the app builds; the abort signal
+      // of the app's ceiling is not part of workerd's Request, so it is dropped
+      // here and the ceiling itself is proved in the app's own unit tests.
+      const { signal: _signal, ...reste } = init ?? {};
+      return (await mf.dispatchFetch(url, reste as never)) as unknown as Response;
+    }) as typeof fetch;
+    process.env['EXPO_PUBLIC_STOREFRONT_BASE'] = 'https://c';
+    try {
+      const app = await import('../../../apps/reseller-app/src/access/compte-service.js');
+      const port = app.resolveCompteService();
+      expect(port, 'the app resolves its port from the base').not.toBeNull();
+      const RAYONS = ['Maison', 'Assiettes & couverts enfant', "Jeux d'extérieur"] as const;
+
+      const sauve = await port!.profil(elle.session, { categories: [...RAYONS] });
+      expect(sauve.ok, JSON.stringify(sauve)).toBe(true);
+      if (sauve.ok) expect(sauve.profil.categories).toEqual([...RAYONS]);
+
+      // THE LEDGER, twice: the app's own read with the empty patch…
+      const relu = await port!.profil(elle.session);
+      expect(relu.ok).toBe(true);
+      if (relu.ok) expect(relu.profil.categories).toEqual([...RAYONS]);
+      // …and the founder's roster, outside the app entirely.
+      const rows = (await roster()).json.accounts ?? [];
+      const mienne = rows.find((r) => r['accountId'] === elle.accountId) as { categories?: unknown } | undefined;
+      expect(mienne?.categories).toEqual([...RAYONS]);
+
+      // The explicit clear, through the same port, and the book carries no key.
+      const vide = await port!.profil(elle.session, { categories: [] });
+      expect(vide.ok).toBe(true);
+      if (vide.ok) expect('categories' in vide.profil).toBe(false);
+      const apres = await profil(elle.session);
+      expect('categories' in apres.json).toBe(false);
+    } finally {
+      globalThis.fetch = fetchAvant;
+      if (baseAvant === undefined) delete process.env['EXPO_PUBLIC_STOREFRONT_BASE'];
+      else process.env['EXPO_PUBLIC_STOREFRONT_BASE'] = baseAvant;
+    }
+  }, 60_000);
 });
 
 /**

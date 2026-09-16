@@ -3334,5 +3334,83 @@
   "fr": "Envoyé, mais votre boutique n’a pas répondu. Rouvrez Ma vitrine pour voir.",
   "register": "selling",
   "screenClass": "status"
+ },
+ {
+  "key": "profil.rayons_titre",
+  "fr": "Mes rayons",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "profil.rayons_resume",
+  "fr": "{n} rayons sur 5",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "profil.rayons_resume_un",
+  "fr": "1 rayon sur 5",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "profil.rayons_aucun",
+  "fr": "Aucun rayon choisi. On vous montre tout.",
+  "register": "selling",
+  "screenClass": "status"
+ },
+ {
+  "key": "profil.rayons_choisis",
+  "fr": "Vos choix : {liste}",
+  "register": "selling",
+  "screenClass": "status"
+ },
+ {
+  "key": "profil.rayons_compte",
+  "fr": "{n} sur 5",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "profil.rayons_autres",
+  "fr": "Autres rayons",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "profil.mdp_aide",
+  "fr": "Changez-le quand vous voulez.",
+  "register": "neutral",
+  "screenClass": "general"
+ },
+ {
+  "key": "profil.email_aide",
+  "fr": "C'est avec cet email que vous vous connectez.",
+  "register": "neutral",
+  "screenClass": "instruction"
+ },
+ {
+  "key": "profil.email_pris",
+  "fr": "Cet email appartient déjà à un autre compte. Essayez-en un autre.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "profil.rayons_enregistres",
+  "fr": "Rayons enregistrés. Vos opportunités suivent vos choix.",
+  "register": "selling",
+  "screenClass": "status"
+ },
+ {
+  "key": "profil.mdp_enregistre",
+  "fr": "Mot de passe changé.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "profil.rayons_plus_tard",
+  "fr": "Vous pourrez changer ça plus tard, dans votre profil.",
+  "register": "selling",
+  "screenClass": "instruction"
  }
 ]

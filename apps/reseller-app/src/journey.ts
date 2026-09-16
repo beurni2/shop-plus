@@ -24,7 +24,14 @@ export type Screen =
   // PROFIL-REVENDEUR-1 (founder order 2026-08-25) — her registration data and
   // her rayons, viewable and editable. A dock hub; the accueil header (her
   // monogram and shop name) is the in-content road that walks the edge.
-  | 'profil';
+  | 'profil'
+  // PROFIL-PRO-1 (founder order 2026-09-12: « make it be like a real
+  // professional and well structured profile screen ») — the profile is a
+  // HUB with one leaf per task: her details, her rayons, her password. Each
+  // leaf has one form, one « Enregistrer » and « Retour »; none goes onward.
+  | 'profil-infos'
+  | 'profil-rayons'
+  | 'profil-mdp';
 
 export const START: Screen = 'accueil';
 
@@ -66,5 +73,9 @@ export const JOURNEY: Record<Screen, readonly Screen[]> = {
   membres: [],
   // CERCLE-PROFIL-1 (founder, 2026-08-25) — the Cercle tab is retired; the
   // hub now opens from HER page's own row (and still from the accueil card).
-  profil: ['cercle'],
+  // PROFIL-PRO-1 — and the three leaves open from the hub's own rows.
+  profil: ['cercle', 'profil-infos', 'profil-rayons', 'profil-mdp'],
+  'profil-infos': [],
+  'profil-rayons': [],
+  'profil-mdp': [],
 };

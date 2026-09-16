@@ -125,6 +125,10 @@ describe('RAISON-NOMMEE-1 (F-41) — Profil\'s password fields are masked, with 
     const screen = await mountApp();
     await screen.press('Profil');
     for (let i = 0; i < 8 && !screen.shows('Mot de passe'); i += 1) await screen.settle();
+    // PIN EVOLVED (PROFIL-PRO-1): the password form is its own leaf behind
+    // the hub's « Mot de passe » door; the property — masked, one eye for
+    // both — is unchanged.
+    await screen.press('Mot de passe');
 
     const champs = () =>
       screen.tree.root
