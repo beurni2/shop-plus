@@ -208,12 +208,15 @@ describe('OPPORTUNITÉS — her rayons narrow the whole screen', () => {
     screen.unmount();
   });
 
-  it('a compte with NO choice sees everything — the pre-slice screen, untouched', async () => {
+  it('a compte with NO choice sees everything — the pre-slice screen, untouched; its chips row is still what the feed contains', async () => {
     await seedCompte();
     wire(routes());
     const screen = await mountApp();
     await screen.press('Opportunités');
     for (const f of FEED) expect(screen.shows(f.nom), f.nom).toBe(true);
+    // RAYONS-CHIPS-CHOISIS-1 changes the row only for a compte WITH a choice:
+    // here a feed-present category is a chip, as before (verifier MINOR 1).
+    expect(screen.canPress(CAT.C), 'a feed-present category is a chip with no choice made').toBe(true);
     screen.unmount();
   });
 
@@ -233,7 +236,7 @@ describe('OPPORTUNITÉS — her rayons narrow the whole screen', () => {
     screen.unmount();
   });
 
-  it('RAYONS-CHIPS-CHOISIS-1 — a chosen rayon with nothing on the feed is a chip beside her full ones; behind it, the grid names the rayon; with NO choice made the row is still what the feed contains', async () => {
+  it('RAYONS-CHIPS-CHOISIS-1 — a chosen rayon with nothing on the feed is a chip beside her full ones; behind it, the grid names the rayon; a rayon she did not choose is no chip', async () => {
     await seedCompte([CAT.A, 'Bavoir']);
     wire(routes());
     const screen = await mountApp();
