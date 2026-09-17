@@ -117,6 +117,8 @@ interface FauxConteneur {
   readonly img: FauxImg;
   /** How many times the tree was rebuilt. */
   readonly rendus: number;
+  /** A control of the CURRENT tree — the same node until the tree is rebuilt, a new one after. */
+  noeud: (action: string, attrs?: Record<string, string>) => FauxElement;
 }
 
 function fauxConteneur(): FauxConteneur {
@@ -124,22 +126,34 @@ function fauxConteneur(): FauxConteneur {
   let html = '';
   let img = new FauxImg(undefined);
   let rendus = 0;
+  let noeuds = new Map<string, FauxElement>();
   return {
     get innerHTML() {
       return html;
     },
     // A rebuilt tree is a FRESH node: the previous stand-in's patches die with
-    // it — complete at birth only if its src is already in the cache.
+    // it — complete at birth only if its src is already in the cache — and so
+    // does every control's identity.
     set innerHTML(v: string) {
       html = v;
       rendus += 1;
       img = new FauxImg(SRC_DU_CADRE.exec(v)?.[1]);
+      noeuds = new Map();
     },
     get img() {
       return img;
     },
     get rendus() {
       return rendus;
+    },
+    noeud(action, attrs = {}) {
+      expect(html, `l'action « ${action} » doit être à l'écran`).toContain(`data-action="${action}"`);
+      let el = noeuds.get(action);
+      if (el === undefined) {
+        el = new FauxElement({ 'data-action': action, ...attrs });
+        noeuds.set(action, el);
+      }
+      return el;
     },
     classList: { add: () => {}, remove: () => {}, toggle: () => {} },
     style: { setProperty: () => {} },
@@ -205,6 +219,33 @@ class FauxImage {
     };
     if (lentes.has(v)) retenues.push(livrer);
     else queueMicrotask(livrer);
+  }
+}
+
+/* ─────────────────────────────── the audio double ───────────────────────── */
+
+/** The browser's audio element, stood in: records plays, answers pause. */
+let audio: FauxAudio | null = null;
+let lectures = 0;
+class FauxAudio {
+  src = '';
+  currentTime = 0;
+  paused = true;
+  private h: Record<string, Array<() => void>> = {};
+  constructor() {
+    audio = this;
+  }
+  addEventListener(type: string, f: () => void): void {
+    (this.h[type] ??= []).push(f);
+  }
+  play(): Promise<void> {
+    this.paused = false;
+    lectures += 1;
+    return Promise.resolve();
+  }
+  pause(): void {
+    this.paused = true;
+    for (const f of this.h['pause'] ?? []) f();
   }
 }
 
@@ -480,6 +521,40 @@ describe('DIAPO-C1 — the lazy slideshow on the product frame, walked', () => {
     expect(demandes).toEqual([]);
     expect(srcDuCadre(c)).toBe(P0);
     expect(c.innerHTML).not.toContain('cl-diapo');
+  });
+
+  it('a playing voice note keeps its face through a swap: the control under her thumb is the same node, and tapping it PAUSES instead of restarting', async () => {
+    const NOTE = 'https://media.test/pagne-note.m4a';
+    const doc = { visibilityState: 'visible', addEventListener: () => {}, removeEventListener: () => {}, querySelector: () => null };
+    const vraiAudio = (globalThis as { Audio?: unknown }).Audio;
+    (globalThis as Record<string, unknown>)['document'] = doc;
+    (globalThis as Record<string, unknown>)['Audio'] = FauxAudio;
+    // Read through a call: the flow creates the element, not this walk.
+    const lecteur = (): FauxAudio | null => audio;
+    lectures = 0;
+    try {
+      const c = monter({ ...PRODUIT, voiceDuree: '0:12', voiceUrl: NOTE });
+      c.img.charger();
+      const bouton = c.noeud('voix-lire', { 'data-voix-url': NOTE });
+      c.dispatch('click', { target: bouton });
+      await souffler();
+      expect(lectures, 'her tap plays the note').toBe(1);
+      expect(lecteur()?.paused).toBe(false);
+
+      await attendre(4_000); // a swap, mid-note
+      expect(diapoDe(c)).toBe('1');
+      const encore = c.noeud('voix-lire', { 'data-voix-url': NOTE });
+      expect(encore, 'nothing rebuilt the control under her thumb').toBe(bouton);
+
+      c.dispatch('click', { target: encore });
+      expect(lecteur()?.paused, 'the second tap pauses the note — it does not restart it from zero on a stranger node').toBe(true);
+      expect(lectures).toBe(1);
+    } finally {
+      for (const arreter of arrets) arreter();
+      arrets = [];
+      delete (globalThis as Record<string, unknown>)['document'];
+      (globalThis as Record<string, unknown>)['Audio'] = vraiAudio;
+    }
   });
 
   it('a hidden tab holds its place; the show resumes when she looks again', async () => {
