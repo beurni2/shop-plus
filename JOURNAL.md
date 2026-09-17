@@ -1,7 +1,7 @@
 # JOURNAL — shop-plus
 Continuity ledger per CTO charter §6/§6bis. Every entry is evidence-grounded.
 
-## 2026-09-17 · DIAPO-C1 — SP2.3 lazy slideshow + fallback on the buyer's product frame: queued (one photo at a time, after the hero paints), cancellable (a tap opens the gallery where she is; leaving clears it), static fallback (reduced motion · saveData · a failed photo · a clip · one photo) — and the swap patches the frame IN PLACE, never rebuilds the screen · BUILT ON THE BRANCH, awaiting the founder's word
+## 2026-09-17 · DIAPO-C1 — SP2.3 lazy slideshow + fallback on the buyer's product frame: queued (one photo at a time, after the hero paints), cancellable (a tap opens the gallery where she is; leaving clears it), static fallback (reduced motion · saveData · a failed photo · a clip · one photo) — and the swap patches the frame IN PLACE, never rebuilds the screen · MERGED AND PUBLISHED 2026-09-17 on the founder's « Go »
 
 **Founder order 2026-09-17:** « proceed with the batch but leave out photo normalization » — the third slice of the batch: « Slideshow that waits its turn. The product slideshow loads lazily, can be cancelled, and falls back to a still image on a weak connection. »
 
@@ -40,6 +40,8 @@ No finding was dropped; none is disputed.
 **What did NOT change.** No money rule, no `contracts/` shape, no event, no Worker, no migration, no new dependency, no catalog string (the show has no words). The gallery, the clip, the vitrine tiles, the reprise snapshot and the buyer's checkout are untouched.
 
 **Open.** None on this slice. The real-browser walk of the motion waits for a demo product with two real photos (D5).
+
+**MERGED AND PUBLISHED 2026-09-17 on the founder's « Go but make sure the slideshow will need to wait for a video to finish before moving to the next »** — the « Go » is this merge; the condition is DIAPO-VIDEO-1 (the entry above it). main `88968b2` → `49291e2` (fast-forward, ten commits); ci 679 · pwa-preview 467 · expo-preview 500 · service-canon-drift 359 green. No Worker deploy owed (no Worker, no canon pin touched): the live storefront Worker stays fa5256e / canon 3.15.0; the buyer PWA preview carries the slideshow.
 
 ## 2026-09-17 · NOM-BOUTIQUE-1 — SP5.2 store-name moderation on create and rename, at the authority: three named, deterministic refusals, one rule set for both doors, one sentence per rule on her screen · MERGED AND DEPLOYED 2026-09-17 on the founder's « Go »
 
