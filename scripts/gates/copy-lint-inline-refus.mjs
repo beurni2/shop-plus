@@ -146,8 +146,11 @@ const REFUS_VIEWS = ['generique', 'listing_unknown', 'not_found', 'listing_not_l
   'request_key_reused', 'bad_field', 'malformed', 'unknown_field', 'no_secure_random',
   // REFUS-NOMMÉS-1 (F-53) — the reserve and order roads' names
   'reservation_expired', 'quote_not_reserved', 'reservation_held_by_another', 'quote_unknown', 'stored_quote_unreadable',
-  'liste_prepaiement_requis', 'liste_contact_conflit', 'pay_at_door_not_eligible'];
-const REFUS_SANS_ACTION = new Set(['no_secure_random', 'liste_contact_conflit']);
+  'liste_prepaiement_requis', 'liste_contact_conflit', 'pay_at_door_not_eligible',
+  // PAUSE-VENTE-1 (founder ruling 2026-09-17) — the founder paused the shop's
+  // owner: no action, every in-app road meets the same pause.
+  'reseller_paused'];
+const REFUS_SANS_ACTION = new Set(['no_secure_random', 'liste_contact_conflit', 'reseller_paused']);
 for (const view of REFUS_VIEWS) {
   const fields = { overline: L(), titre: S(), phrase: S() };
   if (!REFUS_SANS_ACTION.has(view)) fields.libelle = L();
