@@ -630,6 +630,9 @@ describe('DIAPO-C1 — the lazy slideshow on the product frame, walked', () => {
     expect(c.video, 'back to the clip: a fresh element in the frame, not fetched through the photo loader').not.toBeNull();
     expect(c.video).not.toBe(clip);
     expect(c.video?.loop, 'waited for again: the loop is off on the new element too').toBe(false);
+    expect(c.innerHTML, 'the swapped-in clip carries what lets it start at all (VIDEO-PARTOUT)').toMatch(
+      /<video class="cl-photo-img" data-role="video-hero" [^>]*autoplay muted playsinline/,
+    );
     expect(demandes).toEqual([P0, P1]);
     expect(c.rendus).toBe(rendusAvant);
     await attendre(12_000);
@@ -747,6 +750,36 @@ describe('DIAPO-C1 — the lazy slideshow on the product frame, walked', () => {
     relance?.finir();
     await souffler();
     expect(demandes).toEqual([P0]);
+    expect(diapoDe(c)).toBe('1');
+  });
+
+  it('WITH A CLIP: the clip ends, the first photograph is slow, and a real render restarts the clip before it lands — the landing never cuts the restarted clip short; it is waited for', async () => {
+    lentes.add(P0);
+    const c = monter(PRODUIT_CLIP);
+    c.video?.finir();
+    await souffler();
+    expect(demandes, 'the clip is over: the first photograph is in flight').toEqual([P0]);
+    expect(c.video, 'nothing swaps before it lands').not.toBeNull();
+
+    // A toast, a chip, the sheet: the page redraws with a fresh clip, restarted.
+    presser(c, 'ouvrir-protections');
+    presser(c, 'fermer-protections');
+    const relance = c.video;
+    expect(relance).not.toBeNull();
+    expect(relance?.loop, 'the show follows the restarted clip at once').toBe(false);
+
+    lentes.clear();
+    liberer();
+    await souffler();
+    expect(c.video, 'the photograph landed mid-clip: the clip stays, it is not cut short').toBe(relance);
+    expect(demandes).toEqual([P0]);
+    await attendre(12_000);
+    expect(c.video, 'and it is waited for, however long it plays').toBe(relance);
+
+    relance?.finir();
+    await souffler();
+    expect(demandes, 'its end asks for the photograph again (from the cache)').toEqual([P0, P0]);
+    expect(c.video).toBeNull();
     expect(diapoDe(c)).toBe('1');
   });
 

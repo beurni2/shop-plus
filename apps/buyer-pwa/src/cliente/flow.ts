@@ -933,6 +933,8 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
       planifierDiapo();
       return;
     }
+    // One photograph in flight per visit: the clip's end mid-fetch starts no second.
+    if (diapoEnVol === generation) return;
     const gen = generation;
     diapoEnVol = gen;
     prechargerPhoto(cible.src).then(
@@ -940,6 +942,11 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
         if (diapoEnVol === gen) diapoEnVol = -1;
         // Landed on a screen she has left, or after a tap: the photo stays cached, the frame stays.
         if (gen !== generation || diapoActif !== true || state.screen !== 'C1' || state.galerie !== null) return;
+        // DIAPO-VIDEO-1 — landed while a restarted clip plays (a real render
+        // redrew the frame mid-fetch): the clip is never cut short. It is
+        // listened to already (`armerDiapo`); its end asks again, from the cache.
+        const v = clipDuCadre();
+        if (v !== null && !v.ended) return;
         state.diapo = suivante;
         peindreDiapo();
         planifierDiapo();
@@ -995,7 +1002,11 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
     if (diapoSlides()[state.diapo]?.kind === 'clip') {
       if (diapoT !== null) clearTimeout(diapoT);
       diapoT = null;
-      planifierDiapo();
+      // Straight to the element, not through `planifierDiapo`: a photograph
+      // may be in flight from the clip's first ending (verifier) — that
+      // landing must find this clip listened to, and yield to it.
+      const v = clipDuCadre();
+      if (v !== null) attendreClip(v);
       return;
     }
     if (diapoT !== null) return;
