@@ -807,6 +807,13 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
   let diapoT: ReturnType<typeof setTimeout> | null = null;
   /** null = not decided yet · true = playing · false = cancelled / fell back, for this mount. */
   let diapoActif: boolean | null = null;
+  /**
+   * The generation of the ONE photo in flight (−1 = none): a re-render mid-fetch
+   * must not arm a second timer (verifier) — but a fetch left behind by a jump
+   * (`clearT` bumps the generation) belongs to a visit that ended and must not
+   * stall the next one.
+   */
+  let diapoEnVol = -1;
   const diapoPhotos = (): readonly string[] =>
     m.videoRef !== undefined && m.videoRef !== '' ? [] : m.assetRefs.filter((r) => r !== '');
   function diapoPermis(): boolean {
@@ -842,12 +849,34 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
       i.src = src;
     });
   }
+  /**
+   * THE SWAP PATCHES THE FRAME IN PLACE — never `render()` (verifier, blocking).
+   * A rebuild of `container.innerHTML` every four seconds would replay the
+   * screen's entry motion on the whole page, reset an open sheet's scroll and
+   * rebuild a playing voice note's face — the exact lie VOIX-ÉTAT-2 closed. So
+   * only the ONE `<img>` changes: its `src`, its index, and its fade (the class
+   * comes off and back on, with a style flush on that node alone, so the
+   * animation replays on it and on nothing else). `state.diapo` still moves,
+   * so a LATER real render (a toast, a chip) draws the same photo.
+   */
+  function peindreDiapo(): void {
+    const img = container.querySelector<HTMLImageElement>('.cl-photo-img');
+    const src = diapoPhotos()[state.diapo];
+    if (img === null || src === undefined) return;
+    img.setAttribute('data-diapo', String(state.diapo));
+    img.classList.remove('cl-diapo');
+    void img.offsetWidth;
+    img.src = src;
+    img.classList.add('cl-diapo');
+  }
   function planifierDiapo(): void {
-    if (diapoT !== null) return;
+    if (diapoT !== null || diapoEnVol === generation) return;
     diapoT = setTimeout(() => {
       diapoT = null;
       if (state.screen !== 'C1' || state.loading || state.galerie !== null || state.refus !== null || diapoActif !== true) return;
-      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+      // Unseen (a hidden tab) or under her protections sheet (a money moment
+      // she is reading): hold the place, advance nothing.
+      if (state.sheet || (typeof document !== 'undefined' && document.visibilityState === 'hidden')) {
         planifierDiapo();
         return;
       }
@@ -856,14 +885,18 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
       const src = photos[suivante];
       if (src === undefined) return;
       const gen = generation;
+      diapoEnVol = gen;
       prechargerPhoto(src).then(
         () => {
+          if (diapoEnVol === gen) diapoEnVol = -1;
           // Landed on a screen she has left, or after a tap: the photo stays cached, the frame stays.
           if (gen !== generation || diapoActif !== true || state.screen !== 'C1' || state.galerie !== null) return;
           state.diapo = suivante;
-          render();
+          peindreDiapo();
+          planifierDiapo();
         },
         () => {
+          if (diapoEnVol === gen) diapoEnVol = -1;
           arreterDiapo();
         },
       );

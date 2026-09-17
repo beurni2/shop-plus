@@ -934,8 +934,9 @@ export const CLIENTE_STYLES = `
   }
   @media (prefers-reduced-motion: no-preference) { .cl-galerie { animation: clFade .18s ease; } }
   /* DIAPO-C1 (SP2.3) — the slideshow's whole motion: a short fade as each photo
-     lands (the element is rebuilt per swap, so the animation plays on mount).
-     Opacity only — nothing a 1GB Android has to lay out twice. */
+     lands. The swap patches the ONE <img> in place (the flow toggles this class
+     off and on with a style flush on that node, so the animation replays there
+     and nowhere else — the screen is never rebuilt for a swap). Opacity only. */
   @media (prefers-reduced-motion: no-preference) { .cl-photo-img.cl-diapo { animation: clFade .35s ease; } }
   .cl-galerie-top {
     display: flex; align-items: center; justify-content: space-between;
