@@ -25,13 +25,16 @@ import type { ClienteProduit } from '../src/cliente/screens';
  *    answers `querySelector('.cl-photo-img')` with ONE image stand-in whose
  *    `complete` / `load` are the paint facts the flow reads and whose `src`,
  *    attributes and class list record what the flow patched. Setting
- *    `innerHTML` hands out a FRESH stand-in, as a rebuilt tree would. It claims
- *    NOTHING about appearance: no layout, no size, no fade — the fade is CSS,
- *    unwalked; `offsetWidth` is a number nobody reads.
+ *    `innerHTML` hands out a FRESH stand-in, as a rebuilt tree would — complete
+ *    at birth when its src is already in the browser's cache (a photo that
+ *    painted once), as a real re-attached <img> is. It claims NOTHING about
+ *    appearance: no layout, no size, no fade — the fade is CSS, unwalked;
+ *    `offsetWidth` is a number nobody reads.
  *  · `Image` — the browser's loader, stood in by a class that records every
  *    `src` asked for and answers load (or error, for the srcs listed as
- *    failing) on the next microtask. That is the native boundary and the only
- *    thing faked besides the DOM.
+ *    failing) on the next microtask — or, for the srcs listed as slow, only
+ *    when the walk releases it. That is the native boundary and the only thing
+ *    faked besides the DOM.
  *  · `matchMedia` / `navigator.connection` / `document.visibilityState` — the
  *    device's own facts, set per walk.
  */
@@ -60,9 +63,17 @@ class FauxElement {
   setSelectionRange(): void {}
 }
 
+/**
+ * The browser's image cache: a src that has painted once (the hero, or a photo
+ * the loader delivered) is `complete` the moment a rebuilt <img> carries it —
+ * so a re-render never has to wait for a paint that already happened. Without
+ * this the walks were blind after any re-render (two mutations survived).
+ */
+const cache = new Set<string>();
+
 /** The frame's <img>, as the flow sees it and as the flow patches it. */
 class FauxImg {
-  complete = false;
+  complete: boolean;
   /** undefined until the flow patches it — then the live src, whatever the markup says. */
   src: string | undefined = undefined;
   attrs: Record<string, string> = {};
@@ -73,6 +84,9 @@ class FauxImg {
     remove: (c: string) => this.classes.delete(c),
   };
   private charges: Array<() => void> = [];
+  constructor(private readonly srcMarkup: string | undefined) {
+    this.complete = srcMarkup !== undefined && cache.has(srcMarkup);
+  }
   setAttribute(name: string, value: string): void {
     this.attrs[name] = value;
   }
@@ -82,11 +96,14 @@ class FauxImg {
   /** The hero PAINTS. */
   charger(): void {
     this.complete = true;
+    if (this.srcMarkup !== undefined) cache.add(this.srcMarkup);
     const hs = this.charges;
     this.charges = [];
     for (const h of hs) h();
   }
 }
+
+const SRC_DU_CADRE = /<img class="cl-photo-img[^"]*" data-diapo="\d+" src="([^"]+)"/;
 
 interface FauxConteneur {
   innerHTML: string;
@@ -105,17 +122,18 @@ interface FauxConteneur {
 function fauxConteneur(): FauxConteneur {
   const handlers: Record<string, Array<(ev: unknown) => void>> = {};
   let html = '';
-  let img = new FauxImg();
+  let img = new FauxImg(undefined);
   let rendus = 0;
   return {
     get innerHTML() {
       return html;
     },
-    // A rebuilt tree is a FRESH node: the previous stand-in's patches die with it.
+    // A rebuilt tree is a FRESH node: the previous stand-in's patches die with
+    // it — complete at birth only if its src is already in the cache.
     set innerHTML(v: string) {
       html = v;
       rendus += 1;
-      img = new FauxImg();
+      img = new FauxImg(SRC_DU_CADRE.exec(v)?.[1]);
     },
     get img() {
       return img;
@@ -178,8 +196,12 @@ class FauxImage {
     this._src = v;
     demandes.push(v);
     const livrer = (): void => {
-      if (echecs.has(v)) this.onerror?.();
-      else this.onload?.();
+      if (echecs.has(v)) {
+        this.onerror?.();
+        return;
+      }
+      cache.add(v);
+      this.onload?.();
     };
     if (lentes.has(v)) retenues.push(livrer);
     else queueMicrotask(livrer);
@@ -204,8 +226,7 @@ const PRODUIT: ClienteProduit = {
 };
 
 /** The photo the frame SHOWS: the live node's patch when there is one, else the markup. */
-const srcDuCadre = (c: FauxConteneur): string | undefined =>
-  c.img.src ?? /<img class="cl-photo-img[^"]*" data-diapo="\d+" src="([^"]+)"/.exec(c.innerHTML)?.[1];
+const srcDuCadre = (c: FauxConteneur): string | undefined => c.img.src ?? SRC_DU_CADRE.exec(c.innerHTML)?.[1];
 const diapoDe = (c: FauxConteneur): string | undefined =>
   c.img.attrs['data-diapo'] ?? /data-diapo="(\d+)"/.exec(c.innerHTML)?.[1];
 
@@ -224,6 +245,7 @@ describe('DIAPO-C1 — the lazy slideshow on the product frame, walked', () => {
     echecs.clear();
     lentes.clear();
     retenues.length = 0;
+    cache.clear();
     reduit = false;
     (globalThis as Record<string, unknown>)['HTMLElement'] = FauxElement;
     (globalThis as Record<string, unknown>)['Image'] = FauxImage;
