@@ -726,6 +726,30 @@ describe('DIAPO-C1 — the lazy slideshow on the product frame, walked', () => {
     expect(demandes, 'and only once').toEqual([P0, P1]);
   });
 
+  it('WITH A CLIP: the clip ends under her protections sheet — the show holds; closing the sheet restarts the clip, and THAT clip is waited for before anything moves', async () => {
+    const c = monter(PRODUIT_CLIP);
+    presser(c, 'ouvrir-protections');
+    const sousLaFeuille = c.video;
+    expect(sousLaFeuille?.loop, 'the show follows the element the sheet render made').toBe(false);
+    sousLaFeuille?.finir();
+    await souffler();
+    await attendre(12_000);
+    expect(demandes, 'nothing moves under the sheet').toEqual([]);
+
+    presser(c, 'fermer-protections');
+    const relance = c.video;
+    expect(relance, 'the sheet render restarted the clip: a fresh element').not.toBe(sousLaFeuille);
+    expect(relance?.loop, 'and it is waited for at once, not after a pending turn').toBe(false);
+    await attendre(12_000);
+    expect(demandes, 'the fresh clip plays to its end before anything moves').toEqual([]);
+    expect(c.video).toBe(relance);
+
+    relance?.finir();
+    await souffler();
+    expect(demandes).toEqual([P0]);
+    expect(diapoDe(c)).toBe('1');
+  });
+
   it('WITH A CLIP: a hidden tab holds the place when the clip ends; the show goes on when she looks again', async () => {
     const doc = { visibilityState: 'hidden', addEventListener: () => {}, removeEventListener: () => {} };
     (globalThis as Record<string, unknown>)['document'] = doc;

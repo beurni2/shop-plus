@@ -918,15 +918,6 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
       diapoT = setTimeout(tick, DIAPO_INTERVALLE_MS);
       return;
     }
-    // DIAPO-VIDEO-1 — on the clip the turn comes when the clip ENDS, never
-    // before: a held turn that finds it still playing goes back to waiting.
-    if (diapoSlides()[state.diapo]?.kind === 'clip') {
-      const v = clipDuCadre();
-      if (v !== null && !v.ended) {
-        attendreClip(v);
-        return;
-      }
-    }
     avancer();
   }
   function avancer(): void {
@@ -996,13 +987,18 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
   /** After each render of C1: keep the show going, but only once the hero has painted. */
   function armerDiapo(): void {
     if (state.screen !== 'C1' || state.loading || state.galerie !== null || state.refus !== null) return;
-    if (!diapoPermis() || diapoT !== null) return;
+    if (!diapoPermis()) return;
     // DIAPO-VIDEO-1 — on the clip there is no paint to wait for: its own
-    // `ended` is the turn, and a fresh element after a re-render is followed.
+    // `ended` is the turn. A re-render made a FRESH element (restarted from
+    // the top), so any turn still pending for the old one is dropped and the
+    // new one is waited for — the show never moves on mid-clip.
     if (diapoSlides()[state.diapo]?.kind === 'clip') {
+      if (diapoT !== null) clearTimeout(diapoT);
+      diapoT = null;
       planifierDiapo();
       return;
     }
+    if (diapoT !== null) return;
     const img = container.querySelector<HTMLImageElement>('.cl-photo-img');
     if (img === null) return;
     if (img.complete) {
