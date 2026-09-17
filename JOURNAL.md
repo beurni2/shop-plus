@@ -1,7 +1,9 @@
 # JOURNAL — shop-plus
 Continuity ledger per CTO charter §6/§6bis. Every entry is evidence-grounded.
 
-## 2026-09-17 · NOM-BOUTIQUE-1 — SP5.2 store-name moderation on create and rename, at the authority: three named, deterministic refusals, one rule set for both doors, one sentence per rule on her screen · BUILT ON THE BRANCH, awaiting the founder's word
+## 2026-09-17 · NOM-BOUTIQUE-1 — SP5.2 store-name moderation on create and rename, at the authority: three named, deterministic refusals, one rule set for both doors, one sentence per rule on her screen · MERGED AND DEPLOYED 2026-09-17 on the founder's « Go »
+
+**MERGED AND DEPLOYED (founder: « Go », 2026-09-17).** `main` fast-forwarded `19cba0b → fa5256e` (ancestry verified with `merge-base --is-ancestor` before the push). **ci 677 · pwa-preview 465 · expo-preview 498 · service-canon-drift 356 · storefront-deploy 101, all green on `fa5256e`** — read on the runs list, not assumed. `storefront-deploy` dispatched on `main` because the Worker changed (two source files): build, provenance stamp, deploy, both arm keys, the retired write secret confirmed absent, the live health line read back `release fa5256e… canon 3.15.0`, the three smokes green (checkout refuses by name, the tile road live with an edge HIT, PBKDF2 at 100 000). expo-preview republished the reseller app: the three sentences reach her phone at its next launch; the policy is live on the create and rename doors now.
 
 **Founder order 2026-09-17:** « proceed with the batch but leave out photo normalization » — the second slice of the batch: « Store-name moderation. When a reseller creates or renames her shop, the name is checked against a plain list of what is not allowed. » (SP5.2 is the half of M5 that survived DECOUVERTE-RETIREE-1.)
 
