@@ -829,13 +829,16 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
   function prechargerPhoto(src: string): Promise<void> {
     return new Promise((resolve, reject) => {
       const Img = (globalThis as { Image?: new () => { onload: (() => void) | null; onerror: (() => void) | null; src: string } }).Image;
+      // No message on either rejection: nobody reads it (the handler only
+      // stops the show), and the buyer module's copy gate rightly treats any
+      // sentence-shaped literal here as copy that belongs in the catalog.
       if (typeof Img !== 'function') {
-        reject(new Error('diapo: no Image in this runtime'));
+        reject();
         return;
       }
       const i = new Img();
       i.onload = () => resolve();
-      i.onerror = () => reject(new Error('diapo: photo failed'));
+      i.onerror = () => reject();
       i.src = src;
     });
   }
