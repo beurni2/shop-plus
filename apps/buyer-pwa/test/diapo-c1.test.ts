@@ -302,6 +302,13 @@ describe('DIAPO-C1 — the lazy slideshow on the product frame, walked', () => {
     expect(srcDuCadre(c), 'the frame never shows a photo that did not arrive').toBe(P1);
     await attendre(12_000);
     expect(demandes, 'and never again').toEqual([P1, P2]);
+    // A re-render (the protections sheet opens and closes) must not re-arm a
+    // show that ended on a failure — stopping is a decision, not a stall.
+    presser(c, 'ouvrir-protections');
+    presser(c, 'fermer-protections');
+    await attendre(12_000);
+    expect(demandes, 'a re-render woke the dead show').toEqual([P1, P2]);
+    expect(srcDuCadre(c)).toBe(P1);
   });
 
   it('STATIC FALLBACK: a clip plays instead — no show, nothing fetched', async () => {
