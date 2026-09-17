@@ -68,8 +68,18 @@ const storefront = () => ({
   productNotes: {},
 });
 
+/**
+ * HER SIGNED PRICE — B (10 000) + a markup she chose (1 500, under the 25 % cap).
+ * VALIDITE-CARTE-1 (verifier finding): with no signed listing the card showed
+ * B + 0 = B, so no assertion could tell « her price » from « the supplier's
+ * base ». The listing read-back below is what makes the price on the card
+ * PROVABLY hers; `share-card.json` pins the same figure.
+ */
+const PRIX_SIGNE = 11_500;
+
 /** CONTRACT-CERTIFIED to `storefront-service`: the list answers rows with id,
- *  slug and name; the by-id read answers the canon Storefront. */
+ *  slug and name; the by-id read answers the canon Storefront; the by-pid read
+ *  answers `listing-do.ts`'s `/entry/full` shape (as in rendu-prix-signe). */
 const routes: Route[] = [
   (path) =>
     path === '/supply-projections'
@@ -80,6 +90,10 @@ const routes: Route[] = [
       ? { status: 200, json: [{ id: SF_ID, slug: SLUG, name: NOM }] as never }
       : null,
   (path) => (/^\/storefronts\/[^/]+$/.test(path) ? { status: 200, json: storefront() as never } : null),
+  (path) =>
+    /^\/listings\/by-pid\/[^/]+\/[^/]+$/.test(path)
+      ? { status: 200, json: { listingId: `lst-${SF_ID}-${PV}`, productVersionId: PV, customerPriceFcfa: PRIX_SIGNE, status: 'published' } }
+      : null,
 ];
 
 const LIEN_PRODUIT = `https://beurni2.github.io/shop-plus/s/${SLUG}?pid=${PV}`;
@@ -198,6 +212,12 @@ describe('PARTAGER-PRO — real bytes where the mocks stood', () => {
     expect(net, `her net line is not on the screen: ${lu}`).toBeDefined();
     const prix = formatFcfa(fixture.prixClientFcfa);
     expect(prix, 'fixture: the net must not be a substring of the price, or the leak check is blind').not.toContain(net!);
+    // « HER price, never B »: the pinned price must differ from the supplier's
+    // base, or a card carrying `basePrice` would pass as hers (verifier finding).
+    expect(fixture.prixClientFcfa, 'fixture: the pinned price is the signed one').toBe(PRIX_SIGNE);
+    expect(prix, 'fixture: her price equals the supplier base — the « hers, not B » check is blind').not.toBe(
+      formatFcfa(offer().basePrice),
+    );
 
     await screen.press('Partager ce produit');
     const dernier = Share.shared[Share.shared.length - 1] as { message?: string } | undefined;

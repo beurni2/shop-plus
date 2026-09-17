@@ -1,7 +1,7 @@
 {
   "nomBoutique": "Boutique test",
   "produit": "Bazin riche",
-  "prixClientFcfa": 10000,
+  "prixClientFcfa": 11500,
   "livreParSera": true,
   "lienProduit": "https://beurni2.github.io/shop-plus/s/boutique-0001?pid=pv-bazin",
   "lienBoutique": "https://beurni2.github.io/shop-plus/v/boutique-0001",
