@@ -26,6 +26,8 @@ import {
   renderQuartierChips, renderC4, renderC5, renderC6, renderC7, renderC8, renderC9,
   renderGalerie, renderGeoCarte, renderOffline, renderRefus, renderSheet, renderSkeleton, renderToasts,
   galerieSlides,
+  heroClip,
+  heroPhoto,
   etapeDeSuivi,
   splitFor, MERCI, MESSAGES, SUIVI_STEPS, VOIX,
   type ClienteProduit, type ClienteQuote, type ConfirmEtat, type DoorEtat,
@@ -786,20 +788,26 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
   /**
    * ═══ DIAPO-C1 — SP2.3 « Lazy slideshow + fallback: queued, cancellable, static fallback » ═══
    *
-   * The C1 frame plays the product's photographs one after another, gently, and
-   * ONLY when it costs her nothing: two photos or more, no clip (a clip already
-   * plays in the frame), motion not reduced, the network not declared slow.
+   * The C1 frame plays the product's captures one after another, gently, and
+   * ONLY when it costs her nothing: two slides or more, motion not reduced,
+   * the network not declared slow.
    *  · QUEUED — the next photo is fetched in the background AFTER the hero has
    *    painted and only when its turn comes: one image in flight, never the
    *    whole shelf at once, so a 1GB Android on 3G shows the product first and
    *    the rest as it can.
+   *  · WITH A CLIP (DIAPO-VIDEO-1, founder 2026-09-17: « the slideshow will
+   *    need to wait for a video to finish before moving to the next ») — the
+   *    clip is the FIRST slide, as in the gallery, and its turn ends when IT
+   *    ends: the loop comes off while the show is on, the photographs follow,
+   *    then the clip again, waited for again.
    *  · CANCELLABLE — a tap on the frame ends the show for this visit and opens
-   *    the gallery ON THE PHOTO SHE IS LOOKING AT; leaving C1 clears the timer
+   *    the gallery ON THE SLIDE SHE IS LOOKING AT; leaving C1 clears the timer
    *    (`clearT`, the same law every screen's timers obey); a hidden tab holds
    *    its place instead of advancing unseen.
    *  · STATIC FALLBACK — reduced motion, `saveData` / 2g, a queued photo that
    *    fails, or a runtime with no `Image`: the hero stays, exactly as before
-   *    this slice. Nothing on this road can blank the frame.
+   *    this slice — a clip loops on its own, as VIDEO-PARTOUT left it. Nothing
+   *    on this road can blank the frame.
    * The pace is a safest default (journalled): four seconds — a market pace,
    * not a billboard's.
    */
@@ -814,8 +822,18 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
    * stall the next one.
    */
   let diapoEnVol = -1;
-  const diapoPhotos = (): readonly string[] =>
-    m.videoRef !== undefined && m.videoRef !== '' ? [] : m.assetRefs.filter((r) => r !== '');
+  /**
+   * DIAPO-VIDEO-1 (founder 2026-09-17: « make sure the slideshow will need to
+   * wait for a video to finish before moving to the next ») — the show's slides
+   * are the gallery's, in the gallery's order: the clip first when there is
+   * one, then every photograph. `state.diapo` indexes this list, so the tap
+   * opens the gallery on the very slide she is looking at.
+   */
+  const diapoSlides = (): ReturnType<typeof galerieSlides> => galerieSlides(m);
+  /** The frame's clip element, when the frame holds one. */
+  const clipDuCadre = (): HTMLVideoElement | null => container.querySelector<HTMLVideoElement>('video.cl-photo-img');
+  /** The clip element whose `ended` the show is waiting for — one at a time, and only the live one. */
+  let clipEcoute: HTMLVideoElement | null = null;
   function diapoPermis(): boolean {
     if (diapoActif !== null) return diapoActif;
     const reduit = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -824,13 +842,21 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
         ? (navigator as { connection?: { saveData?: boolean; effectiveType?: string } }).connection
         : undefined;
     const lent = conn?.saveData === true || conn?.effectiveType === '2g' || conn?.effectiveType === 'slow-2g';
-    diapoActif = diapoPhotos().length > 1 && !reduit && !lent;
+    diapoActif = diapoSlides().length > 1 && !reduit && !lent;
     return diapoActif;
   }
   function arreterDiapo(): void {
     diapoActif = false;
     if (diapoT !== null) clearTimeout(diapoT);
     diapoT = null;
+    clipEcoute = null;
+    // DIAPO-VIDEO-1 — the fallback is the clip as before this slice: looping
+    // on its own. Ended under the show's watch, it is started again.
+    const v = clipDuCadre();
+    if (v !== null && !v.loop) {
+      v.loop = true;
+      if (v.ended) void v.play().catch(() => undefined);
+    }
   }
   /** One photo, fetched by the browser's own image loader; a failure REJECTS (the fallback's cue). */
   function prechargerPhoto(src: string): Promise<void> {
@@ -860,52 +886,123 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
    * so a LATER real render (a toast, a chip) draws the same photo.
    */
   function peindreDiapo(): void {
-    const img = container.querySelector<HTMLImageElement>('.cl-photo-img');
-    const src = diapoPhotos()[state.diapo];
-    if (img === null || src === undefined) return;
+    const el = container.querySelector<HTMLElement>('.cl-photo-img');
+    const slide = diapoSlides()[state.diapo];
+    if (el === null || slide === undefined) return;
+    // DIAPO-VIDEO-1 — between a photograph and the clip the ELEMENT changes,
+    // still in place: a fresh <video> autoplays on insertion (VIDEO-PARTOUT),
+    // a fresh <img> fades in on its class. The screen around it is untouched.
+    const tientLeClip = el.getAttribute('data-role') === 'video-hero';
+    if (slide.kind === 'clip') {
+      if (!tientLeClip) el.outerHTML = heroClip(slide.src, m.assetRefs[0] ?? '');
+      return;
+    }
+    if (tientLeClip) {
+      el.outerHTML = heroPhoto(slide.src, state.diapo, true);
+      return;
+    }
+    const img = el as HTMLImageElement;
     img.setAttribute('data-diapo', String(state.diapo));
     img.classList.remove('cl-diapo');
     void img.offsetWidth;
-    img.src = src;
+    img.src = slide.src;
     img.classList.add('cl-diapo');
+  }
+  /** A turn comes: the timer fired, or the clip ended. */
+  function tick(): void {
+    diapoT = null;
+    if (state.screen !== 'C1' || state.loading || state.galerie !== null || state.refus !== null || diapoActif !== true) return;
+    // Unseen (a hidden tab) or under her protections sheet (a money moment
+    // she is reading): hold the place, advance nothing.
+    if (state.sheet || (typeof document !== 'undefined' && document.visibilityState === 'hidden')) {
+      diapoT = setTimeout(tick, DIAPO_INTERVALLE_MS);
+      return;
+    }
+    // DIAPO-VIDEO-1 — on the clip the turn comes when the clip ENDS, never
+    // before: a held turn that finds it still playing goes back to waiting.
+    if (diapoSlides()[state.diapo]?.kind === 'clip') {
+      const v = clipDuCadre();
+      if (v !== null && !v.ended) {
+        attendreClip(v);
+        return;
+      }
+    }
+    avancer();
+  }
+  function avancer(): void {
+    const slides = diapoSlides();
+    const suivante = (state.diapo + 1) % slides.length;
+    const cible = slides[suivante];
+    if (cible === undefined) return;
+    if (cible.kind === 'clip') {
+      // The clip is not fetched through the photo loader: it played once
+      // already, and a fresh element streams as it plays (VIDEO-PARTOUT).
+      state.diapo = suivante;
+      peindreDiapo();
+      planifierDiapo();
+      return;
+    }
+    const gen = generation;
+    diapoEnVol = gen;
+    prechargerPhoto(cible.src).then(
+      () => {
+        if (diapoEnVol === gen) diapoEnVol = -1;
+        // Landed on a screen she has left, or after a tap: the photo stays cached, the frame stays.
+        if (gen !== generation || diapoActif !== true || state.screen !== 'C1' || state.galerie !== null) return;
+        state.diapo = suivante;
+        peindreDiapo();
+        planifierDiapo();
+      },
+      () => {
+        if (diapoEnVol === gen) diapoEnVol = -1;
+        arreterDiapo();
+      },
+    );
+  }
+  /**
+   * DIAPO-VIDEO-1 — on the clip the show waits for `ended`. The loop comes off
+   * THIS element (a re-render makes a new one, which is followed in its turn);
+   * `arreterDiapo` puts it back. Already over: the turn is now.
+   */
+  function attendreClip(v: HTMLVideoElement): void {
+    v.loop = false;
+    if (v.ended) {
+      tick();
+      return;
+    }
+    if (clipEcoute === v) return;
+    clipEcoute = v;
+    const gen = generation;
+    v.addEventListener(
+      'ended',
+      () => {
+        // A dead element — replaced by a re-render, or left behind by a jump — ends nothing.
+        if (gen !== generation || clipEcoute !== v) return;
+        clipEcoute = null;
+        tick();
+      },
+      { once: true },
+    );
   }
   function planifierDiapo(): void {
     if (diapoT !== null || diapoEnVol === generation) return;
-    diapoT = setTimeout(() => {
-      diapoT = null;
-      if (state.screen !== 'C1' || state.loading || state.galerie !== null || state.refus !== null || diapoActif !== true) return;
-      // Unseen (a hidden tab) or under her protections sheet (a money moment
-      // she is reading): hold the place, advance nothing.
-      if (state.sheet || (typeof document !== 'undefined' && document.visibilityState === 'hidden')) {
-        planifierDiapo();
-        return;
-      }
-      const photos = diapoPhotos();
-      const suivante = (state.diapo + 1) % photos.length;
-      const src = photos[suivante];
-      if (src === undefined) return;
-      const gen = generation;
-      diapoEnVol = gen;
-      prechargerPhoto(src).then(
-        () => {
-          if (diapoEnVol === gen) diapoEnVol = -1;
-          // Landed on a screen she has left, or after a tap: the photo stays cached, the frame stays.
-          if (gen !== generation || diapoActif !== true || state.screen !== 'C1' || state.galerie !== null) return;
-          state.diapo = suivante;
-          peindreDiapo();
-          planifierDiapo();
-        },
-        () => {
-          if (diapoEnVol === gen) diapoEnVol = -1;
-          arreterDiapo();
-        },
-      );
-    }, DIAPO_INTERVALLE_MS);
+    if (diapoSlides()[state.diapo]?.kind === 'clip') {
+      const v = clipDuCadre();
+      if (v !== null) attendreClip(v);
+      return;
+    }
+    diapoT = setTimeout(tick, DIAPO_INTERVALLE_MS);
   }
   /** After each render of C1: keep the show going, but only once the hero has painted. */
   function armerDiapo(): void {
     if (state.screen !== 'C1' || state.loading || state.galerie !== null || state.refus !== null) return;
     if (!diapoPermis() || diapoT !== null) return;
+    // DIAPO-VIDEO-1 — on the clip there is no paint to wait for: its own
+    // `ended` is the turn, and a fresh element after a re-render is followed.
+    if (diapoSlides()[state.diapo]?.kind === 'clip') {
+      planifierDiapo();
+      return;
+    }
     const img = container.querySelector<HTMLImageElement>('.cl-photo-img');
     if (img === null) return;
     if (img.complete) {
@@ -929,6 +1026,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
     // DIAPO-C1 — leaving a screen cancels what that screen started, the show included.
     if (diapoT !== null) clearTimeout(diapoT);
     diapoT = null;
+    clipEcoute = null;
     t1 = t2 = tSuivi = null;
     suiviEnAttenteDeRetour = null;
     echecsSuivi = 0;
@@ -1923,9 +2021,10 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
       // frame rendered the affordance, i.e. at least one photo exists.
       case 'photo-galerie':
         // DIAPO-C1 — the tap ENDS the show for this visit and opens the gallery
-        // on the photo she is looking at; with a clip, the clip leads as before.
+        // on the very slide she is looking at (DIAPO-VIDEO-1: the show's index
+        // IS the gallery's — the clip first when there is one).
         arreterDiapo();
-        state.galerie = m.videoRef !== undefined && m.videoRef !== '' ? 0 : state.diapo; render(); return;
+        state.galerie = state.diapo; render(); return;
       case 'galerie-fermer':
         state.galerie = null; render(); return;
       case 'galerie-precedente':

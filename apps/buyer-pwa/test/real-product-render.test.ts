@@ -184,7 +184,7 @@ describe('RESELLER-UX-2 — C1 photo gallery', () => {
     // DIAPO-C1 (SP2.3): the tap opens the gallery on the photo the frame shows
     // (the clip leads when there is one) and ends the show first.
     expect(flow).toMatch(
-      /case 'photo-galerie':[\s\S]{0,400}?arreterDiapo\(\);\s*\n\s*state\.galerie = m\.videoRef !== undefined && m\.videoRef !== '' \? 0 : state\.diapo; render\(\); return;/,
+      /case 'photo-galerie':[\s\S]{0,400}?arreterDiapo\(\);\s*\n\s*state\.galerie = state\.diapo; render\(\); return;/,
     );
     expect(flow).toMatch(/case 'galerie-fermer':\s*\n\s*state\.galerie = null; render\(\); return;/);
     expect(flow).toContain("case 'galerie-precedente':");

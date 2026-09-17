@@ -576,6 +576,21 @@ function hero(m: ClienteProduit): string | undefined {
 }
 
 /**
+ * The frame's two elements, ONE source of truth for the render and for the
+ * flow's in-place swap (DIAPO-VIDEO-1: the show walks from the clip to the
+ * photographs and back, replacing the element itself, never the screen).
+ * The clip's markup is VIDEO-PARTOUT's, unchanged — see `photoFrame` for why
+ * every attribute is there. `fondu` carries the slideshow's fade class, only
+ * when there is a show to fade in.
+ */
+export function heroClip(clip: string, poster: string): string {
+  return `<video class="cl-photo-img" data-role="video-hero" src="${esc(clip)}" poster="${esc(poster)}" autoplay muted playsinline loop preload="metadata"></video>`;
+}
+export function heroPhoto(src: string, idx: number, fondu: boolean): string {
+  return `<img class="cl-photo-img${fondu ? ' cl-diapo' : ''}" data-diapo="${idx}" src="${esc(src)}" alt="" decoding="async">`;
+}
+
+/**
  * C1's PHOTO FRAME — the FIFTH STATE (REAL-PRODUCT-RENDER-1, founder-deferred
  * from BUYER-REAL-HONESTY-1 because C1 carried the SAME seed dependency the
  * vitrine did: the frame drew a `VITRINE_SEED` glyph, which a real product does
@@ -621,21 +636,19 @@ function photoFrame(m: ClienteProduit, out: boolean, diapo = 0): string {
     // element is already a legitimate target.
     // The frame stays the SAME tap target onto the gallery — the clip does not
     // steal the photographs' affordance; « PHOTO RÉELLE » still describes them.
-    const clip = m.videoRef !== undefined && m.videoRef !== '' ? m.videoRef : undefined;
-    // DIAPO-C1 (SP2.3) — when the flow is playing the slideshow (≥ 2 photos, no
-    // clip), the frame shows its CURRENT photo, not always the hero: `diapo` is
-    // the flow's index, clamped, so a re-render (a toast, a chip) never snaps
-    // her back to photo one. `data-diapo` is what the walk reads; the `cl-diapo`
-    // class is the WHOLE motion — a short fade on each swap, and nothing when
-    // she prefers reduced motion. With a clip, the clip plays and the show
-    // never starts (the flow decides; this render only obeys the index).
-    const photos = m.assetRefs.filter((r) => r !== '');
-    const idx = photos.length > 1 ? Math.min(Math.max(diapo, 0), photos.length - 1) : 0;
-    const shown = photos[idx] ?? src;
-    const art =
-      clip !== undefined
-        ? `<video class="cl-photo-img" data-role="video-hero" src="${esc(clip)}" poster="${esc(src)}" autoplay muted playsinline loop preload="metadata"></video>`
-        : `<img class="cl-photo-img${photos.length > 1 ? ' cl-diapo' : ''}" data-diapo="${idx}" src="${esc(shown)}" alt="" decoding="async">`;
+    // DIAPO-C1 (SP2.3) + DIAPO-VIDEO-1 — the frame shows the show's CURRENT
+    // slide, in the gallery's own order (the clip first when there is one, then
+    // every photograph): `diapo` is the flow's index into that list, clamped,
+    // so a re-render (a toast, a chip) never snaps her back to slide one.
+    // `data-diapo` is what the walk reads; the `cl-diapo` class is the WHOLE
+    // motion — a short fade on each swap, and nothing when she prefers reduced
+    // motion. The clip's markup keeps `loop`: the flow turns it off only while
+    // the show is on (the show, not the loop, decides what follows the clip).
+    // This render only obeys the index; the flow decides whether there is a show.
+    const slides = galerieSlides(m);
+    const idx = Math.min(Math.max(diapo, 0), Math.max(0, slides.length - 1));
+    const slide = slides[idx] ?? { kind: 'photo' as const, src };
+    const art = slide.kind === 'clip' ? heroClip(slide.src, src) : heroPhoto(slide.src, idx, slides.length > 1);
     return [
       `<div class="cl-photo" data-role="photo-reelle" data-action="photo-galerie" role="button" tabindex="0" aria-label="${t('cl.c1.voir_photos')}">`,
       art,

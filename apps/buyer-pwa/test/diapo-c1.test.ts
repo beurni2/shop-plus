@@ -17,14 +17,20 @@ import type { ClienteProduit } from '../src/cliente/screens';
  *   · CANCELLABLE — a tap on the frame ends the show for this visit and opens
  *     the gallery on the photo she is looking at; leaving C1 clears the queue;
  *     a hidden tab and an open protections sheet hold the place.
- *   · STATIC FALLBACK — reduced motion, `saveData`, a photo that fails, a clip,
- *     a single photo: the hero stays and nothing is fetched.
+ *   · STATIC FALLBACK — reduced motion, `saveData`, a photo that fails, a
+ *     single photo: the hero stays and nothing is fetched.
+ *   · WITH A CLIP (DIAPO-VIDEO-1, founder 2026-09-17) — the clip is the first
+ *     slide and the show WAITS for it to end before the photographs; when the
+ *     show is off (cancelled, static) the clip loops on its own as before.
  *
  * ═══ THE DOUBLES, AND THEIR BOUNDS ═══
  *  · the DOM container — records `innerHTML` verbatim, delivers events, and
- *    answers `querySelector('.cl-photo-img')` with ONE image stand-in whose
- *    `complete` / `load` are the paint facts the flow reads and whose `src`,
- *    attributes and class list record what the flow patched. Setting
+ *    answers `querySelector('.cl-photo-img')` with ONE frame stand-in — the
+ *    photograph's <img>, or the clip's <video> — whose `complete` / `load` (or
+ *    `loop` / `ended`) are the paint facts the flow reads and whose `src`,
+ *    attributes and class list record what the flow patched. An in-place
+ *    swap (the flow sets the element's outerHTML) yields a fresh element in
+ *    the same place with the tree around it untouched. Setting
  *    `innerHTML` hands out a FRESH stand-in, as a rebuilt tree would — complete
  *    at birth when its src is already in the browser's cache (a photo that
  *    painted once), as a real re-attached <img> is. It claims NOTHING about
@@ -87,12 +93,21 @@ class FauxImg {
     add: (c: string) => this.classes.add(c),
     remove: (c: string) => this.classes.delete(c),
   };
+  /** Set by the container: replacing this node's markup swaps the frame's element. */
+  remplacer: (markup: string) => void = () => {};
   private charges: Array<() => void> = [];
   constructor(private readonly srcMarkup: string | undefined) {
     this.complete = srcMarkup !== undefined && cache.has(srcMarkup);
   }
+  set outerHTML(markup: string) {
+    this.remplacer(markup);
+  }
   setAttribute(name: string, value: string): void {
     this.attrs[name] = value;
+  }
+  /** A photograph carries no `data-role="video-hero"` — that is how the flow tells the two apart. */
+  getAttribute(name: string): string | null {
+    return this.attrs[name] ?? null;
   }
   addEventListener(type: string, h: () => void): void {
     if (type === 'load') this.charges.push(h);
@@ -107,7 +122,50 @@ class FauxImg {
   }
 }
 
+/**
+ * The frame's <video> (a product with a clip), as the flow sees it: its `loop`
+ * (on, from the markup, until the flow decides otherwise), its `ended`, the
+ * `ended` listeners the flow attaches, and every `play()` the flow asks for.
+ * The walk ENDS the clip by hand (`finir`) — the clip's length is not walked,
+ * only what the flow does when it is over. Nothing about appearance.
+ */
+class FauxVideo {
+  loop: boolean;
+  ended = false;
+  lectures = 0;
+  remplacer: (markup: string) => void = () => {};
+  private fins: Array<() => void> = [];
+  constructor(readonly srcMarkup: string | undefined, loop: boolean) {
+    this.loop = loop;
+  }
+  set outerHTML(markup: string) {
+    this.remplacer(markup);
+  }
+  /** The clip's markup carries `data-role="video-hero"` (VIDEO-PARTOUT). */
+  getAttribute(name: string): string | null {
+    return name === 'data-role' ? 'video-hero' : null;
+  }
+  addEventListener(type: string, h: () => void): void {
+    if (type === 'ended') this.fins.push(h);
+  }
+  play(): Promise<void> {
+    this.lectures += 1;
+    this.ended = false;
+    return Promise.resolve();
+  }
+  /** The clip reaches its end. */
+  finir(): void {
+    this.ended = true;
+    const hs = this.fins;
+    this.fins = [];
+    for (const h of hs) h();
+  }
+}
+
 const SRC_DU_CADRE = /<img class="cl-photo-img[^"]*" data-diapo="\d+" src="([^"]+)"/;
+const IMG_DU_CADRE = /<img class="cl-photo-img[^"]*"[^>]*>/;
+const VIDEO_DU_CADRE = /<video class="cl-photo-img"[^>]*><\/video>/;
+const SRC_DU_CLIP = /<video class="cl-photo-img"[^>]*\bsrc="([^"]+)"/;
 
 interface FauxConteneur {
   innerHTML: string;
@@ -115,10 +173,12 @@ interface FauxConteneur {
   style: { setProperty: () => void };
   addEventListener: (type: string, h: (ev: unknown) => void) => void;
   removeEventListener: () => void;
-  querySelector: (sel: string) => FauxImg | null;
+  querySelector: (sel: string) => FauxImg | FauxVideo | null;
   dispatch: (type: string, ev: unknown) => void;
-  /** The CURRENT frame image (fresh after every innerHTML rebuild). */
+  /** The CURRENT frame image (fresh after every innerHTML rebuild or in-place swap). */
   readonly img: FauxImg;
+  /** The CURRENT frame clip, or null when the frame holds a photograph. */
+  readonly video: FauxVideo | null;
   /** How many times the tree was rebuilt. */
   readonly rendus: number;
   /** A control of the CURRENT tree — the same node until the tree is rebuilt, a new one after. */
@@ -128,9 +188,25 @@ interface FauxConteneur {
 function fauxConteneur(): FauxConteneur {
   const handlers: Record<string, Array<(ev: unknown) => void>> = {};
   let html = '';
-  let img = new FauxImg(undefined);
+  let cadre: FauxImg | FauxVideo = new FauxImg(undefined);
   let rendus = 0;
   let noeuds = new Map<string, FauxElement>();
+  /** The frame's element, read off the markup: a clip's <video>, or the photograph's <img>. */
+  const lireCadre = (): FauxImg | FauxVideo => {
+    const v = VIDEO_DU_CADRE.exec(html)?.[0];
+    const el: FauxImg | FauxVideo =
+      v !== undefined ? new FauxVideo(SRC_DU_CLIP.exec(v)?.[1], /\bloop\b/.test(v)) : new FauxImg(SRC_DU_CADRE.exec(html)?.[1]);
+    // An in-place swap: the flow sets the element's outerHTML, the browser
+    // parses it into a FRESH element in the same place — the tree around it
+    // is untouched and `rendus` does not move.
+    el.remplacer = (markup) => {
+      const cible = cadre instanceof FauxVideo ? VIDEO_DU_CADRE : IMG_DU_CADRE;
+      expect(cible.test(html), 'the element being replaced must be in the markup').toBe(true);
+      html = html.replace(cible, markup);
+      cadre = lireCadre();
+    };
+    return el;
+  };
   return {
     get innerHTML() {
       return html;
@@ -141,11 +217,15 @@ function fauxConteneur(): FauxConteneur {
     set innerHTML(v: string) {
       html = v;
       rendus += 1;
-      img = new FauxImg(SRC_DU_CADRE.exec(v)?.[1]);
+      cadre = lireCadre();
       noeuds = new Map();
     },
     get img() {
-      return img;
+      expect(cadre instanceof FauxImg, 'the frame holds a photograph').toBe(true);
+      return cadre as FauxImg;
+    },
+    get video() {
+      return cadre instanceof FauxVideo ? cadre : null;
     },
     get rendus() {
       return rendus;
@@ -166,7 +246,10 @@ function fauxConteneur(): FauxConteneur {
     },
     removeEventListener: () => {},
     querySelector(sel) {
-      return sel === '.cl-photo-img' && html.includes('class="cl-photo-img') ? img : null;
+      if (!html.includes('class="cl-photo-img')) return null;
+      if (sel === '.cl-photo-img') return cadre;
+      if (sel === 'video.cl-photo-img') return cadre instanceof FauxVideo ? cadre : null;
+      return null;
     },
     dispatch(type, ev) {
       for (const h of handlers[type] ?? []) h(ev);
@@ -270,10 +353,15 @@ const PRODUIT: ClienteProduit = {
   inStock: true,
 };
 
+const CLIP = 'https://media.test/pagne-clip.mp4';
+/** A product with a clip and two photographs: the gallery's order is clip · P0 · P1 (« n sur 3 »). */
+const PRODUIT_CLIP: ClienteProduit = { ...PRODUIT, assetRefs: [P0, P1], videoRef: CLIP };
+
 /** The photo the frame SHOWS: the live node's patch when there is one, else the markup. */
-const srcDuCadre = (c: FauxConteneur): string | undefined => c.img.src ?? SRC_DU_CADRE.exec(c.innerHTML)?.[1];
+const srcDuCadre = (c: FauxConteneur): string | undefined =>
+  c.video !== null ? undefined : (c.img.src ?? SRC_DU_CADRE.exec(c.innerHTML)?.[1]);
 const diapoDe = (c: FauxConteneur): string | undefined =>
-  c.img.attrs['data-diapo'] ?? /data-diapo="(\d+)"/.exec(c.innerHTML)?.[1];
+  c.video !== null ? undefined : (c.img.attrs['data-diapo'] ?? /data-diapo="(\d+)"/.exec(c.innerHTML)?.[1]);
 
 /* ─────────────────────────────── the walks ──────────────────────────────── */
 
@@ -509,13 +597,154 @@ describe('DIAPO-C1 — the lazy slideshow on the product frame, walked', () => {
     expect(srcDuCadre(c)).toBe(P1);
   });
 
-  it('STATIC FALLBACK: a clip plays instead — no show, nothing fetched', async () => {
-    const c = monter({ ...PRODUIT, videoRef: 'https://media.test/pagne.mp4' });
+  /* ═══ DIAPO-VIDEO-1 (founder 2026-09-17: « make sure the slideshow will need
+   * to wait for a video to finish before moving to the next ») — the clip is
+   * the show's FIRST slide, and the show waits for it to END. ═══ */
+
+  it('WITH A CLIP: the show WAITS for the clip to end — nothing advances and nothing is fetched while it plays; then the photographs, in turn; then the clip again, waited for again', async () => {
+    const c = monter(PRODUIT_CLIP);
     expect(c.innerHTML).toContain('data-role="video-hero"');
+    const rendusAvant = c.rendus;
+    const clip = c.video;
+    expect(clip).not.toBeNull();
+    expect(clip?.loop, 'the show decides what follows the clip — the loop is off').toBe(false);
+
+    await attendre(12_000);
+    expect(demandes, 'while the clip plays, nothing is fetched').toEqual([]);
+    expect(c.video, 'and the frame still holds the clip').toBe(clip);
+
+    clip?.finir();
+    await souffler();
+    expect(demandes, 'the clip is over: the first photograph (its poster, from the cache) is asked for').toEqual([P0]);
+    expect(c.video, 'the frame now holds the photograph').toBeNull();
+    expect(diapoDe(c)).toBe('1');
+    expect(srcDuCadre(c)).toBe(P0);
+    expect(c.rendus, 'the swap never rebuilds the screen').toBe(rendusAvant);
+
+    await attendre(4_000);
+    expect(demandes).toEqual([P0, P1]);
+    expect(diapoDe(c)).toBe('2');
+    expect(srcDuCadre(c)).toBe(P1);
+
+    await attendre(4_000);
+    expect(c.video, 'back to the clip: a fresh element in the frame, not fetched through the photo loader').not.toBeNull();
+    expect(c.video).not.toBe(clip);
+    expect(c.video?.loop, 'waited for again: the loop is off on the new element too').toBe(false);
+    expect(demandes).toEqual([P0, P1]);
+    expect(c.rendus).toBe(rendusAvant);
+    await attendre(12_000);
+    expect(demandes, 'the second clip is waited for, however long it is').toEqual([P0, P1]);
+    c.video?.finir();
+    await souffler();
+    expect(demandes).toEqual([P0, P1, P0]);
+    expect(diapoDe(c)).toBe('1');
+  });
+
+  it('WITH A CLIP, CANCELLABLE: a tap while the clip plays opens the gallery on the clip (« 1 sur 3 ») and the show is over; closing it brings the clip back, looping as before this slice', async () => {
+    const c = monter(PRODUIT_CLIP);
+    await attendre(1_000);
+    presser(c, 'photo-galerie');
+    expect(c.innerHTML).toContain('data-role="galerie"');
+    expect(c.innerHTML, 'the clip leads the gallery').toContain('1 sur 3');
     await attendre(12_000);
     expect(demandes).toEqual([]);
+
+    presser(c, 'galerie-fermer');
+    expect(c.innerHTML).not.toContain('data-role="galerie"');
+    expect(c.video, 'the frame shows the clip again').not.toBeNull();
+    expect(c.video?.loop, 'cancelled: the clip loops on its own, as before this slice').toBe(true);
+    c.video?.finir();
+    await attendre(12_000);
+    expect(demandes, 'and the show never advances past it').toEqual([]);
+    expect(c.video).not.toBeNull();
+  });
+
+  it('WITH A CLIP, CANCELLABLE: a tap on a photograph after the clip opens the gallery THERE (« 3 sur 3 »)', async () => {
+    const c = monter(PRODUIT_CLIP);
+    c.video?.finir();
+    await souffler();
+    await attendre(4_000);
+    expect(diapoDe(c)).toBe('2');
     presser(c, 'photo-galerie');
-    expect(c.innerHTML, 'with a clip the gallery still leads with it').toContain('1 sur 4');
+    expect(c.innerHTML).toContain('3 sur 3');
+    expect(c.innerHTML).toContain(P1);
+  });
+
+  it('WITH A CLIP, STATIC FALLBACK: reduced motion → the clip loops as before, and its end moves nothing', async () => {
+    reduit = true;
+    const c = monter(PRODUIT_CLIP);
+    expect(c.video?.loop, 'no show: the loop is left alone').toBe(true);
+    c.video?.finir();
+    await attendre(12_000);
+    expect(demandes).toEqual([]);
+    expect(c.video).not.toBeNull();
+  });
+
+  it('WITH A CLIP, STATIC FALLBACK: the photograph after the clip fails → the show stops and the clip loops again, restarted', async () => {
+    echecs.add(P0);
+    const c = monter(PRODUIT_CLIP);
+    const clip = c.video;
+    expect(clip?.loop).toBe(false);
+    clip?.finir();
+    await souffler();
+    expect(demandes, 'asked once').toEqual([P0]);
+    expect(c.video, 'the frame keeps the clip').toBe(clip);
+    expect(clip?.loop, 'the fallback is the clip as before this slice: looping').toBe(true);
+    expect(clip?.lectures, 'it had ended, so it is started again').toBe(1);
+    await attendre(12_000);
+    expect(demandes, 'no retry storm').toEqual([P0]);
+    // A re-render must not wake it.
+    presser(c, 'ouvrir-protections');
+    presser(c, 'fermer-protections');
+    c.video?.finir();
+    await attendre(12_000);
+    expect(demandes).toEqual([P0]);
+    expect(c.video).not.toBeNull();
+  });
+
+  it('WITH A CLIP: a real render mid-clip (the sheet opens and closes) gives the frame a new clip element — the show follows it, and the old one ending changes nothing', async () => {
+    const c = monter(PRODUIT_CLIP);
+    const premier = c.video;
+    expect(premier?.loop).toBe(false);
+    presser(c, 'ouvrir-protections');
+    presser(c, 'fermer-protections');
+    const second = c.video;
+    expect(second).not.toBeNull();
+    expect(second).not.toBe(premier);
+    expect(second?.loop, 'the show follows the new element').toBe(false);
+
+    premier?.finir();
+    await souffler();
+    expect(demandes, 'a dead element ending moves nothing').toEqual([]);
+    expect(c.video).toBe(second);
+
+    second?.finir();
+    await souffler();
+    expect(demandes, 'the live one ending moves the show, once').toEqual([P0]);
+    expect(diapoDe(c)).toBe('1');
+    await attendre(4_000);
+    expect(demandes, 'and only once').toEqual([P0, P1]);
+  });
+
+  it('WITH A CLIP: a hidden tab holds the place when the clip ends; the show goes on when she looks again', async () => {
+    const doc = { visibilityState: 'hidden', addEventListener: () => {}, removeEventListener: () => {} };
+    (globalThis as Record<string, unknown>)['document'] = doc;
+    try {
+      const c = monter(PRODUIT_CLIP);
+      c.video?.finir();
+      await souffler();
+      await attendre(12_000);
+      expect(demandes, 'unseen, nothing advances').toEqual([]);
+      expect(c.video).not.toBeNull();
+      doc.visibilityState = 'visible';
+      await attendre(4_000);
+      expect(demandes).toEqual([P0]);
+      expect(diapoDe(c)).toBe('1');
+    } finally {
+      for (const arreter of arrets) arreter();
+      arrets = [];
+      delete (globalThis as Record<string, unknown>)['document'];
+    }
   });
 
   it('STATIC FALLBACK: a single photo is a photo, not a show', async () => {
