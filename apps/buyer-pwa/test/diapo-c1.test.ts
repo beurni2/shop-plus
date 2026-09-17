@@ -358,6 +358,27 @@ describe('DIAPO-C1 — the lazy slideshow on the product frame, walked', () => {
     expect(srcDuCadre(c)).toBe(P1);
   });
 
+  it('ONE photo in flight: a real render mid-fetch (the sheet opens and closes) never arms a second fetch', async () => {
+    lentes.add(P1);
+    const c = monter();
+    c.img.charger();
+    await attendre(4_000);
+    expect(demandes).toEqual([P1]);
+
+    presser(c, 'ouvrir-protections');
+    presser(c, 'fermer-protections');
+    c.img.charger();
+    await attendre(12_000);
+    expect(demandes, 'while a photo is still loading, nothing else may be asked for').toEqual([P1]);
+
+    lentes.clear();
+    liberer();
+    await souffler();
+    expect(diapoDe(c), 'the photo lands on the visit it belongs to').toBe('1');
+    await attendre(4_000);
+    expect(demandes, 'then the show goes on, one at a time').toEqual([P1, P2]);
+  });
+
   it('HOLDS under her protections sheet — a money moment she is reading — and goes on when it closes', async () => {
     const c = monter();
     c.img.charger();
