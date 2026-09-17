@@ -51,6 +51,10 @@ class FauxElement {
   getAttribute(name: string): string | null {
     return this.attrs[name] ?? null;
   }
+  /** For vitest's printer when an identity assertion on a node fails. */
+  getAttributeNames(): string[] {
+    return Object.keys(this.attrs);
+  }
   setAttribute(name: string, value: string): void {
     this.attrs[name] = value;
   }
