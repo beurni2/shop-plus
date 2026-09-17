@@ -830,11 +830,15 @@ describe('BUYER-LIVE-WIRE-6 — offline is not a wrong link (audit F3)', () => {
     const flows = readFileSync(join(__dirname, '..', 'src/vitrine/flows.ts'), 'utf8');
     expect(flows).toMatch(/if \(!\(e instanceof VitrineOffline\)\) throw e;\s*raisonHorsLigne = e\.raison;\s*resolved = 'offline';/);
     expect(flows).toMatch(/const horsLigne = resolved === 'offline';/);
-    expect(flows).toMatch(/horsLigne \? 'offline' : etatForRender\(/);
+    // PAUSE-VENTE-1 — the pause is routed the same way, AFTER offline and
+    // before the not-found fold: offline still wins first.
+    expect(flows).toMatch(/horsLigne \? 'offline' : enPause !== undefined \? 'pause' : etatForRender\(/);
     // LIEN-HORS-LIGNE-1 — the signed road catches the same marker and mounts the
     // same card, with a retry that re-runs ITS road (not the vitrine's resolve).
     const main = readFileSync(join(__dirname, '..', 'src/main.ts'), 'utf8');
-    expect(main).toMatch(/resolved = await port\.resolve\(signedSlug\);\s*\} catch \(e\) \{\s*if \(!\(e instanceof VitrineOffline\)\) throw e;\s*mountVitrine\(app as HTMLElement, signedSlug, \{ etat: 'offline', raison: e\.raison, reessayer: \(\) => void monterOffre\(\) \}\);/);
+    // PAUSE-VENTE-1 — the pause branch sits FIRST in the same catch (it mounts
+    // the pause card and returns); the offline road after it is unchanged.
+    expect(main).toMatch(/resolved = await port\.resolve\(signedSlug\);\s*\} catch \(e\) \{\s*if \(e instanceof VitrinePause\) \{[^}]*mountVitrine\(app as HTMLElement, signedSlug\);\s*return;\s*\}\s*if \(!\(e instanceof VitrineOffline\)\) throw e;\s*mountVitrine\(app as HTMLElement, signedSlug, \{ etat: 'offline', raison: e\.raison, reessayer: \(\) => void monterOffre\(\) \}\);/);
     expect(flows).toMatch(/if \(harness\.reessayer !== undefined\) harness\.reessayer\(\);/);
   });
 });
