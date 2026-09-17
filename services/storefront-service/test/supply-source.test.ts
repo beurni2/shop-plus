@@ -379,9 +379,11 @@ describe('SUPPLY-WIRE-1 — the path, the envelope and the freshness bound', () 
  * INSTRUMENT COULD HAVE SEEN THE PRESENCE. `gone` is reserved for the ONE
  * outcome where the producer itself answered and denied the offer (404
  * `unknown_product_version`). Every failure of the instrument — unreachable,
- * 5xx, unparseable, stale — and every refusal of an EXTANT offer (409
- * `unavailable`, possibly transient moderation against a ONE-WAY hide) is
- * `unknown`: renderable as omission, never actionable as a hide.
+ * 5xx, unparseable, stale — is `unknown`: renderable as omission, never
+ * actionable as a hide. A refusal of an EXTANT offer (409 `unavailable` with
+ * the ladder's reason) is `refused` since PRODUIT-REFUSÉ-1: still never a hide
+ * (possibly transient moderation against a ONE-WAY hide), still an omission for
+ * a render — but a « no » the quote refuses on, unlike the instrument's silence.
  */
 describe('AUTO-HIDE-WATCH-1 — presence verdicts separate evidence from ignorance', () => {
   const PV = 'pv-founder-001';

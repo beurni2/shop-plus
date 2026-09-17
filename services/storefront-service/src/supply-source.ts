@@ -348,8 +348,8 @@ export class BoundSupplySource implements SupplySourcePort {
     // The producer's honest refusals are ABSENCE for a RENDER either way, but they
     // differ as EVIDENCE (AUTO-HIDE-WATCH-1): 404 `unknown_product_version` is the
     // producer positively denying the offer — `gone`; 409 `unavailable` (the
-    // refusal ladder) is an EXTANT offer refusing service — no evidence, like any
-    // other non-2xx.
+    // refusal ladder) is an EXTANT offer refusing service — `refused` since
+    // PRODUIT-REFUSÉ-1: never evidence for the hide, but a « no » the quote acts on.
     //
     // THE STATUS CODE ALONE IS NOT THE DENIAL — the BODY is verified (verifier
     // finding, accepted): boutik's fallback 404 (`{service, status:'not_found'}`,

@@ -2023,6 +2023,13 @@ describe('PRODUIT-REFUSÉ-1 — a stale page cannot pay for a product the produc
     PRODUCER_ANSWER.set(PID, { kind: 'refuse', reason: 'stock_unconfirmed' });
     try {
       expect((await ask(s, key)).status).toBe(422);
+      // THE DISTINGUISHING ASK (verifier MAJOR): had the refusal moved AFTER the
+      // issue, a quote would now exist under this key and the SAME ask would
+      // serve it at 200 — a stale-page buyer retrying while the product is
+      // STILL frozen would get a price. Refused before the issue, it is 422 again.
+      const encore = await ask(s, key);
+      expect(encore.status, encore.text).toBe(422);
+      expect(encore.json['error']).toBe('product_unavailable');
     } finally {
       PRODUCER_ANSWER.delete(PID);
     }
