@@ -499,18 +499,20 @@ describe('DIAPO-C1 — the lazy slideshow on the product frame, walked', () => {
     expect(diapoDe(c)).toBe('0');
     c.img.charger(); // the hero paints again on the rebuilt screen
 
-    // The old fetch lands now: it belongs to a visit that ended — the frame stays.
+    // The show of THIS visit is alive while the old fetch is STILL in flight:
+    // its turn comes and it asks (again — the old one belongs to a visit that ended).
+    await attendre(4_000);
+    expect(demandes, 'the in-flight fetch of the old visit did not stall the new one').toEqual([P1, P1]);
+    expect(diapoDe(c), 'nothing painted yet').toBe('0');
+
+    // Both land now, the old one first: it paints nothing; the new one swaps.
+    lentes.clear();
     liberer();
     await souffler();
-    expect(diapoDe(c), 'a fetch from the visit she left never paints the new one').toBe('0');
-
-    // The show of THIS visit is alive: its turn comes, it asks (again — the
-    // stale one was dropped), it lands, it swaps.
-    lentes.clear();
-    await attendre(4_000);
-    expect(demandes, 'the in-flight guard of the old visit did not stall the new one').toEqual([P1, P1]);
-    expect(diapoDe(c)).toBe('1');
+    expect(diapoDe(c), 'a fetch from the visit she left never paints the new one; hers does').toBe('1');
     expect(srcDuCadre(c)).toBe(P1);
+    await attendre(4_000);
+    expect(demandes, 'and the show goes on from there').toEqual([P1, P1, P2]);
   });
 
   it('ONE photo in flight: a real render mid-fetch (the sheet opens and closes) never arms a second fetch', async () => {
