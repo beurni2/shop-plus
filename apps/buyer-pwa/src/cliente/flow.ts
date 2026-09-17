@@ -816,10 +816,11 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
   /** null = not decided yet · true = playing · false = cancelled / fell back, for this mount. */
   let diapoActif: boolean | null = null;
   /**
-   * The generation of the ONE photo in flight (−1 = none): a re-render mid-fetch
-   * must not arm a second timer (verifier) — but a fetch left behind by a jump
-   * (`clearT` bumps the generation) belongs to a visit that ended and must not
-   * stall the next one.
+   * The generation of the ONE photo in flight (−1 = none): a turn that comes
+   * mid-fetch — a timer armed by a re-render, or a clip ending — must not start
+   * a second fetch (verifier) — but a fetch left behind by a jump (`clearT`
+   * bumps the generation) belongs to a visit that ended and must not stall the
+   * next one. `avancer` is the one place that reads it.
    */
   let diapoEnVol = -1;
   /**
@@ -983,7 +984,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
     );
   }
   function planifierDiapo(): void {
-    if (diapoT !== null || diapoEnVol === generation) return;
+    if (diapoT !== null) return;
     if (diapoSlides()[state.diapo]?.kind === 'clip') {
       const v = clipDuCadre();
       if (v !== null) attendreClip(v);

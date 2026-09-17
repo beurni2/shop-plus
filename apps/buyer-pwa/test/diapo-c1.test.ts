@@ -783,6 +783,31 @@ describe('DIAPO-C1 — the lazy slideshow on the product frame, walked', () => {
     expect(diapoDe(c)).toBe('1');
   });
 
+  it('WITH A CLIP: the restarted clip ends BEFORE the slow photograph lands — no second fetch; the landing then shows it', async () => {
+    lentes.add(P0);
+    const c = monter(PRODUIT_CLIP);
+    c.video?.finir();
+    await souffler();
+    expect(demandes).toEqual([P0]);
+    presser(c, 'ouvrir-protections');
+    presser(c, 'fermer-protections');
+    const relance = c.video;
+    expect(relance?.loop).toBe(false);
+
+    relance?.finir();
+    await souffler();
+    expect(demandes, 'its end starts no second fetch while the first is in flight').toEqual([P0]);
+    expect(c.video, 'nothing to show yet: the clip stays').toBe(relance);
+
+    lentes.clear();
+    liberer();
+    await souffler();
+    expect(c.video, 'the landing finds the clip over and shows the photograph').toBeNull();
+    expect(diapoDe(c)).toBe('1');
+    await attendre(4_000);
+    expect(demandes, 'then the show goes on, one at a time').toEqual([P0, P1]);
+  });
+
   it('WITH A CLIP: a hidden tab holds the place when the clip ends; the show goes on when she looks again', async () => {
     const doc = { visibilityState: 'hidden', addEventListener: () => {}, removeEventListener: () => {} };
     (globalThis as Record<string, unknown>)['document'] = doc;
