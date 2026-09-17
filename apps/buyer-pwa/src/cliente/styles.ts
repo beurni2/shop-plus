@@ -933,6 +933,10 @@ export const CLIENTE_STYLES = `
     display: flex; flex-direction: column;
   }
   @media (prefers-reduced-motion: no-preference) { .cl-galerie { animation: clFade .18s ease; } }
+  /* DIAPO-C1 (SP2.3) — the slideshow's whole motion: a short fade as each photo
+     lands (the element is rebuilt per swap, so the animation plays on mount).
+     Opacity only — nothing a 1GB Android has to lay out twice. */
+  @media (prefers-reduced-motion: no-preference) { .cl-photo-img.cl-diapo { animation: clFade .35s ease; } }
   .cl-galerie-top {
     display: flex; align-items: center; justify-content: space-between;
     gap: 12px; padding: 16px 16px 10px;

@@ -589,7 +589,7 @@ function hero(m: ClienteProduit): string | undefined {
  * real photo over an ornament was the lie this state removes; « sans photo »
  * describes what is true and promises nothing.
  */
-function photoFrame(m: ClienteProduit, out: boolean): string {
+function photoFrame(m: ClienteProduit, out: boolean, diapo = 0): string {
   const src = hero(m);
   const ticks =
     '<div class="cl-tick cl-tick-tl"></div><div class="cl-tick cl-tick-tr"></div><div class="cl-tick cl-tick-bl"></div><div class="cl-tick cl-tick-br"></div>';
@@ -622,10 +622,20 @@ function photoFrame(m: ClienteProduit, out: boolean): string {
     // The frame stays the SAME tap target onto the gallery — the clip does not
     // steal the photographs' affordance; « PHOTO RÉELLE » still describes them.
     const clip = m.videoRef !== undefined && m.videoRef !== '' ? m.videoRef : undefined;
+    // DIAPO-C1 (SP2.3) — when the flow is playing the slideshow (≥ 2 photos, no
+    // clip), the frame shows its CURRENT photo, not always the hero: `diapo` is
+    // the flow's index, clamped, so a re-render (a toast, a chip) never snaps
+    // her back to photo one. `data-diapo` is what the walk reads; the `cl-diapo`
+    // class is the WHOLE motion — a short fade on each swap, and nothing when
+    // she prefers reduced motion. With a clip, the clip plays and the show
+    // never starts (the flow decides; this render only obeys the index).
+    const photos = m.assetRefs.filter((r) => r !== '');
+    const idx = photos.length > 1 ? Math.min(Math.max(diapo, 0), photos.length - 1) : 0;
+    const shown = photos[idx] ?? src;
     const art =
       clip !== undefined
         ? `<video class="cl-photo-img" data-role="video-hero" src="${esc(clip)}" poster="${esc(src)}" autoplay muted playsinline loop preload="metadata"></video>`
-        : `<img class="cl-photo-img" src="${esc(src)}" alt="" decoding="async">`;
+        : `<img class="cl-photo-img${photos.length > 1 ? ' cl-diapo' : ''}" data-diapo="${idx}" src="${esc(shown)}" alt="" decoding="async">`;
     return [
       `<div class="cl-photo" data-role="photo-reelle" data-action="photo-galerie" role="button" tabindex="0" aria-label="${t('cl.c1.voir_photos')}">`,
       art,
@@ -646,7 +656,7 @@ function photoFrame(m: ClienteProduit, out: boolean): string {
   ].join('');
 }
 
-export function renderC1(m: ClienteProduit, o: { epuise: boolean; sansVoix: boolean }): string {
+export function renderC1(m: ClienteProduit, o: { epuise: boolean; sansVoix: boolean; diapo?: number }): string {
   const out = o.epuise;
   /**
    * CONTACT-WHATSAPP-1 (founder order 2026-08-23) — « on each product an
@@ -693,7 +703,7 @@ export function renderC1(m: ClienteProduit, o: { epuise: boolean; sansVoix: bool
     `<div class="cl-verirow"><span class="cl-veri-txt">${t('cl.c1.vendeuse_verifiee')}</span> <span class="cl-veri-check">${iconCheck(13, 2.6)}</span><span class="cl-dotsep">·</span><button class="cl-voir" data-action="voir-boutique" data-slug="${esc(m.slug)}">${t('cl.c1.voir_boutique')}</button></div></div>`,
     `<button class="cl-shield" data-action="ouvrir-protections" aria-label="${t('cl.protections.titre')}">${iconShieldCheck(18, 1.9)}</button>`,
     '</div>',
-    photoFrame(m, out),
+    photoFrame(m, out, o.diapo ?? 0),
     `<div class="cl-caption-row">${hero(m) !== undefined ? `<span>${t('cl.c1.photo_reelle')}</span>` : '<span></span>'}<span class="cl-vendu">${tf('cl.c1.vendu_par', { boutique: esc(m.shopName) })}</span></div>`,
     `<div class="cl-prodtitle">${esc(m.productName)}</div>`,
     `<div class="cl-chiprow">${m.variant ? `<span class="cl-variant">${esc(m.variant)}</span>` : ''}<span class="cl-prod-zone">${esc(m.zone)}</span></div>`,

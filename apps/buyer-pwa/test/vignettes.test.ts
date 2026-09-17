@@ -85,7 +85,9 @@ describe('the small frames ask for the vignette; the frames looked at full do no
     const sf = { name: 'Chez Awa', slug: 'chez-v-1', theme: 'indigo' as const, zone: 'Dassasgho' };
     const { produit: m } = clienteProduitReel(sf, produit(1) as never, undefined);
     const c1 = renderC1(m, { epuise: false, sansVoix: true });
-    expect(c1).toContain(`<img class="cl-photo-img" src="${HERO}-1" alt=""`);
+    // DIAPO-C1 (SP2.3): two photos → the frame carries the slideshow class and
+    // its index; the derivative rule is unchanged — the frame keeps the full ref.
+    expect(c1).toContain(`<img class="cl-photo-img cl-diapo" data-diapo="0" src="${HERO}-1" alt=""`);
     expect(c1).not.toContain('v=thumb');
     const galerie = renderGalerie(m, 1);
     expect(galerie).toContain(`src="${HERO}-1-b"`);

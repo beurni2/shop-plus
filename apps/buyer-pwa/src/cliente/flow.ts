@@ -214,6 +214,10 @@ interface FlowState {
   reason: string | null;
   /** RESELLER-UX-2 item 4 — the photo gallery: open at this index, null = closed. */
   galerie: number | null;
+  /** DIAPO-C1 (SP2.3) — the photo the C1 frame currently shows while the
+   *  slideshow plays (0 = the hero). UI state like `zoneFiltre`: never in the
+   *  reprise snapshot — a refresh starts the show again from the hero. */
+  diapo: number;
   /* ── SP3.2b — the server's price, and only the server's ────────────────── */
   /** The quote the SERVER issued, filled from its bytes. null until it answers. */
   serverQuote: ClienteQuote | null;
@@ -498,6 +502,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
     leg2: (init.revealed ?? false) ? 'confirmed' : 'idle',
     reason: null,
     galerie: null,
+    diapo: 0,
     serverQuote: null,
     refus: null,
     live: null,
@@ -778,11 +783,116 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
    */
   let generation = 0;
 
+  /**
+   * ═══ DIAPO-C1 — SP2.3 « Lazy slideshow + fallback: queued, cancellable, static fallback » ═══
+   *
+   * The C1 frame plays the product's photographs one after another, gently, and
+   * ONLY when it costs her nothing: two photos or more, no clip (a clip already
+   * plays in the frame), motion not reduced, the network not declared slow.
+   *  · QUEUED — the next photo is fetched in the background AFTER the hero has
+   *    painted and only when its turn comes: one image in flight, never the
+   *    whole shelf at once, so a 1GB Android on 3G shows the product first and
+   *    the rest as it can.
+   *  · CANCELLABLE — a tap on the frame ends the show for this visit and opens
+   *    the gallery ON THE PHOTO SHE IS LOOKING AT; leaving C1 clears the timer
+   *    (`clearT`, the same law every screen's timers obey); a hidden tab holds
+   *    its place instead of advancing unseen.
+   *  · STATIC FALLBACK — reduced motion, `saveData` / 2g, a queued photo that
+   *    fails, or a runtime with no `Image`: the hero stays, exactly as before
+   *    this slice. Nothing on this road can blank the frame.
+   * The pace is a safest default (journalled): four seconds — a market pace,
+   * not a billboard's.
+   */
+  const DIAPO_INTERVALLE_MS = 4000;
+  let diapoT: ReturnType<typeof setTimeout> | null = null;
+  /** null = not decided yet · true = playing · false = cancelled / fell back, for this mount. */
+  let diapoActif: boolean | null = null;
+  const diapoPhotos = (): readonly string[] =>
+    m.videoRef !== undefined && m.videoRef !== '' ? [] : m.assetRefs.filter((r) => r !== '');
+  function diapoPermis(): boolean {
+    if (diapoActif !== null) return diapoActif;
+    const reduit = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const conn =
+      typeof navigator !== 'undefined'
+        ? (navigator as { connection?: { saveData?: boolean; effectiveType?: string } }).connection
+        : undefined;
+    const lent = conn?.saveData === true || conn?.effectiveType === '2g' || conn?.effectiveType === 'slow-2g';
+    diapoActif = diapoPhotos().length > 1 && !reduit && !lent;
+    return diapoActif;
+  }
+  function arreterDiapo(): void {
+    diapoActif = false;
+    if (diapoT !== null) clearTimeout(diapoT);
+    diapoT = null;
+  }
+  /** One photo, fetched by the browser's own image loader; a failure REJECTS (the fallback's cue). */
+  function prechargerPhoto(src: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const Img = (globalThis as { Image?: new () => { onload: (() => void) | null; onerror: (() => void) | null; src: string } }).Image;
+      if (typeof Img !== 'function') {
+        reject(new Error('diapo: no Image in this runtime'));
+        return;
+      }
+      const i = new Img();
+      i.onload = () => resolve();
+      i.onerror = () => reject(new Error('diapo: photo failed'));
+      i.src = src;
+    });
+  }
+  function planifierDiapo(): void {
+    if (diapoT !== null) return;
+    diapoT = setTimeout(() => {
+      diapoT = null;
+      if (state.screen !== 'C1' || state.loading || state.galerie !== null || state.refus !== null || diapoActif !== true) return;
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+        planifierDiapo();
+        return;
+      }
+      const photos = diapoPhotos();
+      const suivante = (state.diapo + 1) % photos.length;
+      const src = photos[suivante];
+      if (src === undefined) return;
+      const gen = generation;
+      prechargerPhoto(src).then(
+        () => {
+          // Landed on a screen she has left, or after a tap: the photo stays cached, the frame stays.
+          if (gen !== generation || diapoActif !== true || state.screen !== 'C1' || state.galerie !== null) return;
+          state.diapo = suivante;
+          render();
+        },
+        () => {
+          arreterDiapo();
+        },
+      );
+    }, DIAPO_INTERVALLE_MS);
+  }
+  /** After each render of C1: keep the show going, but only once the hero has painted. */
+  function armerDiapo(): void {
+    if (state.screen !== 'C1' || state.loading || state.galerie !== null || state.refus !== null) return;
+    if (!diapoPermis() || diapoT !== null) return;
+    const img = container.querySelector<HTMLImageElement>('.cl-photo-img');
+    if (img === null) return;
+    if (img.complete) {
+      planifierDiapo();
+      return;
+    }
+    img.addEventListener(
+      'load',
+      () => {
+        if (diapoActif === true && diapoT === null && state.screen === 'C1' && state.galerie === null) planifierDiapo();
+      },
+      { once: true },
+    );
+  }
+
   function clearT(): void {
     if (t1) clearTimeout(t1);
     if (t2) clearTimeout(t2);
     if (tSuivi) clearTimeout(tSuivi);
     if (ticker) clearInterval(ticker);
+    // DIAPO-C1 — leaving a screen cancels what that screen started, the show included.
+    if (diapoT !== null) clearTimeout(diapoT);
+    diapoT = null;
     t1 = t2 = tSuivi = null;
     suiviEnAttenteDeRetour = null;
     echecsSuivi = 0;
@@ -868,7 +978,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
     const q = quoteOrNull();
     switch (state.screen) {
       case 'C1':
-        return renderC1(m, { epuise: state.stock === 'out', sansVoix: init.sansVoix ?? false });
+        return renderC1(m, { epuise: state.stock === 'out', sansVoix: init.sansVoix ?? false, diapo: state.diapo });
       case 'C3':
         return renderC3(c3State());
       case 'C4':
@@ -1711,6 +1821,9 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
         );
       }
     }
+    // DIAPO-C1 — the frame just rebuilt: keep the show going (or start it once
+    // the hero has painted). A no-op on every other screen and under the gallery.
+    armerDiapo();
     noterReprise();
   }
 
@@ -1773,7 +1886,10 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
       // — la galerie photos (RESELLER-UX-2 item 4) — only reachable when the
       // frame rendered the affordance, i.e. at least one photo exists.
       case 'photo-galerie':
-        state.galerie = 0; render(); return;
+        // DIAPO-C1 — the tap ENDS the show for this visit and opens the gallery
+        // on the photo she is looking at; with a clip, the clip leads as before.
+        arreterDiapo();
+        state.galerie = m.videoRef !== undefined && m.videoRef !== '' ? 0 : state.diapo; render(); return;
       case 'galerie-fermer':
         state.galerie = null; render(); return;
       case 'galerie-precedente':
