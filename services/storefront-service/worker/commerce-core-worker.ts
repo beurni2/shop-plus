@@ -13,6 +13,10 @@ export * from '../../../packages/commerce-core/dist/refusal-ladder.js';
 export * from '../../../packages/commerce-core/dist/order-machine.js';
 export * from '../../../packages/commerce-core/dist/order-spine.js';
 export * from '../../../packages/commerce-core/dist/ledger.js';
+// RELATED-PARTY-1 — §6.5's pure decision (`decideRelatedParty`, canon shape),
+// which the OrderDO records once per order from the two numbers it read.
+// Same vault-dist discipline: the rule lives in one file, the Worker obeys it.
+export * from '../../../packages/commerce-core/dist/related-party.js';
 // RAPPROCHEMENT-1 (E3) — the pure reconciliation pass the OrderDO runs at
 // /entry/reconcile. Same vault-dist discipline as its siblings above.
 export * from '../../../packages/commerce-core/dist/reconcile.js';

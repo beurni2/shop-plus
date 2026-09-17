@@ -10,6 +10,7 @@ import { IconAccueil, IconChevron, IconProduits, IconGains, IconProfil, IconVitr
 import { formatFcfa } from './src/earnings';
 import { IS_PREVIEW } from './src/preview';
 import { t, tf } from './src/i18n';
+import type { LigneRetenue } from './src/sales/gains-screen';
 import { JOURNEY, START, type Screen } from './src/journey';
 import { frenchDate } from './src/share/hub';
 import { QrCode } from './src/qr/QrCode';
@@ -706,6 +707,65 @@ function AttenteBandeau({ nAttente, echecs, nomDe, rejeu, onEnvoyer, onAbandonne
         </View>
       ))}
     </Card>
+  );
+}
+
+/**
+ * RELATED-PARTY-1 (§6.5) — ONE held sale on « Mes gains »: her net, the BASIS
+ * in plain words (a verdict she cannot see the basis of is not one she can
+ * contest), the status when there is one, and the appeal path. « Contester »
+ * opens ONE field and ONE action; her sentence rides her session to the
+ * order; a failure is said and the action stays (a way out); a success shows
+ * once the feed is re-read, so the screen tells what the ORDER holds, not what
+ * the phone hoped. Bounded to 200 characters here and again at the service.
+ */
+function LienProcheLigne({
+  ligne,
+  contester,
+}: {
+  ligne: LigneRetenue;
+  contester: (orderId: string, texte: string) => Promise<{ ok: boolean }>;
+}) {
+  const [ouvert, setOuvert] = useState(false);
+  const [texte, setTexte] = useState('');
+  const [envoi, setEnvoi] = useState(false);
+  const [echec, setEchec] = useState(false);
+  const envoyer = async (): Promise<void> => {
+    const phrase = texte.trim();
+    if (phrase === '' || envoi) return;
+    setEnvoi(true);
+    setEchec(false);
+    const res = await contester(ligne.orderId, phrase);
+    setEnvoi(false);
+    if (!res.ok) setEchec(true);
+  };
+  return (
+    <View style={styles.champ}>
+      <Text style={styles.gainsMontant}>{formatFcfa(ligne.netFcfa)}</Text>
+      {ligne.baseKeys.map((k) => (
+        <Text key={k} style={styles.message}>{t(k)}</Text>
+      ))}
+      {ligne.statutKey !== undefined && <Text style={styles.gainsCompte}>{t(ligne.statutKey)}</Text>}
+      {ligne.etat === 'a_contester' && !ouvert && (
+        <SecondaryButton label={t('gains.lien_proche_contester')} onPress={() => setOuvert(true)} />
+      )}
+      {ligne.etat === 'a_contester' && ouvert && (
+        <>
+          <TextInput
+            style={styles.champInput}
+            value={texte}
+            onChangeText={setTexte}
+            placeholder={t('gains.lien_proche_champ')}
+            accessibilityLabel={t('gains.lien_proche_champ')}
+            maxLength={200}
+            editable={!envoi}
+            multiline
+          />
+          {echec && <Text style={styles.gainsCompte}>{t('gains.lien_proche_pas_partie')}</Text>}
+          <PrimaryButton label={t('gains.lien_proche_envoyer')} onPress={() => { void envoyer(); }} disabled={envoi} />
+        </>
+      )}
+    </View>
   );
 }
 
@@ -3265,6 +3325,11 @@ export default function App() {
                 </Text>
                 <Text style={styles.message}>{p.enSommeil ? t('gains.etape_absente') : t(p.texteKey)}</Text>
                 {p.enSommeil && <Text style={styles.gainsCompte}>{t(p.texteKey)}</Text>}
+                {/* RELATED-PARTY-1 — the held sales themselves, each with its basis and its one action. */}
+                {p.etat === 'Held' && !p.enSommeil &&
+                  ventesReelles.gains.retenues.map((r) => (
+                    <LienProcheLigne key={r.orderId} ligne={r} contester={ventesReelles.contester} />
+                  ))}
               </Card>
             ))}
 

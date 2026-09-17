@@ -24,7 +24,7 @@
  * happen, never a zero that reads as « you have earned nothing ».
  */
 
-import type { GainsVue, PalierGains } from './gains-model';
+import type { GainsVue, PalierGains, VenteRetenue } from './gains-model';
 
 /** One rung as the screen paints it. `netFcfa` is the only franc, and it is a
  *  sum of amounts copied from frozen quotes — never a recomputation (SP-I04). */
@@ -59,6 +59,22 @@ export interface GainsEcran {
   readonly noticeKeys: readonly string[];
   /** Params for any notice key carrying `{n}`, by key. */
   readonly noticeParams: Readonly<Record<string, Record<string, string>>>;
+  /** RELATED-PARTY-1 — the sales on the Held rung, each painted with its state and its one action. */
+  readonly retenues: readonly LigneRetenue[];
+}
+
+/**
+ * One held sale as the screen paints it: the basis sentence(s) she can read,
+ * the status sentence when there is one, and whether the appeal is still
+ * open to her (`a_contester`), already sent (`contestee`), or closed by a
+ * confirmed violation (`refusee`).
+ */
+export interface LigneRetenue {
+  readonly orderId: string;
+  readonly netFcfa: number;
+  readonly baseKeys: readonly string[];
+  readonly etat: 'a_contester' | 'contestee' | 'refusee';
+  readonly statutKey?: string;
 }
 
 const AUCUN: readonly PalierLigne[] = [];
@@ -93,6 +109,29 @@ function ligne(p: PalierGains): PalierLigne {
  * The whole mapping, one place. `vue` is the model's honest state; the screen
  * never inspects raw rows.
  */
+const AUCUNE_RETENUE: readonly LigneRetenue[] = [];
+
+/**
+ * RELATED-PARTY-1 — the basis is said in plain words, signal by signal (the
+ * phone is the one this platform reads today; a signal without a sentence
+ * gets the generic one), then the hold sentence. The status: her contestation
+ * noted, or the founder's confirmed violation said plainly. A cleared sale is
+ * not here at all (it is ordinary locked money again).
+ */
+const BASE_PAR_SIGNAL: Readonly<Record<string, string>> = { phone: 'gains.lien_proche_base_telephone' };
+
+function ligneRetenue(v: VenteRetenue): LigneRetenue {
+  const bases = v.signals.map((s) => BASE_PAR_SIGNAL[s]).filter((k): k is string => k !== undefined);
+  const baseKeys = [...new Set(bases), 'gains.lien_proche_texte'];
+  if (v.resolution === 'violation') {
+    return { orderId: v.orderId, netFcfa: v.netFcfa, baseKeys, etat: 'refusee', statutKey: 'gains.lien_proche_refusee' };
+  }
+  if (v.contestee) {
+    return { orderId: v.orderId, netFcfa: v.netFcfa, baseKeys, etat: 'contestee', statutKey: 'gains.lien_proche_notee' };
+  }
+  return { orderId: v.orderId, netFcfa: v.netFcfa, baseKeys, etat: 'a_contester' };
+}
+
 export function ecranDesGains(vue: GainsVue): GainsEcran {
   const shell = (kind: GainsEcran['kind'], titreKey: string, hintKey?: string): GainsEcran => ({
     kind,
@@ -101,6 +140,7 @@ export function ecranDesGains(vue: GainsVue): GainsEcran {
     paliers: AUCUN,
     noticeKeys: [],
     noticeParams: SANS_PARAMS,
+    retenues: AUCUNE_RETENUE,
   });
 
   switch (vue.kind) {
@@ -141,6 +181,7 @@ export function ecranDesGains(vue: GainsVue): GainsEcran {
         paliers: vue.paliers.map(ligne),
         noticeKeys,
         noticeParams,
+        retenues: vue.retenues.map(ligneRetenue),
       };
     }
   }

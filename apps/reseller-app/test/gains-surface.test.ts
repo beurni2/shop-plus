@@ -96,7 +96,7 @@ describe('GAINS-OPP-1 — the gains screen keeps its own subject', () => {
     expect(titres.size).toBe(vues.length);
     // the ladder state keeps its own voice and gains no hint — it has the
     // ladder to speak with
-    const echelle = ecranDesGains({ kind: 'echelle', paliers: [], incomplet: false, sansObligation: 0 } as Parameters<typeof ecranDesGains>[0]);
+    const echelle = ecranDesGains({ kind: 'echelle', paliers: [], retenues: [], incomplet: false, sansObligation: 0 } as Parameters<typeof ecranDesGains>[0]);
     expect(echelle.hintKey).toBeUndefined();
     expect(echelle.sousTitreKey).toBe('gains.sous_titre');
   });

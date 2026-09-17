@@ -1,5 +1,18 @@
-import { OrderConfirmedEventSchema, QuoteSchema, type OrderConfirmedEvent, type PlatformEvent, type Quote } from '@platform/contracts';
-import { OrderSpine, type DoorLegState, type PaymentFailureReason } from '@shop-plus/commerce-core';
+import {
+  OrderConfirmedEventSchema,
+  QuoteSchema,
+  type OrderConfirmedEvent,
+  type PlatformEvent,
+  type Quote,
+  type RelatedPartyDecision,
+} from '@platform/contracts';
+import {
+  OrderSpine,
+  type DoorLegState,
+  type PaymentFailureReason,
+  type RelatedPartyAppeal,
+  type RelatedPartyResolution,
+} from '@shop-plus/commerce-core';
 import { readStoredQuote } from './checkout-core.js';
 
 /**
@@ -504,6 +517,10 @@ export type OrderInput =
    * the frozen Quote — this kind adds nothing of its own.
    */
   | { readonly kind: 'eligibility'; readonly event: unknown }
+  /** RELATED-PARTY-1 (§6.5) — the decision, her appeal, the founder's ruling: three replayable facts on the log. */
+  | { readonly kind: 'related_party'; readonly decision: RelatedPartyDecision }
+  | { readonly kind: 'related_party_appeal'; readonly appeal: RelatedPartyAppeal }
+  | { readonly kind: 'related_party_resolution'; readonly resolution: RelatedPartyResolution }
   | {
       readonly kind: 'confirm';
       readonly command_id: string;
@@ -655,6 +672,24 @@ export function applyOrderInput(spine: OrderSpine, input: OrderInput): ApplyOutc
      * outcome to the DO's durable sink — on the checkout leg's path too. The
      * money behavior is unchanged: the outcome still refuses.
      */
+    case 'related_party': {
+      const outcome = spine.onRelatedPartyDecision(input.decision);
+      return outcome.applied
+        ? { applied: true, duplicate: outcome.duplicate }
+        : { applied: false, reason: outcome.reason };
+    }
+    case 'related_party_appeal': {
+      const outcome = spine.onRelatedPartyAppeal(input.appeal);
+      return outcome.applied
+        ? { applied: true, duplicate: outcome.duplicate }
+        : { applied: false, reason: outcome.reason };
+    }
+    case 'related_party_resolution': {
+      const outcome = spine.onRelatedPartyResolution(input.resolution);
+      return outcome.applied
+        ? { applied: true, duplicate: outcome.duplicate }
+        : { applied: false, reason: outcome.reason };
+    }
     case 'door_provider': {
       const outcome = spine.onProviderDoorPaymentEvent(input.event, input.expectedProviderKey);
       return outcome.applied

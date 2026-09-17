@@ -144,4 +144,41 @@ export class LedgerRecords {
   obligationsFor(orderId: string): readonly SettlementObligation[] {
     return this.obligationsByOrderId.get(orderId) ?? [];
   }
+
+  /**
+   * RELATED-PARTY-1 (§6.5) — a HOLD on one party's obligation: the state goes
+   * to the canon's `Held` and the reason rides in `holds` (the field §5.6 gave
+   * every obligation for exactly this). The AMOUNT never changes here: a hold
+   * pauses a payout, it moves no franc. Idempotent on the reason. False when
+   * the order or the party has no obligation (before Séra's validated signal
+   * there is no commission to hold).
+   */
+  holdObligation(orderId: string, party: string, hold: string): boolean {
+    const rows = this.obligationsByOrderId.get(orderId);
+    const i = rows?.findIndex((o) => o.party === party) ?? -1;
+    if (rows === undefined || i < 0) return false;
+    const o = rows[i]!;
+    rows[i] = SettlementObligationSchema.parse({
+      ...o,
+      state: 'Held',
+      holds: o.holds.includes(hold) ? o.holds : [...o.holds, hold],
+    });
+    return true;
+  }
+
+  /**
+   * The hold's release — « on clear → paid »: every hold under the prefix
+   * comes off, and with no hold left the obligation is `Eligible` again, the
+   * one state a line ever holds before a hold today (no payout stage exists
+   * yet to return it to). A hold under another prefix keeps the line Held.
+   */
+  releaseHold(orderId: string, party: string, prefix: string): boolean {
+    const rows = this.obligationsByOrderId.get(orderId);
+    const i = rows?.findIndex((o) => o.party === party) ?? -1;
+    if (rows === undefined || i < 0) return false;
+    const o = rows[i]!;
+    const holds = o.holds.filter((h) => !h.startsWith(prefix));
+    rows[i] = SettlementObligationSchema.parse({ ...o, holds, state: holds.length === 0 ? 'Eligible' : o.state });
+    return true;
+  }
 }

@@ -4,6 +4,7 @@ import {
   ATTEIGNABLES,
   ECHELLE_GAINS,
   ETATS_DU_FIL_POUR_TESTS,
+  etatDeLaVente,
   etatPour,
   gainsSurface,
   vueDesGains,
@@ -116,6 +117,53 @@ describe('SP6.1 — reachability is DERIVED from the wire, never declared', () =
 });
 
 /* ═══════════════════ the mapping, state by state ═══════════════════ */
+
+describe('RELATED-PARTY-1 — a sale the order HELD sits on the Held rung, never on the locked hero; a cleared one is ordinary money again', () => {
+  const retenue = (over: Partial<FeedVente> = {}) =>
+    vente({ orderId: 'ord-h', resellerNet: 2_500, lienProche: { outcome: 'auto_void', signals: ['phone'], contestee: false }, ...over });
+
+  it('the rung ONE sale lands on: §6.5\'s hold first, then the wire state', () => {
+    expect(etatDeLaVente(vente())).toBe('Locked');
+    expect(etatDeLaVente(retenue())).toBe('Held');
+    expect(etatDeLaVente(retenue({ lienProche: { outcome: 'held_for_review', signals: ['household'], contestee: true } }))).toBe('Held');
+    expect(etatDeLaVente(retenue({ lienProche: { outcome: 'auto_void', signals: ['phone'], contestee: true, resolution: 'violation' } }))).toBe('Held');
+    expect(etatDeLaVente(retenue({ lienProche: { outcome: 'auto_void', signals: ['phone'], contestee: true, resolution: 'clear' } })), 'cleared: ordinary money').toBe('Locked');
+    expect(etatDeLaVente(retenue({ state: 'payment_failed' })), 'a hold on a failed payment still shows what the order holds').toBe('Held');
+  });
+
+  it('the Held rung wakes ONLY when a sale sits on it, carries that net and count, and the locked hero never adds it', () => {
+    const sans = palier([vente()], 'Held');
+    expect(sans.atteignable, 'dormant without a held sale, as before').toBe(false);
+    expect(sans.netFcfa).toBe(0);
+    const avec = echelle([vente({ resellerNet: 3_000 }), retenue()]);
+    const held = avec.paliers.find((p) => p.etat === 'Held');
+    const locked = avec.paliers.find((p) => p.etat === 'Locked');
+    expect(held?.atteignable).toBe(true);
+    expect(held?.ventes).toBe(1);
+    expect(held?.netFcfa).toBe(2_500);
+    expect(locked?.netFcfa, 'the held net is never locked money').toBe(3_000);
+    expect(avec.retenues).toEqual([{ orderId: 'ord-h', netFcfa: 2_500, signals: ['phone'], contestee: false }]);
+    expect(ATTEIGNABLES.has('Held'), 'reachability by STATE is unchanged: the wire has no held state, only a fact on a row').toBe(false);
+  });
+
+  it('the screen paints each held sale with its basis, its state and its one action', () => {
+    const vue = echelle([
+      retenue(),
+      retenue({ orderId: 'ord-c', lienProche: { outcome: 'auto_void', signals: ['phone'], contestee: true } }),
+      retenue({ orderId: 'ord-v', lienProche: { outcome: 'auto_void', signals: ['phone'], contestee: false, resolution: 'violation' } }),
+      retenue({ orderId: 'ord-r', lienProche: { outcome: 'held_for_review', signals: ['household'], contestee: false } }),
+    ]);
+    const ecran = ecranDesGains(vue);
+    if (ecran.kind !== 'echelle') throw new Error(ecran.kind);
+    expect(ecran.retenues.map((r) => [r.orderId, r.etat, r.statutKey, r.baseKeys])).toEqual([
+      ['ord-h', 'a_contester', undefined, ['gains.lien_proche_base_telephone', 'gains.lien_proche_texte']],
+      ['ord-c', 'contestee', 'gains.lien_proche_notee', ['gains.lien_proche_base_telephone', 'gains.lien_proche_texte']],
+      ['ord-v', 'refusee', 'gains.lien_proche_refusee', ['gains.lien_proche_base_telephone', 'gains.lien_proche_texte']],
+      // A signal this platform does not read yet has no sentence of its own: the hold sentence alone, never a made-up basis.
+      ['ord-r', 'a_contester', undefined, ['gains.lien_proche_texte']],
+    ]);
+  });
+});
 
 describe('SP6.1 — every wire state lands where the settlement law says, and nowhere else', () => {
   it('an unconfirmed order is Projected — money the provider has not confirmed is not hers yet', () => {

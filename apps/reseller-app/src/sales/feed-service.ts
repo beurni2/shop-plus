@@ -32,6 +32,19 @@ export const FEED_TIMEOUT_MS = 12_000;
  *  « en route » and « livrée » remain Séra's and remain absent. */
 export type FeedState = 'payment_pending' | 'confirmed' | 'payment_failed';
 
+/**
+ * RELATED-PARTY-1 — §6.5 on one of her sales, exactly as `/entry/reseller/{id}`
+ * builds it and ONLY when a non-clear decision stands: the outcome, the signals
+ * it rests on (the basis she can contest), whether she contested, and the
+ * founder's ruling once there is one. Absent on an ordinary sale.
+ */
+export interface LienProche {
+  readonly outcome: 'auto_void' | 'held_for_review';
+  readonly signals: readonly string[];
+  readonly contestee: boolean;
+  readonly resolution?: 'clear' | 'violation';
+}
+
 /** One row exactly as `/entry/reseller/{id}` builds it, field for field. */
 export interface FeedVente {
   readonly orderId: string;
@@ -48,6 +61,7 @@ export interface FeedVente {
    */
   readonly acceptedAt?: string;
   readonly readyAt?: string;
+  readonly lienProche?: LienProche;
 }
 
 export type FeedResult =
@@ -66,6 +80,8 @@ export interface ResellerFeedPort {
   /** `code` is her personal `SP-…` code. It is a PARAMETER, never a field of
    *  this object, so it cannot be captured at construction and logged. */
   mesVentes(code: string): Promise<FeedResult>;
+  /** RELATED-PARTY-1 — her one sentence on one held sale, riding the same code. */
+  contester(code: string, orderId: string, texte: string): Promise<ContestResult>;
 }
 
 const STATES: readonly string[] = ['payment_pending', 'confirmed', 'payment_failed'];
@@ -97,8 +113,28 @@ export function readFeedVente(raw: unknown): FeedVente | null {
     zoneTo,
     ...(typeof acceptedAt === 'string' && acceptedAt !== '' ? { acceptedAt } : {}),
     ...(typeof readyAt === 'string' && readyAt !== '' ? { readyAt } : {}),
+    ...(() => {
+      const lien = readLienProche(r['lienProche']);
+      return lien !== undefined ? { lienProche: lien } : {};
+    })(),
   };
 }
+
+/** RELATED-PARTY-1 — the field in the shape the order builds, or nothing (a malformed one is not a row we drop, only a field we ignore). */
+function readLienProche(raw: unknown): LienProche | undefined {
+  if (raw === null || typeof raw !== 'object') return undefined;
+  const r = raw as Record<string, unknown>;
+  const { outcome, signals, contestee, resolution } = r;
+  if (outcome !== 'auto_void' && outcome !== 'held_for_review') return undefined;
+  if (!Array.isArray(signals) || !signals.every((s) => typeof s === 'string')) return undefined;
+  if (typeof contestee !== 'boolean') return undefined;
+  if (resolution !== undefined && resolution !== 'clear' && resolution !== 'violation') return undefined;
+  return { outcome, signals: signals as string[], contestee, ...(resolution !== undefined ? { resolution } : {}) };
+}
+
+export type ContestResult =
+  | { readonly ok: true }
+  | { readonly ok: false; readonly reason: 'unauthorized' | 'refused' | 'unreachable' };
 
 export class HttpResellerFeed implements ResellerFeedPort {
   constructor(private readonly base: string) {}
@@ -132,6 +168,34 @@ export class HttpResellerFeed implements ResellerFeedPort {
       return { ok: true, ventes, incomplet: declared || dropped > 0 };
     } catch {
       // an abort and a dead network are the same thing to her: not reached
+      return { ok: false, reason: 'unreachable' };
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  /**
+   * RELATED-PARTY-1 — `POST /reseller/ventes/{orderId}/contester { texte }`,
+   * riding her session. 401 → unauthorized; a named refusal (the order's own:
+   * nothing to contest, already contested, already resolved, not hers, a bad
+   * sentence) → refused; anything else → unreachable. The text is the
+   * screen's to bound; the service bounds it again.
+   */
+  async contester(code: string, orderId: string, texte: string): Promise<ContestResult> {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), FEED_TIMEOUT_MS);
+    try {
+      const res = await fetch(`${this.base.replace(/\/$/, '')}/reseller/ventes/${encodeURIComponent(orderId)}/contester`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${code}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ texte }),
+        signal: controller.signal,
+      });
+      if (res.status === 401) return { ok: false, reason: 'unauthorized' };
+      if (res.status === 400 || res.status === 404 || res.status === 409) return { ok: false, reason: 'refused' };
+      if (!res.ok) return { ok: false, reason: 'unreachable' };
+      return { ok: true };
+    } catch {
       return { ok: false, reason: 'unreachable' };
     } finally {
       clearTimeout(timer);

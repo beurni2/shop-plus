@@ -19,7 +19,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { resolveResellerFeed, type ResellerFeedPort } from './feed-service';
+import { resolveResellerFeed, type ContestResult, type ResellerFeedPort } from './feed-service';
 import { vueDesVentes, type FeedVue } from './feed-model';
 import { ecranDesVentes, type VentesEcran } from './feed-screen';
 import { vueDesGains, type GainsVue } from './gains-model';
@@ -48,6 +48,8 @@ export interface VentesReelles {
   /** Submit a code typed at the ENTRANCE. Persists it only once it opens. */
   readonly ouvrir: (code: string) => Promise<void>;
   readonly recharger: () => Promise<void>;
+  /** RELATED-PARTY-1 — her one sentence on one held sale; on success the feed is re-read so her words show. */
+  readonly contester: (orderId: string, texte: string) => Promise<ContestResult>;
   /**
    * ACCESS-GATE-1 — does this device hold a code?
    *
@@ -176,11 +178,23 @@ export function useVentesReelles(store: CodeStore, port: ResellerFeedPort | null
     await lire(credential);
   }, [lire, store]);
 
+  const contester = useCallback(
+    async (orderId: string, texte: string): Promise<ContestResult> => {
+      const theCode = code.current;
+      if (port === null || theCode === null) return { ok: false, reason: 'unauthorized' };
+      const res = await port.contester(theCode, orderId, texte);
+      if (res.ok) await lire(theCode);
+      return res;
+    },
+    [port, lire],
+  );
+
   return {
     ecran: ecranDesVentes(vue),
     gains: ecranDesGains(gains),
     ouvrir,
     recharger,
+    contester,
     codePresent,
     verification,
     refuse,

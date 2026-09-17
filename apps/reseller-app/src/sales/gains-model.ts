@@ -200,6 +200,8 @@ export type GainsVue =
        * account for every row she can see there.
        */
       readonly sansObligation: number;
+      /** RELATED-PARTY-1 — the sales on the Held rung, each with what she can do about it. */
+      readonly retenues: readonly VenteRetenue[];
       /** The server could not read every row it holds for her. Said plainly. */
       readonly incomplet: boolean;
     };
@@ -213,18 +215,50 @@ export type GainsVue =
  * `vueDesGains(res.ventes)` present a partial read as the whole truth, with no
  * type error to catch it.
  */
+/**
+ * RELATED-PARTY-1 (§6.5) — a sale whose commission the order HELD: the buyer's
+ * number is hers (or a circumstantial signal under review). It sits on the
+ * `Held` rung — never counted as locked money — until the founder clears it;
+ * a confirmed violation keeps it there with its final sentence.
+ */
+export interface VenteRetenue {
+  readonly orderId: string;
+  readonly netFcfa: number;
+  readonly signals: readonly string[];
+  readonly contestee: boolean;
+  readonly resolution?: 'clear' | 'violation';
+}
+
+/** Held stands while the decision is not cleared; a cleared sale is ordinary money again. */
+export const lienRetenu = (r: FeedVente): boolean => r.lienProche !== undefined && r.lienProche.resolution !== 'clear';
+
+/** The rung ONE sale lands on: §6.5's hold first, then the wire state's settlement law. */
+export function etatDeLaVente(r: FeedVente): EtatGain | null {
+  return lienRetenu(r) ? 'Held' : etatPour(r.state);
+}
+
 export function vueDesGains(rows: readonly FeedVente[], incomplet: boolean): GainsVue {
   const ventes = new Map<EtatGain, number>();
+  const retenues: VenteRetenue[] = [];
   const nets = new Map<EtatGain, number>();
   let sansObligation = 0;
 
   for (const r of rows) {
-    const etat = etatPour(r.state);
+    const etat = etatDeLaVente(r);
     if (etat === null) {
       sansObligation += 1;
       continue;
     }
     ventes.set(etat, (ventes.get(etat) ?? 0) + 1);
+    if (etat === 'Held' && r.lienProche !== undefined) {
+      retenues.push({
+        orderId: r.orderId,
+        netFcfa: r.resellerNet,
+        signals: r.lienProche.signals,
+        contestee: r.lienProche.contestee,
+        ...(r.lienProche.resolution !== undefined ? { resolution: r.lienProche.resolution } : {}),
+      });
+    }
     // COPIED AND SUMMED, never recomputed (SP-I04). `readFeedVente` has already
     // refused any row whose net is not a non-negative franc integer, so this
     // cannot accumulate a fraction or a negative.
@@ -237,10 +271,13 @@ export function vueDesGains(rows: readonly FeedVente[], incomplet: boolean): Gai
     explicationKey: EXPLICATION[etat],
     ventes: ventes.get(etat) ?? 0,
     netFcfa: nets.get(etat) ?? 0,
-    atteignable: ATTEIGNABLES.has(etat),
+    // RELATED-PARTY-1 — the Held rung wakes only when a sale actually sits on
+    // it (a fact on the wire, not a state); otherwise it stays as dormant as
+    // the five the wire cannot reach.
+    atteignable: etat === 'Held' ? (ventes.get('Held') ?? 0) > 0 : ATTEIGNABLES.has(etat),
   }));
 
-  return { kind: 'echelle', paliers, sansObligation, incomplet };
+  return { kind: 'echelle', paliers, retenues, sansObligation, incomplet };
 }
 
 /**

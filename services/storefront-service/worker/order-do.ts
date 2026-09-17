@@ -1,6 +1,19 @@
-import { PlatformEventSchema, assertQuoteReconciles, type PlatformEvent, type Quote } from '@platform/contracts';
+import {
+  PlatformEventSchema,
+  assertQuoteReconciles,
+  type PlatformEvent,
+  type Quote,
+  type RelatedPartyDecision,
+} from '@platform/contracts';
 import { FLUSHER_TIMEOUT_MS } from '../src/delais.js';
-import { decideBuyerRung, reconcileOrder, reservationReconciliationAlert, type ReservationState } from '@shop-plus/commerce-core';
+import {
+  decideBuyerRung,
+  decideRelatedParty,
+  reconcileOrder,
+  reservationReconciliationAlert,
+  type OrderSpine,
+  type ReservationState,
+} from '@shop-plus/commerce-core';
 import {
   acceptChargeForLeg,
   applyOrderInput,
@@ -28,6 +41,7 @@ import { timingSafeEqual } from './auth.js';
  *  so the check and the vault agree on one string. */
 const DOOR_MODE = 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR';
 import { RESELLER_FEED_NAME } from './reseller-feed-do.js';
+import { RESELLER_ACCOUNTS_NAME } from './reseller-accounts-do.js';
 import { DLQ_NAME, PARK_MAX_BYTES, storedBytes } from './dead-letter-do.js';
 
 /**
@@ -632,6 +646,8 @@ export interface OrderDOEnv {
    *  composition-root shim, exactly as `OFFER` needs none. ABSENT ⇒ the
    *  registration is skipped and the money path is untouched. */
   readonly RESELLER?: DurableObjectNamespace;
+  /** RELATED-PARTY-1 — the accounts book, for the reseller's registered number (§6.5's phone signal). */
+  readonly COMPTES?: DurableObjectNamespace;
   /**
    * VRAI-SUIVI — the NEW Shop+→custody road: custody-service as a SERVICE
    * BINDING (`[[services]]` in wrangler.toml, the OFFER/MEDIA discipline —
@@ -671,6 +687,54 @@ export interface OrderDOEnv {
    */
   readonly MEDIA?: { fetch(request: Request): Promise<Response> };
   readonly MEDIA_WRITE_KEY?: string;
+}
+
+/**
+ * RELATED-PARTY-1 — two numbers as people type them (with or without +226 or
+ * 00226, with spaces or dots of their own) are the SAME number when their
+ * eight digits agree. Anything shorter than eight digits is no number to
+ * match: it never matches, so a half-typed contact can never void a sale.
+ */
+export function memeNumero(a: string, b: string): boolean {
+  const huit = (s: string): string => s.replace(/\D/g, '').replace(/^00/, '').replace(/^226(?=\d{8}$)/, '');
+  const x = huit(a);
+  const y = huit(b);
+  return x.length >= 8 && x === y;
+}
+
+/**
+ * What HER wire carries about §6.5 on one order — only when a non-clear
+ * decision stands: the outcome, the signals it rests on (the basis of any
+ * appeal — a verdict she cannot see the basis of is not one she can contest),
+ * whether she contested, and the founder's ruling once there is one. A clear
+ * decision puts nothing on her wire; the founder's read carries it all.
+ */
+export function lienProcheSurLeFil(
+  spine: OrderSpine,
+): { outcome: string; signals: string[]; contestee: boolean; resolution?: string } | undefined {
+  const rp = spine.relatedPartyView();
+  if (rp === undefined || rp.decision.outcome === 'clear') return undefined;
+  return {
+    outcome: rp.decision.outcome,
+    signals: [...rp.decision.signals.identity, ...rp.decision.signals.circumstantial],
+    contestee: rp.appeal !== undefined,
+    ...(rp.resolution !== undefined ? { resolution: rp.resolution.outcome } : {}),
+  };
+}
+
+/** The founder's whole view of §6.5 on one order: decision · appeal · ruling · the lines as stored. */
+export function vueLienProche(spine: OrderSpine, orderId: string): Record<string, unknown> {
+  const rp = spine.relatedPartyView();
+  return {
+    ok: true,
+    orderId,
+    decision: rp?.decision ?? null,
+    appeal: rp?.appeal ?? null,
+    resolution: rp?.resolution ?? null,
+    obligations: spine.ledger
+      .obligationsFor(orderId)
+      .map((o) => ({ party: o.party, amount: o.amount, state: o.state, holds: [...o.holds] })),
+  };
 }
 
 export class OrderDO {
@@ -1233,6 +1297,8 @@ export class OrderDO {
         ) {
           await this.state.storage.setAlarm(Date.now()).catch(() => undefined);
         }
+        // RELATED-PARTY-1 — the redelivery also repairs an UNDECIDED order.
+        await this.lienProcheSiAbsent(spine, quote, origin.orderId, log);
         return Response.json({ ok: true, status: 'duplicate' });
       }
       // BOUTIK-SUIVI — the supplier's « Livré et terminé » screen is fed from
@@ -1241,8 +1307,19 @@ export class OrderDO {
       // ever, which is the exact class of silent loss the accept-leg verifier
       // caught on the other wire (B1). The relay is at-least-once and
       // first-wins at Boutik+'s door.
+      // RELATED-PARTY-1 — the §6.5 decision is made NOW, once, from the two
+      // numbers, and logged in the SAME batch as the signal that created the
+      // commission it judges; a non-clear decision holds her line before any
+      // read can see the line unheld. Undecided (the book unreachable): the
+      // signal is still recorded — Séra's redelivery decides later.
+      const decision = await this.deciderLienProche(quote, origin.orderId);
+      const entrees: OrderInput[] = [input];
+      if (decision !== undefined) {
+        const lien: OrderInput = { kind: 'related_party', decision };
+        if (applyOrderInput(spine, lien).applied) entrees.push(lien);
+      }
       await this.state.storage.put({
-        [LOG_KEY]: [...log, input],
+        [LOG_KEY]: [...log, ...entrees],
         [BOUTIK_DELIVERED_KEY]: { status: 'pending', event, attempts: 0 },
       });
       await this.state.storage.setAlarm(Date.now()).catch(() => undefined);
@@ -1555,7 +1632,96 @@ export class OrderDO {
          */
         ...(prep.acceptedAt !== undefined ? { acceptedAt: prep.acceptedAt } : {}),
         ...(prep.readyAt !== undefined ? { readyAt: prep.readyAt } : {}),
+        // RELATED-PARTY-1 — only when a non-clear §6.5 decision stands.
+        ...(() => {
+          const lien = lienProcheSurLeFil(spine);
+          return lien !== undefined ? { lienProche: lien } : {};
+        })(),
       });
+    }
+
+    /**
+     * RELATED-PARTY-1 — §6.5 on this order, for the FOUNDER (key C at the
+     * router): the decision with its signals, her appeal with her words, his
+     * ruling, and the settlement lines AS STORED with their holds. Nothing
+     * here is recomputed; the ledger is asked.
+     */
+    if (request.method === 'GET' && pathname === '/entry/related-party') {
+      const origin = await this.state.storage.get<StoredOrigin>(ORIGIN_KEY);
+      if (origin === undefined) return Response.json({ ok: false, reason: 'unknown_order' }, { status: 404 });
+      const quote = parseStoredQuote(origin.quoteBytes);
+      if (quote === undefined) {
+        return Response.json({ ok: false, reason: 'stored_quote_unreadable' }, { status: 422 });
+      }
+      const log = (await this.state.storage.get<OrderInput[]>(LOG_KEY)) ?? [];
+      const spine = rebuildOrderSpine(quote, origin, log);
+      return Response.json(vueLienProche(spine, origin.orderId));
+    }
+
+    /**
+     * RELATED-PARTY-1 — HER appeal: one sentence, only from the reseller the
+     * order is attributed to (the router resolved her session; the claim is
+     * checked HERE against the frozen quote, so no session can contest
+     * another's sale), only while a non-clear decision stands unresolved,
+     * once. Refusals are named; the sentence is stored on the log verbatim.
+     */
+    if (request.method === 'POST' && pathname === '/entry/related-party/appeal') {
+      const body = (await request.json().catch(() => null)) as
+        | { claimedBy?: unknown; texte?: unknown; at?: unknown }
+        | null;
+      if (
+        body === null || typeof body.claimedBy !== 'string' || body.claimedBy === '' ||
+        typeof body.texte !== 'string' || body.texte === '' || typeof body.at !== 'string'
+      ) {
+        return Response.json({ ok: false, reason: 'malformed' }, { status: 400 });
+      }
+      const origin = await this.state.storage.get<StoredOrigin>(ORIGIN_KEY);
+      if (origin === undefined) return Response.json({ ok: false, reason: 'unknown_order' }, { status: 404 });
+      const quote = parseStoredQuote(origin.quoteBytes);
+      if (quote === undefined) {
+        return Response.json({ ok: false, reason: 'stored_quote_unreadable' }, { status: 422 });
+      }
+      if (quote.attributionResellerId !== body.claimedBy) {
+        return Response.json({ ok: false, reason: 'not_yours' }, { status: 404 });
+      }
+      const log = (await this.state.storage.get<OrderInput[]>(LOG_KEY)) ?? [];
+      const spine = rebuildOrderSpine(quote, origin, log);
+      const entree: OrderInput = { kind: 'related_party_appeal', appeal: { at: body.at, texte: body.texte } };
+      const outcome = applyOrderInput(spine, entree);
+      if (!outcome.applied) return Response.json({ ok: false, reason: outcome.reason }, { status: 409 });
+      if (!outcome.duplicate) await this.state.storage.put(LOG_KEY, [...log, entree]);
+      return Response.json({ ok: true });
+    }
+
+    /**
+     * RELATED-PARTY-1 — THE FOUNDER'S RULING (key C at the router): `clear`
+     * releases the hold (« on clear → paid » — her line is Eligible again on
+     * the same road as any other); `violation` keeps it held and names the
+     * violation. The move « returned to seller » is NOT made here — its
+     * representation in the settlement records is his §7 call. Once; the
+     * same ruling twice is once; a different one is refused by name.
+     */
+    if (request.method === 'POST' && pathname === '/entry/related-party/resolve') {
+      const body = (await request.json().catch(() => null)) as { outcome?: unknown; at?: unknown } | null;
+      if (body === null || (body.outcome !== 'clear' && body.outcome !== 'violation') || typeof body.at !== 'string') {
+        return Response.json({ ok: false, reason: 'malformed' }, { status: 400 });
+      }
+      const origin = await this.state.storage.get<StoredOrigin>(ORIGIN_KEY);
+      if (origin === undefined) return Response.json({ ok: false, reason: 'unknown_order' }, { status: 404 });
+      const quote = parseStoredQuote(origin.quoteBytes);
+      if (quote === undefined) {
+        return Response.json({ ok: false, reason: 'stored_quote_unreadable' }, { status: 422 });
+      }
+      const log = (await this.state.storage.get<OrderInput[]>(LOG_KEY)) ?? [];
+      const spine = rebuildOrderSpine(quote, origin, log);
+      const entree: OrderInput = {
+        kind: 'related_party_resolution',
+        resolution: { at: body.at, outcome: body.outcome },
+      };
+      const outcome = applyOrderInput(spine, entree);
+      if (!outcome.applied) return Response.json({ ok: false, reason: outcome.reason }, { status: 409 });
+      if (!outcome.duplicate) await this.state.storage.put(LOG_KEY, [...log, entree]);
+      return Response.json(vueLienProche(spine, origin.orderId));
     }
 
     if (request.method === 'POST' && pathname === '/entry/webhook') {
@@ -3104,6 +3270,64 @@ export class OrderDO {
       await this.registerForReseller(quote.attributionResellerId, origin.orderId);
     }
     return Response.json({ ok: true, status: 'applied', state: spine.journey.state });
+  }
+
+  /**
+   * RELATED-PARTY-1 — §6.5 « Related-party detection (tiered; OWNER: Risk) »,
+   * THE ONE SIGNAL THIS PLATFORM CAN READ TODAY: the buyer's own dispatch
+   * contact (BC-1a, stored on this order) against the reseller's registered
+   * number (the accounts book). No identity system, no MoMo account on either
+   * side, no buyer account — the other identity signals and every
+   * circumstantial one stay unproduced; §6.5 says the circumstantial family
+   * never auto-voids anyway. The decision itself is `decideRelatedParty`
+   * (pure, canon shape); it is recorded on the log once, after Séra's
+   * validated signal, and replays from there — this read happens exactly once
+   * per order, never at replay.
+   *
+   * UNDECIDED when the book cannot answer (the binding absent, the call
+   * failing): nothing is recorded, and Séra's redelivery of the validated
+   * signal asks again (the duplicate branch). A book that answers « no active
+   * account » (mute 404, the book's own rule) yields no number to match, so
+   * the decision is `clear` — a paused reseller's sale is not judged here.
+   */
+  private async deciderLienProche(quote: Quote, orderId: string): Promise<RelatedPartyDecision | undefined> {
+    const ns = this.env.COMPTES;
+    if (ns === undefined) return undefined;
+    let sien: string | undefined;
+    try {
+      const res = await ns.get(ns.idFromName(RESELLER_ACCOUNTS_NAME)).fetch(
+        new Request('https://do/contact-of', {
+          method: 'POST',
+          body: JSON.stringify({ accountId: quote.attributionResellerId }),
+        }),
+      );
+      if (res.status === 404) sien = '';
+      else if (res.status === 200) {
+        const body = (await res.json().catch(() => null)) as { ok?: boolean; phone?: unknown } | null;
+        if (body?.ok === true && typeof body.phone === 'string') sien = body.phone;
+      }
+    } catch {
+      sien = undefined;
+    }
+    if (sien === undefined) return undefined;
+    const contact = await this.state.storage.get<BuyerContact>(CONTACT_KEY);
+    const identity: RelatedPartyDecision['signals']['identity'] =
+      contact !== undefined && sien !== '' && memeNumero(contact.phone, sien) ? ['phone'] : [];
+    return decideRelatedParty({
+      orderId,
+      signals: { identity, circumstantial: [] },
+      nowIso: new Date().toISOString(),
+    });
+  }
+
+  /** A redelivery repairs an UNDECIDED order: decide now, once, and log it. */
+  private async lienProcheSiAbsent(spine: OrderSpine, quote: Quote, orderId: string, log: readonly OrderInput[]): Promise<void> {
+    if (spine.relatedPartyView() !== undefined) return;
+    const decision = await this.deciderLienProche(quote, orderId);
+    if (decision === undefined) return;
+    const entree: OrderInput = { kind: 'related_party', decision };
+    if (!applyOrderInput(spine, entree).applied) return;
+    await this.state.storage.put(LOG_KEY, [...log, entree]);
   }
 
   /** RF-1a — put the confirmed sale in its reseller's index. Every failure is

@@ -997,6 +997,47 @@ export default {
       );
     }
 
+    /**
+     * RELATED-PARTY-1 — HER appeal (§6.5 « appeal path »): one sentence on
+     * one of her sales, riding her session. Active accounts only, refused by
+     * name otherwise; the sentence is trimmed and bounded here (1–200
+     * characters, a form field, never a document); the ORDER checks that the
+     * sale is hers against the frozen quote, so no session contests
+     * another's. Answers the order's own refusals (`nothing_to_contest`,
+     * `already_contested`, `already_resolved`) unchanged.
+     */
+    {
+      const lien = /^\/reseller\/ventes\/([^/]+)\/contester$/.exec(pathname);
+      if (lien !== null) {
+        if (request.method === 'OPTIONS') return resellerPreflight();
+        if (request.method !== 'POST') return withResellerCors(unauthorized());
+        const auth = request.headers.get('Authorization') ?? '';
+        const bearer = auth.startsWith('Bearer ') ? auth.slice('Bearer '.length) : '';
+        const compte = bearer === '' ? undefined : await resoudreCompte(env, bearer);
+        if (compte === undefined) return withResellerCors(unauthorized());
+        if (compte.state === 'paused') {
+          return withResellerCors(Response.json({ ok: false, reason: 'access_paused' }, { status: 403 }));
+        }
+        if (compte.state === 'pending_access') {
+          return withResellerCors(Response.json({ ok: false, reason: 'access_required' }, { status: 403 }));
+        }
+        const body = (await request.json().catch(() => null)) as { texte?: unknown } | null;
+        const texte = typeof body?.texte === 'string' ? body.texte.trim() : '';
+        if (body === null || Object.keys(body).length !== 1 || texte === '' || texte.length > 200) {
+          return withResellerCors(Response.json({ ok: false, reason: 'bad_field', field: 'texte' }, { status: 400 }));
+        }
+        const res = await env.ORDER.get(env.ORDER.idFromName(decodeURIComponent(lien[1]!))).fetch(
+          new Request('https://do/entry/related-party/appeal', {
+            method: 'POST',
+            body: JSON.stringify({ claimedBy: compte.accountId, texte, at: new Date().toISOString() }),
+          }),
+        );
+        const answer = new Response(res.body, { status: res.status, headers: { 'Content-Type': 'application/json' } });
+        answer.headers.set('Cache-Control', 'private, no-store');
+        return withResellerCors(answer);
+      }
+    }
+
     if (pathname === '/reseller/ventes') {
       if (request.method === 'OPTIONS') return resellerPreflight();
       if (request.method !== 'GET') return withResellerCors(unauthorized());
@@ -1377,6 +1418,41 @@ export default {
         new Request('https://do/entry/acknowledge', { method: 'POST', body: JSON.stringify({ parkId: args.parkId }) }),
       );
       return withDispatchCors(new Response(res.body, { status: res.status, headers: { 'Content-Type': 'application/json' } }));
+    }
+
+    /**
+     * RELATED-PARTY-1 — the FOUNDER'S read and ruling on one order's §6.5
+     * decision, on key C (`CHECKOUT_OPS_SECRET`): `GET /orders/{id}/related-party`
+     * carries the decision with its signals, her appeal with her words, his
+     * ruling, and the settlement lines AS STORED with their holds; `POST
+     * …/resolve { outcome: 'clear' | 'violation' }` records his ruling once.
+     * No other key opens either road.
+     */
+    {
+      const lien = /^\/orders\/([^/]+)\/related-party(\/resolve)?$/.exec(pathname);
+      if (lien !== null) {
+        if (request.method === 'OPTIONS') return dispatchPreflight();
+        const refused = await rejectUnauthorizedOpsRead(request, env);
+        if (refused) return withDispatchCors(refused);
+        const stub = env.ORDER.get(env.ORDER.idFromName(decodeURIComponent(lien[1]!)));
+        if (lien[2] === undefined) {
+          if (request.method !== 'GET') return withDispatchCors(unauthorized());
+          const res = await stub.fetch(new Request('https://do/entry/related-party'));
+          return withDispatchCors(new Response(res.body, { status: res.status, headers: { 'Content-Type': 'application/json' } }));
+        }
+        if (request.method !== 'POST') return withDispatchCors(unauthorized());
+        const body = (await request.json().catch(() => null)) as { outcome?: unknown } | null;
+        if (body === null || (body.outcome !== 'clear' && body.outcome !== 'violation') || Object.keys(body).length !== 1) {
+          return withDispatchCors(Response.json({ ok: false, reason: 'malformed' }, { status: 400 }));
+        }
+        const res = await stub.fetch(
+          new Request('https://do/entry/related-party/resolve', {
+            method: 'POST',
+            body: JSON.stringify({ outcome: body.outcome, at: new Date().toISOString() }),
+          }),
+        );
+        return withDispatchCors(new Response(res.body, { status: res.status, headers: { 'Content-Type': 'application/json' } }));
+      }
     }
 
     if (pathname === '/checkout/gains' || pathname === '/checkout/dispatch') {
@@ -2148,11 +2224,28 @@ function projectVente(v: Record<string, unknown> | null): Record<string, unknown
    */
   const acceptedAt = v['acceptedAt'];
   const readyAt = v['readyAt'];
+  const lienProche = lienProcheValide(v['lienProche']);
   return {
     orderId, state, createdAt, resellerNet, productVersionId, zoneTo,
     ...(typeof acceptedAt === 'string' && acceptedAt !== '' ? { acceptedAt } : {}),
     ...(typeof readyAt === 'string' && readyAt !== '' ? { readyAt } : {}),
+    // RELATED-PARTY-1 — §6.5 on her wire, only in the shape the order builds.
+    ...(lienProche !== undefined ? { lienProche } : {}),
   };
+}
+
+/** RELATED-PARTY-1 — the `lienProche` field exactly as `/entry/reseller/{id}` builds it, or nothing. */
+function lienProcheValide(
+  raw: unknown,
+): { outcome: string; signals: string[]; contestee: boolean; resolution?: string } | undefined {
+  if (raw === null || typeof raw !== 'object') return undefined;
+  const r = raw as Record<string, unknown>;
+  const { outcome, signals, contestee, resolution } = r;
+  if (outcome !== 'auto_void' && outcome !== 'held_for_review') return undefined;
+  if (!Array.isArray(signals) || !signals.every((s) => typeof s === 'string')) return undefined;
+  if (typeof contestee !== 'boolean') return undefined;
+  if (resolution !== undefined && resolution !== 'clear' && resolution !== 'violation') return undefined;
+  return { outcome, signals: signals as string[], contestee, ...(resolution !== undefined ? { resolution } : {}) };
 }
 
 /**

@@ -1,5 +1,6 @@
-import { PlatformEventSchema, type PlatformEvent, type Quote } from '@platform/contracts';
+import { PlatformEventSchema, type PlatformEvent, type Quote, type RelatedPartyDecision } from '@platform/contracts';
 import { LedgerRecords } from './ledger.js';
+import { commissionRetenue } from './related-party.js';
 import type { ReconciliationSnapshot } from './reconcile.js';
 import {
   advanceOrder,
@@ -92,7 +93,12 @@ export type SpineRefusalReason =
    * such a body threw a ZodError out of the vault as an unnamed 500, which a
    * real aggregator retries forever. Named and refused 422 instead.
    */
-  | 'malformed_payload';
+  | 'malformed_payload'
+  /** RELATED-PARTY-1 (§6.5) — the appeal and the ruling, refused by name. */
+  | 'nothing_to_contest'
+  | 'already_contested'
+  | 'nothing_to_resolve'
+  | 'already_resolved';
 
 export type SpineOutcome =
   | { applied: true; duplicate: boolean }
@@ -110,6 +116,28 @@ export type SpineOutcome =
     };
 
 /** WO-2.5: shop-side Option-B door-leg projection — NOT an order status. */
+/**
+ * RELATED-PARTY-1 (§6.5) — what one order holds about its reseller's
+ * commission once Séra's validated signal recorded the obligations: the
+ * decision (made ONCE), her appeal (ONE sentence, at most once, only while a
+ * non-clear decision stands unresolved) and the founder's ruling (ONCE).
+ */
+export interface RelatedPartyAppeal {
+  readonly at: string;
+  readonly texte: string;
+}
+export interface RelatedPartyResolution {
+  readonly at: string;
+  readonly outcome: 'clear' | 'violation';
+}
+export interface RelatedPartyView {
+  readonly decision: RelatedPartyDecision;
+  readonly appeal?: RelatedPartyAppeal;
+  readonly resolution?: RelatedPartyResolution;
+}
+/** The prefix every §6.5 hold on an obligation carries; the ruling releases by it. */
+export const RELATED_PARTY_HOLD = 'related_party:';
+
 export type DoorLegState = 'none' | 'due' | 'paid';
 
 export type DoorPaymentOutcome =
@@ -168,6 +196,7 @@ export class OrderSpine {
   private supplierStuckEmitted = false;
   private doorLeg: DoorLegState = 'none';
   private doorSignal: PlatformEvent | undefined;
+  private relatedParty: RelatedPartyView | undefined;
 
   constructor(args: {
     quote: Quote;
@@ -810,5 +839,71 @@ export class OrderSpine {
     );
     this.processedCommandIds.add(event.envelope.command_id);
     return { applied: true, duplicate: replay };
+  }
+
+  /* ═══ RELATED-PARTY-1 — §6.5 « Related-party detection (tiered; OWNER: Risk) » ═══
+   *
+   * The DECISION is made outside (`decideRelatedParty`, from signals the
+   * Worker read) and recorded here ONCE per order, after Séra's validated
+   * signal — before it there is no commission to hold. « During investigation
+   * commission is HELD, not returned »: a non-clear decision puts a hold on
+   * HER obligation only; the supplier's line and every amount stay as the
+   * quote copied them. The appeal is her one sentence; the ruling is the
+   * founder's: `clear` releases the hold (« on clear → paid » — the line is
+   * Eligible again, on the same road as any other), `violation` keeps it held
+   * and names the violation. The MOVE « returned to seller » is deliberately
+   * NOT made here — how it is represented in the settlement records is a §7
+   * question the founder rules on; until then the money does not move.
+   */
+  relatedPartyView(): RelatedPartyView | undefined {
+    return this.relatedParty;
+  }
+
+  private resellerParty(): string {
+    return `reseller:${this.quote.attributionResellerId}`;
+  }
+
+  onRelatedPartyDecision(decision: RelatedPartyDecision): SpineOutcome {
+    if (this.orderId === undefined || decision.orderId !== this.orderId) {
+      return { applied: false, reason: 'order_mismatch' };
+    }
+    if (this.relatedParty !== undefined) return { applied: true, duplicate: true };
+    // Before the validated signal there is no obligation to hold: refused by
+    // name, so a decision can never arrive ahead of the commission it judges.
+    if (this.ledger.obligationsFor(this.orderId).length === 0) return { applied: false, reason: 'out_of_order' };
+    this.relatedParty = { decision };
+    if (commissionRetenue(decision)) {
+      this.ledger.holdObligation(this.orderId, this.resellerParty(), `${RELATED_PARTY_HOLD}${decision.outcome}`);
+    }
+    return { applied: true, duplicate: false };
+  }
+
+  onRelatedPartyAppeal(appeal: RelatedPartyAppeal): SpineOutcome {
+    const rp = this.relatedParty;
+    if (rp === undefined || rp.decision.outcome === 'clear') return { applied: false, reason: 'nothing_to_contest' };
+    if (rp.resolution !== undefined) return { applied: false, reason: 'already_resolved' };
+    // Her first words stand: a second sentence is refused by name, not merged.
+    if (rp.appeal !== undefined) return { applied: false, reason: 'already_contested' };
+    this.relatedParty = { ...rp, appeal };
+    return { applied: true, duplicate: false };
+  }
+
+  onRelatedPartyResolution(resolution: RelatedPartyResolution): SpineOutcome {
+    const rp = this.relatedParty;
+    if (rp === undefined || rp.decision.outcome === 'clear' || this.orderId === undefined) {
+      return { applied: false, reason: 'nothing_to_resolve' };
+    }
+    if (rp.resolution !== undefined) {
+      return rp.resolution.outcome === resolution.outcome
+        ? { applied: true, duplicate: true }
+        : { applied: false, reason: 'already_resolved' };
+    }
+    this.relatedParty = { ...rp, resolution };
+    if (resolution.outcome === 'clear') {
+      this.ledger.releaseHold(this.orderId, this.resellerParty(), RELATED_PARTY_HOLD);
+    } else {
+      this.ledger.holdObligation(this.orderId, this.resellerParty(), `${RELATED_PARTY_HOLD}violation`);
+    }
+    return { applied: true, duplicate: false };
   }
 }

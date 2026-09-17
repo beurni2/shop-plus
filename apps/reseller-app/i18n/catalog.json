@@ -2694,6 +2694,54 @@
   "screenClass": "status"
  },
  {
+  "key": "gains.lien_proche_base_telephone",
+  "fr": "Le num\u00e9ro de la cliente est le m\u00eame que le v\u00f4tre.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "gains.lien_proche_texte",
+  "fr": "Ce gain est mis de c\u00f4t\u00e9 le temps d\u2019une v\u00e9rification.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "gains.lien_proche_contester",
+  "fr": "Contester",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "gains.lien_proche_champ",
+  "fr": "Dites-nous en une phrase pourquoi cette vente est normale.",
+  "register": "money",
+  "screenClass": "instruction"
+ },
+ {
+  "key": "gains.lien_proche_envoyer",
+  "fr": "Envoyer",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "gains.lien_proche_notee",
+  "fr": "Contestation not\u00e9e. Nous revenons vers vous.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "gains.lien_proche_refusee",
+  "fr": "V\u00e9rification termin\u00e9e : ce gain ne sera pas vers\u00e9.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "gains.lien_proche_pas_partie",
+  "fr": "La contestation n\u2019est pas partie. R\u00e9essayez.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
   "key": "gains.adjusted_titre",
   "fr": "Corrigé",
   "register": "money",
