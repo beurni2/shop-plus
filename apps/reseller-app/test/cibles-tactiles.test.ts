@@ -74,8 +74,10 @@ describe('App.tsx (token expressions) — the five sub-token controls now read t
     return m![0];
   };
 
-  it('toutVoirPill · vitrinePersoBtn · vitrineRetirer · vitrineIconBtn · vitrineToggle', () => {
-    for (const name of ['toutVoirPill', 'vitrinePersoBtn', 'vitrineRetirer', 'vitrineToggle']) {
+  // DECOUVERTE-RETIREE-1: `vitrineToggle` left with the privée/publique toggle
+  // it styled (SP-I05 amended) — four sub-token controls remain.
+  it('toutVoirPill · vitrinePersoBtn · vitrineRetirer · vitrineIconBtn', () => {
+    for (const name of ['toutVoirPill', 'vitrinePersoBtn', 'vitrineRetirer']) {
       expect(bloc(name), `${name} minHeight must be the touch token`).toMatch(/minHeight: touch\.minTargetPx/);
       expect(bloc(name), `${name} still carries a spacing-sum height`).not.toMatch(/(?:min)?[Hh]eight: spacing\./);
     }

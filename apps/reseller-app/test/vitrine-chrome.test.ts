@@ -91,7 +91,13 @@ describe('2 · the Personnaliser button says what it does', () => {
     // beside the public/private switch on a narrow phone, and a truncated label
     // is the same 5-second failure « Aa » was, only longer. So the button left
     // the header row entirely.
-    const head = app.slice(app.indexOf('vitrineHeadRow'), app.indexOf('</View>', app.indexOf('vitrineToggle')));
+    // DECOUVERTE-RETIREE-1: the toggle the row used to end with is gone; the
+    // row now ends at the note that records its retirement. The slice is
+    // asserted non-empty so a moved anchor can never pass this vacuously.
+    const debut = app.indexOf('vitrineHeadRow');
+    const head = app.slice(debut, app.indexOf('</View>', app.indexOf('DECOUVERTE-RETIREE-1', debut)));
+    expect(head.length).toBeGreaterThan(100);
+    expect(head).toContain('vitrineHead');
     expect(head).not.toContain('vitrinePersoBtn'); // no longer crammed in the row
     const style = app.slice(app.indexOf('vitrinePersoBtn: {'), app.indexOf('vitrinePersoLabel: {'));
     expect(style).toContain("justifyContent: 'center'");
