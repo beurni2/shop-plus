@@ -59,6 +59,6 @@ onlyBuiltDependencies:
 #                          to a418ca4 → 3.12.0 (the copy-lint with the F12
 #                          administrative-register stems).
 overrides:
-  "@platform/kernel-types": "git+https://github.com/beurni2/platform-contracts.git#289db98af8a9ac4db6950847bc730fd4a13b7fb7&path:packages/kernel-types"
-  "@platform/contracts": "git+https://github.com/beurni2/platform-contracts.git#289db98af8a9ac4db6950847bc730fd4a13b7fb7&path:packages/contracts"
+  "@platform/kernel-types": "git+https://github.com/beurni2/platform-contracts.git#d1aa3612927e117b17654eda3cdb7aec206b09d0&path:packages/kernel-types"
+  "@platform/contracts": "git+https://github.com/beurni2/platform-contracts.git#d1aa3612927e117b17654eda3cdb7aec206b09d0&path:packages/contracts"
   "@platform/ui-tokens": "git+https://github.com/beurni2/platform-contracts.git#be2199c95d27e6ae5f6c7381c12e18a9796d9800&path:packages/ui-tokens"

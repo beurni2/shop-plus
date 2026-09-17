@@ -728,6 +728,40 @@ export class ResellerAccountsDO {
       return Response.json({ ok: true, phone: record.phone });
     }
 
+    /**
+     * ═══ PAUSE-VENTE-1 (founder ruling 2026-09-17) — « paused resellers can
+     * not sell anything until they are reactivated » ═══
+     *
+     * Two more internal questions, each carrying ONE field, INTERNAL ONLY by
+     * construction like `/contact-of` (no public router path forwards here).
+     *
+     * `/state-of` — the account's state, for the buyer's three doors (her
+     * page, the quote, the order): the founder's pause must reach the buyer,
+     * not only her own app. Pending and absent are told apart from paused
+     * here because the callers fail OPEN on anything but a positive
+     * `paused` — a hiccup or a shop with no compte must never close a shop.
+     *
+     * `/contact-of-admitted` — her number for ANY admitted account (active
+     * or paused), for §6.5's phone signal on the order: a sale that exists
+     * was made while she was active (this slice refuses the others), and the
+     * founder's pause is a cut on her ACCESS, not an erasure of her identity.
+     * `/contact-of` stays ACTIVE-only for the buyer-facing WhatsApp tap.
+     */
+    if (request.method === 'POST' && (pathname === '/state-of' || pathname === '/contact-of-admitted')) {
+      const body = (await request.json().catch(() => null)) as { accountId?: unknown } | null;
+      const accountId = champ(body?.['accountId']);
+      if (accountId === null || Object.keys(body ?? {}).length !== 1) {
+        return Response.json({ ok: false, reason: 'malformed' }, { status: 400 });
+      }
+      const record = await this.compte(accountId);
+      if (record === undefined) return Response.json({ ok: false, reason: 'not_found' }, { status: 404 });
+      if (pathname === '/state-of') return Response.json({ ok: true, state: record.state });
+      if (record.state !== 'active' && record.state !== 'paused') {
+        return Response.json({ ok: false, reason: 'not_found' }, { status: 404 });
+      }
+      return Response.json({ ok: true, phone: record.phone });
+    }
+
     /* ── FOUNDER (index.ts gates these behind key C before forwarding) ────── */
 
     if (request.method === 'GET' && pathname === '/accounts') {
@@ -867,4 +901,29 @@ export async function resoudreCompte(
     | null;
   if (body?.ok !== true || typeof body.accountId !== 'string' || typeof body.state !== 'string') return undefined;
   return { accountId: body.accountId, state: body.state };
+}
+
+/**
+ * PAUSE-VENTE-1 — IS THIS RESELLER PAUSED? The one question the buyer's three
+ * doors ask the accounts book (the page read, the quote, the order create).
+ *
+ * TRUE only when the book POSITIVELY answers `paused`. Everything else is
+ * FALSE — the binding absent, the call failing, an unreadable body, an absent
+ * or pending account — because the founder's cut must never be forged by an
+ * outage: a book hiccup that closed every shop on the platform would be a
+ * worse failure than one paused reseller selling for the length of the
+ * hiccup (her own app refuses her by name regardless, and the next request
+ * asks again). The supply-hiccup law, applied to access.
+ */
+export async function compteEnPause(
+  env: { readonly COMPTES?: DurableObjectNamespace },
+  accountId: string,
+): Promise<boolean> {
+  if (env.COMPTES === undefined) return false;
+  const res = await env.COMPTES.get(env.COMPTES.idFromName(RESELLER_ACCOUNTS_NAME))
+    .fetch(new Request('https://do/state-of', { method: 'POST', body: JSON.stringify({ accountId }) }))
+    .catch(() => null);
+  if (res === null || res.status !== 200) return false;
+  const body = (await res.json().catch(() => null)) as { ok?: boolean; state?: unknown } | null;
+  return body?.ok === true && body.state === 'paused';
 }

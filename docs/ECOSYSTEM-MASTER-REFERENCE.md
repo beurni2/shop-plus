@@ -542,6 +542,7 @@ The queue for facts, media, and categories. **Specific, actionable reasons** —
 **Auto-void** (no human needed): same verified identity · same phone · same wallet · a reseller buying through her own customer identity.
 **Manual review** (a human must look): shared device · shared household · shared landmark · shared network.
 **The principle:** a low-confidence signal **may not** auto-void a legitimate reward or order. Suspicion is not proof.
+**Where a voided commission goes (founder ruling 2026-09-17):** it stays with the platform, held on an account the founder controls — **never returned to the seller, who is never told**; his only concern is getting the product sold. On « clear » it is paid to the reseller as usual. The held amount is a settlement-ledger line, never a wallet.
 
 ### Desk 5 — Provider reconciliation
 The ledger's obligations vs. the **provider's truth** (the webhooks). On divergence: **open a case · alert · protect existing customer promises · pause what is safe to pause.** *(Gated Cercle: divergence pauses **new** campaign reservations — never the promises already made to customers.)*
@@ -613,7 +614,7 @@ A place where a human can: pay someone early · forgive a fee · fabricate a del
 | **Rider goes offline mid-task** | Evidence queues. **Custody validation and money release stay pending** until server ack. Never auto-completed. | — | SE-I06 |
 | **Provider/webhook failure** | Reconciliation case opened. **Buyer refunds are never gated on the fund.** | Provider arrangement | B+I-13 |
 | **Attribution token tampered** | **Fails closed** — pays nobody, raises an alert. Never pays a random reseller. | — | SP-I09 |
-| **Self-dealing / fake referral** (gated Cercle) | Related-party tiers: same identity/phone/wallet → **auto-void**; shared device/household → **manual review**. | — | SP-I17 |
+| **Self-dealing / fake referral** (gated Cercle) | Related-party tiers: same identity/phone/wallet → **auto-void**; shared device/household → **manual review**. On a confirmed violation the commission **stays with the platform** — never returned to the seller, who is never told (founder 2026-09-17). | — | SP-I17 |
 | **Stock runs out mid-campaign** (gated) | Offers and campaigns **auto-pause**. Advertised benefits stop being advertised. | — | B+I-03 |
 
 ---

@@ -487,6 +487,31 @@ export class VitrineOffline extends Error {
   }
 }
 
+/**
+ * PAUSE-VENTE-1 (founder ruling 2026-09-17: « paused resellers can not sell
+ * anything until they are reactivated ») — the service answered the shop's
+ * PAUSE instead of the shop: `{ enPause: true, name, slug }` on a 200. Raised
+ * by the HTTP port the way `VitrineOffline` is, and for the same reason: kept
+ * OUT of the resolve return type so every caller that reads a storefront is
+ * untouched, and caught at the two mounts (`mountVitrine`, the signed road)
+ * that draw the designed pause card with her name on it.
+ */
+export class VitrinePause extends Error {
+  constructor(readonly nom: string) {
+    super('vitrine-pause');
+    this.name = 'VitrinePause';
+  }
+}
+
+/** The pause projection, and nothing that merely resembles it: the flag must
+ *  be the literal `true` and the name a string — a shop record never carries
+ *  `enPause`, so a real storefront can never be read as a pause. */
+function looksLikePause(v: unknown): v is { enPause: true; name: string } {
+  if (typeof v !== 'object' || v === null) return false;
+  const p = v as { enPause?: unknown; name?: unknown };
+  return p.enPause === true && typeof p.name === 'string';
+}
+
 export function httpStorefrontPort(baseUrl: string): StorefrontProfilePort {
   const base = baseUrl.replace(/\/+$/, '');
   return {
@@ -512,6 +537,10 @@ export function httpStorefrontPort(baseUrl: string): StorefrontProfilePort {
       if (!res.ok) return undefined; // 404 and any other 4xx → honest not-found
       const view: unknown = await res.json().catch(() => null);
       if (view === null) throw new VitrineOffline('service');
+      // PAUSE-VENTE-1 — the founder paused her: the service says so on a 200
+      // with her name and no products. Decided BEFORE the storefront check,
+      // which would otherwise read this honest answer as « lien invalide ».
+      if (looksLikePause(view)) throw new VitrinePause(view.name);
       if (!looksLikeStorefront(view)) return undefined;
       // BUYER-LIVE-WIRE-3 — the service's `products` ride through. Defensive on
       // shape because this is a network boundary: a non-array is treated as

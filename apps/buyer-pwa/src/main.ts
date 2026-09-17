@@ -13,7 +13,7 @@ import {
 } from '@platform/ui-tokens/legacy';
 import { vitrineSlugFromPath, signedProductSlugFromPath, recordVitrineArrival, vitrineHref, deployBaseFromPath } from './vitrine-link';
 import { mountCadeau } from './cadeau';
-import { demoStorefrontPort, resolveStorefrontPort, VitrineOffline } from './vitrine/profile';
+import { demoStorefrontPort, resolveStorefrontPort, VitrineOffline, VitrinePause } from './vitrine/profile';
 import { harnessProfil, mountVitrine, type VitrineEtat } from './vitrine/flows';
 import { enteteOverride } from './vitrine/entetes';
 import { ENT_STYLES } from './vitrine/entries';
@@ -673,6 +673,14 @@ if (app) {
     try {
       resolved = await port.resolve(signedSlug);
     } catch (e) {
+      if (e instanceof VitrinePause) {
+        // PAUSE-VENTE-1 — the founder paused her: the signed offer link lands
+        // on the SAME designed pause card the `/v/` road draws (the mount
+        // resolves and reads the pause itself, exactly as the not-found road
+        // below re-resolves). No offer, no price: she cannot sell.
+        mountVitrine(app as HTMLElement, signedSlug);
+        return;
+      }
       if (!(e instanceof VitrineOffline)) throw e;
       mountVitrine(app as HTMLElement, signedSlug, { etat: 'offline', raison: e.raison, reessayer: () => void monterOffre() });
       return;
@@ -988,7 +996,7 @@ if (app) {
       mountAffiche(app as HTMLElement, vitrineSlug);
     })();
   } else if (vitrineSlug) {
-    const VIT_ETATS: readonly VitrineEtat[] = ['loading', 'ready', 'empty', 'offline', 'invalid'];
+    const VIT_ETATS: readonly VitrineEtat[] = ['loading', 'ready', 'empty', 'offline', 'invalid', 'pause'];
     const etatParam = params.get('demo-vitrine-etat');
     const profilParam = params.get('demo-vitrine-profil');
     // BUYER-LIVE-WIRE-2 — a REAL `/v/{slug}` entry takes NO demo profil, so it

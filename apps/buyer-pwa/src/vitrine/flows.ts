@@ -17,7 +17,7 @@ import { isFavorite, toggleFavorite } from './favorites';
 import { inPanier, togglePanier } from './panier';
 import { t } from '../i18n';
 import { deployBaseFromPath, recordVitrineArrival, signedHref, vitrineHref } from '../vitrine-link';
-import { demoStorefrontPort, resolveStorefrontPort, VitrineOffline, type StorefrontProfilePort } from './profile';
+import { demoStorefrontPort, resolveStorefrontPort, VitrineOffline, VitrinePause, type StorefrontProfilePort } from './profile';
 import { garderListe, listeGardee, oublierListe, resolveListePort, LISTE_MAX_ARTICLES, type ListeLecture, type ListeLivraison } from './liste';
 import { creerEnregistreurNote, type EnregistreurNote, type NoteEnregistree } from '../cliente/voice-note';
 import { villeDe } from '../cliente/quote-port';
@@ -35,6 +35,7 @@ import {
   renderVitrineEmpty,
   renderVitrineInvalid,
   renderVitrineOffline,
+  renderVitrinePause,
   renderPanierBand,
   renderListeAmie,
   renderListeBand,
@@ -58,7 +59,7 @@ import { mountVideoScroll } from './video-scroll';
 /** V-1e — the live observer's unmount; replaced on every ready render. */
 let demonteVideos: () => void = () => {};
 
-export type VitrineEtat = 'loading' | 'ready' | 'empty' | 'offline' | 'invalid';
+export type VitrineEtat = 'loading' | 'ready' | 'empty' | 'offline' | 'invalid' | 'pause';
 
 export interface VitrineHarness {
   /** Gate/audit-only overrides (harness levers) — never the shared link. */
@@ -277,8 +278,12 @@ export function mountVitrine(
   type Resolved = Awaited<ReturnType<StorefrontProfilePort['resolve']>>;
   // audit F3 — the mount's local view of a resolution: the storefront, a
   // not-found (`undefined`), or « pas de connexion » (`'offline'`, never a
-  // value the port's own return type carries).
-  type RenderInput = Resolved | 'offline';
+  // value the port's own return type carries). PAUSE-VENTE-1 adds the shop's
+  // PAUSE, with her name — the port raises it the way it raises offline.
+  type RenderInput = Resolved | 'offline' | { readonly pause: string };
+  /** The one shape below that carries a storefront — the two sentinels do not. */
+  const estBoutique = (r: RenderInput): r is NonNullable<Resolved> =>
+    r !== undefined && r !== null && r !== 'offline' && !('pause' in r);
   // LIEN-HORS-LIGNE-1 — WHICH absence the last resolve met (the sentence on the
   // offline card): the caller's word when it mounted the state itself, else
   // whatever the port names when its fetch fails.
@@ -516,10 +521,14 @@ export function mountVitrine(
   const render = (etatDemande: VitrineEtat, resolved: RenderInput): void => {
     // audit F3 — a thrown fetch resolves to `'offline'`: force the designed
     // offline surface, never « lien invalide ». Below, `resolu` is the storefront
-    // value only (the sentinel is not a resolution), so no branch reads it.
+    // value only (the sentinels are not resolutions), so no branch reads them.
     const horsLigne = resolved === 'offline';
-    const resolu = horsLigne ? undefined : resolved;
-    const etat = horsLigne ? 'offline' : etatForRender(etatDemande, resolu !== undefined && resolu !== null);
+    // PAUSE-VENTE-1 — the shop's pause, with her name: forced the same way
+    // (the founder's cut is a fact about the shop, not a lever), and the
+    // `?demo-vitrine-etat=pause` lever draws it over a resolved shop's name.
+    const enPause = resolved !== undefined && resolved !== null && resolved !== 'offline' && 'pause' in resolved ? resolved.pause : undefined;
+    const resolu = estBoutique(resolved) ? resolved : undefined;
+    const etat = horsLigne ? 'offline' : enPause !== undefined ? 'pause' : etatForRender(etatDemande, resolu !== undefined);
     // APERÇU NU — applied HERE, at the single point every render reads the
     // storefront from, so no branch below can accidentally keep the photograph.
     const sfBrut = resolu?.storefront;
@@ -544,6 +553,9 @@ export function mountVitrine(
         break;
       case 'invalid':
         root.innerHTML = renderVitrineInvalid();
+        break;
+      case 'pause':
+        root.innerHTML = renderVitrinePause(enPause ?? sf?.name ?? '');
         break;
       case 'empty':
         root.innerHTML = renderVitrineEmpty(sf!, resolu!.trust, { fromProduct }, entete);
@@ -591,7 +603,9 @@ export function mountVitrine(
 
   // Arrival attribution — best-effort, never blocks the render (unchanged seam).
   const recordArrival = (resolved: RenderInput): void => {
-    if (!resolved || resolved === 'offline') return;
+    // A pause carries no reseller to attribute an arrival to (and no sale can
+    // follow it); the two sentinels record nothing.
+    if (!estBoutique(resolved)) return;
     try {
       recordVitrineArrival(
         {
@@ -623,11 +637,17 @@ export function mountVitrine(
     try {
       resolved = await port.resolve(slug);
     } catch (e) {
-      if (!(e instanceof VitrineOffline)) throw e;
-      raisonHorsLigne = e.raison;
-      resolved = 'offline';
+      if (e instanceof VitrinePause) {
+        // PAUSE-VENTE-1 — the shop rests: her name rides to the card, no
+        // storefront does (nothing to draw a header from).
+        resolved = { pause: e.nom };
+      } else {
+        if (!(e instanceof VitrineOffline)) throw e;
+        raisonHorsLigne = e.raison;
+        resolved = 'offline';
+      }
     }
-    await loadEntete(enteteForRender(harness.entete, resolved === 'offline' ? undefined : resolved?.storefront?.headerStyle));
+    await loadEntete(enteteForRender(harness.entete, estBoutique(resolved) ? resolved.storefront.headerStyle : undefined));
     return resolved;
   };
 

@@ -1261,6 +1261,22 @@ const REFUS: Readonly<Record<string, RefusVue>> = {
     libelle: '',
   },
   /**
+   * PAUSE-VENTE-1 (founder ruling 2026-09-17) — the founder paused the shop's
+   * owner: she sells nothing until he reactivates her. Reached only from a
+   * stale page (the boutique and the signed link both draw the pause card
+   * before any price is asked). NO PRIMARY ACTION, like `no_secure_random`:
+   * every in-app road — a new price, her boutique — meets the same pause, so
+   * a button would promise what tapping it cannot do. The sentence says when
+   * to come back; the `stepHead` back arrow stands.
+   */
+  reseller_paused: {
+    overline: t('cl.refus.reseller_paused.overline'),
+    titre: t('cl.refus.reseller_paused.titre'),
+    phrase: t('cl.refus.reseller_paused.phrase'),
+    action: null,
+    libelle: '',
+  },
+  /**
    * ═══ REFUS-NOMMÉS-1 (AUDIT-SHOP-2 F-53) — THE RESERVE AND ORDER ROADS ═══
    *
    * This table knew the QUOTE road's names and nothing past it: a hold that

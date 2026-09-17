@@ -16,6 +16,7 @@ import { BuyerLadderDO, ladderName } from './buyer-ladder-do.js';
 import {
   RESELLER_ACCOUNTS_NAME,
   ResellerAccountsDO,
+  compteEnPause,
   resoudreCompte,
   sondePbkdf2,
 } from './reseller-accounts-do.js';
@@ -473,6 +474,13 @@ export default {
         // `AbsentSupplySource`, and the certified mock is reachable from
         // neither.
         SUPPLY: resolveSupplySource(env),
+        // PAUSE-VENTE-1 — the access port (the accounts book's `/state-of`),
+        // handed in only when the book is bound: a paused owner's shop mints
+        // no quote. Same explicit-grant law as its neighbours; absent, the
+        // door issues as before (fail-open on the binding, as on a hiccup).
+        ...(env.COMPTES !== undefined
+          ? { ACCES: { enPause: (resellerId: string): Promise<boolean> => compteEnPause(env, resellerId) } }
+          : {}),
       });
       if (mirrorSource !== undefined && answered.status === 200) {
         await mirrorReservationReceipt(env, pathname, mirrorSource, answered.clone());
@@ -1973,6 +1981,13 @@ export default {
       // everything else (no compte, paused, pending, transport failure — the
       // boutique read renders unchanged on all of them). The port carries the
       // ONE field the join needs, never the account record.
+      // PAUSE-VENTE-1 — the access port over the book's internal /state-of:
+      // TRUE only on a positive « paused » for the shop's owner, so her page
+      // answers the designed pause instead of her products. False on every
+      // hiccup (the port's own law), and absent when the book is unbound.
+      ...(env.COMPTES !== undefined
+        ? { ACCES: { enPause: (resellerId: string): Promise<boolean> => compteEnPause(env, resellerId) } }
+        : {}),
       ...(env.COMPTES !== undefined
         ? {
             CONTACT: {

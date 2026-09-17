@@ -447,6 +447,14 @@ interface Env {
    * inspectable » ⇒ Option B refuses. FULL_PREPAY never touches this field.
    */
   SUPPLY?: { describe(productVersionId: string): Promise<ProductDescription | undefined> };
+  /**
+   * PAUSE-VENTE-1 (founder ruling 2026-09-17) — the access port over the
+   * accounts book: TRUE only on a POSITIVE `paused` for the shop's owner. The
+   * composition root hands it in when the book is bound; absent, or on any
+   * hiccup, the quote issues as before (fail-open — the founder's cut is never
+   * forged by an outage, and her own app refuses her by name regardless).
+   */
+  ACCES?: { enPause(resellerId: string): Promise<boolean> };
 }
 
 const quoteStub = (env: Env, quoteId: string): DurableObjectStub =>
@@ -600,13 +608,16 @@ async function readAuthority(
   env: Env,
   slug: string,
   pid: string,
-): Promise<{ entry: ListingEntry | undefined; zoneFrom: string }> {
+): Promise<{ entry: ListingEntry | undefined; zoneFrom: string; resellerId?: string }> {
   const sfRes = await env.STOREFRONT_DO.fetch(new Request(`https://do/s/${encodeURIComponent(slug)}`)).catch(() => undefined);
   if (sfRes === undefined || sfRes.status !== 200) return { entry: undefined, zoneFrom: '' };
   const sf = (await sfRes.json().catch(() => null)) as
-    | { id?: string; zone?: string; curatedItems?: unknown }
+    | { id?: string; zone?: string; curatedItems?: unknown; resellerId?: unknown }
     | null;
   if (sf === null || typeof sf.id !== 'string' || typeof sf.zone !== 'string') return { entry: undefined, zoneFrom: '' };
+  // PAUSE-VENTE-1 — the shop's OWNER, for the access gate below: the record's
+  // own `resellerId`, never the caller's `attributionResellerId` (a body field).
+  const resellerId = typeof sf.resellerId === 'string' ? sf.resellerId : undefined;
   /**
    * VITRINE-RETRAIT (founder ruling 2026-08-11) — A PRODUCT SHE HAS TAKEN OUT
    * OF HER SHOP CANNOT BE QUOTED.
@@ -639,7 +650,7 @@ async function readAuthority(
   ).catch(() => undefined);
   if (lstRes === undefined || lstRes.status !== 200) return { entry: undefined, zoneFrom: sf.zone };
   const entry = (await lstRes.json().catch(() => null)) as ListingEntry | null;
-  return { entry: entry ?? undefined, zoneFrom: sf.zone };
+  return { entry: entry ?? undefined, zoneFrom: sf.zone, ...(resellerId !== undefined ? { resellerId } : {}) };
 }
 
 /** Read a stored quote through its DO and project it for the buyer. */
@@ -711,7 +722,22 @@ export default {
       }
 
       // 3. THE AUTHORITY READS, then the delivery price — both server-side.
-      const { entry, zoneFrom } = await readAuthority(env, req.slug, req.pid);
+      const { entry, zoneFrom, resellerId } = await readAuthority(env, req.slug, req.pid);
+      /**
+       * ═══ PAUSE-VENTE-1 (founder ruling 2026-09-17) — A PAUSED RESELLER
+       * SELLS NOTHING: no quote is minted for her shop. ═══
+       *
+       * Asked only once the listing RESOLVED (an unknown shop or product is
+       * already `listing_unknown`, and this must not become a second oracle
+       * for either), and only when the book is bound and the record names its
+       * owner (an older view without `resellerId` gates nothing — a young
+       * field must never close a shop). Refused BEFORE the issue, so no quote
+       * object exists under her key: the key is not spent, and the same ask
+       * issues normally once the founder reactivates her.
+       */
+      if (entry !== undefined && env.ACCES !== undefined && resellerId !== undefined && (await env.ACCES.enPause(resellerId))) {
+        return refuse('reseller_paused');
+      }
       const delivery = quoteDeliveryFee(zoneFrom, req.zoneTo);
 
       // ═══ SELLER-TIER-WIRE-1 — THE §6.1 FACTS, READ BY THE SERVER ═══

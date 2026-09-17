@@ -1336,6 +1336,28 @@ export function renderVitrineInvalid(): string {
   );
 }
 
+/**
+ * PAUSE-VENTE-1 (founder ruling 2026-09-17) — THE SHOP RESTS. The founder
+ * paused her; the service answered her name and no products. An honest,
+ * designed state (§5): whose shop it is, that it is resting, what to do — come
+ * back later with the same link. No product, no price, no « Commander » that a
+ * refusal would then contradict; the one ghost way out is the same as the
+ * not-found card's (the root card takes another link). Her name is a server
+ * byte and travels through `esc`.
+ */
+export function renderVitrinePause(nom: string): string {
+  return wrap(
+    [
+      '<div class="vt-state" data-etat="pause">',
+      `<div class="vt-picto">${iconDevanture(28, '#1C1710', 1.9)}</div>`,
+      `<h3>${tf('vit.pause_titre', { nom: esc(nom) })}</h3>`,
+      `<p>${t('vit.pause_corps')}</p>`,
+      `<span class="vt-ghostbtn" role="button" data-action="decouvrir">${t('vit.decouvrir')}</span>`,
+      '</div>',
+    ].join(''),
+  );
+}
+
 function wrap(inner: string): string {
   return `<div class="vt-status"></div><div class="vt-lisere"></div><div class="vt-scroll vt-screen">${inner}</div>`;
 }

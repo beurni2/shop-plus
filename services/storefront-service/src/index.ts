@@ -244,6 +244,15 @@ export type StorefrontServiceEnv = MediaEnv &
      * contexts, like the bindings above.
      */
     readonly CONTACT?: { whatsappOf(resellerId: string): Promise<string | undefined> };
+    /**
+     * PAUSE-VENTE-1 (founder ruling 2026-09-17) — the access port over the
+     * accounts book's internal `/state-of`: TRUE only when the book
+     * POSITIVELY says the shop's owner is paused. A hiccup, an absent
+     * binding or a shop with no compte all answer false and the page renders
+     * as before — the same fail-open the CONTACT port keeps. Absent in
+     * Node/unit contexts, like the bindings above.
+     */
+    readonly ACCES?: { enPause(resellerId: string): Promise<boolean> };
   };
 
 /**
@@ -256,6 +265,20 @@ async function handleStorefrontRead(slug: string, env?: StorefrontServiceEnv): P
   const storefront = await resolveStorefrontStore(env).getBySlug(slug);
   if (storefront === undefined) {
     return Response.json({ service: SERVICE_NAME, error: 'not_found' }, { status: 404 });
+  }
+  /**
+   * PAUSE-VENTE-1 (founder ruling 2026-09-17: « paused resellers can not sell
+   * anything until they are reactivated ») — HER PAGE SAYS SO. A paused
+   * owner's boutique answers a designed pause, not her products: a page that
+   * showed prices and a « Commander » the quote would then refuse is a
+   * dishonest state, and the buyer must read the truth before she browses.
+   * The projection carries her NAME (the buyer sees whose shop is resting)
+   * and the slug, and NOTHING else — no curation, no products, no contact.
+   * Asked FIRST, so a paused shop costs no product hop at all; the port fails
+   * OPEN (false) on every hiccup, so an outage never closes a shop.
+   */
+  if (env?.ACCES !== undefined && (await env.ACCES.enPause(storefront.resellerId).catch(() => false))) {
+    return Response.json({ service: SERVICE_NAME, enPause: true, name: storefront.name, slug: storefront.slug }, { status: 200 });
   }
   const { products, incomplet } = await describeProducts(storefront.id, storefront.curatedItems, env);
   /**
@@ -306,12 +329,15 @@ async function handleStorefrontRead(slug: string, env?: StorefrontServiceEnv): P
  */
 /**
  * THE ARITHMETIC (verifier finding, the platform's 50-subrequest budget): a
- * boutique read costs 4 hops (pointer, entry, contact, the collection) + 2 per
- * product on the listing side (the pid pointer, then the listing) + up to 1
- * per product on the supply side when the collection did not carry it (an
- * omitted pid, or a collection that failed and left every pid to the single
- * road). 4 + 3·15 = 49 fits EVERY path; 20 fit only the happy one (64 on a
- * collection outage — the very throw this slice exists to end).
+ * boutique read costs 5 hops (pointer, entry, the owner's access state —
+ * PAUSE-VENTE-1 — contact, the collection) + 2 per product on the listing
+ * side (the pid pointer, then the listing) + up to 1 per product on the
+ * supply side when the collection did not carry it (an omitted pid, or a
+ * collection that failed and left every pid to the single road).
+ * 5 + 3·15 = 50 fits EVERY path, at the ceiling; 20 fit only the happy one
+ * (65 on a collection outage — the very throw this slice exists to end). The
+ * rarer extras (a hide for a lapsed listing) past 50 land in `incomplet`,
+ * declared, never silent.
  */
 export const MAX_PRODUITS_DECRITS = 15;
 /** Listing hops in flight at once — the object hops are tiny; this keeps a large shop from opening forty at a time. */

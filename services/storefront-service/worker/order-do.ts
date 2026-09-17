@@ -41,7 +41,7 @@ import { timingSafeEqual } from './auth.js';
  *  so the check and the vault agree on one string. */
 const DOOR_MODE = 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR';
 import { RESELLER_FEED_NAME } from './reseller-feed-do.js';
-import { RESELLER_ACCOUNTS_NAME } from './reseller-accounts-do.js';
+import { compteEnPause, RESELLER_ACCOUNTS_NAME } from './reseller-accounts-do.js';
 import { DLQ_NAME, PARK_MAX_BYTES, storedBytes } from './dead-letter-do.js';
 
 /**
@@ -1892,6 +1892,23 @@ export class OrderDO {
     const now = new Date().toISOString();
 
     /**
+     * ═══ PAUSE-VENTE-1 (founder ruling 2026-09-17) — A PAUSED RESELLER SELLS
+     * NOTHING, and the ORDER is the sale. ═══
+     *
+     * The quote door already refuses her shop, but a quote issued and held
+     * BEFORE the founder paused her is still alive for its fifteen minutes:
+     * this is where that quote would become a sale, so it is asked again
+     * here, on the quote's LOCKED `attributionResellerId` (SP-I01), before
+     * any lock is claimed and before a franc is asked for. Refused by name
+     * and CLOSED — no order object, no lock, no charge; the same create
+     * succeeds once she is active again (the hold, if still fresh, is hers).
+     * The port fails OPEN on a hiccup (see `compteEnPause`).
+     */
+    if (await compteEnPause(this.env, quote.attributionResellerId)) {
+      return Response.json({ ok: false, reason: 'reseller_paused' }, { status: 422 });
+    }
+
+    /**
      * ═══ C1 (audit) — THE ATTRIBUTION LOCK IS CLAIMED BEFORE ANY CHARGE ═══
      *
      * SP-I09b.3: « Une fois la commande verrouillée, l'attribution est
@@ -3294,12 +3311,19 @@ export class OrderDO {
    * per order, never at replay.
    *
    * UNDECIDED when the book cannot answer — the binding absent, the call
-   * failing, OR the book's mute 404 (no ACTIVE account: paused, pending,
-   * unknown — its own rule): nothing is recorded, and Séra's redelivery of
-   * the validated signal asks again (the duplicate branch). A paused
-   * reseller's own-number sale is therefore never CLEARED for good (the
-   * verifier's finding): it waits, undecided, and is judged on the next
-   * redelivery that finds her active. §6.5 has no account-state carve-out.
+   * failing, OR the book's mute 404 (no ADMITTED account: pending, unknown —
+   * its own rule): nothing is recorded, and Séra's redelivery of the
+   * validated signal asks again (the duplicate branch). §6.5 has no
+   * account-state carve-out.
+   *
+   * PAUSE-VENTE-1 (founder ruling 2026-09-17) — a PAUSED reseller's number
+   * IS read (`/contact-of-admitted`, active or paused): she cannot sell while
+   * paused, so a sale that reaches this point was made while she was active,
+   * and the founder's pause is a cut on her access, not on the truth about
+   * her sale. Before this ruling the read was `/contact-of` (active only) and
+   * a reseller paused between her own-number sale and its delivery was left
+   * undecided — never held — exactly the loophole a pause for suspicion
+   * would open.
    */
   private async deciderLienProche(quote: Quote, orderId: string): Promise<RelatedPartyDecision | undefined> {
     const ns = this.env.COMPTES;
@@ -3307,7 +3331,7 @@ export class OrderDO {
     let sien: string | undefined;
     try {
       const res = await ns.get(ns.idFromName(RESELLER_ACCOUNTS_NAME)).fetch(
-        new Request('https://do/contact-of', {
+        new Request('https://do/contact-of-admitted', {
           method: 'POST',
           body: JSON.stringify({ accountId: quote.attributionResellerId }),
         }),

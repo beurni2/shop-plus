@@ -444,6 +444,18 @@
   "screenClass": "label"
  },
  {
+  "key": "vit.pause_titre",
+  "fr": "{nom} fait une pause.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "vit.pause_corps",
+  "fr": "La vendeuse ne prend pas de commandes pour le moment. Revenez plus tard avec le même lien.",
+  "register": "neutral",
+  "screenClass": "instruction"
+ },
+ {
   "key": "vit.vide_titre",
   "fr": "Les articles arrivent.",
   "register": "selling",
@@ -1994,6 +2006,24 @@
  {
   "key": "cl.refus.no_secure_random.phrase",
   "fr": "Essayez depuis un autre navigateur. Rien n’a été payé.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.refus.reseller_paused.overline",
+  "fr": "LA BOUTIQUE",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.refus.reseller_paused.titre",
+  "fr": "Cette boutique fait une pause.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.refus.reseller_paused.phrase",
+  "fr": "La vendeuse ne prend pas de commandes pour le moment. Rien n’a été payé.",
   "register": "money",
   "screenClass": "status"
  },
