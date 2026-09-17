@@ -1,7 +1,9 @@
 # JOURNAL — shop-plus
 Continuity ledger per CTO charter §6/§6bis. Every entry is evidence-grounded.
 
-## 2026-09-17 · VALIDITE-CARTE-1 — SP2.2's price-validity hint rides the card the cliente RECEIVES: the shared message now carries her customer price, dated the day she shares, and names the link as the live truth · BUILT ON THE BRANCH, awaiting the founder's word
+## 2026-09-17 · VALIDITE-CARTE-1 — SP2.2's price-validity hint rides the card the cliente RECEIVES: the shared message now carries her customer price, dated the day she shares, and names the link as the live truth · MERGED AND DEPLOYED 2026-09-17 on the founder's « Go »
+
+**MERGED AND DEPLOYED (founder: « Go », 2026-09-17).** `main` fast-forwarded `66dc4c2 → 9d10dc5` (ancestry verified with `merge-base --is-ancestor` before the push). **ci 675 · pwa-preview 463 · expo-preview 496 · service-canon-drift 354, all green on `9d10dc5`** — read on the runs list, not assumed. expo-preview published the reseller app: the two-line share message reaches her phone at its next launch. No Worker deploy dispatched and none owed: no Worker changed, the canon pin did not move (the drift gate compared live 3.15.0 to repo 3.15.0 and passed on the push itself — the lesson of the morning, checked rather than assumed).
 
 **Founder order 2026-09-17:** « proceed with the batch but leave out photo normalization » — the first slice of the batch, in the order proposed: « Price-validity hint on the shared card. When a reseller shares a product card, the buyer sees how long that price is good for, so a stale link never surprises anyone at checkout. »
 
