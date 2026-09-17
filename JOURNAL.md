@@ -1,7 +1,9 @@
 # JOURNAL — shop-plus
 Continuity ledger per CTO charter §6/§6bis. Every entry is evidence-grounded.
 
-## 2026-09-17 · PAUSE-VENTE-1 — the founder's three rulings on RELATED-PARTY-1's open points: a paused reseller sells nothing (her page, the quote and the order refuse by name — on the real Worker), a voided commission stays with the platform (canon 3.16.0 says so, no ledger move), same phone stays identity; canon repinned to 3.16.0 · BUILT ON THE BRANCH, awaiting the founder's word
+## 2026-09-17 · PAUSE-VENTE-1 — the founder's three rulings on RELATED-PARTY-1's open points: a paused reseller sells nothing (her page, the quote and the order refuse by name — on the real Worker), a voided commission stays with the platform (canon 3.16.0 says so, no ledger move), same phone stays identity; canon repinned to 3.16.0 · MERGED AND DEPLOYED 2026-09-17 on the founder's « Go »
+
+**MERGED AND DEPLOYED (founder: « Go », 2026-09-17).** `main` fast-forwarded `621d080 → ea9e753` (ancestry verified with `merge-base --is-ancestor` before the push; the branch carried RELATED-PARTY-1 too, so both slices landed in one fast-forward). **ci 683 · pwa-preview 471 · expo-preview 504 · service-canon-drift 363 (attempt 2) · storefront-deploy 102, all green on `ea9e753`** — read on the runs list, not assumed. pwa-preview republished the buyer PWA (the pause card and the refusal live); storefront-deploy 102 rebuilt the Worker on canon 3.16.0 (the three doors, the accounts book's two internal reads, `/contact-of-admitted`) and the live health line stamps the new canon; service-canon-drift 363 went red on its first attempt — the push's drift check ran before deploy 102 landed and read the live Worker still at 3.15.0, the CHAINE-DEPLOI lesson exactly as on DECOUVERTE-RETIREE-1 — and green on the re-run after the deploy. The canon half merged in its own journal (platform-contracts `d1aa361`, ci 135, stamped `ced788d`).
 
 **Founder rulings 2026-09-17 (verbatim), on the plain-words RELATED-PARTY-1 report:** « 1 - I want the commission to be held on an account that I control, and the seller shouldn't know anything about this since his only preoccupation is only getting the product sold. 2. Keep this way. 3 paused resellers can not sell anything until they are reactivated ».
 
@@ -36,7 +38,9 @@ Continuity ledger per CTO charter §6/§6bis. Every entry is evidence-grounded.
 **Where it stands.** On the branch — `b689ed5` (the build and the repin), `d76aec3` (the vitrine source pins), `62078ca` (the ledger rows), `cba7fac` (the inline-refusal gate pin, the verifier's blocker) and this journal stamp — on top of RELATED-PARTY-1 (`175f8f6`, itself unmerged); the canon half is platform-contracts `d1aa361` on its branch; not merged, not deployed. On his « Go »: fast-forward `main` (shop-plus and platform-contracts), then `storefront-deploy.yml` (the Worker's router, order DO, checkout DO, accounts book and the canon pin all changed — a deploy is owed) and the buyer PWA republishes on its own workflow.
 
 
-## 2026-09-17 · RELATED-PARTY-1 — SP6.3 (part 4), Build Spec §6.5 on the real order: her own number on the buyer's contact voids the commission; the settlement line is HELD, never paid; her appeal and the founder's ruling ride the order; NO money moves (« returned to seller » is his §7 call) · BUILT ON THE BRANCH, awaiting the founder's word
+## 2026-09-17 · RELATED-PARTY-1 — SP6.3 (part 4), Build Spec §6.5 on the real order: her own number on the buyer's contact voids the commission; the settlement line is HELD, never paid; her appeal and the founder's ruling ride the order; NO money moves (« returned to seller » is his §7 call) · MERGED AND DEPLOYED 2026-09-17 on the founder's « Go » (with PAUSE-VENTE-1)
+
+**MERGED AND DEPLOYED (founder: « Go », 2026-09-17, on the PAUSE-VENTE-1 report that carried both).** Landed on `main` in the same fast-forward as PAUSE-VENTE-1 (`621d080 → ea9e753`); the run numbers are in that entry. His three rulings on this entry's open points (D1 money move, D8 same-phone reading, D3 undecided orders) are recorded there and in canon 3.16.0 §6.5 / §7 SP1.
 
 **Founder order 2026-09-17:** « go and proceed with the next slices » — the fourth slice of the batch: « Related-party auto-void ».
 
