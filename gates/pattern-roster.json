@@ -246,5 +246,31 @@
       "name": "pyramide (fr)",
       "regex": "/pyramid/i"
     }
+  ],
+  "no-cross-reseller-discovery": [
+    {
+      "name": "store directory / discovery identifier",
+      "regex": "/\\b(store_index|storeIndex|StoreDiscovery\\w*|projectStoreDiscovery|projectStores|renderBoutiques|allBoutiques|boutiques-(?:view|data))\\b/"
+    },
+    {
+      "name": "discovery service",
+      "regex": "/discovery-service/"
+    },
+    {
+      "name": "the retired demo directory lever",
+      "regex": "/demo-boutiques/"
+    },
+    {
+      "name": "a search or filter across stores",
+      "regex": "/\\b(search|rechercher|chercher|filtrer|trier)(Stores|Boutiques|Vendeuses|Resellers|Revendeuses)\\b/i"
+    },
+    {
+      "name": "a directory noun over stores",
+      "regex": "/\\b(stores?|boutiques?|vendeuses?|resellers?)(Directory|Index|Annuaire|Repertoire)\\b/i"
+    },
+    {
+      "name": "a directory sentence (fr)",
+      "regex": "/\\b(annuaire des (boutiques|vendeuses)|toutes les boutiques|(les )?autres boutiques|rechercher une (boutique|vendeuse)|trouver une (boutique|vendeuse))\\b/i"
+    }
   ]
 }

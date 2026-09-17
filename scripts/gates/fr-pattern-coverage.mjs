@@ -29,6 +29,9 @@ const GATES = [
   { gate: 'no-seller-deposit', fixtures: 'gates/fixtures/negative/no-seller-deposit' },
   { gate: 'no-seller-debit', fixtures: 'gates/fixtures/negative/no-seller-debit' },
   { gate: 'single-level', fixtures: 'gates/fixtures/negative/single-level' },
+  // DECOUVERTE-RETIREE-1 (SP-I05 amended): identifier-based, not French-law, but
+  // a gutted or deleted directory pattern must be caught the same way.
+  { gate: 'no-cross-reseller-discovery', fixtures: 'gates/fixtures/negative/no-cross-reseller-discovery' },
 ];
 const ROSTER_PATH = 'gates/pattern-roster.json';
 
