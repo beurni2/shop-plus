@@ -121,10 +121,12 @@ const AUCUNE_RETENUE: readonly LigneRetenue[] = [];
 const BASE_PAR_SIGNAL: Readonly<Record<string, string>> = { phone: 'gains.lien_proche_base_telephone' };
 
 function ligneRetenue(v: VenteRetenue): LigneRetenue {
-  const bases = v.signals.map((s) => BASE_PAR_SIGNAL[s]).filter((k): k is string => k !== undefined);
-  const baseKeys = [...new Set(bases), 'gains.lien_proche_texte'];
+  const bases = [...new Set(v.signals.map((s) => BASE_PAR_SIGNAL[s]).filter((k): k is string => k !== undefined))];
+  const baseKeys = [...bases, 'gains.lien_proche_texte'];
   if (v.resolution === 'violation') {
-    return { orderId: v.orderId, netFcfa: v.netFcfa, baseKeys, etat: 'refusee', statutKey: 'gains.lien_proche_refusee' };
+    // The ruling is in: the « set aside for a check » sentence would contradict
+    // it on the same card (verifier). The basis stays; the status says the rest.
+    return { orderId: v.orderId, netFcfa: v.netFcfa, baseKeys: bases, etat: 'refusee', statutKey: 'gains.lien_proche_refusee' };
   }
   if (v.contestee) {
     return { orderId: v.orderId, netFcfa: v.netFcfa, baseKeys, etat: 'contestee', statutKey: 'gains.lien_proche_notee' };

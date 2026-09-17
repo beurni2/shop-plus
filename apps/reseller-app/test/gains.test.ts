@@ -158,7 +158,8 @@ describe('RELATED-PARTY-1 — a sale the order HELD sits on the Held rung, never
     expect(ecran.retenues.map((r) => [r.orderId, r.etat, r.statutKey, r.baseKeys])).toEqual([
       ['ord-h', 'a_contester', undefined, ['gains.lien_proche_base_telephone', 'gains.lien_proche_texte']],
       ['ord-c', 'contestee', 'gains.lien_proche_notee', ['gains.lien_proche_base_telephone', 'gains.lien_proche_texte']],
-      ['ord-v', 'refusee', 'gains.lien_proche_refusee', ['gains.lien_proche_base_telephone', 'gains.lien_proche_texte']],
+      // The ruling is in: the « set aside for a check » sentence is gone from the card; the basis stays.
+      ['ord-v', 'refusee', 'gains.lien_proche_refusee', ['gains.lien_proche_base_telephone']],
       // A signal this platform does not read yet has no sentence of its own: the hold sentence alone, never a made-up basis.
       ['ord-r', 'a_contester', undefined, ['gains.lien_proche_texte']],
     ]);

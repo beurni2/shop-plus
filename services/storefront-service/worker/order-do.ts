@@ -1259,6 +1259,14 @@ export class OrderDO {
     if (request.method === 'POST' && pathname === '/entry/eligibility') {
       const event: unknown = await request.json().catch(() => null);
       if (event === null) return Response.json({ ok: false, reason: 'malformed' }, { status: 400 });
+      // RELATED-PARTY-1 (verifier, MAJOR) — this handler now AWAITS an outbound
+      // call (the accounts book) between reading the money log and writing it.
+      // A Durable Object's input gate only closes during storage operations, so
+      // without this block another request (a door webhook, a confirm, a second
+      // redelivery) could put `LOG_KEY` inside that window and be overwritten by
+      // the stale read. The whole read → decide → put runs as one, as the
+      // object's own guarantee, not as a hope about timing.
+      return this.state.blockConcurrencyWhile(async () => {
       const origin = await this.state.storage.get<StoredOrigin>(ORIGIN_KEY);
       if (origin === undefined) {
         return Response.json({ ok: false, reason: 'unknown_order' }, { status: 404 });
@@ -1327,6 +1335,7 @@ export class OrderDO {
         ok: true,
         status: 'recorded',
         obligations: spine.ledger.obligationsFor(origin.orderId).length,
+      });
       });
     }
 
@@ -3284,11 +3293,13 @@ export class OrderDO {
    * validated signal, and replays from there — this read happens exactly once
    * per order, never at replay.
    *
-   * UNDECIDED when the book cannot answer (the binding absent, the call
-   * failing): nothing is recorded, and Séra's redelivery of the validated
-   * signal asks again (the duplicate branch). A book that answers « no active
-   * account » (mute 404, the book's own rule) yields no number to match, so
-   * the decision is `clear` — a paused reseller's sale is not judged here.
+   * UNDECIDED when the book cannot answer — the binding absent, the call
+   * failing, OR the book's mute 404 (no ACTIVE account: paused, pending,
+   * unknown — its own rule): nothing is recorded, and Séra's redelivery of
+   * the validated signal asks again (the duplicate branch). A paused
+   * reseller's own-number sale is therefore never CLEARED for good (the
+   * verifier's finding): it waits, undecided, and is judged on the next
+   * redelivery that finds her active. §6.5 has no account-state carve-out.
    */
   private async deciderLienProche(quote: Quote, orderId: string): Promise<RelatedPartyDecision | undefined> {
     const ns = this.env.COMPTES;
@@ -3301,8 +3312,7 @@ export class OrderDO {
           body: JSON.stringify({ accountId: quote.attributionResellerId }),
         }),
       );
-      if (res.status === 404) sien = '';
-      else if (res.status === 200) {
+      if (res.status === 200) {
         const body = (await res.json().catch(() => null)) as { ok?: boolean; phone?: unknown } | null;
         if (body?.ok === true && typeof body.phone === 'string') sien = body.phone;
       }

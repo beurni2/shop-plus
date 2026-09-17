@@ -250,6 +250,10 @@ describe('RELATED-PARTY-1 — « Mes gains » when the order held her commission
     expect(lu, 'two sales on that rung').toContain('2 ventes');
     expect(lu, 'her earlier contestation stands').toContain(NOTEE);
     expect(lu, 'the confirmed violation is said plainly').toContain(REFUSEE);
+    // The « set aside for a check » sentence belongs to the contested sale ONLY:
+    // on the ruled one it would contradict the ruling on the same card (verifier).
+    expect(lu.split('mis de côté').length - 1, 'the hold sentence once, on the sale still under review').toBe(1);
+    expect(lu, 'the basis stays readable on the ruled sale too').toContain(BASE_PHRASE);
     expect(screen.canPress('Contester'), 'no control on a contested or ruled sale').toBe(false);
     screen.unmount();
   });
@@ -263,7 +267,8 @@ describe('RELATED-PARTY-1 — « Mes gains » when the order held her commission
     const lu = screen.texts().join(' | ');
     expect(lu).not.toContain(BASE_PHRASE);
     expect(screen.canPress('Contester')).toBe(false);
-    expect(lu, 'the rung is dormant: it says so, prints no figure').toContain("En attente d'un contrôle");
+    // Dormant: the rung's own next line is « Pas encore », not a franc figure.
+    expect(lu, 'the rung is dormant: it says so, prints no figure').toMatch(/En attente d'un contrôle \| Pas encore \| /);
     screen.unmount();
   });
 });

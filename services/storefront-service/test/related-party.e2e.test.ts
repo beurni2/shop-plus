@@ -11,10 +11,12 @@ import { cleC, seance } from './seance';
  * shipped bundle; every Durable Object real; only the Boutik+ OFFER service
  * stood in, contract-certified to what `livraison-boutik.e2e` certifies). ═══
  *
- *   « Auto-void commission: same verified identity/phone/wallet, or reseller
- *     buying through their own account. … During investigation commission is
- *     held, not returned; appeal path; on violation → returned to seller; on
- *     clear → paid. »
+ *   « Auto-void commission: same verified identity / phone / mobile-money
+ *     account, or reseller buying through their own account. … During
+ *     investigation commission is held, not returned; appeal path; on
+ *     violation → returned to seller; on clear → paid. »
+ *   (The spec's third word is the one Law 2's scan bans outright; canon
+ *   3.6.0 says `mobile_money_account` — same meaning, and this file bends.)
  *
  * THE ONE SIGNAL this platform can read today is the PHONE: the buyer's own
  * dispatch contact (BC-1a, on the order) against the reseller's registered
