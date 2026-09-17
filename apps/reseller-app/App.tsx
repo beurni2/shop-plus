@@ -1724,7 +1724,17 @@ export default function App() {
     if (partage === null) return;
     try {
       await Share.share({
-        message: tf('partager.message_produit', { nom: partage.offre.productName, url: partage.lienProduit }),
+        // SP2.2 — the price-validity hint rides the card the cliente RECEIVES,
+        // not only the preview she sees on this screen: her customer price
+        // (never her net), dated the day she shares, with the link named as
+        // the live truth. A stale card then says so itself.
+        message: [
+          tf('partager.message_produit', { nom: partage.offre.productName, url: partage.lienProduit }),
+          tf('partager.message_prix', {
+            amount: formatFcfa(partage.vue.client),
+            date: frenchDate(new Date().toISOString()),
+          }),
+        ].join('\n'),
       });
     } catch {
       // best-effort: a declined share sheet is not an error state.

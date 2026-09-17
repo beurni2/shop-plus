@@ -444,6 +444,12 @@
   "screenClass": "label"
  },
  {
+  "key": "partager.message_prix",
+  "fr": "Prix : {amount} au {date}. Le lien dit le prix du jour.",
+  "register": "money",
+  "screenClass": "general"
+ },
+ {
   "key": "partager.indisponible",
   "fr": "Ouvrez un produit dans « Ma Vitrine », puis touchez « Partager ».",
   "register": "neutral",

@@ -173,6 +173,46 @@ describe('PARTAGER-PRO — real bytes where the mocks stood', () => {
     screen.unmount();
   });
 
+  it('SP2.2 — the card the cliente RECEIVES carries her price and the dated validity hint, never her net', async () => {
+    /**
+     * Before this walk, « Ce que verra votre cliente » was a promise the screen
+     * kept only to HER: the preview showed « Prix : … » and « Prix du {date} —
+     * le lien dit le prix du jour », but the message handed to the OS sheet
+     * carried the product name and the link alone. The cliente never saw a
+     * price, so a card that aged never said so. The message is read off the
+     * RECORDED share call — the bytes she sends, not the bytes on her screen.
+     */
+    const fixture = JSON.parse(
+      readFileSync(
+        join(import.meta.dirname, '../../../gates/fixtures/customer-surfaces/share-card.json'),
+        'utf8',
+      ),
+    ) as { prixClientFcfa: number };
+    const { frenchDate } = await import('../src/share/hub');
+    const screen = await surPartager();
+    const { Share } = await natifs();
+    const lu = screen.texts().join(' | ');
+    // Her net is on HER screen (the reseller-only line) — captured by its bytes
+    // so the leak check below is a byte check, not a word guess.
+    const net = /Votre gain net sur cette carte : ([^.]+)\./.exec(lu)?.[1];
+    expect(net, `her net line is not on the screen: ${lu}`).toBeDefined();
+    const prix = formatFcfa(fixture.prixClientFcfa);
+    expect(prix, 'fixture: the net must not be a substring of the price, or the leak check is blind').not.toContain(net!);
+
+    await screen.press('Partager ce produit');
+    const dernier = Share.shared[Share.shared.length - 1] as { message?: string } | undefined;
+    const message = dernier?.message ?? '';
+    expect(message, 'the signed link no longer rides the card').toContain(LIEN_PRODUIT);
+    expect(message, 'the customer price is not on the card she sends').toContain(`Prix : ${prix}`);
+    expect(message, 'the dated validity hint is not on the card she sends').toContain(
+      `au ${frenchDate(new Date().toISOString())}. Le lien dit le prix du jour.`,
+    );
+    expect(message, 'her net leaked onto the customer card').not.toContain(net!);
+    expect(message, 'reseller-only words leaked onto the customer card').not.toMatch(/gain net|commission/i);
+    expect(screen.texts().length, 'the tree died on share').toBeGreaterThan(0);
+    screen.unmount();
+  });
+
   it('« Partager ma boutique » shares the boutique link — the founder’s new option', async () => {
     const screen = await surPartager();
     const { Share } = await natifs();
