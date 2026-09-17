@@ -45,7 +45,7 @@ fi
 log "typecheck (all workspace packages, incl. both app shells)"
 capture typecheck pass pnpm typecheck
 
-log "tests (money gate, net-first surface, discovery contract, attribution fails-closed, no-supplier-contact projection, correlation hello-world, flags, health, catalogs)"
+log "tests (money gate, net-first surface, attribution fails-closed, no-supplier-contact projection, correlation hello-world, flags, health, catalogs)"
 capture tests pass pnpm test
 
 log "consumption baseline — pinned computeWaterfall reproduces the §5.4 worked baseline"
@@ -119,20 +119,16 @@ capture settlement-copies-positive pass node scripts/gates/settlement-copies-nev
 log "gate: settlement-copies-never-recomputes — NEGATIVE FIXTURE (recomputed-with-different-rounding amounts, must fail)"
 capture settlement-copies-negative fail node scripts/gates/settlement-copies-never-recomputes.mjs gates/fixtures/negative/settlement.recomputed.json
 
-log "gate: discovery-returns-stores — real discovery response (must pass)"
-capture discovery-returns-stores-positive pass node scripts/gates/discovery-returns-stores.mjs gates/fixtures/discovery/stores-response.json
+# DECOUVERTE-RETIREE-1 (founder, 2026-09-17; SP-I05 amended): there is NO
+# cross-reseller discovery. The former discovery-returns-stores gate judged the
+# SHAPE of a directory response; with no directory there is nothing to shape.
+# This gate scans the product for a directory or a search across stores — the
+# identifiers such a surface needs — and a negative fixture proves it fires.
+log "gate: no-cross-reseller-discovery — repo source (must pass)"
+capture no-cross-reseller-discovery-positive pass node scripts/gates/no-cross-reseller-discovery.mjs
 
-log "gate: discovery-returns-stores — S3 découverte directory (WO-7.2a, pinned to the directory; must pass)"
-capture discovery-returns-stores-s3 pass node scripts/gates/discovery-returns-stores.mjs gates/fixtures/customer-surfaces/boutiques-discovery.json
-
-log "gate: discovery-returns-stores — NEGATIVE FIXTURE (flat product pool, must fail)"
-capture discovery-returns-stores-negative fail node scripts/gates/discovery-returns-stores.mjs gates/fixtures/negative/discovery/flat-product-pool.json
-
-log "gate: discovery-returns-stores — S3 NEGATIVE (a directory that leaked a product feed, must fail)"
-capture discovery-returns-stores-s3-negative fail node scripts/gates/discovery-returns-stores.mjs gates/fixtures/negative/discovery/boutiques-as-product-feed.json
-
-log "gate: discovery-returns-stores — NEGATIVE FIXTURE (PORTES-FRANCAISES-1 F-11: a well-formed stores[] beside a top-level « catalogue » pool, must fail)"
-capture discovery-returns-stores-catalogue-negative fail node scripts/gates/discovery-returns-stores.mjs gates/fixtures/negative/discovery/catalogue-beside-stores.json
+log "gate: no-cross-reseller-discovery — NEGATIVE FIXTURE (a store directory with a search across resellers, must fail)"
+capture no-cross-reseller-discovery-negative fail node scripts/gates/no-cross-reseller-discovery.mjs gates/fixtures/negative/no-cross-reseller-discovery/annuaire-boutiques.ts
 
 log "gate: attribution-tamper-fails-closed — valid signed token (must pass)"
 capture attribution-tamper-positive pass node scripts/gates/attribution-tamper.mjs gates/fixtures/attribution/valid-token.json
@@ -148,9 +144,6 @@ capture no-supplier-contact-vitrine pass node scripts/gates/no-supplier-contact.
 
 log "gate: no-supplier-contact — S5 share card surface (PARTAGER-PRO, pinned to the rendered Partager card in rendu-partager; must pass)"
 capture no-supplier-contact-share-card pass node scripts/gates/no-supplier-contact.mjs gates/fixtures/customer-surfaces/share-card.json
-
-log "gate: no-supplier-contact — S3 découverte directory (WO-7.2a, pinned to the directory; must pass)"
-capture no-supplier-contact-boutiques pass node scripts/gates/no-supplier-contact.mjs gates/fixtures/customer-surfaces/boutiques-discovery.json
 
 log "gate: no-supplier-contact — VITRINE redesign profile surface (HANDOFF §3.1, pinned to the storefront port; must pass)"
 capture no-supplier-contact-vitrine-profil pass node scripts/gates/no-supplier-contact.mjs gates/fixtures/customer-surfaces/vitrine-profil.json

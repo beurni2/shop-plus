@@ -6,11 +6,12 @@ import { LISTE_TOKEN } from './vitrine/liste';
 /**
  * ═══ RACINE-HONNETE-1 (AUDIT-SHOP-2 F-19, F-63) — THE HONEST FRONT DOOR ═══
  *
- * Until a real discovery producer exists (F-95), a buyer who types the app's
- * address meets NO invented sellers: the root says the one true thing about
- * how Shop+ is entered — a boutique opens from the link her seller sent —
- * and takes that link. The demo directory (`boutiques-view`) survives ONLY
- * behind the `?demo-boutiques=` harness lever, as the gallery it always was.
+ * A buyer who types the app's address meets NO sellers: the root says the one
+ * true thing about how Shop+ is entered — a boutique opens from the link her
+ * seller sent — and takes that link. DECOUVERTE-RETIREE-1 (founder,
+ * 2026-09-17; SP-I05 amended): there is no cross-reseller discovery, so no
+ * directory and no search exist on any buyer surface — not even behind a
+ * harness lever. This card IS the front door.
  *
  * What the card accepts (`routeDepuisLien`): the two link forms the system
  * emits — `/v/{slug}` (the boutique, optionally `?liste=`) and

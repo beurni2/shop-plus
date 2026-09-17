@@ -239,7 +239,9 @@ export interface Storefront {
   readonly curatedItems: readonly string[];
   readonly featuredItems: readonly string[]; // ≤ 2, ordre d'épinglage
   readonly sections: readonly StorefrontSection[]; // ≤ 4
-  /** canon §5.6: privée = absente de Découvrir; le lien résout toujours (loi 4). */
+  /** The wire's published / en-ligne fact (set by « Mettre ma boutique en
+   *  ligne »). DECOUVERTE-RETIREE-1 (SP-I05 amended, 2026-09-17): there is no
+   *  directory it could list her in; the link résout toujours (loi 4). */
   readonly discoverable: boolean;
   /** ENTETES-B — her chosen header (canon closed set). OPTIONAL on purpose: an
    *  OLD deployed service omits it on the wire; `headerStyleOf` reads the

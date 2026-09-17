@@ -1,18 +1,14 @@
 /**
  * STORE-PROJECTION (SP#001-B) — THE ONE PRODUCER.
  *
- * A single pure fold from the storefront + listing EVENT stream to the store
- * directory projection. It is the ONE producer that feeds BOTH customer
- * surfaces: the buyer PWA directory (S3 Découverte) and the `discovery-service`
- * envelope. Killing the two hard-coded datasets is the point — a store's
- * `productCount`, `lastUpdated`, and hub-verified badge now follow REAL events,
- * never a baked `updatedRank`.
+ * A single pure fold from the storefront + listing EVENT stream to ONE store's
+ * projection, resolved by the slug a link names. DECOUVERTE-RETIREE-1 (founder,
+ * 2026-09-17; SP-I05 amended: « there is no cross-reseller discovery »): the
+ * whole-directory output and the two surfaces it fed are gone; what stays is
+ * the fold itself — a store's `productCount`, `lastUpdated`, and hub-verified
+ * badge follow REAL events, never a baked value.
  *
- * SP-I05 (quoted): "Discovery MUST return reseller STORES, not a cross-reseller
- * product pool." The output is a STORE collection; a product never rises to the
- * top level. SP-I11 (quoted): deterministic — the order is `lastUpdated` desc
- * (« la plus récente d'abord ») with a `storefrontId` tiebreak; never a learned
- * score. SP-I19 (quoted): the hub-verified badge renders ONLY where true — a
+ * SP-I19 (quoted): the hub-verified badge renders ONLY where true — a
  * store is `verified` iff it has at least one LIVE listing whose stock is
  * hub-verified; a store with no verified live stock carries no badge.
  *
@@ -65,7 +61,7 @@ export type StoreProjectionEvent =
        * whole point of the change: a boolean cannot distinguish « the seller told us
        * she has stock » from « the Boutik+ hub confirmed it », so declared stock set
        * the SAME flag as a real hub signal — and that flag renders a « Vérifiée »
-       * badge beside the shop name (`boutiques-view.ts:80`), in the same visual
+       * badge beside the shop name on the vitrine, in the same visual
        * language as the platform's own trust marks. **ONLY `'hub'` MAY EVER SET THE
        * BADGE.** Renaming the boolean could not have carried that distinction.
        */
@@ -79,7 +75,7 @@ export type StoreProjectionEvent =
       readonly at: string;
     };
 
-/** One projected store — the directory's row, derived, never hard-coded. */
+/** One projected store — derived from its events, never hard-coded. */
 export interface StoreProjection {
   readonly storefrontId: string;
   readonly resellerId: string;
@@ -125,7 +121,7 @@ function later(a: string, b: string): string {
  * Fold the event stream into per-store accumulators. Single pass, deterministic:
  * the same events in the same order always yield the same accumulators. A
  * listing event for an unknown storefront is skipped (a listing can never
- * project a store the directory has never heard of).
+ * project a store no create ever announced).
  */
 function foldStores(events: readonly StoreProjectionEvent[]): Map<string, StoreAcc> {
   const byId = new Map<string, StoreAcc>();
@@ -191,27 +187,12 @@ function toProjection(store: StoreAcc): StoreProjection {
 }
 
 /**
- * THE PRODUCER: the event stream → one `StoreProjection` per DISCOVERABLE
- * storefront, ordered `lastUpdated` desc then `storefrontId` asc (deterministic,
- * SP-I11). A storefront created but never published — or unpublished again —
- * does not appear (only-discoverable-storefronts-project).
- */
-export function projectStores(events: readonly StoreProjectionEvent[]): readonly StoreProjection[] {
-  const discoverable: StoreProjection[] = [];
-  for (const store of foldStores(events).values()) {
-    if (store.discoverable) discoverable.push(toProjection(store));
-  }
-  discoverable.sort(
-    (a, b) => (a.lastUpdated < b.lastUpdated ? 1 : a.lastUpdated > b.lastUpdated ? -1 : a.storefrontId.localeCompare(b.storefrontId)),
-  );
-  return discoverable;
-}
-
-/**
  * Resolve a vitrine slug to its PUBLISHED store, or `undefined` (honest
  * not-found). An unknown slug and a known-but-unpublished slug both resolve to
- * `undefined` — the directory never opens a vitrine for a store that is not
- * discoverable.
+ * `undefined` — a link never opens a vitrine for a store its reseller has not
+ * put online. DECOUVERTE-RETIREE-1 (SP-I05 amended, 2026-09-17): this is the
+ * ONLY way a store is reached — one slug, one store; the former whole-directory
+ * fold (every published store, ordered) is gone with the directory it served.
  */
 export function resolvePublishedStore(
   events: readonly StoreProjectionEvent[],

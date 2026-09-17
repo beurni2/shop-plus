@@ -2,7 +2,7 @@
   "name": "@shop-plus/store-projection",
   "version": "0.0.1",
   "private": true,
-  "description": "SP#001-B — THE ONE store-directory producer: a pure fold from the storefront + listing event stream to the store projection, consumed by both the buyer PWA directory and the discovery-service. Dependency-free; canon shapes never redefined.",
+  "description": "SP#001-B — THE ONE store producer: a pure fold from the storefront + listing event stream to one store's projection, by the slug a link names (no directory — SP-I05 amended 2026-09-17). Dependency-free; canon shapes never redefined.",
   "license": "UNLICENSED",
   "type": "module",
   "exports": {

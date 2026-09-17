@@ -26,24 +26,15 @@ test('the PWA shell boots on the shop-plus theme, the honest card as root', asyn
   await expect(page.locator('[data-role="boutique"]')).toHaveCount(0);
 });
 
-test('the S3 directory survives as the ?demo-boutiques= gallery, its laws intact', async ({ page }) => {
+test('DECOUVERTE-RETIREE-1 (SP-I05 amended): the retired ?demo-boutiques= lever lands on the honest card — no store list, no search, no directory title', async ({ page }) => {
   await page.goto('/?demo-boutiques=default');
-  // The S3 title « LES BOUTIQUES » owns the screen (the mockup carries no
-  // separate brand bar).
-  const title = page.locator('h1.bq-title');
-  await expect(title).toHaveText('LES BOUTIQUES');
-  await expect(title).toHaveCSS('color', hexToRgb(theme.colours.ink));
-
-  // SP-I11: the deterministic order is stated ON-SCREEN, never a hidden score.
-  await expect(page.locator('[data-role="ordering-sentence"]')).toContainText(
-    'Classées par dernière mise à jour',
-  );
-  // SP-I05: stores, not products — the first store card links to a vitrine,
-  // under the deploy base ('' at an origin root).
-  const firstStore = page.locator('[data-role="boutique"]').first();
-  await expect(firstStore).toBeVisible();
-  await expect(firstStore).toContainText('CHEZ AÏCHA');
-  await expect(firstStore).toHaveAttribute('href', '/v/aicha-4821');
+  await expect(page.locator('[data-screen="racine"]')).toBeVisible();
+  await expect(page.locator('h1.bq-title')).toHaveCount(0);
+  await expect(page.locator('[data-role="boutique"]')).toHaveCount(0);
+  await expect(page.locator('[data-role="ordering-sentence"]')).toHaveCount(0);
+  await expect(page.locator('input[type="search"]')).toHaveCount(0);
+  // The one control the front door offers: the link her seller sent.
+  await expect(page.locator('[data-role="racine-lien"]')).toBeVisible();
 });
 
 test('the page declares itself an installable PWA: manifest, a served 192/512 icon pair, theme-color, touch icon (INSTALLABLE-1)', async ({ page }) => {

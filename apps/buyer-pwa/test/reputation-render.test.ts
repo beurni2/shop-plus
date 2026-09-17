@@ -4,8 +4,6 @@ import { reputationText } from '../src/vitrine-view';
 import { renderVitrineReady } from '../src/vitrine/render';
 import { demoStorefrontPort } from '../src/vitrine/profile';
 import { resolveVitrineSlug } from '../src/vitrine-link';
-import { renderBoutiques } from '../src/boutiques-view';
-import { allBoutiques } from '../src/boutiques-data';
 import { demoDeliveredSaleEvents } from '../src/demo-stores';
 
 /**
@@ -27,10 +25,6 @@ describe('réputation render — the exact count, verbatim, never a rank', () =>
     const vitrine = vitrineAt(trueCount);
     expect(vitrine).toContain(`<v>${trueCount}</v> ventes livrées par Séra`);
     expect(vitrine).not.toContain(`<v>${trueCount + 1}</v>`); // a +1 render mutation fails here
-
-    const directory = renderBoutiques({ state: 'default' });
-    const aicha = allBoutiques().find((s) => s.slug === 'aicha-4821');
-    expect(directory).toContain(`${aicha?.deliveredSales} ventes livrées`);
   });
 
   it('HIDDEN-BELOW-FLOOR: count 0 renders NO réputation line (floor = 1) — and NAMES the state « Nouvelle vendeuse »', () => {
@@ -63,33 +57,19 @@ describe('réputation render — the exact count, verbatim, never a rank', () =>
 
   it('BADGE-ONLY-WHERE-TRUE (SP-I19 adjacency): the rendered count IS the fold count — never a fabricated number', () => {
     const events = demoDeliveredSaleEvents();
-    // every directory card's count equals the fold over its reseller — nothing hard-coded in the view
-    for (const s of allBoutiques()) {
-      expect(s.deliveredSales).toBe(countDeliveredSales(events, s.resellerId));
-    }
-    // the vitrine identity's count is fold-derived too
+    // the vitrine identity's count is fold-derived — nothing hard-coded in the view
     const id = resolveVitrineSlug('aicha-4821');
     expect(id?.reputation.count).toBe(countDeliveredSales(events, 'res_aicha'));
   });
 
-  it('NEVER-A-RANK (render): no reputation ordinal/leaderboard word, and the directory is NOT re-sorted by réputation', () => {
-    const directory = renderBoutiques({ state: 'default' });
-    expect(directory).toMatch(/ventes livrées/); // the count is present
-    // …but never a rank / leaderboard / comparison word. (« Classées par dernière
-    // mise à jour » is the SP-I11 TIME-ordering sentence — sorted-by-time, not a
-    // reputation rank — so « classé » is deliberately NOT banned here.)
-    expect(directory).not.toMatch(/\b(1er|1ère|meilleure?|top ?\d|numéro ?\d|rang|palmarès|classement)\b/i);
-    expect(directory).not.toMatch(/n°\s*\d|\bsur \d+ (ventes|vendeuses|boutiques)/i);
-
-    // Kadi has the MOST delivered sales (61) but is NOT first — the order is
-    // last-update, NEVER the count. Structural proof that réputation is not a rank.
-    const order = allBoutiques().map((s) => s.slug);
-    expect(order).toEqual(['aicha-4821', 'mariam-2170', 'kadi-5530', 'fanta-8090', 'awa-3360']);
-    const byReputationDesc = [...allBoutiques()].sort((a, b) => b.deliveredSales - a.deliveredSales).map((s) => s.slug);
-    expect(order).not.toEqual(byReputationDesc); // the directory is not a leaderboard
+  it('NEVER-A-RANK (render): the vitrine states the count and never a reputation ordinal, leaderboard or comparison word — there is no directory to rank her against (DECOUVERTE-RETIREE-1, SP-I05)', () => {
+    const vitrine = vitrineAt(47);
+    expect(vitrine).toMatch(/ventes livrées/); // the count is present
+    expect(vitrine).not.toMatch(/\b(1er|1ère|meilleure?|top ?\d|numéro ?\d|rang|palmarès|classement)\b/i);
+    expect(vitrine).not.toMatch(/n°\s*\d|\bsur \d+ (ventes|vendeuses|boutiques)/i);
   });
 
-  it('SINGULAR-AT-1 (French Voice §10.5, bbeb4af): reputationText — « 1 vente livrée » at 1, plural above (the directory card consumes this)', () => {
+  it('SINGULAR-AT-1 (French Voice §10.5, bbeb4af): reputationText — « 1 vente livrée » at 1, plural above', () => {
     expect(reputationText(1)).toBe('1 vente livrée'); // correct singular — the FIRST trust state
     expect(reputationText(1)).not.toContain('ventes livrées');
     expect(reputationText(2)).toBe('2 ventes livrées');

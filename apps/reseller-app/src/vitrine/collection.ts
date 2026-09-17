@@ -5,11 +5,13 @@
  * `StoreProjectionEvent` (packages/store-projection/src/store-projection.ts:31):
  *   • `listing.published`     — a product joins the vitrine (the membership op)
  *   • `listing.auto_hidden`   — a product leaves it
- *   (`storefront.published {discoverable}`, the privée ⇄ publique toggle, is the
- *   SERVICE's fact now — VITRINE-VISIBLE-1 — and no longer folded here)
+ *   (`storefront.published {discoverable}` — the published / en-ligne fact — is
+ *   the SERVICE's, VITRINE-VISIBLE-1, and no longer folded here; the privée ⇄
+ *   publique toggle itself is gone: DECOUVERTE-RETIREE-1, SP-I05 amended)
  * `StoreProjection` (…:63) exposes `productCount` (live listings), `discoverable`,
  * and the `/v/{slug}` identity; `resolvePublishedStore(events, slug)` (…:190)
- * resolves a slug to its store ONLY when discoverable (the DIRECTORY rule).
+ * resolves a slug to its store ONLY when published (a link opens a store her
+ * reseller put online — never a store nobody published).
  *
  * THIS SEAM speaks exactly that vocabulary. The reseller RN bundle is snapshot-only
  * (it imports no @shop-plus domain package — money rides `seed.json`, not a
@@ -19,7 +21,7 @@
  *
  * FLAG VITRINE-REAL-BACKING (named follow-on — NOT wired now): swap the demo log +
  * demo fold for the live storefront event source + the real
- * `projectStores`/`resolvePublishedStore`. The `VitrineCollectionPort` interface
+ * `resolvePublishedStore`. The `VitrineCollectionPort` interface
  * does not change — the adapter does. This is the "later adapter swap, not a
  * rebuild" the work order names.
  */
@@ -61,10 +63,10 @@ export function capShareSelection(listingIds: readonly string[]): readonly strin
 }
 
 /**
- * The demo fold — the RN stand-in for `projectStores`. A listing is live iff its
+ * The demo fold — the RN stand-in for the store fold. A listing is live iff its
  * last event is `published` (not `auto_hidden`). Pure, so the class adapter and
  * the App's React-state adapter share one fold (no drift). VITRINE-REAL-BACKING
- * swaps this for the real `projectStores`.
+ * swaps this for the real fold over the service's events.
  *
  * VITRINE-VISIBLE-1 (AUDIT-SHOP-2 F-13): the fold no longer carries
  * `discoverable`. That fact is the SERVICE's (`Storefront.discoverable`) and the
@@ -86,7 +88,7 @@ export function foldVitrine(events: readonly VitrineEvent[]): {
 
 /**
  * The DEMO adapter — an in-memory `VitrineEvent` log + a minimal fold. The fold is
- * the RN stand-in for `projectStores` (VITRINE-REAL-BACKING swaps in the real one);
+ * the RN stand-in for the store fold (VITRINE-REAL-BACKING swaps in the real one);
  * it applies the same membership rule the real fold does: a listing is live iff
  * its last event is `published` (not `auto_hidden`).
  */

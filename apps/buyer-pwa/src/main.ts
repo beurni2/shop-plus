@@ -50,7 +50,6 @@ import { VITRINE_THEMES, type VitrineThemeKey } from './vitrine/themes';
 // raw CSS so './fonts/…' stays document-relative (the Archivo pattern; correct
 // under base './' at / and /shop-plus/).
 import fontsCss from './fonts.css?raw';
-import { renderBoutiques, type BoutiqueState } from './boutiques-view';
 import { monterRacine } from './racine-view';
 
 /**
@@ -498,7 +497,6 @@ style.textContent = `
   .vitrine-privacy { margin: 0; font-size: var(--t-caption); line-height: ${type.scale.caption.lh}; color: var(--c-body); }
   .vitrine-reputation-line { margin: 0; font-size: var(--t-caption); line-height: ${type.scale.caption.lh}; color: var(--c-primaryStrong); }
   .vitrine-reputation { font-weight: ${type.scale.bodyStrong.wght}; }
-  .reputation-demo { font-size: var(--t-labelXS); color: var(--c-muted); letter-spacing: var(--ls-label); text-transform: uppercase; }
   .vitrine-products { display: grid; gap: 0; border: var(--hair-mid) solid var(--c-hairlineStrong); }
   .vitrine-product { display: flex; align-items: baseline; justify-content: space-between; gap: var(--sp-md); padding: var(--sp-md) var(--sp-lg); min-height: var(--touch); border-top: var(--hair-mid) solid var(--c-hairline); text-decoration: none; color: var(--c-ink); }
   .vitrine-product:first-child { border-top: 0; }
@@ -506,11 +504,10 @@ style.textContent = `
   .vitrine-price { font-variant-numeric: tabular-nums; font-weight: 700; color: var(--c-ink); white-space: nowrap; }
   .vitrine-product-epuise { color: var(--c-muted); }
   .vitrine-epuise-chip { font-size: var(--t-labelXS); letter-spacing: var(--ls-labelXS); text-transform: uppercase; color: var(--c-muted); }
-  .vitrine-boutiques { margin-top: var(--sp-sm); }
 
   /* LISTE-MERCI — the gift-tracking page (?cadeau=). One card, the state
      line, four marks and a real refresh; every value a token var (the
-     boutiques-view law: the top-level module renders markup only). */
+     markup-only law: the top-level module renders markup only). */
   .cd-root { margin: 0 auto; padding: var(--sp-xl) var(--sp-lg) var(--sp-xxl); color: var(--c-ink); }
   .cd-carte { background: var(--c-surface); border-radius: var(--r-button); padding: var(--sp-lg); border: var(--hair-mid) solid var(--c-hairline); }
   .cd-titre { font-size: var(--t-title); font-weight: 800; }
@@ -523,43 +520,6 @@ style.textContent = `
   .cd-marque-faite { font-weight: 700; color: var(--c-ink); }
   .cd-actualiser { display: block; width: 100%; margin-top: var(--sp-lg); min-height: var(--touch); border: var(--hair-mid) solid var(--c-hairline); border-radius: var(--r-button); background: none; color: var(--c-ink); font: inherit; font-size: var(--t-label); font-weight: 700; cursor: pointer; }
 
-  /* WO-7.2a — S3 DÉCOUVERTE (the store directory). Stores, never products:
-     no photo, no price in the list — the price lives in the vitrine. Fixed
-     76 px rows (no layout jump), hairline grammar, ink-on-paper. */
-  .boutiques { display: grid; gap: var(--sp-md); }
-  .bq-header { display: grid; gap: var(--sp-xs); }
-  .bq-title { margin: 0; color: var(--c-ink); font-size: var(--t-labelLG); font-weight: ${type.scale.labelLG.wght}; letter-spacing: var(--ls-labelLG); text-transform: uppercase; }
-  .bq-subtitle { margin: 0; font-size: var(--t-caption); color: var(--c-body); line-height: ${type.scale.caption.lh}; }
-  .bq-search { display: grid; gap: var(--sp-xs); }
-  .bq-search[data-disabled="true"] { opacity: var(--disabled-opacity); }
-  .bq-search-input { min-height: var(--touch); border: var(--hair-mid) solid var(--c-hairlineStrong); background: var(--c-paper); color: var(--c-ink); font-size: var(--t-body); padding: var(--sp-sm) var(--sp-md); }
-  .bq-search-note { margin: 0; font-size: var(--t-labelXS); font-weight: ${type.scale.labelXS.wght}; letter-spacing: var(--ls-labelXS); text-transform: uppercase; color: var(--c-muted); }
-  .bq-zones { }
-  .bq-zone { min-height: auto; padding: var(--sp-xs) var(--sp-md); font-size: var(--t-labelXS); font-weight: ${type.scale.labelXS.wght}; letter-spacing: var(--ls-labelXS); text-transform: uppercase; }
-  .bq-count { margin: 0; font-size: var(--t-labelXS); font-weight: ${type.scale.labelXS.wght}; letter-spacing: var(--ls-labelXS); text-transform: uppercase; color: var(--c-ink); }
-  .bq-order { margin: 0; font-size: var(--t-caption); color: var(--c-muted); line-height: ${type.scale.caption.lh}; }
-  .bq-list { display: grid; gap: 0; border: var(--hair-mid) solid var(--c-hairlineStrong); }
-  .bq-card { display: flex; align-items: center; gap: var(--sp-md); min-height: calc(var(--touch) + var(--sp-lg) + var(--sp-lg)); padding: 0 var(--sp-md); border-top: var(--hair-mid) solid var(--c-hairline); text-decoration: none; color: var(--c-ink); }
-  .bq-card:first-child { border-top: 0; }
-  .bq-card:active { background: var(--c-sand); }
-  .bq-avatar { position: relative; width: var(--touch); height: var(--touch); flex: none; display: grid; place-items: center; background: var(--c-sand); border: var(--hair-mid) solid var(--c-hairlineStrong); }
-  .bq-avatar-initial { font-size: var(--t-row); font-weight: ${money.amountScale.hero.wght}; color: var(--c-primaryStrong); }
-  .bq-card-body { flex: 1; min-width: 0; display: grid; gap: var(--sp-xs); }
-  .bq-card-head { display: flex; align-items: center; gap: var(--sp-xs); }
-  .bq-store-name { font-size: var(--t-caption); font-weight: ${type.scale.bodyStrong.wght}; letter-spacing: var(--ls-label); text-transform: uppercase; color: var(--c-ink); }
-  .bq-verified-mark { color: var(--c-ink); flex: none; }
-  .bq-verified-label { font-size: var(--t-labelXS); color: var(--c-muted); }
-  .bq-card-meta { font-size: var(--t-caption); color: var(--c-muted); line-height: ${type.scale.caption.lh}; }
-  .bq-reputation { font-size: var(--t-caption); color: var(--c-primaryStrong); font-weight: ${type.scale.bodyStrong.wght}; }
-  .bq-chevron { color: var(--c-primaryStrong); flex: none; }
-  .bq-card-skeleton { pointer-events: none; }
-  .bq-card-skeleton .bq-avatar { border: 0; }
-  .bq-empty { display: grid; gap: var(--sp-md); justify-items: start; padding: var(--sp-lg) 0; }
-  .bq-empty-title { margin: 0; font-size: var(--t-body); color: var(--c-ink); line-height: ${type.scale.body.lh}; }
-  .bq-error { display: grid; gap: var(--sp-md); justify-items: start; }
-  .bq-error-title { margin: 0; font-size: var(--t-body); font-weight: ${type.scale.bodyStrong.wght}; color: var(--c-ink); }
-  .bq-error-hint { margin: 0; font-size: var(--t-caption); color: var(--c-body); }
-  .bq-foot { margin: 0; font-size: var(--t-caption); color: var(--c-muted); line-height: ${type.scale.caption.lh}; }
 
   /* RACINE-HONNETE-1 — the honest front door: one sentence, one field, one act. */
   .racine { display: grid; gap: var(--sp-lg); }
@@ -1056,25 +1016,16 @@ if (app) {
   } else {
     // RACINE-HONNETE-1 (AUDIT-SHOP-2 F-19, F-63) — the root and every unmatched
     // path land on the HONEST card: a boutique opens from the link her seller
-    // sent, and the card takes that link. The WO-7.2a S3 directory used to
-    // stand here over five invented sellers whose every link 404'd off the
-    // deploy base; it survives ONLY behind the ?demo-boutiques=<state> harness
-    // lever, as the six-state gallery it always was, its hrefs now base-aware.
-    // (The legacy Grand Teint buyer demo params are retired, and so is the
-    // S1–S7 achat module with its ?demo-achat= param; the pixel PWA CLIENTE
-    // C1→C9 is the buyer purchase surface now, via /s/{slug} and ?demo-cliente=.)
-    const BQ_STATES: readonly BoutiqueState[] = [
-      'default', 'skeleton', 'results', 'empty', 'offline', 'error',
-    ];
-    const demoBoutiques = params.get('demo-boutiques');
+    // sent, and the card takes that link. DECOUVERTE-RETIREE-1 (founder,
+    // 2026-09-17; SP-I05 amended): there is NO cross-reseller discovery — the
+    // WO-7.2a S3 directory that used to stand here, then survived behind the
+    // harness lever, is gone with the lever: a buyer reaches a
+    // store only through the link or QR her seller sent. (The legacy Grand
+    // Teint buyer demo params are retired, and so is the S1–S7 achat module
+    // with its ?demo-achat= param; the pixel PWA CLIENTE C1→C9 is the buyer
+    // purchase surface now, via /s/{slug} and ?demo-cliente=.)
     const main = document.createElement('main');
-    if (demoBoutiques !== null && (BQ_STATES as readonly string[]).includes(demoBoutiques)) {
-      const state = demoBoutiques as BoutiqueState;
-      const query = params.get('q') ?? (state === 'results' || state === 'empty' ? (state === 'empty' ? 'bazin' : 'rood') : '');
-      main.innerHTML = renderBoutiques({ state, query, base: deployBaseFromPath(window.location.pathname) });
-    } else {
-      monterRacine(main, { enLigne: navigator.onLine, pathname: window.location.pathname });
-    }
+    monterRacine(main, { enLigne: navigator.onLine, pathname: window.location.pathname });
     app.append(main);
   }
 

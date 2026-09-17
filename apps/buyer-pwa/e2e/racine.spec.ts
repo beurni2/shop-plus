@@ -85,12 +85,11 @@ test('on project-page hosting the card lands the link UNDER the deploy base (the
   await expect(page).toHaveURL(`${PAGES}/shop-plus/v/aicha-4821`);
   await expect(page.locator('.vt-root[data-screen="vitrine"]')).toBeVisible({ timeout: 10_000 });
 
-  // the demo directory survives only behind its harness lever, base-aware
+  // DECOUVERTE-RETIREE-1: the demo directory's harness lever is gone with the
+  // directory — under the deploy base it lands on the honest card too.
   await page.goto(`${PAGES}/shop-plus/?demo-boutiques=default`);
-  await expect(page.locator('h1.bq-title')).toHaveText('LES BOUTIQUES');
-  await expect(page.locator('[data-role="boutique"]').first()).toHaveAttribute('href', '/shop-plus/v/aicha-4821');
-  await page.goto(`${PAGES}/shop-plus/?demo-boutiques=empty`);
-  await expect(page.locator('[data-action="voir-tout"]')).toHaveAttribute('href', '/shop-plus/?demo-boutiques=default');
+  await expect(page.locator('[data-screen="racine"]')).toBeVisible();
+  await expect(page.locator('[data-role="boutique"]')).toHaveCount(0);
 
   // the retired /boutiques path is the honest card too, and its base is still the app root
   await page.goto(`${PAGES}/shop-plus/boutiques`);

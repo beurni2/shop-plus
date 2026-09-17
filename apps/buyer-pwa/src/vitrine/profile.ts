@@ -234,7 +234,7 @@ export function demoStorefrontPort(variant: 'default' | 'customised' | 'empty' |
       // privée (canon §5.6, loi 4): absent from Découvrir (discoverable:false),
       // but the SIGNED LINK still resolves — there is no « boutique fermée ». The
       // product page mounts exactly as for a public store; only the directory
-      // (allBoutiques, projected on `discoverable`) hides her.
+      // (the retired directory, DECOUVERTE-RETIREE-1) hides her.
       if (variant === 'private') return { storefront: { ...AICHA_DEFAULT, discoverable: false }, trust: AICHA_TRUST, notes };
       return { storefront: AICHA_DEFAULT, trust: AICHA_TRUST, notes };
     },

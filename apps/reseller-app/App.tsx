@@ -1688,46 +1688,6 @@ export default function App() {
     },
     [service, identity, vitrineCol, offers, rafraichirAttentes],
   );
-  /**
-   * VITRINE-VISIBLE-1 (AUDIT-SHOP-2 F-13) — Privée ⇄ Publique, FOR REAL.
-   *
-   * The toggle used to flip a session-local flag and toast « Votre boutique
-   * apparaît dans Découvrir » with ZERO writes — the fabricated-success shape
-   * this project refuses everywhere else, measured on the mounted App. Now it
-   * is the service's own act: `publish` / `unpublish` on her shop, the shop
-   * adopted from the read-back (the decision carries it; an older Worker's
-   * answer without it falls back to one read whose failure is SAID), and the
-   * toast only on a confirmed write. The label reads the service's flag, so a
-   * shop the wire says `discoverable: true` can no longer show « Privée ».
-   */
-  const [basculeEnCours, setBasculeEnCours] = useState(false);
-  const basculerVisibilite = useCallback(async (): Promise<void> => {
-    if (service === null || identity === null || identity === undefined) return;
-    if (liveStorefront === null || liveStorefront === undefined) return;
-    const versPublique = !liveStorefront.discoverable;
-    setBasculeEnCours(true);
-    try {
-      const res = versPublique
-        ? await service.publish(identity.storefrontId, identity.correlationId)
-        : await service.unpublish(identity.storefrontId, identity.correlationId);
-      if (!res.ok) {
-        // A dead session is the book's word, not a network hiccup: the
-        // session road decides (verifier finding) — never « réessayez ».
-        if (estSessionRefusee(res.reason)) return direRefusPublication(res.reason);
-        return setToast(t('vitrine.toggle_echec'));
-      }
-      if (res.value.storefront !== undefined) {
-        adopterStorefront(res.value.storefront);
-      } else {
-        const fresh = await service.getById(identity.storefrontId);
-        if (fresh.ok && fresh.value !== undefined) adopterStorefront(fresh.value);
-        else return setToast(t('vitrine.toggle_incertain'));
-      }
-      setToast(versPublique ? t('vitrine.toast_publique') : t('vitrine.toast_privee'));
-    } finally {
-      setBasculeEnCours(false);
-    }
-  }, [service, identity, liveStorefront, adopterStorefront]);
   const ficheOffer = offers.find((o) => o.productVersionId === ficheId);
   /**
    * PARTAGER-PRO (founder, 2026-08-15: « more professional, very simple and
@@ -3047,29 +3007,14 @@ export default function App() {
                         </View>
                       ) : null}
                     </View>
-                    {/* VITRINE-VISIBLE-1 — the toggle is the SERVICE's flag: it
-                        renders only over a shop the service answered, reads
-                        `discoverable` from it, and its press is a real
-                        publish/unpublish adopted from the read-back. Disabled
-                        while the wire answers, so a second tap cannot fire a
-                        second write. */}
-                    {liveStorefront !== null && liveStorefront !== undefined ? (
-                      <Pressable
-                        style={({ pressed }) => [styles.vitrineToggle, pressed && styles.pressed]}
-                        onPress={() => void basculerVisibilite()}
-                        disabled={basculeEnCours}
-                        accessibilityRole="switch"
-                        accessibilityState={{ checked: liveStorefront.discoverable, disabled: basculeEnCours }}
-                        accessibilityLabel={t(liveStorefront.discoverable ? 'vitrine.toggle_publique' : 'vitrine.toggle_privee')}
-                      >
-                        <View style={[styles.toggleDot, liveStorefront.discoverable ? styles.toggleDotPublic : styles.toggleDotPrivate]} />
-                        <Text style={styles.toggleLabel}>{t(liveStorefront.discoverable ? 'vitrine.toggle_publique' : 'vitrine.toggle_privee')}</Text>
-                      </Pressable>
-                    ) : liveStorefront === undefined ? (
-                      // The read failed: say so where the control would be
-                      // (verifier finding) — a vanished control is not a state.
-                      <Text style={styles.noteLine}>{t('vitrine.toggle_sans_reponse')}</Text>
-                    ) : null}
+                    {/* DECOUVERTE-RETIREE-1 (founder, 2026-09-17; SP-I05
+                        amended): the Privée ⇄ Publique toggle that stood here
+                        (VITRINE-VISIBLE-1) is gone with the directory it fed —
+                        a buyer reaches her shop only through her link or QR,
+                        so « privée » and « publique » no longer differ. The
+                        wire's `discoverable` stays the en-ligne fact that
+                        « Mettre ma boutique en ligne » sets; nothing writes it
+                        from this screen. */}
                   </View>
                   {/* PERSONNALISER-LISIBLE (founder orders 2026-08-03: « make the
                       personnaliser button more understandable and professional
@@ -4167,22 +4112,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     flexShrink: 0,
   },
-  vitrineToggle: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-    minHeight: touch.minTargetPx,
-    paddingHorizontal: spacing.md,
-    borderRadius: radius.pill,
-    borderWidth: interaction.hairline.thin,
-    borderColor: sharedColour.hairlineStrong,
-    backgroundColor: sharedColour.card,
-    flexShrink: 0,
-  },
-  toggleDot: { width: spacing.sm, height: spacing.sm, borderRadius: radius.pill },
-  toggleDotPublic: { backgroundColor: sharedColour.okFg },
-  toggleDotPrivate: { backgroundColor: shopColour.gold },
-  toggleLabel: { color: sharedColour.ink, fontFamily: TEXT_FAMILY_BOLD, fontSize: t2.scale.pill.size, fontWeight: w(t2.scale.pill.wght) },
   tilePriceRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: spacing.xs },
   tileNet: { color: sharedColour.sub, fontFamily: TEXT_FAMILY, fontSize: t2.scale.pill.size, fontVariant: ['tabular-nums'], flexShrink: 0 },
   // ── PARTAGER frame (planche L193–236) — select-to-feature + share channels ──

@@ -50,7 +50,7 @@ export interface PublishListingCommand {
    * `hubVerified: boolean`. A boolean could not distinguish « the seller says she
    * has stock » from « the Boutik+ hub confirmed it », and that same flag renders a
    * « Vérifiée » badge beside the shop name on the buyer directory
-   * (`store-projection.ts` → `boutiques-view.ts:80`) — so publishing with declared
+   * (`store-projection.ts` → the vitrine's trust chrome) — so publishing with declared
    * stock would have put a verification badge on a storefront ON THE SELLER'S OWN
    * WORD, in the platform's own trust language. Only `'hub'` may ever set it.
    *

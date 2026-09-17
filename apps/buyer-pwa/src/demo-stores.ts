@@ -3,13 +3,13 @@ import type { VitrineProduct } from './vitrine-view';
 
 /**
  * SP#001-B — THE ONE DEMO DATASET (buyer PWA has no backend). This is the
- * certified-mock event SOURCE: the same five S3 stores, expressed as the REAL
+ * certified-mock event SOURCE: five demo stores, expressed as the REAL
  * storefront + listing events the aggregates emit (created → published →
- * listings). It feeds BOTH customer surfaces through the ONE producer
- * (`@shop-plus/store-projection`): the S3 directory (`boutiques-data`) and the
- * vitrine resolution (`vitrine-link`). Nothing here is hard-coded ordering or a
- * baked `updatedRank` — the directory's order, product count, last-update label,
- * and hub-verified badge all fall out of these events.
+ * listings). It feeds the demo vitrine resolution (`vitrine-link`) through the
+ * ONE producer (`@shop-plus/store-projection`) — one store at a time, by the
+ * slug a link names. DECOUVERTE-RETIREE-1 (SP-I05 amended): the S3 directory
+ * this also fed is gone; nothing lists these stores side by side any more.
+ * Product count and hub-verified badge still fall out of these events.
  *
  * The shapes are real; only the SOURCE is demo (Execution Contract §3 —
  * mock-certified). The real event stream (storefront-service aggregates, live

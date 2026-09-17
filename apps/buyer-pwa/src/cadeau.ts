@@ -23,7 +23,7 @@ import { t } from './i18n';
 import type { OrderOutcome, QuotePort, ServerOrder } from './cliente/quote-port';
 
 /* The `.cd-*` rules live in main.ts's token-driven stylesheet, beside the
- * `.bq-*` family — this module renders MARKUP ONLY (the boutiques-view law,
+ * `.cd-*` family — this module renders MARKUP ONLY (the markup-only law,
  * held by the ui-scan: a top-level view module carries no colour, no px). */
 
 /** The page's whole state — one small machine, every branch a designed screen. */
