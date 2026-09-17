@@ -16,6 +16,7 @@ import {
   type StorefrontEntry,
 } from '../src/storefront-core.js';
 import { decodeSur } from '../src/decode-sur.js';
+import { refuseStoreName } from '../src/store-name-policy.js';
 
 /**
  * StorefrontDO — the DURABLE storefront authority (STOREFRONT-READ-PATH-1). One
@@ -78,7 +79,8 @@ export class StorefrontDO {
       const current = await this.state.storage.get<StorefrontEntry>(ENTRY_KEY);
       const { decision, next } = decideCreate(current, cmd);
       if (next) await this.state.storage.put(ENTRY_KEY, next);
-      return Response.json(decision);
+      // NOM-BOUTIQUE-1 — a refused name is a NAMED 422, like the identity route.
+      return Response.json(decision, { status: decision.status === 'refused' ? 422 : 200 });
     }
     if (request.method === 'POST' && (pathname === '/entry/publish' || pathname === '/entry/unpublish')) {
       let args: ToggleArgs;
@@ -393,6 +395,14 @@ export default {
       } catch {
         return Response.json({ error: 'malformed' }, { status: 400 });
       }
+      // NOM-BOUTIQUE-1 (SP5.2) — a name the policy refuses is answered BEFORE
+      // the slug is claimed: a refused create must leave no pointer behind. The
+      // core applies the SAME function on the entry (one rule, two doors), so
+      // the two can never disagree about a name.
+      const nomRefuse = typeof cmd.name === 'string' ? refuseStoreName(cmd.name) : undefined;
+      if (nomRefuse !== undefined) {
+        return Response.json({ status: 'refused', reason: nomRefuse }, { status: 422 });
+      }
       const claim = (await (
         await slugStub(env, slug).fetch(
           new Request('https://do/pointer/claim', { method: 'POST', body: JSON.stringify({ storefrontId: cmd.id }) }),
@@ -428,7 +438,10 @@ export default {
         // Under the shop's OWN slug the claim stays whichever answer the entry
         // gave (verifier, SLUG-UNIQUE-1): it re-heals a pointer that had gone
         // missing for a shop that exists.
-        const tenu = decision.status === 'collision' ? decision.existing.slug : decision.storefront.slug;
+        const tenu =
+          decision.status === 'collision' ? decision.existing.slug
+          : decision.status === 'refused' ? undefined // unreachable past the pre-check above; releases if it ever is
+          : decision.storefront.slug;
         if (tenu !== slug) await liberer();
       }
       return forward(res);

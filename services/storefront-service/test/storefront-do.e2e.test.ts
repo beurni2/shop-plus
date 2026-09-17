@@ -362,6 +362,41 @@ describe('StorefrontDO — the durable read path GET /s/{slug}, Shape C slug poi
     expect((read.view as StorefrontView).name).toBe('Chez Bernard');
   });
 
+  it('NOM-BOUTIQUE-1 (SP5.2): a create whose name the policy refuses is a NAMED 422 that claims NO slug — the same short code then creates under a clean name', async () => {
+    const refused = await mf.dispatchFetch('http://sf/storefronts', {
+      method: 'POST',
+      body: JSON.stringify({ ...SELLER_001, commandId: 'c-nom-1', id: 'sf-nom', shortCode: 'SELLER-0777', name: 'Shop+ Officiel' }),
+    });
+    expect(refused.status).toBe(422);
+    expect((await refused.json()) as object).toEqual({ status: 'refused', reason: 'name_impersonates_platform' });
+    // No pointer, no shop, no directory row: the refusal happened BEFORE the claim.
+    expect((await readSlug('seller-0777')).code).toBe(404);
+    const rows = (await (await mf.dispatchFetch('http://sf/storefronts', { method: 'GET' })).json()) as { id: string }[];
+    expect(rows.some((r) => r.id === 'sf-nom'), 'a refused create must never reach the directory').toBe(false);
+    // The slug was never claimed: the same short code creates under a clean name.
+    const ok = await create({ ...SELLER_001, commandId: 'c-nom-2', id: 'sf-nom', shortCode: 'SELLER-0777', name: 'Chez Fati' });
+    expect(ok.body.status).toBe('created');
+    expect((await readSlug('seller-0777')).code).toBe(200);
+  });
+
+  it('NOM-BOUTIQUE-1 (SP5.2): a rename the policy refuses is a NAMED 422 — one reason per rule — and her name survives a restart unchanged', async () => {
+    await create({ ...SELLER_001, commandId: 'c-nom-3', id: 'sf-nom-r', shortCode: 'SELLER-0778', name: 'Chez Awa' });
+    for (const [name, reason] of [
+      ['Awa 70 12 34 56', 'name_carries_contact'],
+      ['Merde Mode', 'name_offensive'],
+      ['Boutik Plus Awa', 'name_impersonates_platform'],
+    ] as const) {
+      const refused = await mf.dispatchFetch('http://sf/storefronts/sf-nom-r/identity', {
+        method: 'POST',
+        body: JSON.stringify({ patch: { name }, at: T1 }),
+      });
+      expect(refused.status, name).toBe(422);
+      expect((await refused.json()) as object, name).toEqual({ status: 'refused', reason });
+    }
+    await restart(); // the refusals must have written nothing durable
+    expect(((await readSlug('seller-0778')).view as StorefrontView).name).toBe('Chez Awa');
+  });
+
   it('ENTETES-B: headerStyle saved via the identity route is DURABLE and rides the buyer read path', async () => {
     const cmd = { ...SELLER_001, commandId: 'c-entete', id: 'sf-entete', shortCode: 'SELLER-0022' };
     await create(cmd);

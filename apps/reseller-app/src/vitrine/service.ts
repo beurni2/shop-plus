@@ -120,6 +120,10 @@ export function saveRefusalToastKey(reason: string): string {
   if (/^http_\d{3}$/.test(reason)) return 'k.enreg.refus';
   // …the named refusals, each with the true thing to tell her.
   if (reason === 'name_too_short' || reason === 'name_too_long') return 'k.identite.nom_requis';
+  // NOM-BOUTIQUE-1 (SP5.2) — the service's store-name policy, three named
+  // reasons, each the plain rule she broke. Shared with the create road below.
+  const nom = nomRefuseToastKey(reason);
+  if (nom !== undefined) return nom;
   if (reason === 'featured_over_cap') return 'k.une.refus_cap';
   if (reason === 'sections_over_cap') return 'k.sections.refus_cap';
   if (reason === 'section_name_empty' || reason === 'section_name_too_long') return 'k.enreg.section_nom';
@@ -151,7 +155,19 @@ export function publierRefusalToastKey(reason: string): string {
   if (reason === 'storefront_absent') return 'fiche.publier.pas_de_boutique';
   if (reason === 'supply_unavailable') return 'fiche.publier.reessayer';
   if (reason === 'markup_over_cap') return 'k.publier.plafond';
+  // NOM-BOUTIQUE-1 (SP5.2) — the create is moderated exactly as the rename is.
+  const nom = nomRefuseToastKey(reason);
+  if (nom !== undefined) return nom;
   return 'k.publier.refus';
+}
+
+/** NOM-BOUTIQUE-1 — ONE mapping for both doors (rename and create): the
+ *  service's three store-name refusals, each with the rule she can read. */
+export function nomRefuseToastKey(reason: string): string | undefined {
+  if (reason === 'name_impersonates_platform') return 'k.identite.nom_plateforme';
+  if (reason === 'name_carries_contact') return 'k.identite.nom_contact';
+  if (reason === 'name_offensive') return 'k.identite.nom_mots';
+  return undefined;
 }
 
 /** RAISON-NOMMEE-1 — is this reason the book's own « no session »? The caller
@@ -402,11 +418,13 @@ export class HttpStorefrontService implements StorefrontServicePort {
     } catch {
       return { ok: false, reason: 'offline' };
     }
-    const data = (await res.json().catch(() => null)) as { status?: string; storefront?: Storefront; error?: string } | null;
+    const data = (await res.json().catch(() => null)) as { status?: string; storefront?: Storefront; error?: string; reason?: string } | null;
     // RAISON-NOMMEE-1 — the Worker's NAMED refusal survives (`slug_taken`,
     // `unauthorized`, …) exactly as publishListing keeps its own; collapsing it
     // to the status code threw away the one word that decides what she is told.
-    if (!res.ok) return { ok: false, reason: data?.error ?? `http_${res.status}` };
+    // NOM-BOUTIQUE-1 — a refused NAME on the create rides `reason` (the identity
+    // route's own shape, 422 `{status:'refused', reason}`); it is read first.
+    if (!res.ok) return { ok: false, reason: data?.reason ?? data?.error ?? `http_${res.status}` };
     // ACCUEIL-PRO (verifier) — the worker's create decision carries HER canon
     // storefront; hand it through (validated the same way getById validates)
     // so the caller can adopt the read-back. Without it, only `liveShop` moves

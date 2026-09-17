@@ -8,6 +8,7 @@ import {
   type PlatformEvent,
   type Storefront,
 } from '@platform/contracts';
+import { refuseStoreName } from './store-name-policy.js';
 
 /**
  * STOREFRONT DECISION CORE (STOREFRONT-READ-PATH-1). The pure per-storefront
@@ -42,7 +43,9 @@ export interface CreateStorefrontCommand {
 export type CreateDecision =
   | { readonly status: 'created'; readonly storefront: Storefront; readonly event: PlatformEvent }
   | { readonly status: 'idempotent'; readonly storefront: Storefront }
-  | { readonly status: 'collision'; readonly existing: Storefront };
+  | { readonly status: 'collision'; readonly existing: Storefront }
+  /** NOM-BOUTIQUE-1 — the name failed the store-name policy; nothing is written. */
+  | { readonly status: 'refused'; readonly reason: string };
 
 export type ToggleDecision =
   | { readonly status: 'changed'; readonly storefront: Storefront; readonly event: PlatformEvent }
@@ -127,6 +130,11 @@ export function decideCreate(
     }
     return { decision: { status: 'collision', existing: current.storefront } };
   }
+  // NOM-BOUTIQUE-1 (SP5.2) — the name is moderated HERE, at the authority, on
+  // a NEW shop only: a replay of an existing shop above stays idempotent, and
+  // the name it carries was judged when it was created.
+  const refus = typeof cmd.name === 'string' ? refuseStoreName(cmd.name) : undefined;
+  if (refus !== undefined) return { decision: { status: 'refused', reason: refus } };
   const slug = slugFromShortCode(cmd.shortCode); // shape-enforced or throws
   const storefront: Storefront = StorefrontSchema.parse({
     id: cmd.id,
@@ -412,6 +420,12 @@ export function decideSaveIdentity(
   }
   if (name !== undefined && name.length > NAME_MAX) {
     return { decision: { status: 'refused', reason: 'name_too_long' } };
+  }
+  // NOM-BOUTIQUE-1 (SP5.2) — a RENAME is moderated exactly as a create is: the
+  // same rule set, the same named reasons, so her screen says the same thing.
+  const nomRefuse = name !== undefined ? refuseStoreName(name) : undefined;
+  if (nomRefuse !== undefined) {
+    return { decision: { status: 'refused', reason: nomRefuse } };
   }
   if (tagline !== undefined && tagline.length > TAGLINE_MAX) {
     return { decision: { status: 'refused', reason: 'tagline_too_long' } };
