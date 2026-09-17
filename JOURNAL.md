@@ -1,7 +1,7 @@
 # JOURNAL — shop-plus
 Continuity ledger per CTO charter §6/§6bis. Every entry is evidence-grounded.
 
-## 2026-09-17 · DIAPO-VIDEO-1 — the slideshow waits for the clip to finish before moving on: the clip is the show's first slide, as in the gallery; the loop comes off while the show is on; cancelled or static, the clip loops as before · BUILT ON THE BRANCH, awaiting the founder's word
+## 2026-09-17 · DIAPO-VIDEO-1 — the slideshow waits for the clip to finish before moving on: the clip is the show's first slide, as in the gallery; the loop comes off while the show is on; cancelled or static, the clip loops as before · MERGED AND PUBLISHED 2026-09-17 on the founder's « go »
 
 **Founder order 2026-09-17, on the DIAPO-C1 report:** « Go but make sure the slideshow will need to wait for a video to finish before moving to the next. » The « Go » merged DIAPO-C1 (below); this slice is the condition, built right after on the same branch.
 
@@ -41,6 +41,8 @@ Nothing dropped, nothing disputed.
 **What did NOT change.** No money rule, no `contracts/` shape, no event, no Worker, no migration, no new dependency, no catalog string. The gallery's list and controls, the clip's markup, the vitrine tiles, the reprise snapshot and the buyer's checkout are untouched. Without a clip, DIAPO-C1's behaviour is the same show.
 
 **Open.** D1 is his to confirm or reverse (one comparison). The real-browser walk of the clip wait shares D5 with DIAPO-C1's D5: it waits for a demo product with a real clip.
+
+**MERGED AND PUBLISHED 2026-09-17 on the founder's « go »:** main `174967f` → `5345c33` (fast-forward, seven commits); ci 681 · pwa-preview 469 · expo-preview 502 · service-canon-drift 361 green. No Worker deploy owed (no Worker, no canon pin touched): the live storefront Worker stays fa5256e / canon 3.15.0; the buyer PWA preview carries the clip wait. D1 (clip + one photograph runs a show) stays his to reverse after his eyes on a phone.
 
 ## 2026-09-17 · DIAPO-C1 — SP2.3 lazy slideshow + fallback on the buyer's product frame: queued (one photo at a time, after the hero paints), cancellable (a tap opens the gallery where she is; leaving clears it), static fallback (reduced motion · saveData · a failed photo · a clip · one photo) — and the swap patches the frame IN PLACE, never rebuilds the screen · MERGED AND PUBLISHED 2026-09-17 on the founder's « Go »
 
