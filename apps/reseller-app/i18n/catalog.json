@@ -505,7 +505,7 @@
  },
  {
   "key": "k.etat_privee",
-  "fr": "Pas encore en ligne",
+  "fr": "Pas en ligne",
   "register": "neutral",
   "screenClass": "status"
  },

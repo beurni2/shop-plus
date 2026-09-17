@@ -49,7 +49,7 @@ export interface DemoStore {
 }
 
 /** The demo reference clock — fixed, so the relative-time labels stay deterministic (SP-I11). */
-export const DEMO_NOW = '2026-07-14T12:00:00.000Z';
+const DEMO_NOW = '2026-07-14T12:00:00.000Z';
 
 /**
  * The five S3 stores. Directory `productCount` and the vitrine `products` are

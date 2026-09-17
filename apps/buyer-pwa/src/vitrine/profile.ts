@@ -127,7 +127,8 @@ const AICHA_DEFAULT: Storefront = {
   curatedItems: ['p1', 'p2', 'p4', 'p5', 'p7', 'p8', 'k1', 'p3'],
   featuredItems: [],
   sections: [],
-  // canon §5.6 field (privée = absent from Découvrir; the LINK still resolves — loi 4)
+  // canon §5.6 field — the published / en-ligne fact; the LINK always resolves (loi 4).
+  // DECOUVERTE-RETIREE-1: no directory reads it any more (SP-I05 amended).
   discoverable: true,
   // ENTETES-B — jour 1: the shipped default header, exactly as canon backfills it
   headerStyle: 'classique',
@@ -231,10 +232,11 @@ export function demoStorefrontPort(variant: 'default' | 'customised' | 'empty' |
       }
       const notes = await aichaVoiceNotes();
       if (variant === 'customised') return { storefront: AICHA_CUSTOMISED, trust: AICHA_TRUST, notes };
-      // privée (canon §5.6, loi 4): absent from Découvrir (discoverable:false),
-      // but the SIGNED LINK still resolves — there is no « boutique fermée ». The
-      // product page mounts exactly as for a public store; only the directory
-      // (the retired directory, DECOUVERTE-RETIREE-1) hides her.
+      // privée (canon §5.6, loi 4): discoverable:false, and the SIGNED LINK still
+      // resolves — there is no « boutique fermée ». The product page mounts
+      // exactly as for a published store. DECOUVERTE-RETIREE-1 (SP-I05 amended):
+      // there is no directory left for the flag to hide her from; the link is
+      // the only road to any store.
       if (variant === 'private') return { storefront: { ...AICHA_DEFAULT, discoverable: false }, trust: AICHA_TRUST, notes };
       return { storefront: AICHA_DEFAULT, trust: AICHA_TRUST, notes };
     },

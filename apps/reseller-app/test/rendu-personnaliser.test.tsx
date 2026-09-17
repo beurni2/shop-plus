@@ -68,6 +68,13 @@ async function surPersonnaliser() {
   await screen.press('Ma Vitrine');
   await screen.settle();
   await screen.press('Personnaliser ma boutique');
+  // DECOUVERTE-RETIREE-1 (verifier NOTE, closed): the K1 pill reads the wire's
+  // published flag as the go-live state — « En ligne » over a published shop —
+  // and the retired « Publiée » / « Privée » words are gone with the toggle.
+  expect(screen.shows('En ligne'), `on screen: ${JSON.stringify(screen.texts())}`).toBe(true);
+  expect(screen.shows('Pas en ligne')).toBe(false);
+  expect(screen.shows('Publiée')).toBe(false);
+  expect(screen.shows('Privée')).toBe(false);
   await screen.settle();
   return screen;
 }

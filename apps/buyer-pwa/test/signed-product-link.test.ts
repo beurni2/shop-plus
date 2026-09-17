@@ -47,8 +47,8 @@ describe('signed product deep-link — resolution goes through the storefront po
     // both resolve — the signed link opens the offer either way
     expect(publique).toBeDefined();
     expect(privee).toBeDefined();
-    // the ONLY difference is discoverability: the privée store is absent from
-    // Découvrir (the retired directory — DECOUVERTE-RETIREE-1, no directory at all now), but the link resolves.
+    // the ONLY difference is the published flag: DECOUVERTE-RETIREE-1 left no
+    // directory for it to matter to a buyer — the link resolves either way.
     expect(publique!.storefront.discoverable).toBe(true);
     expect(privee!.storefront.discoverable).toBe(false);
     // resolution does not depend on discoverability — the product, price, and

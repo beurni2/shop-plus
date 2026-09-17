@@ -135,7 +135,7 @@ test('unknown / expired slug — honest not-found, and it pays nobody (no arriva
   expect(await arrivals(page)).toHaveLength(0);
 });
 
-test('privée vitrine — not listed in Découvrir, but her signed link still resolves the offer (loi 4)', async ({ page }) => {
+test('privée vitrine — her signed link still resolves the offer (loi 4; there is no directory to be listed in — DECOUVERTE-RETIREE-1)', async ({ page }) => {
   await page.goto('/?demo-signed=aicha-4821&demo-signed-profil=prive');
 
   // « il n'y a pas de boutique fermée » — the private storefront's link opens
