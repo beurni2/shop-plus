@@ -441,15 +441,28 @@ describe('AUTO-HIDE-WATCH-1 — presence verdicts separate evidence from ignoran
     expect(await source.presence(PV)).toEqual({ kind: 'unknown' });
   });
 
-  it('5xx · 409 unavailable · STALE · unparseable are all UNKNOWN — refusals and failures are not lapses', async () => {
+  it('5xx · STALE · unparseable are all UNKNOWN — failures are not lapses', async () => {
     expect(await sourceAnswering(500, {}).presence(PV)).toEqual({ kind: 'unknown' });
-    // 409: an EXTANT offer refusing service — hiding on it would strand a listing
-    // behind a possibly-transient state, because decideAutoHide is one-way.
-    expect(
-      await sourceAnswering(409, { service: 'offer-service', status: 'unavailable', reason: 'product_not_approved' }).presence(PV),
-    ).toEqual({ kind: 'unknown' });
     expect(await sourceAnswering(200, envelope(minutesAgo(16))).presence(PV)).toEqual({ kind: 'unknown' });
     expect(await sourceAnswering(200, { not: 'an envelope' }).presence(PV)).toEqual({ kind: 'unknown' });
+  });
+
+  it('PRODUIT-REFUSÉ-1 — 409 unavailable WITH the ladder’s reason is REFUSED (its own kind, carrying the reason); a 409 with NO reason, or the wrong status word, is UNKNOWN', async () => {
+    // The producer's own shape (`serveProjection`): {service, status:'unavailable', reason}.
+    for (const reason of ['stock_unconfirmed', 'offer_not_effective', 'product_not_active', 'product_not_approved', 'offer_not_active']) {
+      expect(await sourceAnswering(409, { service: 'offer-service', status: 'unavailable', reason }).presence(PV)).toEqual({
+        kind: 'refused',
+        reason,
+      });
+    }
+    // The body is verified like the 404's: a bare 409 (a proxy, a drift) is ignorance, not a refusal.
+    expect(await sourceAnswering(409, { service: 'offer-service', status: 'unavailable' }).presence(PV)).toEqual({ kind: 'unknown' });
+    expect(await sourceAnswering(409, { service: 'offer-service', status: 'unavailable', reason: '' }).presence(PV)).toEqual({ kind: 'unknown' });
+    expect(await sourceAnswering(409, { status: 'conflict', reason: 'stock_unconfirmed' }).presence(PV)).toEqual({ kind: 'unknown' });
+    expect(await sourceAnswering(409, null).presence(PV)).toEqual({ kind: 'unknown' });
+    expect(await sourceAnswering(409, 'not json').presence(PV)).toEqual({ kind: 'unknown' });
+    // …and for a RENDER the refusal is still an absence, never a throw or an invention.
+    expect(await sourceAnswering(409, { service: 'offer-service', status: 'unavailable', reason: 'stock_unconfirmed' }).describe(PV)).toBeUndefined();
   });
 
   it('AN ABSENT SOURCE never reports GONE — an instrument that cannot see presence has no absences', async () => {

@@ -422,8 +422,11 @@ async function describeProducts(
     // `unchanged`, no second event).
     //
     // THE INSTRUMENT LAW BINDS HARD HERE: `unknown` (unreachable · 5xx · stale ·
-    // 409 unavailable · unparseable) NEVER hides — a supply outage must render as
-    // today's honest omission, not as a shop-wide erasure of her listings. And a
+    // unparseable) NEVER hides — a supply outage must render as today's honest
+    // omission, not as a shop-wide erasure of her listings — and neither does
+    // `refused` (PRODUIT-REFUSÉ-1: the producer's 409, an extant offer refusing
+    // service, possibly transiently): omitted, not marked incomplete (the
+    // producer answered), never hidden (the one-way hide would strand her). And a
     // shop nobody reads keeps a stale listing standing — which nobody sees, and
     // the next read fixes. The hide is AWAITED: deterministic, testable, and the
     // latency lands only on the rare lapsed path whose record is omitted anyway.

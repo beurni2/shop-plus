@@ -1728,6 +1728,30 @@
   "screenClass": "label"
  },
  {
+  "key": "cl.refus.product_unavailable.overline",
+  "fr": "L’ARTICLE",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.refus.product_unavailable.titre",
+  "fr": "Cet article n’est pas en vente en ce moment.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.refus.product_unavailable.phrase",
+  "fr": "Il sera peut-être de retour bientôt. Rien n’a été payé.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.refus.product_unavailable.libelle",
+  "fr": "Voir la boutique",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
   "key": "cl.refus.delivery_not_serviceable.overline",
   "fr": "LA LIVRAISON",
   "register": "money",

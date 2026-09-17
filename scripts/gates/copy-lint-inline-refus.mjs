@@ -149,7 +149,10 @@ const REFUS_VIEWS = ['generique', 'listing_unknown', 'not_found', 'listing_not_l
   'liste_prepaiement_requis', 'liste_contact_conflit', 'pay_at_door_not_eligible',
   // PAUSE-VENTE-1 (founder ruling 2026-09-17) — the founder paused the shop's
   // owner: no action, every in-app road meets the same pause.
-  'reseller_paused'];
+  'reseller_paused',
+  // PRODUIT-REFUSÉ-1 (founder order 2026-09-17) — the producer refused the
+  // product at the price ask; the way out is the boutique.
+  'product_unavailable'];
 const REFUS_SANS_ACTION = new Set(['no_secure_random', 'liste_contact_conflit', 'reseller_paused']);
 for (const view of REFUS_VIEWS) {
   const fields = { overline: L(), titre: S(), phrase: S() };

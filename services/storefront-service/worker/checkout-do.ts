@@ -15,7 +15,7 @@ import {
 } from '../src/checkout-core.js';
 import { quoteDeliveryFee } from '../src/delivery-source.js';
 import type { ListingEntry } from '../src/listing-core.js';
-import type { ProductDescription } from '../src/supply-source.js';
+import type { ProductDescription, SupplyPresence } from '../src/supply-source.js';
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════
@@ -444,9 +444,13 @@ interface Env {
    *
    * OPTIONAL, and absence is fail-closed, not a fault: no supply source ⇒ no
    * description ⇒ §6.1 cannot prove « seller tier ≥ verified » or « category
-   * inspectable » ⇒ Option B refuses. FULL_PREPAY never touches this field.
+   * inspectable » ⇒ Option B refuses.
+   *
+   * PRODUIT-REFUSÉ-1 — narrowed to `presence`, not `describe`: the quote needs
+   * to tell the producer's ANSWER (`refused` · `gone`) from its SILENCE
+   * (`unknown`), and `describe` collapses both into `undefined`.
    */
-  SUPPLY?: { describe(productVersionId: string): Promise<ProductDescription | undefined> };
+  SUPPLY?: { presence(productVersionId: string): Promise<SupplyPresence> };
   /**
    * PAUSE-VENTE-1 (founder ruling 2026-09-17) — the access port over the
    * accounts book: TRUE only on a POSITIVE `paused` for the shop's owner. The
@@ -795,8 +799,29 @@ export default {
       // page must not start a payment for an épuisé product. The fail-open
       // discipline is unchanged: a hiccup resolves `undefined`, which refuses
       // NOTHING here (§6.1 keeps refusing door mode on it, as before).
+      //
+      // ═══ PRODUIT-REFUSÉ-1 (founder order 2026-09-17: « fix the 5 that is
+      // still open ») — THE PRODUCER'S ANSWER BLOCKS; ITS SILENCE DOES NOT. ═══
+      //
+      // Before this, `describe` folded the producer's « no » (409 with its
+      // ladder's reason: stock frozen, offer expired, product retired) into the
+      // same `undefined` as an outage, so a buyer holding a page opened before
+      // the freeze could still start a payment for it — and the sale landed on
+      // Boutik+'s board as an oversold line nobody could fulfil. Now the read
+      // is `presence`, which keeps the two apart:
+      //   · `refused` (the ladder said no) · `gone` (the producer positively
+      //     denies the product) ⇒ REFUSED BY NAME, before the issue, so no
+      //     quote object exists and the key is NOT spent — the same ask issues
+      //     normally the moment the product is back (the PAUSE-VENTE-1 shape).
+      //   · `unknown` (unreachable · 5xx · stale · a reason-less 409) ⇒ exactly
+      //     today's behaviour: `undefined`, the prepay quote issues, door mode
+      //     refuses `context_missing`. An outage never forges a refusal.
+      // The reserve-time re-check belongs to B5.1 (the supplier-side
+      // reservation), where the hold itself will be placed with the producer.
       if (entry !== undefined && env.SUPPLY !== undefined) {
-        supply = await env.SUPPLY.describe(req.pid).catch(() => undefined);
+        const seen = await env.SUPPLY.presence(req.pid).catch((): SupplyPresence => ({ kind: 'unknown' }));
+        if (seen.kind === 'refused' || seen.kind === 'gone') return refuse('product_unavailable');
+        if (seen.kind === 'present') supply = seen.description;
       }
 
       // 4. ISSUE INSIDE THE OBJECT, so the immutable put is serialized with it.

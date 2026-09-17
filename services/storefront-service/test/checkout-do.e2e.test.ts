@@ -69,6 +69,21 @@ const SUPPLY = [
     category: 'fashion_bags_fabrics',
     sellerTier: 'provisional',
   },
+  // PRODUIT-REFUSÉ-1 — a product the producer REFUSES after publish (its
+  // refusal ladder: stock frozen, offer expired, product retired) or positively
+  // denies: the stale-buyer-page scenario for a product that still exists but
+  // is not for sale. `PRODUCER_ANSWER` below scripts the producer's answer.
+  {
+    productVersionId: 'pv-checkout-gele',
+    offerVersion: 'ov-checkout-1',
+    basePrice: 10_000,
+    resellerCommission: 1_000,
+    available: 9,
+    productName: 'Bazin riche',
+    assetRefs: [] as string[],
+    category: 'fashion_bags_fabrics',
+    sellerTier: 'verified',
+  },
   // STOCK-VENDU-1b — a product whose counter the test DRAINS after publish
   // (the stub serves the CURRENT value, like the real projection): the
   // stale-buyer-page scenario, live.
@@ -84,6 +99,10 @@ const SUPPLY = [
     sellerTier: 'verified',
   },
 ];
+
+/** PRODUIT-REFUSÉ-1 — what the producer answers for a pid, AFTER the publish
+ *  read (set by a test, cleared in its `finally`). Empty ⇒ the fresh projection. */
+const PRODUCER_ANSWER = new Map<string, { kind: 'refuse'; reason: string | null } | { kind: 'gone' } | { kind: 'five-hundred' }>();
 
 function makeMf(): Miniflare {
   return new Miniflare({
@@ -116,6 +135,19 @@ function makeMf(): Miniflare {
               { status: 404 },
             );
           }
+          // PRODUIT-REFUSÉ-1 — the producer's scripted answer for a pid it
+          // lists but refuses (the real `serveProjection` shapes, byte for byte).
+          const scripted = PRODUCER_ANSWER.get(pid);
+          if (scripted?.kind === 'refuse') {
+            return Response.json(
+              { service: 'offer-service', status: 'unavailable', ...(scripted.reason !== null ? { reason: scripted.reason } : {}) },
+              { status: 409 },
+            );
+          }
+          if (scripted?.kind === 'gone') {
+            return Response.json({ service: 'offer-service', status: 'not_found', reason: 'unknown_product_version' }, { status: 404 });
+          }
+          if (scripted?.kind === 'five-hundred') return new Response('upstream exploded', { status: 500 });
           return Response.json({ version: 1, asOf, value });
         }
         return Response.json({ service: 'offer-service', status: 'not_found' }, { status: 404 });
@@ -1932,5 +1964,100 @@ describe('STOCK-VENDU-1b — a stale page cannot pay for an épuisé product', (
     } finally {
       drained.available = 9;
     }
+  });
+});
+
+/* ═══════ PRODUIT-REFUSÉ-1 · the producer's refusal blocks the quote; its silence does not ═══════ */
+
+describe('PRODUIT-REFUSÉ-1 — a stale page cannot pay for a product the producer REFUSES; an outage still cannot refuse a prepay quote', () => {
+  const PID = 'pv-checkout-gele';
+  let shop: { slug: string; resellerId: string } | null = null;
+  async function laBoutique(): Promise<{ slug: string; resellerId: string }> {
+    if (shop === null) {
+      // Published while the producer served the product — the page she holds.
+      const s = await seedShop('9601', 1_500, PID);
+      shop = { slug: s.slug, resellerId: s.resellerId };
+    }
+    return shop;
+  }
+  const ask = (s: { slug: string; resellerId: string }, requestKey = freshKey(), paymentMode = 'FULL_PREPAY') =>
+    postQuote({ slug: s.slug, pid: PID, paymentMode, zoneTo: 'Ouagadougou', attributionResellerId: s.resellerId, requestKey });
+
+  afterAll(() => PRODUCER_ANSWER.delete(PID));
+
+  it.each([
+    ['STOCK FROZEN (B5.2: nobody confirmed the count in a week)', 'stock_unconfirmed'],
+    ['OFFER EXPIRED', 'offer_not_effective'],
+    ['PRODUCT RETIRED (access cut, or taken off sale)', 'offer_not_active'],
+  ])('%s ⇒ the PREPAY quote refuses 422 product_unavailable — the mode that used to issue on it', async (_label, reason) => {
+    const s = await laBoutique();
+    PRODUCER_ANSWER.set(PID, { kind: 'refuse', reason });
+    try {
+      const refused = await ask(s);
+      expect(refused.status, refused.text).toBe(422);
+      expect(refused.json['error']).toBe('product_unavailable');
+      // …and the door mode refuses the same way — a refused product is refused whatever the mode.
+      const porte = await ask(s, freshKey(), 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR');
+      expect(porte.status, porte.text).toBe(422);
+      expect(porte.json['error']).toBe('product_unavailable');
+    } finally {
+      PRODUCER_ANSWER.delete(PID);
+    }
+  });
+
+  it('the producer POSITIVELY DENYING the product (404 unknown_product_version, after her page loaded) refuses the same way', async () => {
+    const s = await laBoutique();
+    PRODUCER_ANSWER.set(PID, { kind: 'gone' });
+    try {
+      const refused = await ask(s);
+      expect(refused.status, refused.text).toBe(422);
+      expect(refused.json['error']).toBe('product_unavailable');
+    } finally {
+      PRODUCER_ANSWER.delete(PID);
+    }
+  });
+
+  it('THE KEY IS NOT SPENT: refused before the issue, the SAME request key issues normally once the product is back', async () => {
+    const s = await laBoutique();
+    const key = freshKey();
+    PRODUCER_ANSWER.set(PID, { kind: 'refuse', reason: 'stock_unconfirmed' });
+    try {
+      expect((await ask(s, key)).status).toBe(422);
+    } finally {
+      PRODUCER_ANSWER.delete(PID);
+    }
+    const issued = await ask(s, key);
+    expect(issued.status, issued.text).toBe(200);
+    expect(issued.json['buyerTotal']).toBe(12_500);
+  });
+
+  it('THE PRODUCER’S SILENCE REFUSES NOTHING: a 5xx still issues the prepay quote (an outage never forges a refusal)', async () => {
+    const s = await laBoutique();
+    PRODUCER_ANSWER.set(PID, { kind: 'five-hundred' });
+    try {
+      const issued = await ask(s);
+      expect(issued.status, issued.text).toBe(200);
+      expect(issued.json['buyerTotal']).toBe(12_500);
+    } finally {
+      PRODUCER_ANSWER.delete(PID);
+    }
+  });
+
+  it('a 409 with NO reason (a proxy, a route drift) is silence too — the quote issues; the body is verified, not the status code', async () => {
+    const s = await laBoutique();
+    PRODUCER_ANSWER.set(PID, { kind: 'refuse', reason: null });
+    try {
+      const issued = await ask(s);
+      expect(issued.status, issued.text).toBe(200);
+    } finally {
+      PRODUCER_ANSWER.delete(PID);
+    }
+  });
+
+  it('a product the producer SERVES still quotes — the ordinary road is untouched', async () => {
+    const s = await laBoutique();
+    const issued = await ask(s);
+    expect(issued.status, issued.text).toBe(200);
+    expect(issued.json['buyerTotal']).toBe(12_500);
   });
 });

@@ -149,6 +149,19 @@ describe('AUTO-HIDE-WATCH-1 — the read path is the watch', () => {
     expect(lstStale.hides).toEqual([]);
   });
 
+  it('PRODUIT-REFUSÉ-1 — the producer’s 409 REFUSAL (its ladder’s reason) fires NO hide: omitted, not marked incomplete, never hidden', async () => {
+    const lst = listingDo('published');
+    const res = await read({
+      LISTING_DO: lst.binding,
+      OFFER: offerAnswering(409, { service: 'offer-service', status: 'unavailable', reason: 'stock_unconfirmed' }),
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { products: unknown[]; incomplet?: boolean };
+    expect(body.products).toEqual([]); // omitted, never invented
+    expect(body.incomplet, 'the producer ANSWERED — this is not a partial read').toBeUndefined();
+    expect(lst.hides, 'a refusal may clear itself; the one-way hide must not fire on it').toEqual([]);
+  });
+
   it('an UNCONFIGURED supply source (no OFFER binding) can never hide — absent instrument, no absences', async () => {
     const lst = listingDo('published');
     const res = await read({ LISTING_DO: lst.binding });

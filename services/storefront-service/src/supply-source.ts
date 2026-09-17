@@ -154,15 +154,27 @@ export interface ProductEconomics {
  *     (404 `unknown_product_version`, read from boutik's own source). The
  *     instrument saw where the presence would be and it was not there. THIS is
  *     evidence a listing may act on.
- *   · `unknown` — everything else: unreachable, 5xx, unparseable, STALE, and the
- *     producer's 409 `unavailable` (an extant offer refusing service — possibly
- *     transient moderation, and `decideAutoHide` is one-way, so hiding on it
- *     would strand her listing behind a state that may clear itself). NO
- *     EVIDENCE — the caller may omit from a render, never hide.
+ *   · `refused` — the PRODUCER ANSWERED 409 `unavailable` with its refusal
+ *     ladder's own `reason` (`stock_unconfirmed`, `offer_not_effective`,
+ *     `product_not_active`, …): an EXTANT offer refusing service right now.
+ *     PRODUIT-REFUSÉ-1 (founder order 2026-09-17: « fix the 5 that is still
+ *     open ») — this used to be folded into `unknown`, which was right for the
+ *     watcher (possibly transient moderation, and `decideAutoHide` is one-way,
+ *     so hiding on it would strand her listing behind a state that may clear
+ *     itself) and WRONG for the quote: a buyer holding a stale page could pay
+ *     for a frozen or retired product because the checkout could not tell the
+ *     producer's « no » from the producer's silence. So it is its own kind:
+ *     a render OMITS it (never hides), and the quote REFUSES on it.
+ *   · `unknown` — everything else: unreachable, 5xx, unparseable, STALE, and a
+ *     409 that carries NO reason (a proxy, or a route drift — never a refusal
+ *     this service may act on). NO EVIDENCE — the caller may omit from a
+ *     render, never hide, and the quote issues as before (the founder's cut is
+ *     never forged by an outage).
  */
 export type SupplyPresence =
   | { readonly kind: 'present'; readonly description: ProductDescription }
   | { readonly kind: 'gone' }
+  | { readonly kind: 'refused'; readonly reason: string }
   | { readonly kind: 'unknown' };
 
 /** The join's supply side. `undefined` = this product cannot be described. */
@@ -313,7 +325,12 @@ export class BoundSupplySource implements SupplySourcePort {
    */
   private async fresh(
     productVersionId: string,
-  ): Promise<{ verdict: 'fresh'; projection: SupplyProjectionValue } | { verdict: 'gone' } | { verdict: 'unknown' }> {
+  ): Promise<
+    | { verdict: 'fresh'; projection: SupplyProjectionValue }
+    | { verdict: 'gone' }
+    | { verdict: 'refused'; reason: string }
+    | { verdict: 'unknown' }
+  > {
     let res: Response;
     try {
       res = await this.fetcher.fetch(
@@ -345,6 +362,16 @@ export class BoundSupplySource implements SupplySourcePort {
     if (res.status === 404) {
       const body = (await res.json().catch(() => null)) as { reason?: string } | null;
       return body?.reason === 'unknown_product_version' ? { verdict: 'gone' } : { verdict: 'unknown' };
+    }
+    // PRODUIT-REFUSÉ-1 — the producer's 409 is its refusal ladder speaking
+    // (`serveProjection`: `{service, status:'unavailable', reason}`), and the
+    // BODY is verified exactly as the 404's is: `status:'unavailable'` AND a
+    // non-empty `reason`, or it is not a refusal this service may act on.
+    if (res.status === 409) {
+      const body = (await res.json().catch(() => null)) as { status?: unknown; reason?: unknown } | null;
+      return body?.status === 'unavailable' && typeof body.reason === 'string' && body.reason !== ''
+        ? { verdict: 'refused', reason: body.reason }
+        : { verdict: 'unknown' };
     }
     if (!res.ok) return { verdict: 'unknown' };
     const raw: unknown = await res.json().catch(() => null);
@@ -408,6 +435,7 @@ export class BoundSupplySource implements SupplySourcePort {
   async presence(productVersionId: string): Promise<SupplyPresence> {
     const r = await this.fresh(productVersionId);
     if (r.verdict === 'gone') return { kind: 'gone' };
+    if (r.verdict === 'refused') return { kind: 'refused', reason: r.reason };
     if (r.verdict !== 'fresh') return { kind: 'unknown' };
     const p = r.projection;
     return {

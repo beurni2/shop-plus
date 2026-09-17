@@ -1148,6 +1148,18 @@ const REFUS: Readonly<Record<string, RefusVue>> = {
     action: 'voir-boutique',
     libelle: t('cl.refus.out_of_stock.libelle'),
   },
+  // PRODUIT-REFUSÉ-1 (founder order 2026-09-17) — the producer refused the
+  // product at the price ask (stock unconfirmed, offer expired, product
+  // retired) or positively denies it: not « épuisé » (nobody took the last
+  // one), not « inconnu » (her page was real). Same way out as épuisé: the
+  // boutique, where the product is simply not on sale right now.
+  product_unavailable: {
+    overline: t('cl.refus.product_unavailable.overline'),
+    titre: t('cl.refus.product_unavailable.titre'),
+    phrase: t('cl.refus.product_unavailable.phrase'),
+    action: 'voir-boutique',
+    libelle: t('cl.refus.product_unavailable.libelle'),
+  },
   delivery_not_serviceable: {
     overline: t('cl.refus.delivery_not_serviceable.overline'),
     titre: t('cl.refus.delivery_not_serviceable.titre'),
