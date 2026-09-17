@@ -43,25 +43,38 @@ function stripped(name: string): string {
 }
 
 const PLATFORM_WORDS = /\bshop\s*(?:\+|plus)|\bshopplus\b|\bboutik\s*(?:\+|plus)|\bboutikplus\b/;
+/** « Séra » as a WHOLE word on the NFC, case-folded raw form (verifier finding:
+ *  « Séraphine » and « Séraphin » are first names, not the platform). */
+const SERA_WORD = /(?<![a-zà-ÿ])séra(?![a-zà-ÿ])/;
 
-/** Eight or more digits, with the separators a phone number is written with. */
-const PHONE = /(?:\d[\s.-]?){8,}/;
+/**
+ * A phone number as it is written here: eight or more digits in a row, four
+ * groups of two (« 70 12 34 56 »), or an international prefix (« +226 … »).
+ * NOT two years with a dash (« Collection 2024-2025 » is a name — verifier
+ * finding); « 7012 3456 » therefore also passes, a known gap — the rule is a
+ * deterrent against off-link payment, not a wall, and it is journalled.
+ */
+const PHONE = /\d{8,}|(?:\d{2}[\s.-]){3,}\d{2}|\+\s?\d{3}[\s.-]?\d/;
 const LINK = /https?:\/\/|www\.|\.(?:com|bf|net|org|fr|io|co|app|shop)\b/;
 const HANDLE = /@[a-z0-9_.]{2,}/;
-const MESSAGING = /whatsapp|wa\.me|telegram/;
+/** Whole words: « Le Télégramme » is a name (verifier finding). */
+const MESSAGING = /\bwhatsapp\b|\bwa\.me\b|\btelegram\b/;
 
-/** FOUNDER-EXTENDABLE safest default — whole words, stripped form. */
+/**
+ * FOUNDER-EXTENDABLE safest default — whole words, stripped form. Kept to the
+ * UNAMBIGUOUS: « bâtard » (the loaf) and « bite » (the English word, « Quick
+ * Bite ») were removed on the verifier's finding — a list that refuses a bakery
+ * is a list nobody trusts. He may add or remove; it is data.
+ */
 const OFFENSIVE_WORDS: ReadonlySet<string> = new Set([
   'merde', 'putain', 'pute', 'putes', 'salope', 'salopes', 'salaud', 'salauds',
   'connard', 'connards', 'connasse', 'connasses', 'encule', 'encules', 'enculee', 'enculees',
-  'batard', 'batards', 'batarde', 'batardes', 'nique', 'niquer', 'niquez', 'niquee',
-  'bite', 'bites', 'couille', 'couilles', 'chier', 'fdp', 'ntm',
+  'nique', 'niquer', 'niquez', 'niquee', 'couille', 'couilles', 'chier', 'fdp', 'ntm',
 ]);
 
 export function refuseStoreName(name: string): StoreNameRefusal | undefined {
   const s = stripped(name);
-  // « Séra » keeps its accent for the match: on the NFC, case-folded RAW form.
-  if (PLATFORM_WORDS.test(s) || name.normalize('NFC').toLowerCase().includes('séra')) {
+  if (PLATFORM_WORDS.test(s) || SERA_WORD.test(name.normalize('NFC').toLowerCase())) {
     return 'name_impersonates_platform';
   }
   if (PHONE.test(s) || LINK.test(s) || HANDLE.test(s) || MESSAGING.test(s)) {

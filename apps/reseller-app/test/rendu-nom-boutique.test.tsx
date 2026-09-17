@@ -47,7 +47,7 @@ const supply: Route = (path) =>
     ? { status: 200, json: { offers: [], diagnostic: { status: 'ok', refusals: [] } } }
     : null;
 
-const PHRASE_PLATEFORME = 'Ce nom fait penser à Shop+ ou à Séra. Choisissez un nom à vous.';
+const PHRASE_PLATEFORME = 'Ce nom fait penser à Shop+, Boutik+ ou Séra. Choisissez un nom à vous.';
 const PHRASE_CONTACT = 'Pas de numéro ni de lien dans le nom. Vos clientes ont déjà votre lien.';
 
 beforeEach(() => {

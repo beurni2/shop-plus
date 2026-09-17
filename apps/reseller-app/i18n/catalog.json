@@ -613,7 +613,7 @@
  },
  {
   "key": "k.identite.nom_plateforme",
-  "fr": "Ce nom fait penser à Shop+ ou à Séra. Choisissez un nom à vous.",
+  "fr": "Ce nom fait penser à Shop+, Boutik+ ou Séra. Choisissez un nom à vous.",
   "register": "neutral",
   "screenClass": "instruction"
  },

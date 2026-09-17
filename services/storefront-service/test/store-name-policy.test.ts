@@ -15,6 +15,8 @@ describe('NOM-BOUTIQUE-1 — ordinary names pass', () => {
     for (const ok of [
       'Chez Aïcha', 'Ce sera chic', 'Concorde Mode', 'Confiance Mode', 'Boutique 2000', 'Mode & Co',
       'Faso Dan Fani', 'Chez Fati 3', 'La Séduction', 'Chez Bernard', 'Boutique du fondateur', 'Niquette',
+      // The verifier's names: first names, a loaf, an English food word, two years, a newspaper.
+      'Chez Séraphine', 'Séraphin Couture', 'Boulangerie Bâtard', 'Quick Bite', 'Collection 2024-2025', 'Le Télégramme',
     ]) {
       expect(refuseStoreName(ok), ok).toBeUndefined();
     }
@@ -33,7 +35,8 @@ describe('NOM-BOUTIQUE-1 — the three named refusals', () => {
 
   it('a phone number, a link, a handle or a messaging app in the name is refused — four digits are still a name', () => {
     for (const bad of [
-      'Fati 70 12 34 56', 'Chez Ali +226 70123456', 'www.chezfati.com', 'chezfati.bf', 'https://x.y', '@fati_mode', 'Fati WhatsApp', 'wa.me/22670',
+      'Fati 70 12 34 56', 'Fati 70.12.34.56', 'Chez Ali +226 70123456', 'Fati 70123456', 'www.chezfati.com', 'chezfati.bf', 'https://x.y',
+      '@fati_mode', 'Fati WhatsApp', 'wa.me/22670', 'Fati Telegram',
     ]) {
       expect(refuseStoreName(bad), bad).toBe('name_carries_contact');
     }
@@ -42,7 +45,7 @@ describe('NOM-BOUTIQUE-1 — the three named refusals', () => {
   });
 
   it('an insult is refused as a WHOLE word only, on the accent-stripped form', () => {
-    for (const bad of ['Merde Mode', 'PUTAIN de bazin', 'fdp shop', 'Bâtard Couture']) {
+    for (const bad of ['Merde Mode', 'PUTAIN de bazin', 'fdp shop', 'Enculé Couture']) {
       expect(refuseStoreName(bad), bad).toBe('name_offensive');
     }
     for (const ok of ['Concorde', 'Confiance Mode', 'Niquette', 'Chic Couture']) {
