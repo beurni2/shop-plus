@@ -56,10 +56,56 @@ export const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 export interface PorteBoutik {
   supplier: boolean;
   refusals: number;
+  /**
+   * B5.1 — the producer's STOCK, doubled to the real door's bounds
+   * (`boutik-plus/services/offer-service/test/stock-hold.e2e.test.ts`, the
+   * contract): pv → physical units; `holds` reservationId → orderId; every
+   * hold and release is RECORDED so a test can prove the wire knocked, with
+   * which credential, naming which hold. Answers byte for byte: 401 without
+   * the intake Bearer · 400 without a product · 404 unknown product ·
+   * 409 `{error:'insufficient_stock', available}` · 200 `{status:'held'|
+   * 'idempotent', reservationId, expiresAt, available}` · release 200
+   * `{status:'released'|'idempotent', available}`.
+   */
+  stock?: Map<string, number>;
+  holds?: Map<string, string>;
+  holdCalls?: { road: 'hold' | 'release'; auth: string | null; body: Record<string, unknown> }[];
+  /** The intake credential the double demands on the hold doors (unset ⇒ no check). */
+  intakeSecret?: string;
+  /** An OUTAGE on the hold doors alone: every hold/release THROWS (recorded first). */
+  holdOutage?: boolean;
 }
 export function offerDouble(porte: PorteBoutik) {
   return async (request: Request): Promise<Response> => {
     const path = new URL(request.url).pathname;
+    if (request.method === 'POST' && (path === '/fulfillment/stock-hold' || path === '/fulfillment/stock-hold/release')) {
+      const road = path === '/fulfillment/stock-hold' ? 'hold' : 'release';
+      const auth = request.headers.get('Authorization');
+      const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
+      (porte.holdCalls ??= []).push({ road, auth, body });
+      if (porte.holdOutage === true) throw new Error('boutik is unreachable');
+      if (porte.intakeSecret !== undefined && auth !== `Bearer ${porte.intakeSecret}`) {
+        return Response.json({ ok: false, reason: 'unauthorized' }, { status: 401 });
+      }
+      const pv = body['productVersionId'];
+      if (typeof pv !== 'string' || pv === '') return Response.json({ error: 'malformed', param: 'productVersionId' }, { status: 400 });
+      const stock = (porte.stock ??= new Map());
+      const holds = (porte.holds ??= new Map());
+      if (!stock.has(pv)) return Response.json({ error: 'not_found' }, { status: 404 });
+      const reservationId = String(body['reservationId'] ?? '');
+      const heldHere = [...holds.keys()].filter((k) => k.startsWith(`${pv}|`)).length;
+      const net = Math.max(0, (stock.get(pv) ?? 0) - heldHere);
+      if (road === 'release') {
+        const had = holds.delete(`${pv}|${reservationId}`);
+        return Response.json({ status: had ? 'released' : 'idempotent', available: had ? net + 1 : net });
+      }
+      if (holds.has(`${pv}|${reservationId}`)) {
+        return Response.json({ status: 'idempotent', reservationId, expiresAt: '2100-01-01T00:00:00.000Z', available: net });
+      }
+      if (net < 1) return Response.json({ error: 'insufficient_stock', available: 0 }, { status: 409 });
+      holds.set(`${pv}|${reservationId}`, String(body['orderId'] ?? ''));
+      return Response.json({ status: 'held', reservationId, expiresAt: '2100-01-01T00:00:00.000Z', available: net - 1 });
+    }
     if (request.method === 'POST' && path === '/fulfillment/order-confirmed') {
       if (porte.supplier) {
         porte.refusals += 1;
@@ -113,6 +159,15 @@ export interface Audit {
     reservationId?: string;
     attempts: number;
     decision?: { ok: boolean; reason: string | null; state: string | null };
+  } | null;
+  /** B5.1 — the producer's hold-release row. */
+  holdRelease?: {
+    status: string;
+    commandId: string;
+    productVersionId: string;
+    reservationId: string;
+    attempts: number;
+    answer?: { status: string | null; httpStatus: number };
   } | null;
   stuck?: { emittedAt: string; commandId: string } | null;
   stuckSupplier?: { emittedAt: string; commandId: string; notificationStatus: string } | null;

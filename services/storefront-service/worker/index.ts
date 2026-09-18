@@ -25,6 +25,7 @@ import { checkoutPreflight, handleRequest, withReadCors, type StorefrontServiceE
 import { SUPPLY_COLLECTION_ROUTE, SUPPLY_DIAGNOSTIC_ROUTE } from '../src/supply-collection.js';
 import { signPrice } from '../src/publish-price.js';
 import { resolveSupplySource } from '../src/supply-source.js';
+import { resolveProducerHold } from '../src/producer-hold.js';
 import { orderIdForQuote } from '../src/order-core.js';
 import type { R2BucketLike } from '../src/media/media-store.js';
 import { IMAGE_MAX_BYTES } from '../src/media/service.js';
@@ -474,6 +475,10 @@ export default {
         // `AbsentSupplySource`, and the certified mock is reachable from
         // neither.
         SUPPLY: resolveSupplySource(env),
+        // B5.1 (RESERVATION-FOURNISSEUR-1) — the producer's hold port, over the
+        // confirmed-order wire's own binding and credential: `OFFER` bound ⇒
+        // the real client, absent ⇒ `AbsentProducerHold` (holds nothing).
+        HOLD: resolveProducerHold(env),
         // PAUSE-VENTE-1 — the access port (the accounts book's `/state-of`),
         // handed in only when the book is bound: a paused owner's shop mints
         // no quote. Same explicit-grant law as its neighbours; absent, the

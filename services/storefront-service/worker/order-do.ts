@@ -267,6 +267,28 @@ interface ReleaseRow {
   decision?: { ok: boolean; reason: string | null; state: string | null };
 }
 /**
+ * B5.1 (RESERVATION-FOURNISSEUR-1) — THE PRODUCER'S UNIT COMES BACK on the
+ * same failure edge, through its own durable row: the reserve placed a hold
+ * on Boutik+ under this reservation id (`checkout-do.ts`), and a payment that
+ * fails must free THAT unit for the next buyer now, not fifteen minutes later
+ * when Boutik+'s own expiry sweeps it. Same at-least-once discipline as the
+ * eight wires above: written beside the failure, carried by the alarm,
+ * delivered on the producer's 2xx (a refusal by name — `idempotent`, nothing
+ * to release — is an ANSWER) or 404 (a product the producer does not know:
+ * nothing to release either); pending with its attempt count otherwise.
+ */
+const HOLD_RELEASE_KEY = 'stock-hold-release-outbox';
+interface HoldReleaseRow {
+  status: 'pending' | 'delivered';
+  commandId: string;
+  productVersionId: string;
+  reservationId: string;
+  reason: 'payment_failed';
+  attempts: number;
+  deliveredAt?: string;
+  answer?: { status: string | null; httpStatus: number };
+}
+/**
  * RESERVATION-REGLE-1 — THE STUCK-SAGA WATCH (Contract E2 exit: « DLQ +
  * stuck-saga detection live »). An order still `payment_pending` past the
  * versioned TTL emits `saga.stuck.v1` exactly once — the vault's own
@@ -1086,6 +1108,8 @@ export class OrderDO {
         // RESERVATION-REGLE-1 — the release wire's row and the stuck watch's
         // once-mark, on this INTERNAL surface: the ledger the seam test asks.
         release: (await this.state.storage.get<ReleaseRow>(RELEASE_KEY)) ?? null,
+        // B5.1 — the producer's hold-release row, the seam's ledger for the unit.
+        holdRelease: (await this.state.storage.get<HoldReleaseRow>(HOLD_RELEASE_KEY)) ?? null,
         stuck: (await this.state.storage.get<{ emittedAt: string }>(STUCK_SAGA_KEY)) ?? null,
         stuckSupplier: (await this.state.storage.get<{ emittedAt: string }>(STUCK_SUPPLIER_KEY)) ?? null,
         // RAPPROCHEMENT-1 — the durable alert record, the operator's read;
@@ -2280,6 +2304,8 @@ export class OrderDO {
       // beside it and the alarm carries it (the release is the rule). REGLE-2:
       // it names the hold THIS attempt was authorized on (the receipt's).
       await this.queueReservationRelease(stored, `rel-${attemptId}`, decision.reservationId);
+      // B5.1 — and the producer's unit, under the same hold id.
+      await this.queueHoldRelease(stored, `hrel-${attemptId}`, decision.reservationId);
     }
     await this.state.storage.put(ATTEMPTS_KEY, attempts);
 
@@ -2337,6 +2363,8 @@ export class OrderDO {
       // RESERVATION-REGLE-1 — a defence fault ends the attempt through the
       // same failure edge, so it earns the same release.
       await this.queueReservationRelease(stored, `rel-${attemptId}`, reservationId);
+      // B5.1 — and the producer's unit, under the same hold id.
+      await this.queueHoldRelease(stored, `hrel-${attemptId}`, reservationId);
     }
     return Response.json({ ok: false, reason: fault }, { status: 422 });
   }
@@ -2428,11 +2456,13 @@ export class OrderDO {
     // RESERVATION-REGLE-1 adds the EIGHTH — the reservation release — likewise,
     // and the stuck-saga watch beside the wires.
     const releasePending = await this.flushReleaseOutbox();
+    // B5.1 adds the NINTH — the producer's hold release — likewise.
+    const holdReleasePending = await this.flushHoldReleaseOutbox();
     const stuckDueAt = await this.watchStuckSaga();
     // RESERVATION-REGLE-2 — the supplier-notification watch, on the first
     // wire's row, after its flush has had this tick's try.
     const supplierDueAt = await this.watchStuckSupplier();
-    const stillPending = Math.max(boutikPending, seraPending, livraisonPending, armPending, doorSignalPending, refusPending, offertPending, releasePending);
+    const stillPending = Math.max(boutikPending, seraPending, livraisonPending, armPending, doorSignalPending, refusPending, offertPending, releasePending, holdReleasePending);
     // ONE alarm, three wants: the outbox backoff and the two watches' due
     // times. The nearest wins; the others are re-derived when the alarm fires
     // (setAlarm overwrites, it never merges).
@@ -2863,6 +2893,72 @@ export class OrderDO {
     // arms — the stuck watch's, armed at create and at every retry — never
     // by a webhook: a payment_failed order hears no duplicate-webhook recovery.
     await this.state.storage.setAlarm(Date.now()).catch(() => undefined);
+  }
+
+  /**
+   * B5.1 — queue the producer's release beside the slot's. An order that
+   * carries no product id (an origin older than ORDER-PAID-WIRE-1b) never
+   * held on the producer, so there is nothing to queue.
+   */
+  private async queueHoldRelease(stored: StoredOrigin, commandId: string, reservationId: string): Promise<void> {
+    const productVersionId = stored.fulfillment?.productVersionId;
+    if (typeof productVersionId !== 'string' || productVersionId === '') return;
+    const row: HoldReleaseRow = {
+      status: 'pending',
+      commandId,
+      productVersionId,
+      reservationId,
+      reason: 'payment_failed',
+      attempts: 0,
+    };
+    await this.state.storage.put(HOLD_RELEASE_KEY, row);
+    await this.state.storage.setAlarm(Date.now()).catch(() => undefined);
+  }
+
+  /** Returns the attempt count if still pending after this try, else 0. */
+  private async flushHoldReleaseOutbox(): Promise<number> {
+    const row = await this.state.storage.get<HoldReleaseRow>(HOLD_RELEASE_KEY);
+    if (row === undefined || row.status !== 'pending') return 0;
+    if (this.env.OFFER === undefined) {
+      const attempts = row.attempts + 1;
+      await this.state.storage.put(HOLD_RELEASE_KEY, { ...row, attempts });
+      return attempts;
+    }
+    let answer: { status: string | null; httpStatus: number } | null = null;
+    try {
+      const res = await this.env.OFFER.fetch(
+        new Request('https://offer/fulfillment/stock-hold/release', {
+          method: 'POST',
+          signal: AbortSignal.timeout(FLUSHER_TIMEOUT_MS),
+          headers: {
+            'Content-Type': 'application/json',
+            ...(this.env.FULFILLMENT_WRITE_SECRET !== undefined && this.env.FULFILLMENT_WRITE_SECRET !== ''
+              ? { Authorization: `Bearer ${this.env.FULFILLMENT_WRITE_SECRET}` }
+              : {}),
+          },
+          body: JSON.stringify({ productVersionId: row.productVersionId, reservationId: row.reservationId, reason: row.reason }),
+        }),
+      );
+      if (res.ok || res.status === 404) {
+        const body = (await res.json().catch(() => null)) as { status?: unknown } | null;
+        answer = { status: typeof body?.status === 'string' ? body.status : null, httpStatus: res.status };
+      }
+    } catch {
+      answer = null;
+    }
+    if (answer === null) {
+      const attempts = row.attempts + 1;
+      await this.state.storage.put(HOLD_RELEASE_KEY, { ...row, attempts });
+      return attempts;
+    }
+    await this.state.storage.put(HOLD_RELEASE_KEY, {
+      ...row,
+      status: 'delivered',
+      deliveredAt: new Date().toISOString(),
+      attempts: row.attempts + 1,
+      answer,
+    });
+    return 0;
   }
 
   /** Returns the attempt count if still pending after this try, else 0. */

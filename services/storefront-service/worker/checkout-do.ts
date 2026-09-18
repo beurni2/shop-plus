@@ -15,6 +15,8 @@ import {
 } from '../src/checkout-core.js';
 import { quoteDeliveryFee } from '../src/delivery-source.js';
 import type { ListingEntry } from '../src/listing-core.js';
+import { orderIdForQuote } from '../src/order-core.js';
+import type { ProducerHoldPort } from '../src/producer-hold.js';
 import type { ProductDescription, SupplyPresence } from '../src/supply-source.js';
 
 /**
@@ -310,7 +312,14 @@ export class CheckoutDO {
       if (decision.ok && !decision.idempotentReplay) {
         await this.state.storage.put(RESERVATION_KEY, decision.state);
       }
-      return Response.json(decision, { status: decision.ok ? 200 : 409 });
+      // B5.1 — the product this hold is for rides the INTERNAL answer, off the
+      // fulfillment facts written beside the bytes at issue, so the router can
+      // ask the producer for the unit without a second read.
+      const facts = decision.ok ? await this.state.storage.get<Record<string, string>>(QUOTE_FULFILLMENT_KEY) : undefined;
+      return Response.json(
+        { ...decision, ...(facts?.['productVersionId'] !== undefined ? { productVersionId: facts['productVersionId'] } : {}) },
+        { status: decision.ok ? 200 : 409 },
+      );
     }
 
     /**
@@ -459,6 +468,14 @@ interface Env {
    * forged by an outage, and her own app refuses her by name regardless).
    */
   ACCES?: { enPause(resellerId: string): Promise<boolean> };
+  /**
+   * B5.1 (RESERVATION-FOURNISSEUR-1, founder ruling 2026-09-17: « private
+   * door ») — the producer's hold port: ONE unit set aside on Boutik+ for
+   * the reservation this router just granted. Composed at the root from the
+   * confirmed-order wire's own binding and credential; absent ⇒ no hold is
+   * asked (an unconfigured Worker reserves as it always has).
+   */
+  HOLD?: ProducerHoldPort;
 }
 
 const quoteStub = (env: Env, quoteId: string): DurableObjectStub =>
@@ -887,7 +904,13 @@ export default {
         }),
       );
       const decision = (await res.json().catch(() => null)) as
-        | { ok?: boolean; reason?: string; reservationId?: string; state?: { status?: string; expiresAt?: string } }
+        | {
+            ok?: boolean;
+            reason?: string;
+            reservationId?: string;
+            state?: { status?: string; expiresAt?: string };
+            productVersionId?: string;
+          }
         | null;
       if (decision === null) return refuse('not_found');
       if (decision.ok !== true) {
@@ -895,6 +918,48 @@ export default {
         // A reservation refusal is a STATE, spoken plainly: someone already holds
         // this quote. 409, with the name, and no money on the wire.
         return Response.json({ error: decision.reason ?? 'already_reserved' }, { status: 409 });
+      }
+      /**
+       * ═══ B5.1 (RESERVATION-FOURNISSEUR-1) — THE UNIT IS HELD ON BOUTIK+ TOO. ═══
+       *
+       * The slot on this quote is hers; now the UNIT is asked of the producer,
+       * under the SAME reservation id (the chain's) and the order id this quote
+       * will become (`orderIdForQuote`, deterministic — so the confirmed sale
+       * converts exactly this hold). Asked on every `reserved` answer, replay
+       * included: the producer's hold is idempotent on the id, so a repeated
+       * ask moves nothing.
+       *   · `refused` (the producer answered: nobody's unit left) ⇒ the slot
+       *     just taken is FREED (its own release road, reason `cancelled`, the
+       *     hold named) and the buyer hears `out_of_stock` — the sentence that
+       *     already exists for « quelqu’un a pris le dernier ». Nothing is
+       *     persisted that the next buyer could trip on.
+       *   · `unknown` (unreachable · 5xx · 401 · 404 · non-JSON) ⇒ the reserve
+       *     stands as it always has. An outage never blocks a sale.
+       * A `held` answer is not stored here: the producer owns the hold, and the
+       * order's payment-failure road releases it by the same id.
+       */
+      if (
+        env.HOLD !== undefined &&
+        decision.state?.status === 'reserved' &&
+        typeof decision.reservationId === 'string' &&
+        typeof decision.productVersionId === 'string'
+      ) {
+        const seen = await env.HOLD.hold(decision.productVersionId, decision.reservationId, orderIdForQuote(quoteId));
+        if (seen.kind === 'refused') {
+          await quoteStub(env, quoteId)
+            .fetch(
+              new Request('https://do/entry/release', {
+                method: 'POST',
+                body: JSON.stringify({
+                  commandId: `hold-refused-${decision.reservationId}`,
+                  reason: 'cancelled',
+                  reservationId: decision.reservationId,
+                }),
+              }),
+            )
+            .catch(() => undefined);
+          return refuse('out_of_stock');
+        }
       }
       // The state only — an explicit literal, never the decision object spread.
       const status = decision.state?.status ?? 'reserved';
