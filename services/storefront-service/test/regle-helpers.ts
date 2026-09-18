@@ -102,8 +102,18 @@ export function offerDouble(porte: PorteBoutik) {
       if (holds.has(`${pv}|${reservationId}`)) {
         return Response.json({ status: 'idempotent', reservationId, expiresAt: '2100-01-01T00:00:00.000Z', available: net });
       }
+      const orderId = String(body['orderId'] ?? '');
+      // The real door RE-KEYS her own hold when the same order returns under a
+      // new reservation id (Shop+'s slot died, she reserved again): held, the
+      // net unchanged, the old id gone.
+      const mine = [...holds.entries()].find(([k, o]) => k.startsWith(`${pv}|`) && o === orderId);
+      if (mine !== undefined) {
+        holds.delete(mine[0]);
+        holds.set(`${pv}|${reservationId}`, orderId);
+        return Response.json({ status: 'held', reservationId, expiresAt: '2100-01-01T00:00:00.000Z', available: net });
+      }
       if (net < 1) return Response.json({ error: 'insufficient_stock', available: 0 }, { status: 409 });
-      holds.set(`${pv}|${reservationId}`, String(body['orderId'] ?? ''));
+      holds.set(`${pv}|${reservationId}`, orderId);
       return Response.json({ status: 'held', reservationId, expiresAt: '2100-01-01T00:00:00.000Z', available: net - 1 });
     }
     if (request.method === 'POST' && path === '/fulfillment/order-confirmed') {
