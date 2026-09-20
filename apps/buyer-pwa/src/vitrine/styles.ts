@@ -227,37 +227,32 @@ export const VITRINE_STYLES = `
   .vt-fav-on svg path { fill: currentColor; stroke: currentColor; }
   .vt-featured-artwrap .vt-fav { top: 10px; right: 10px; }
 
-  /* PANIER-VITRINE-1 — the heart's sibling, top-LEFT so the pair never
-     collide; same 44px touch floor, same white disc, same accent when on. */
-  .vt-pan {
-    position: absolute; top: 6px; left: 6px; z-index: 1;
-    width: 44px; height: 44px; border-radius: 99px;
+  /* PANIER-BOUTON-1 (founder 2026-09-20) — the ONE add-to-panier control
+     lives in the price row, on the deep-ink disc that used to be decoration
+     (the art now carries the heart alone; the WhatsApp tap left the tiles for
+     the buyer's own product page). The BUTTON is 44px — the touch floor (§5)
+     is a floor — while the visible disc stays 34px, drawn by the pseudo-element
+     behind the bag (the « retirer » pattern); the negative vertical margin keeps
+     the price row at the height the 32px decoration gave it. ON = in her
+     panier: the disc turns white inside an accent ring and the bag fills with
+     the accent — one glance says « déjà dedans ». vt-pan-on is the class
+     applyPanierState flips, unchanged. */
+  .vt-tile-pan {
+    position: relative; z-index: 1; flex: none;
+    width: 44px; height: 44px; margin: -6px -6px -6px 0;
     display: inline-flex; align-items: center; justify-content: center;
-    background: #FFFFFF; box-shadow: 0 1px 3px rgba(28,22,15,.14);
-    color: #1C1710; cursor: pointer;
+    color: var(--vt-on); cursor: pointer;
   }
-  .vt-pan:active { transform: scale(.9); }
-  .vt-pan svg { display: block; }
-  .vt-pan-on { color: var(--vt-accent); }
+  .vt-tile-pan::before {
+    content: ''; position: absolute; z-index: -1;
+    width: 34px; height: 34px; border-radius: 99px;
+    background: var(--vt-deep); transition: background .3s, box-shadow .3s;
+  }
+  .vt-tile-pan:active { transform: scale(.9); }
+  .vt-tile-pan svg { display: block; }
+  .vt-tile-pan.vt-pan-on { color: var(--vt-accent); }
+  .vt-tile-pan.vt-pan-on::before { background: #FFFFFF; box-shadow: inset 0 0 0 2px var(--vt-accent); }
   .vt-pan-on svg path { fill: currentColor; stroke: currentColor; }
-  /* On the featured card the top-left corner belongs to « À LA UNE » (her
-     honest curation claim — verifier MAJOR: the chip covered it). The chip
-     takes the free bottom-left corner instead; the heart keeps top-right. */
-  .vt-featured-artwrap .vt-pan { top: auto; bottom: 10px; left: 10px; }
-
-  /* CONTACT-WHATSAPP-2 — the third sibling: bottom-RIGHT of the art (heart
-     top-right, panier top-left), same 44px touch floor, same white disc; the
-     accent says « this one talks ». */
-  .vt-wa {
-    position: absolute; bottom: 6px; right: 6px; z-index: 1;
-    width: 44px; height: 44px; border-radius: 99px;
-    display: inline-flex; align-items: center; justify-content: center;
-    background: #FFFFFF; box-shadow: 0 1px 3px rgba(28,22,15,.14);
-    color: var(--vt-accent); cursor: pointer;
-  }
-  .vt-wa:active { transform: scale(.9); }
-  .vt-wa svg { display: block; }
-  .vt-featured-artwrap .vt-wa { bottom: 10px; right: 10px; }
 
   /* PANIER-VITRINE-1 — her shelf: a quiet band, a horizontal row of small
      cards. It whispers (the page's primary action stays the seller's
@@ -657,13 +652,6 @@ export const VITRINE_STYLES = `
   }
   .vt-tile-epuise .vt-tile-price { color: #6F6355; }
   .vt-tile-pricerow { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-  /* the « go » circle — decoration of this labeled tile button (its ONE action is
-     opening the product page); a cart icon would claim a cart that does not exist. */
-  .vt-tile-go {
-    width: 32px; height: 32px; border-radius: 99px; flex: none;
-    display: inline-flex; align-items: center; justify-content: center;
-    background: var(--vt-deep); transition: background .3s;
-  }
   .vt-tile-livree { margin-top: 3px; font-size: 10.5px; font-weight: 600; color: #6F6355; }
 
   /* « Note vocale » — the tile voice chip (tap-to-play; the play triangle +
@@ -738,6 +726,10 @@ export const VITRINE_STYLES = `
     font-size: 19px; font-weight: 800; color: var(--vt-deep);
     font-variant-numeric: tabular-nums;
   }
+  /* PANIER-BOUTON-1 — the featured card's price row: price left, the one
+     panier button right, the same disc as the grid (its 44px box is absorbed
+     by the row, so the card keeps its rhythm). */
+  .vt-featured-pricerow { flex-basis: 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
   .vt-featured-livree { display: block; font-size: 11px; font-weight: 600; color: #6F6355; }
   .vt-featured-cta {
     flex-basis: 100%; margin-top: 6px;

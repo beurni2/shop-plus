@@ -2114,7 +2114,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
         }
         // The address is the service's wa.me digits, re-checked here so a
         // corrupted value can never open anything but a wa.me link — the
-        // ouvrirWhatsApp law, applied where the URL is born.
+        // wa.me-only law (CONTACT-WHATSAPP-1), applied where the URL is born.
         if (!/^\d{8,15}$/.test(state.merci.telephone)) return;
         // Replacement-FUNCTION form (verifier MINOR 3): `$&`-class patterns
         // in a prénom or product name travel verbatim instead of expanding.

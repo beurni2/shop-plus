@@ -23,8 +23,10 @@ test('the panier survives leaving and coming back — no account, her phone reme
   await expect(page.locator('[data-role="vitrine-panier"]')).toHaveCount(0);
 
   // She puts the first in-stock article in her panier — the tap goes to the
-  // chip, never to the product navigation (closest() law).
-  const chip = page.locator('.vt-tile .vt-pan').first();
+  // deep-ink button beside the price (PANIER-BOUTON-1: the one add-to-panier
+  // control, the art carries the heart alone), never to the product
+  // navigation (closest() law).
+  const chip = page.locator('.vt-tile .vt-tile-pan').first();
   await chip.click();
   await expect(chip).toHaveAttribute('aria-pressed', 'true');
   await expect(page.locator('[data-role="vitrine-panier"]')).toBeVisible();
@@ -39,7 +41,7 @@ test('the panier survives leaving and coming back — no account, her phone reme
   await expect(page.locator('[data-role="vitrine-panier"]')).toBeVisible();
   await expect(page.locator('[data-role="panier-article"] .vt-pan-name').first()).toHaveText(nom);
   // …and the tile chip shows the kept state again.
-  await expect(page.locator('.vt-tile .vt-pan').first()).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('.vt-tile .vt-tile-pan').first()).toHaveAttribute('aria-pressed', 'true');
   // The band's card is wired to the product page (the next step exists).
   await expect(
     page.locator('[data-role="panier-article"] [data-action="produit"]').first(),
@@ -51,7 +53,7 @@ test('the panier survives leaving and coming back — no account, her phone reme
   // THE WAY OUT — « retirer » empties the shelf and it folds honestly.
   await page.locator('[data-role="panier-article"] .vt-pan-retirer').first().click();
   await expect(page.locator('[data-role="vitrine-panier"]')).toHaveCount(0);
-  await expect(page.locator('.vt-tile .vt-pan').first()).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.locator('.vt-tile .vt-tile-pan').first()).toHaveAttribute('aria-pressed', 'false');
   // …and staying gone across another return.
   await page.reload();
   await expect(page.locator('.vt-root[data-etat="ready"]')).toBeVisible();

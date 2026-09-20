@@ -126,14 +126,14 @@ test('RÉEL — the shop with a photograph on another origin: no violation, and 
   expect(await violations(page)).toEqual([]);
 });
 
-test('RÉEL — WhatsApp opens with neither a handle on this page nor a Referer', async ({ page, context }) => {
+test('RÉEL — the boutique carries no WhatsApp tap; on the buyer’s own product page WhatsApp opens with neither a handle on this page nor a Referer', async ({ page, context }) => {
   await ecouterViolations(page);
   const referers: (string | undefined)[] = [];
   await context.route('https://wa.me/**', (route: Route) => {
     referers.push(route.request().headers()['referer']);
     return route.fulfill({ status: 200, contentType: 'text/html', body: '<title>wa</title>' });
   });
-  // The disc exists only when the resolve vouches for digits (CONTACT-WHATSAPP-1).
+  // The anchor exists only when the resolve vouches for digits (CONTACT-WHATSAPP-1).
   await page.route('**/api/s/**', (route: Route) =>
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ...BOUTIQUE, whatsapp: '22670112233' }) }),
   );
@@ -141,12 +141,30 @@ test('RÉEL — WhatsApp opens with neither a handle on this page nor a Referer'
   await page.route('https://media.example/**', (route: Route) =>
     route.fulfill({ status: 200, contentType: 'image/png', body: Buffer.from(PNG_1PX, 'base64') }),
   );
+  // PANIER-BOUTON-1 (founder 2026-09-20) — the boutique, with the digits
+  // SERVED, renders no WhatsApp tap on any tile: the option lives on the
+  // buyer's own page. The panier button beside each price is the one control
+  // on the grid besides the heart.
   await page.goto(`${REEL}/?/v/aicha-4821`);
   await expect(page.locator('.vt-root[data-etat="ready"]')).toBeVisible();
+  await expect(page.locator('[data-action="whatsapp"]')).toHaveCount(0);
+  await expect(page.locator('[data-role="whatsapp"]')).toHaveCount(0);
+  await expect(page.locator('.vt-tile .vt-tile-pan').first()).toBeVisible();
+  // The FEATURED card's button (its price row is a new seat — the panier walk
+  // presses the grid's; this boutique has a featured article, so press it
+  // here): the tap lands, reads pressed, the band appears, no navigation.
+  const featuredPan = page.locator('.vt-featured .vt-tile-pan');
+  await featuredPan.click();
+  await expect(featuredPan).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('[data-role="vitrine-panier"]')).toBeVisible();
+  await expect(page.locator('.vt-root[data-etat="ready"]')).toBeVisible();
 
+  // The buyer's product page keeps the anchor (CONTACT-WHATSAPP-1).
+  await page.goto(`${REEL}/?/s/aicha-4821&pid=p1`);
+  await expect(page.locator('[data-role="whatsapp"]')).toBeVisible();
   const [popup] = await Promise.all([
     context.waitForEvent('page'),
-    page.locator('[data-action="whatsapp"]').first().click(),
+    page.locator('[data-role="whatsapp"]').first().click(),
   ]);
   await popup.waitForLoadState();
   expect(popup.url()).toMatch(/^https:\/\/wa\.me\//);

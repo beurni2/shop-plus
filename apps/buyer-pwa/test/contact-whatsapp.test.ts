@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { httpStorefrontPort, demoStorefrontPort } from '../src/vitrine/profile';
 import { renderVitrineReady } from '../src/vitrine/render';
-import { ouvrirWhatsApp } from '../src/vitrine/flows';
 import { renderC1, type ClienteProduit } from '../src/cliente/screens';
 import { clienteProduitReel } from '../src/cliente/seed';
 import { ROBE } from '../src/cliente/seed';
@@ -115,10 +114,13 @@ describe('C1 — the tap renders as an anchor the OS hands to WhatsApp', () => {
   });
 });
 
-/* ═══ CONTACT-WHATSAPP-2 (founder: « add the whatsapp icon on each tile as
-   well ») — the chip on the grid, fav/pan's third sibling ═══ */
+/* ═══ PANIER-BOUTON-1 (founder 2026-09-20: « on each product remove the
+   WhatsApp button there since there is that option on the buyer's payment
+   PWA already ») — CONTACT-WHATSAPP-2's tile chip is RETIRED. The boutique
+   grid carries no WhatsApp tap at all; the option lives on the buyer's own
+   product page (the C1 anchor pinned above), and only there. ═══ */
 
-describe('the tile chip — every in-stock tile carries the tap, épuisé stays muette, absent renders nothing', () => {
+describe('the boutique grid carries NO WhatsApp tap — with or without a served number', () => {
   const sf: Storefront = { ...resolvedDemo.storefront, name: 'Chez Binta', slug: 'binta-7412' };
   const produits = [
     { pid: 'pv_wa_a', name: 'Bazin riche', priceFcfa: 12_000, inStock: true, assetRefs: [] as string[] },
@@ -126,81 +128,31 @@ describe('the tile chip — every in-stock tile carries the tap, épuisé stays 
     { pid: 'pv_wa_c', name: 'Sac cuir', priceFcfa: 15_000, inStock: false, assetRefs: [] as string[] },
   ];
   const sfAvec = { ...sf, curatedItems: produits.map((p) => p.pid), featuredItems: ['pv_wa_a'], sections: [] } as Storefront;
-  const rendu = (whatsapp?: string): string =>
-    renderVitrineReady(sfAvec, resolvedDemo.trust, { fromProduct: false, ...(whatsapp !== undefined ? { whatsapp } : {}) }, {}, produits);
+  const rendu = (): string => renderVitrineReady(sfAvec, resolvedDemo.trust, { fromProduct: false }, {}, produits);
 
-  it('with the number: one chip per in-stock tile (featured included), each href naming ITS product; the épuisé tile stays muette', () => {
-    const html = rendu('22670112233');
-    // pv_wa_a sits in the featured card AND the grid → 3 chips total (a, a-featured? no —
-    // featured pids are excluded from the residual grid or not? assert by href count instead:
-    const hrefA = encodeURIComponent('Bonjour Binta, je vous écris au sujet de « Bazin riche » vu sur Chez Binta.');
-    const hrefB = encodeURIComponent('Bonjour Binta, je vous écris au sujet de « Robe wax » vu sur Chez Binta.');
-    const hrefC = encodeURIComponent('Sac cuir');
-    expect(html).toContain(`https://wa.me/22670112233?text=${hrefA}`.replace(/&/g, '&amp;'));
-    expect(html).toContain(`https://wa.me/22670112233?text=${hrefB}`.replace(/&/g, '&amp;'));
-    // the épuisé product gets NO chip — the muette-tile law holds
-    expect(html.includes(hrefC)).toBe(false);
-    // every chip is the delegated action, aria-labelled
-    const chips = html.match(/data-action="whatsapp"/g) ?? [];
-    expect(chips.length).toBeGreaterThanOrEqual(2);
-    expect(html).toContain('Écrire sur WhatsApp');
-  });
-
-  it('without the number: not one wa.me byte on the whole boutique', () => {
+  it('not one wa.me byte, no whatsapp action, no chip class — on the featured card or the grid', () => {
     const html = rendu();
     expect(html).not.toContain('wa.me');
     expect(html).not.toContain('data-action="whatsapp"');
+    expect(html).not.toContain('vt-wa');
+    expect(html).not.toContain('Écrire sur WhatsApp');
   });
 
-  it('the prenom rule is the fiche’s own — « Chez Binta » drafts « Bonjour Binta »', () => {
-    const html = rendu('22670112233');
-    expect(html).toContain(encodeURIComponent('Bonjour Binta,').replace(/&/g, '&amp;'));
-  });
-});
-
-describe('ouvrirWhatsApp — the delegated opener, by execution', () => {
-  /** The suite runs in node: give the opener the ONE browser global it uses,
-   *  record every call, and remove it after — nothing else is faked. */
-  function avecWindow(run: () => void): unknown[][] {
-    const appels: unknown[][] = [];
-    const g = globalThis as { window?: unknown };
-    const avait = 'window' in g;
-    const original = g.window;
-    g.window = { open: (...args: unknown[]) => { appels.push(args); return null; } };
-    try {
-      run();
-    } finally {
-      if (avait) g.window = original;
-      else delete g.window;
-    }
-    return appels;
-  }
-  it('a wa.me URL opens in a new tab with no opener back-channel', () => {
-    const appels = avecWindow(() => {
-      expect(ouvrirWhatsApp('https://wa.me/22670112233?text=Bonjour')).toBe(true);
-    });
-    // POLITIQUE-CONTENU-1 (F-61) — noopener AND noreferrer: the opened site
-    // gets neither a handle on this page nor its URL (which can carry a liste token).
-    expect(appels).toEqual([['https://wa.me/22670112233?text=Bonjour', '_blank', 'noopener,noreferrer']]);
-  });
-  it('anything that is not wa.me opens NOTHING — the chip cannot be steered elsewhere', () => {
-    const appels = avecWindow(() => {
-      for (const mauvais of ['', 'https://evil.example/x', 'javascript:alert(1)', 'http://wa.me/226', 'https://wa.me.evil.example/']) {
-        expect(ouvrirWhatsApp(mauvais), mauvais).toBe(false);
-      }
-    });
-    expect(appels).toHaveLength(0);
-  });
-});
-
-describe('the thread through the mount — pinned at the source, the vitrine.test discipline', () => {
-  it('mountVitrine hands the RESOLVED whatsapp to the READY render (a severed thread would render a boutique with no chips over a served number)', async () => {
+  it('the render takes no reseller digits any more — the grid has nowhere to put them (pinned at the type)', async () => {
     const { readFileSync } = await import('node:fs');
+    const render = readFileSync(new URL('../src/vitrine/render.ts', import.meta.url), 'utf8');
+    const opts = render.slice(render.indexOf('export interface VitrineRenderOpts'), render.indexOf('}', render.indexOf('export interface VitrineRenderOpts')));
+    expect(opts).not.toContain('whatsapp?:');
+    // …and mountVitrine hands the READY render (not only the empty one) the
+    // one option that is left — the digits never ride into the grid again.
     const flows = readFileSync(new URL('../src/vitrine/flows.ts', import.meta.url), 'utf8');
-    expect(flows).toMatch(/\{ fromProduct, \.\.\.\(resolu!\.whatsapp !== undefined \? \{ whatsapp: resolu!\.whatsapp \} : \{\}\) \}/);
-    // and the delegated branch opens ONLY through the guarded opener
-    const branche = flows.slice(flows.indexOf("action === 'whatsapp'"));
-    expect(branche.slice(0, 700)).toContain('ev.preventDefault();');
-    expect(branche.slice(0, 700)).toContain("ouvrirWhatsApp(target.getAttribute('data-wa-href') ?? '')");
+    expect(flows).toMatch(/renderVitrineReady\(\s*sf!,\s*resolu!\.trust,\s*(?:\/\/[^\n]*\n\s*)*\{ fromProduct \},\s*resolu!\.notes/);
+    expect(flows).not.toContain('whatsapp: resolu');
+    expect(flows).not.toContain("action === 'whatsapp'");
+  });
+
+  it('the fiche still carries the option — the founder’s premise, pinned next to the removal', () => {
+    const html = renderC1({ ...ROBE, whatsapp: '22670112233' }, { epuise: false, sansVoix: true });
+    expect(html.match(/data-role="whatsapp"/g) ?? []).toHaveLength(1);
   });
 });

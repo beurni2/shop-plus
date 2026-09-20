@@ -15,7 +15,6 @@
 import { t, tf } from '../i18n';
 import { esc } from '../format';
 import { epingleSvg, fmtCoords, viseurSvg } from '../geo-carte';
-import { iconWhatsApp } from '../cliente/icons';
 import { fmtFCFA } from '../cliente/money';
 import { productFromSeed, seedProduct, type VitrineProduct, type VitrineSeedProduct } from './catalog';
 import { focusPosition, type Storefront, type VitrineTrust, type ProductVoiceNote, type ProductVoiceNotes } from './profile';
@@ -301,33 +300,39 @@ function fav(pid: string): string {
   return `<span class="vt-fav${on ? ' vt-fav-on' : ''}" role="button" tabindex="0" data-action="favori" data-pid="${esc(pid)}" aria-pressed="${on}" aria-label="${t('vit.favori_aria')}">${iconHeart(16, '#1C1710', 1.9)}</span>`;
 }
 
-/** PANIER-VITRINE-1 — the add-to-panier chip, the heart's sibling: top-left of
- *  the art (the heart keeps top-right), device-local truth via panier.ts, and
- *  closest() routes its tap to `panier`, never to `produit` (the fav law). */
-function pan(slug: string, pid: string): string {
+/** PANIER-BOUTON-1 (founder 2026-09-20: « remove the white add to cart button
+ *  on the image and make it be the one close to the price on the purple ») —
+ *  the ONE add-to-panier control, in the price row: the deep-ink disc that
+ *  was a decoration is now the real button. Same law as the heart: a
+ *  role=button inside the tile button, closest() routes its tap to `panier`,
+ *  never to `produit`; device-local truth via panier.ts; « on » = in her
+ *  panier (`vt-pan-on`, the class applyPanierState flips). The art now
+ *  carries the heart alone. */
+function panBouton(slug: string, pid: string): string {
   const on = inPanier(slug, pid);
-  return `<span class="vt-pan${on ? ' vt-pan-on' : ''}" role="button" tabindex="0" data-action="panier" data-pid="${esc(pid)}" aria-pressed="${on}" aria-label="${t('vit.panier_aria')}">${iconBag(15, '#1C1710', 2)}</span>`;
+  return `<span class="vt-tile-pan${on ? ' vt-pan-on' : ''}" role="button" tabindex="0" data-action="panier" data-pid="${esc(pid)}" aria-pressed="${on}" aria-label="${t('vit.panier_aria')}">${iconBag(15, 'currentColor', 2)}</span>`;
 }
 
-function tile(p: VitrineProduct, note: ProductVoiceNote | undefined, slug: string, wa?: WaCtx): string {
+function tile(p: VitrineProduct, note: ProductVoiceNote | undefined, slug: string): string {
   const cls = p.inStock ? 'vt-tile' : 'vt-tile vt-tile-epuise';
   const attrs = p.inStock
     ? `data-action="produit" data-pid="${esc(p.pid)}"`
     : 'aria-disabled="true" disabled';
   // NORTH-STAR-1 — the heart is REAL (favorites.ts) and, since
-  // PANIER-VITRINE-1, so is the panier chip: both device-local, both honest,
+  // PANIER-VITRINE-1, so is the panier button: both device-local, both honest,
   // because a decorative chip would be a dead button. Neither renders on an
   // épuisé — an add nobody can complete would lie. « Livraison 24–48h · Séra
   // vérifiée » is the FOUNDER'S delivery promise (his order, logged) — flagged
-  // as unmeasured, reaffirmed, rendered as given.
+  // as unmeasured, reaffirmed, rendered as given. No WhatsApp tap on a tile
+  // since PANIER-BOUTON-1: that option lives on the buyer's own product page.
   return [
     `<button class="${cls}" data-role="vitrine-produit" ${attrs}>`,
-    `<div class="vt-artwrap">${produitArt(p, !p.inStock)}${p.inStock ? fav(p.pid) : ''}${p.inStock ? pan(slug, p.pid) : ''}${p.inStock && wa !== undefined ? waChip(p, wa) : ''}</div>`,
+    `<div class="vt-artwrap">${produitArt(p, !p.inStock)}${p.inStock ? fav(p.pid) : ''}</div>`,
     '<div class="vt-tile-body">',
     `<div class="vt-tile-name"><v>${esc(p.name)}</v></div>`,
     '<div class="vt-tile-pricerow">',
     `<div class="vt-tile-price"><v>${fmtFcfa(p.priceFcfa)}</v></div>`,
-    p.inStock ? `<span class="vt-tile-go" aria-hidden="true">${iconBag(14, '#FFFFFF', 2)}</span>` : '',
+    p.inStock ? panBouton(slug, p.pid) : '',
     '</div>',
     p.inStock ? `<div class="vt-tile-livree">${t('vit.livraison_2448')}</div>` : '',
     p.inStock ? renderVoiceChip(note) : '',
@@ -408,19 +413,21 @@ function featuredArt(p: VitrineProduct): string {
  * It carried both — the sections and the residual — because a shop where one
  * grid staggers and the other does not looks broken rather than designed.
  */
-function grille(prods: readonly VitrineProduct[], notes: ProductVoiceNotes, slug: string, wa?: WaCtx): string {
+function grille(prods: readonly VitrineProduct[], notes: ProductVoiceNotes, slug: string): string {
   const colonne = (c: 0 | 1): string =>
-    prods.filter((_, i) => i % 2 === c).map((p) => tile(p, notes[p.pid], slug, wa)).join('');
+    prods.filter((_, i) => i % 2 === c).map((p) => tile(p, notes[p.pid], slug)).join('');
   return `<div class="vt-grid"><div class="vt-col">${colonne(0)}</div><div class="vt-col">${colonne(1)}</div></div>`;
 }
 
-function featuredTile(p: VitrineProduct, note: ProductVoiceNote | undefined, pinnedByHer: boolean, slug: string, wa?: WaCtx): string {
+function featuredTile(p: VitrineProduct, note: ProductVoiceNote | undefined, pinnedByHer: boolean, slug: string): string {
+  // PANIER-BOUTON-1 — the same one control as the grid, in the same place:
+  // beside the price. The art keeps the badge and the heart, nothing else.
   return [
     `<button class="vt-featured" data-role="vitrine-a-la-une" data-action="produit" data-pid="${esc(p.pid)}">`,
-    `<div class="vt-featured-artwrap">${featuredArt(p)}${pinnedByHer ? `<span class="vt-featured-badge">${t('vit.a_la_une')}</span>` : ''}${fav(p.pid)}${pan(slug, p.pid)}${wa !== undefined ? waChip(p, wa) : ''}</div>`,
+    `<div class="vt-featured-artwrap">${featuredArt(p)}${pinnedByHer ? `<span class="vt-featured-badge">${t('vit.a_la_une')}</span>` : ''}${fav(p.pid)}</div>`,
     '<div class="vt-featured-body">',
     `<span class="vt-featured-name"><v>${esc(p.name)}</v></span>`,
-    `<b class="vt-featured-price"><v>${fmtFcfa(p.priceFcfa)}</v></b>`,
+    `<div class="vt-featured-pricerow"><b class="vt-featured-price"><v>${fmtFcfa(p.priceFcfa)}</v></b>${panBouton(slug, p.pid)}</div>`,
     `<span class="vt-featured-livree">${t('vit.livraison_2448')}</span>`,
     renderVoiceChip(note),
     `<span class="vt-featured-cta">${t('vit.commander')}</span>`,
@@ -479,29 +486,10 @@ function orderedProducts(
 export interface VitrineRenderOpts {
   /** ← appears only when arrived from a product page (§4.1). */
   readonly fromProduct: boolean;
-  /** CONTACT-WHATSAPP-2 (founder: « add the whatsapp icon on each tile as
-   *  well ») — the reseller's wa.me digits off the resolve, server-vouched.
-   *  Absent ⇒ no chip renders anywhere on the grid. */
-  readonly whatsapp?: string;
-}
-
-/** The per-tile WhatsApp context, computed ONCE from the resolved storefront
- *  (the C1 fiche's own prenom rule, so the two surfaces draft the same
- *  greeting). */
-interface WaCtx {
-  readonly digits: string;
-  readonly prenom: string;
-  readonly shopName: string;
-}
-
-/** CONTACT-WHATSAPP-2 — the tile chip: fav/pan's third sibling, same 44px
- *  disc, same closest() law (its data-action routes the tap to `whatsapp`,
- *  never to `produit`). The full wa.me URL rides the element so the handler
- *  opens EXACTLY what this render vouched for — the draft names THIS product. */
-function waChip(p: VitrineProduct, ctx: WaCtx): string {
-  const texte = `Bonjour ${ctx.prenom}, je vous écris au sujet de « ${p.name} » vu sur ${ctx.shopName}.`;
-  const href = `https://wa.me/${ctx.digits}?text=${encodeURIComponent(texte)}`;
-  return `<span class="vt-wa" role="button" tabindex="0" data-action="whatsapp" data-pid="${esc(p.pid)}" data-wa-href="${esc(href)}" aria-label="${t('vit.whatsapp_aria')}">${iconWhatsApp(17, 1.8)}</span>`;
+  // PANIER-BOUTON-1 (founder 2026-09-20) retired CONTACT-WHATSAPP-2's tile
+  // chip: the boutique grid carries no WhatsApp tap; the option lives on the
+  // buyer's own product page (CONTACT-WHATSAPP-1, cliente/screens.ts), so the
+  // reseller's digits no longer ride into this render.
 }
 
 /**
@@ -1141,11 +1129,6 @@ export function renderVitrineReady(
   entete: EnteteKey = 'classique',
 ): string {
   const th = VITRINE_THEMES[sf.theme];
-  // CONTACT-WHATSAPP-2 — computed once; the prenom rule is the C1 fiche's own.
-  const waCtx: WaCtx | undefined =
-    opts.whatsapp !== undefined
-      ? { digits: opts.whatsapp, prenom: sf.name.replace(/^Chez\s+/i, '').split(' ')[0] ?? sf.name, shopName: sf.name }
-      : undefined;
   const parts = [
     renderEntete(
       entete,
@@ -1221,7 +1204,7 @@ export function renderVitrineReady(
         anythingBelow ? 'vt-anchor-grid' : undefined,
       ),
     );
-    for (const p of featured) parts.push(featuredTile(p, notes[p.pid], pinned.length > 0, sf.slug, waCtx));
+    for (const p of featured) parts.push(featuredTile(p, notes[p.pid], pinned.length > 0, sf.slug));
     if (anythingBelow) parts.push('<div id="vt-anchor-grid"></div>');
   }
 
@@ -1244,7 +1227,7 @@ export function renderVitrineReady(
     // would refer to nothing and the honest title is « TOUS LES ARTICLES ».
     const residualLabel = featured.length > 0 ? t('vit.head_autres') : t('vit.head_tous');
     parts.push(sectionHead(iconBag(15, '#6F6355', 1.9), residualLabel, undefined, undefined, residual.length));
-    parts.push(grille(residual, notes, sf.slug, waCtx));
+    parts.push(grille(residual, notes, sf.slug));
   }
 
   parts.push(inkBandAndFooter(sf));

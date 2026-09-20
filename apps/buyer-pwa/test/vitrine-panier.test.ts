@@ -90,17 +90,38 @@ describe('the band — her shelf renders back from storage on a FRESH load', () 
   });
 });
 
-describe('the chip — every in-stock article can be put in the panier, and a kept one shows it', () => {
-  it('in-stock tiles carry the panier chip; a stored pid renders its chip pressed', () => {
+describe('the button — every in-stock article can be put in the panier from the ONE disc beside its price, and a kept one shows it', () => {
+  // PANIER-BOUTON-1 (founder 2026-09-20): the white chip on the art is gone;
+  // the deep-ink disc in the price row IS the add-to-panier button.
+  it('in-stock tiles carry the panier button IN THE PRICE ROW; a stored pid renders it pressed', () => {
     togglePanier('chez-awa-1', 'p3');
     const page = html();
-    // The TILE chip (span class vt-pan…), not the band's « retirer » button —
-    // both carry the same action, only the chip shows the pressed state.
-    expect(page).toMatch(/<span class="vt-pan vt-pan-on"[^>]*data-action="panier" data-pid="p3"[^>]*aria-pressed="true"/);
-    expect(page).toMatch(/<span class="vt-pan"[^>]*data-action="panier" data-pid="p2"[^>]*aria-pressed="false"/);
+    // The TILE button (span class vt-tile-pan…), not the band's « retirer » —
+    // both carry the same action, only the button shows the pressed state.
+    expect(page).toMatch(/<div class="vt-tile-price"><v>[^<]*<\/v><\/div><span class="vt-tile-pan vt-pan-on"[^>]*data-action="panier" data-pid="p3"[^>]*aria-pressed="true"/);
+    expect(page).toMatch(/<div class="vt-tile-price"><v>[^<]*<\/v><\/div><span class="vt-tile-pan"[^>]*data-action="panier" data-pid="p2"[^>]*aria-pressed="false"/);
+    // The featured card (p1) carries the same button beside ITS price.
+    expect(page).toMatch(/<div class="vt-featured-pricerow"><b class="vt-featured-price"><v>[^<]*<\/v><\/b><span class="vt-tile-pan"[^>]*data-action="panier" data-pid="p1"/);
   });
 
-  it('an épuisé tile carries NO panier chip — a dead add would lie', () => {
+  it('the art carries the heart alone — no white chip, no WhatsApp tap, no decorative « go » disc left behind', () => {
+    const page = html();
+    expect(page).not.toContain('class="vt-pan"');
+    expect(page).not.toContain('class="vt-pan vt-pan-on"');
+    expect(page).not.toContain('vt-wa');
+    expect(page).not.toContain('vt-tile-go');
+    // every panier action on the page is a button in a price row, never on the
+    // art — and the art wraps must actually be FOUND (verifier MINOR: a loop
+    // over zero matches would pass while a chip crept back onto the photo)
+    const arts = page.match(/<div class="vt-artwrap">[\s\S]*?<\/div><div class="vt-tile-body">/g) ?? [];
+    expect(arts.length).toBeGreaterThanOrEqual(2); // at least p2 and p3 in the grid
+    for (const art of arts) expect(art).not.toContain('data-action="panier"');
+    const featuredArts = page.match(/<div class="vt-featured-artwrap">[\s\S]*?<\/div><div class="vt-featured-body">/g) ?? [];
+    expect(featuredArts.length).toBe(1);
+    for (const art of featuredArts) expect(art).not.toContain('data-action="panier"');
+  });
+
+  it('an épuisé tile carries NO panier button — a dead add would lie', () => {
     const page = html(prods([{ pid: 'p3', inStock: false }]));
     expect(page).not.toContain('data-action="panier" data-pid="p3"');
   });
@@ -116,11 +137,21 @@ describe('the geometry laws the verifier held this slice to, pinned at the sourc
     expect(disc).toContain('width: 30px');
   });
 
-  it("the featured chip leaves « À LA UNE »'s corner — bottom-left, never over the badge", async () => {
+  it('PANIER-BOUTON-1 — the price-row BUTTON honors the 44px touch floor — the 34px deep-ink disc is only the drawing; on = white disc, accent ring', async () => {
     const { VITRINE_STYLES } = await import('../src/vitrine/styles');
-    const rule = /\.vt-featured-artwrap \.vt-pan \{[^}]*\}/.exec(VITRINE_STYLES)?.[0] ?? '';
-    expect(rule).toContain('bottom: 10px');
-    expect(rule).toContain('top: auto');
+    const rule = /\.vt-tile-pan \{[^}]*\}/.exec(VITRINE_STYLES)?.[0] ?? '';
+    expect(rule).toContain('width: 44px');
+    expect(rule).toContain('height: 44px');
+    const disc = /\.vt-tile-pan::before \{[^}]*\}/.exec(VITRINE_STYLES)?.[0] ?? '';
+    expect(disc).toContain('width: 34px');
+    expect(disc).toContain('background: var(--vt-deep)');
+    const on = /\.vt-tile-pan\.vt-pan-on::before \{[^}]*\}/.exec(VITRINE_STYLES)?.[0] ?? '';
+    expect(on).toContain('background: #FFFFFF');
+    expect(on).toContain('var(--vt-accent)');
+    // the retired chips left no rule behind — dead CSS is part of the removal
+    expect(VITRINE_STYLES).not.toMatch(/\.vt-pan \{/);
+    expect(VITRINE_STYLES).not.toMatch(/\.vt-wa \{/);
+    expect(VITRINE_STYLES).not.toMatch(/\.vt-tile-go \{/);
   });
 
   it('a store holding the same pid twice renders it once (dedupe on load)', () => {
