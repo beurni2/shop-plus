@@ -270,6 +270,12 @@ export const VITRINE_STYLES = `
     scrollbar-width: none; padding-bottom: 4px;
   }
   .vt-panier-row::-webkit-scrollbar { display: none; }
+  /* PAYER-TOUT-1 — the band's one primary action: her kept articles, paid at once. */
+  .vt-panier-payer {
+    display: block; width: 100%; min-height: 48px; margin-top: 12px; padding: 12px 16px;
+    border: none; border-radius: 14px; background: var(--vt-deep); color: var(--vt-on);
+    font: inherit; font-size: 15px; font-weight: 700; line-height: 1.3; cursor: pointer;
+  }
   .vt-pan-card {
     position: relative; flex: none; width: 128px;
     background: #FFFFFF; border-radius: 14px; overflow: hidden;

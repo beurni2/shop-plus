@@ -524,12 +524,34 @@ export function renderPanierBand(sf: Storefront, described?: readonly VitrinePro
       '</div>',
     ].join('');
   });
+  /**
+   * PAYER-TOUT-1 (founder ruling 2026-09-22) — two or more articles she can
+   * buy ⇒ ONE button pays them together: one payment, each article still its
+   * own order and its own parcel. No total here: the service states it on the
+   * payment screens, once her destination is known. One article ⇒ no button —
+   * its own page is the road, exactly as before.
+   */
+  const aPayer = articles.filter((p) => p.inStock);
+  const payer =
+    aPayer.length >= 2 && aPayer.length <= PANIER_PAYER_MAX
+      ? `<button class="vt-panier-payer" data-action="panier-payer">${tf('vit.panier_payer_tout', { n: String(aPayer.length) })}</button>`
+      : '';
   return [
     '<div class="vt-panier" data-role="vitrine-panier">',
     `<div class="vt-panier-head">${iconBag(15, '#6F6355', 1.9)}<span class="vt-panier-titre">${t('vit.panier_titre')}</span><span class="vt-panier-compte">· <v>${articles.length}</v></span></div>`,
     `<div class="vt-panier-row">${cartes.join('')}</div>`,
+    payer,
     '</div>',
   ].join('');
+}
+
+/** The service pays at most ten articles at once (its fan-out bound). */
+export const PANIER_PAYER_MAX = 10;
+
+/** The in-stock articles the band's « payer ensemble » sends, in her order. */
+export function pidsAPayer(sf: Storefront, described?: readonly VitrineProduct[]): string[] {
+  const parPid = new Map(orderedProducts(sf, undefined, described).map((p) => [p.pid, p]));
+  return panierOf(sf.slug).filter((pid) => parPid.get(pid)?.inStock === true);
 }
 
 /* ------------------------------------------------- LISTE-ENVIES-1 (2026-08-25) -- */

@@ -51,6 +51,18 @@ const SUPPLY = [
     category: 'fashion_bags_fabrics',
     sellerTier: 'verified',
   },
+  {
+    // PAYER-TOUT-1 — a second article, so a panier can be paid at once.
+    productVersionId: 'pv-sandbox-2',
+    offerVersion: 'ov-sandbox-2',
+    basePrice: 14_000,
+    resellerCommission: 1_200,
+    available: 9,
+    productName: 'Sac en cuir',
+    assetRefs: [] as string[],
+    category: 'fashion_bags_fabrics',
+    sellerTier: 'verified',
+  },
 ];
 
 const mf = new Miniflare({
@@ -68,6 +80,7 @@ const mf = new Miniflare({
     DISPATCH: 'DispatchIndexDO',
     RESELLER: 'ResellerFeedDO',
     COMPTES: 'ResellerAccountsDO',
+    PAYMENT_GROUP: 'PaymentGroupDO',
   },
   durableObjectsPersist: persist,
   bindings: {
@@ -241,6 +254,70 @@ describe('SANDBOX-PAY-1 — the founder plays the provider against the real Work
     expect(again.code, again.stdout + again.stderr).toBe(0);
     expect(again.stdout).toContain('ALREADY CONFIRMED');
     expect((await publicState(orderId)).state).toBe('confirmed');
+  }, 60_000);
+
+  it('PAYER-TOUT-1 — handed ONE article of a grouped payment, the script confirms the GROUP; the vault agrees for every order', async () => {
+    const S = await seance(mf, 'sandgrp');
+    const n = '0020';
+    const created = await mf.dispatchFetch('http://c/storefronts', {
+      method: 'POST',
+      headers: S.bearer,
+      body: JSON.stringify({
+        commandId: `cmd-create-${n}`, id: `sf-sand-${n}`, resellerId: S.accountId,
+        shortCode: `SAND-${n}`, name: 'Boutique du fondateur', zone: 'Ouagadougou',
+        category: 'Général', correlationId: `corr-${n}`, at: T0,
+      }),
+    });
+    expect(created.status).toBe(200);
+    const quoteIds: string[] = [];
+    for (const [i, pid] of ['pv-sandbox-1', 'pv-sandbox-2'].entries()) {
+      const pub = await mf.dispatchFetch('http://c/listings', {
+        method: 'POST',
+        headers: S.bearer,
+        body: JSON.stringify({
+          commandId: `cmd-listing-${n}-${i}`, listingId: `lst-sand-${n}-${i}`, storefrontId: `sf-sand-${n}`,
+          resellerId: S.accountId, productVersionId: pid, offerVersion: pid.replace('pv-', 'ov-'),
+          markup: 1_500, correlationId: `corr-${n}`, at: T0,
+        }),
+      });
+      expect(((await pub.json()) as { status?: string }).status).toBe('published');
+      const quoteRes = await mf.dispatchFetch('http://c/checkout/quote', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          slug: `sand-${n}`, pid, paymentMode: 'FULL_PREPAY', zoneTo: 'Ouagadougou',
+          attributionResellerId: S.accountId, requestKey: freshKey(),
+        }),
+      });
+      const quote = safeJson(await quoteRes.text()) as { quoteId: string };
+      quoteIds.push(quote.quoteId);
+      const held = await mf.dispatchFetch(`http://c/checkout/quote/${encodeURIComponent(quote.quoteId)}/reserve`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ commandId: `cmd-reserve-${n}-${i}`, holderRef: `holder-${n}` }),
+      });
+      expect(held.status).toBe(200);
+    }
+    const paid = await mf.dispatchFetch('http://c/checkout/group', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ quoteIds, holderRef: `holder-${n}`, commandId: `cmd-group-${n}` }),
+    });
+    const group = safeJson(await paid.text());
+    expect(paid.status, JSON.stringify(group)).toBe(200);
+    const orderIds = quoteIds.map((q) => `ord-${q}`);
+
+    // The founder pastes ONE article's order id, as he sees it on his board.
+    const run = await runScript(orderIds[1]!, WEBHOOK_SECRET);
+    expect(run.code, run.stdout + run.stderr).toBe(0);
+    expect(run.stdout).toContain(`grouped payment ${String(group['groupId'])}`);
+    expect(run.stdout).toContain('CONFIRMED');
+    for (const id of orderIds) expect((await publicState(id)).state).toBe('confirmed');
+
+    // Pasting the group id afterwards is the redelivery a double-tap is.
+    const again = await runScript(String(group['groupId']), WEBHOOK_SECRET);
+    expect(again.code, again.stdout + again.stderr).toBe(0);
+    expect(again.stdout).toContain('ALREADY CONFIRMED');
   }, 60_000);
 
   it('a typo’d order id fails BY NAME, and nothing is sent', async () => {

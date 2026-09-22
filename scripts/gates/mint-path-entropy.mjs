@@ -72,6 +72,9 @@ const MINT_PATHS = [
   // the same shapes in liste.ts. Named the moment they existed.
   'services/storefront-service/worker/wishlist-do.ts',
   'apps/buyer-pwa/src/vitrine/liste.ts',
+  // PAYER-TOUT-1 — the grouped payment's provider key and attempt ids are
+  // minted here (through order-do's CSPRNG mints). Named the moment they existed.
+  'services/storefront-service/worker/payment-group-do.ts',
 ];
 
 /** A CSPRNG token — at least one must appear across the mint paths, so an empty or

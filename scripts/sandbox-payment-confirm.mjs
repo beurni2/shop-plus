@@ -35,6 +35,14 @@
  * order id alone, so a double dispatch is the provider redelivering the same
  * webhook — which the vault ABSORBS (one leg, one payment, proven in
  * sp33a-order-path.mjs). A founder double-tap cannot double-confirm.
+ *
+ * PAYER-TOUT-1 — A GROUPED PAYMENT. When the buyer paid her boutique panier
+ * at once, ONE collection was charged for all its orders, under the GROUP's
+ * id (`grp-…`), key and correlation. The founder may paste the group id or
+ * ANY of its order ids: the key read names the group, and this tool then
+ * confirms the group — the one amount the provider was asked for, read off
+ * the group's own public view — never one order's share, which the vault
+ * would refuse.
  */
 
 export const SANDBOX_ACTOR = 'payment-provider:sandbox';
@@ -85,15 +93,29 @@ export const WEBHOOK_KEY_HEADER = 'X-Payment-Webhook-Key';
 
 async function main() {
   const base = (process.env.STOREFRONT_BASE ?? '').trim().replace(/\/+$/, '');
-  const orderId = (process.env.ORDER_ID ?? '').trim();
+  const pasted = (process.env.ORDER_ID ?? '').trim();
   const secret = process.env.PAYMENT_WEBHOOK_SECRET ?? '';
-  if (base === '' || orderId === '' || secret === '') {
+  if (base === '' || pasted === '' || secret === '') {
     console.error('missing STOREFRONT_BASE, ORDER_ID or PAYMENT_WEBHOOK_SECRET');
     process.exit(2);
   }
 
+  // PAYER-TOUT-1 — an order paid inside a group is confirmed AS its group.
+  let orderId = pasted;
+  if (!pasted.startsWith('grp-')) {
+    const probe = await fetch(`${base}/checkout/webhook/leg-key/${encodeURIComponent(pasted)}?leg=checkout`, {
+      headers: { [WEBHOOK_KEY_HEADER]: secret },
+    });
+    const probed = await probe.json().catch(() => ({}));
+    if (probe.status === 200 && typeof probed.groupId === 'string') {
+      console.log(`order ${pasted} was paid in the grouped payment ${probed.groupId} — confirming the group.`);
+      orderId = probed.groupId;
+    }
+  }
+  const groupe = orderId.startsWith('grp-');
+
   const view = async () => {
-    const res = await fetch(`${base}/checkout/order/${encodeURIComponent(orderId)}`);
+    const res = await fetch(`${base}/checkout/${groupe ? 'group' : 'order'}/${encodeURIComponent(orderId)}`);
     const body = await res.json().catch(() => ({}));
     return { status: res.status, body };
   };
@@ -101,7 +123,7 @@ async function main() {
   // ── the order, before ────────────────────────────────────────────────────
   const before = await view();
   if (before.status === 404) {
-    console.error(`NO SUCH ORDER: ${orderId} — check the id (it starts with ord-).`);
+    console.error(`NO SUCH ORDER: ${orderId} — check the id (it starts with ord- or grp-).`);
     process.exit(1);
   }
   if (before.status !== 200) {

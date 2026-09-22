@@ -13,10 +13,12 @@
  * reseller's vitrine or bleed attribution across shops. The heart stays a
  * global « gardé » (decoration of taste); the panier is a per-shop shelf.
  *
- * NO COMBINED CART (§SP9: « preserving per-product truth, stock, and
- * economics — no combined cart »): this is a saved LIST. Each article checks
- * out through its own product page, its own Quote, its own order — the
- * panier holds pids and nothing else, and no total exists anywhere.
+ * NO COMBINED ORDER (§SP9: « preserving per-product truth, stock, and
+ * economics — no combined cart »; PAYER-TOUT-1, founder ruling 2026-09-22):
+ * this is a saved LIST. She may pay two or more of its articles in ONE
+ * payment, but each article is still its own Quote, its own order, its own
+ * parcel — the panier holds pids and nothing else, and the only total that
+ * exists is the one the SERVICE states on the payment screens.
  */
 const KEY = 'shopplus.panier.v1';
 
@@ -68,6 +70,20 @@ export function togglePanier(slug: string, pid: string): boolean {
   else map.set(slug, next);
   persist(map);
   return on;
+}
+
+/**
+ * PAYER-TOUT-1 — the articles she PAID at once leave her panier, once the
+ * operator has confirmed the payment (never before: a failed payment keeps
+ * her panier as it was). A paid panier left standing would offer to pay it
+ * again.
+ */
+export function retirerDuPanier(slug: string, pids: readonly string[]): void {
+  const map = load();
+  const next = (map.get(slug) ?? []).filter((p) => !pids.includes(p));
+  if (next.length === 0) map.delete(slug);
+  else map.set(slug, next);
+  persist(map);
 }
 
 /** Test seam: forget the cache so a fresh load re-reads storage. */

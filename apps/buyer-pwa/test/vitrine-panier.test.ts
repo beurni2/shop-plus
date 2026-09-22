@@ -20,8 +20,10 @@ import { panierOf, resetPanierCache, togglePanier } from '../src/vitrine/panier'
  * reseller's boutique, goes out and comes back in, be able to see it again
  * where he left off. » The heart already persists (NORTH-STAR-1); this pins
  * the panier: device-local, PER BOUTIQUE, rendered back from storage on a
- * fresh load — and NEVER a combined cart (§SP9: per-product truth, stock and
- * economics preserved; each article checks out through its own page).
+ * fresh load — and NEVER a combined ORDER (§SP9: per-product truth, stock and
+ * economics preserved). PAYER-TOUT-1 (founder ruling 2026-09-22): two or more
+ * in-stock articles may be PAID at once from the band — still one order per
+ * article, and still no total on the band: the service states it at payment.
  */
 
 const SF = {
@@ -81,12 +83,39 @@ describe('the band — her shelf renders back from storage on a FRESH load', () 
     expect(panierOf('chez-awa-1')).toEqual(['p2', 'fantome']); // it may come back
   });
 
-  it('NO TOTAL, ever — the band carries one price per article and no sum (§SP9: no combined cart)', () => {
+  it('NO TOTAL on the band — one price per article and no sum; the total is the service\'s, on the payment screens', () => {
     togglePanier('chez-awa-1', 'p1');
     togglePanier('chez-awa-1', 'p2');
     const page = html();
     const band = page.split('data-role="vitrine-panier"')[1]!.split('data-role="vitrine-a-la-une"')[0]!;
     expect((band.match(/FCFA/g) ?? []).length).toBe(2); // two articles, two prices, nothing summed
+  });
+});
+
+describe('PAYER-TOUT-1 — « Payer les N articles ensemble »: one button, only when there are two to pay', () => {
+  it('two in-stock articles ⇒ the band carries ONE pay-together button naming the count, and no amount', async () => {
+    togglePanier('chez-awa-1', 'p1');
+    togglePanier('chez-awa-1', 'p2');
+    const band = html().split('data-role="vitrine-panier"')[1]!.split('data-role="vitrine-a-la-une"')[0]!;
+    const boutons = band.match(/data-action="panier-payer"/g) ?? [];
+    expect(boutons).toHaveLength(1);
+    expect(band).toContain('Payer les 2 articles ensemble');
+    expect((band.match(/FCFA/g) ?? []).length).toBe(2);
+  });
+
+  it('one in-stock article (the other épuisé) ⇒ NO button: its own page is the road', () => {
+    togglePanier('chez-awa-1', 'p1');
+    togglePanier('chez-awa-1', 'p3');
+    const band = html(prods([{ pid: 'p3', inStock: false }])).split('data-role="vitrine-panier"')[1]!.split('data-role="vitrine-a-la-une"')[0]!;
+    expect(band).not.toContain('data-action="panier-payer"');
+  });
+
+  it('the pids it sends are her kept, IN-STOCK articles, in her order — never an épuisé one', async () => {
+    const { pidsAPayer } = await import('../src/vitrine/render');
+    togglePanier('chez-awa-1', 'p3');
+    togglePanier('chez-awa-1', 'p1');
+    togglePanier('chez-awa-1', 'p2');
+    expect(pidsAPayer(SF as never, prods([{ pid: 'p2', inStock: false }]) as never)).toEqual(['p3', 'p1']);
   });
 });
 

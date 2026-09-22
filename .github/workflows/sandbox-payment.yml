@@ -31,7 +31,7 @@ on:
   workflow_dispatch:
     inputs:
       order_id:
-        description: "L'identifiant de la commande (ord-…)"
+        description: "L'identifiant de la commande (ord-…) ou du paiement groupé (grp-…)"
         required: true
         type: string
 

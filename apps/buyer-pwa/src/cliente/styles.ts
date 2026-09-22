@@ -476,6 +476,20 @@ export const CLIENTE_STYLES = `
   .cl-recap-rep { margin-top: 3px; font-size: 14px; font-weight: 600; line-height: 1.4; }
   .cl-modifier { border: none; background: var(--vt-soft); color: var(--vt-deep); font-size: 11.5px; font-weight: 700; letter-spacing: .05em; flex: none; min-height: 44px; padding: 0 14px; border-radius: 99px; display: flex; align-items: center; transition: background .3s, color .3s; }
   .cl-law { margin-top: 14px; font-size: 13px; line-height: 1.55; color: #4A3F33; }
+
+  /* ══ PAYER-TOUT-1 — the panier: its list, its récap lines, its per-article « Suivre ».
+     The récap's palette (same card, same sand border); names wrap, never truncate. ══ */
+  .cl-panier-boutique { margin-top: 6px; font-size: 13px; color: #6F6355; }
+  .cl-panier-liste, .cl-panier-recap, .cl-panier-suivi { margin-top: 12px; border-radius: 18px; border: 1px solid #EDE4D3; background: #FFFFFF; box-shadow: 0 1px 2px rgba(28,22,15,.04); overflow: hidden; }
+  .cl-panier-ligne { display: flex; align-items: center; gap: 12px; min-height: 64px; padding: 10px 14px; border-bottom: 1px solid #F3EDDE; }
+  .cl-panier-ligne:last-child, .cl-panier-recap-ligne:last-child { border-bottom: none; }
+  .cl-panier-img { width: 44px; height: 44px; border-radius: 12px; object-fit: cover; flex: none; background: var(--vt-soft); }
+  .cl-panier-nom { flex: 1; min-width: 0; font-size: 14.5px; font-weight: 600; line-height: 1.35; overflow-wrap: anywhere; }
+  .cl-panier-prix { flex: none; font-size: 14.5px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .cl-panier-recap-ligne { display: flex; align-items: baseline; gap: 12px; padding: 12px 14px; border-bottom: 1px solid #F3EDDE; }
+  .cl-panier-suivi-titre { padding: 12px 14px 4px; font-size: 10.5px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: #6F6355; }
+  .cl-panier-suivre { flex: none; min-height: 44px; padding: 0 18px; border: none; border-radius: 99px; background: var(--vt-deep); color: var(--vt-on); font: inherit; font-size: 13.5px; font-weight: 700; cursor: pointer; }
+  .cl-panier-suivi-note { padding: 10px 14px 14px; font-size: 12.5px; line-height: 1.45; color: #6F6355; }
   .cl-opt {
     margin-top: 11px; display: block; width: 100%; position: relative; padding: 16px;
     border-radius: 18px; border: 1.5px solid #E0D6C2; background: #FFFFFF; text-align: left;

@@ -37,6 +37,7 @@ import {
   renderVitrineOffline,
   renderVitrinePause,
   renderPanierBand,
+  pidsAPayer,
   renderListeAmie,
   renderListeBand,
   renderListeChargement,
@@ -747,6 +748,15 @@ export function mountVitrine(
           slot.innerHTML = renderPanierBand(dernierPret.sf, dernierPret.described);
         }
         toast(root, t(on ? 'vit.panier_ajoute' : 'vit.panier_retire'));
+      }
+    } else if (action === 'panier-payer') {
+      // PAYER-TOUT-1 — her kept articles, paid at once on the signed road:
+      // the SAME `/s/{slug}` link a single article opens, carrying the panier.
+      if (dernierPret !== null) {
+        const pids = pidsAPayer(dernierPret.sf, dernierPret.described);
+        if (pids.length >= 2) {
+          window.location.href = `${signedHref(window.location.pathname, slug, '')}?panier=${encodeURIComponent(pids.join(','))}`;
+        }
       }
     } else if (action === 'ancre') {
       // NORTH-STAR round 3 — « Voir tout » is a SCROLL, not a page (the boutique

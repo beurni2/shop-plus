@@ -22,7 +22,7 @@
 import { fmtCoords, monterCarteVue } from '../geo-carte';
 import { applyTheme, type VitrineThemeKey } from '../vitrine/themes';
 import {
-  renderC1, renderC10, renderC3,
+  renderC1, renderC1Panier, renderC10, renderC3,
   renderQuartierChips, renderC4, renderC5, renderC6, renderC7, renderC8, renderC9,
   renderGalerie, renderGeoCarte, renderOffline, renderRefus, renderSheet, renderSkeleton, renderToasts,
   galerieSlides,
@@ -30,7 +30,7 @@ import {
   heroPhoto,
   etapeDeSuivi,
   splitFor, MERCI, MESSAGES, SUIVI_STEPS, VOIX,
-  type ClienteProduit, type ClienteQuote, type ConfirmEtat, type DoorEtat,
+  type ArticlePanierVue, type ClienteProduit, type ClienteQuote, type ConfirmEtat, type DoorEtat,
   type GeoEtat, type Livraison, type ModePaiement, type ModeSplit, type VoiceEtat,
 } from './screens';
 import { t, tf } from '../i18n';
@@ -125,6 +125,36 @@ export interface ClienteInit {
     readonly buyerRef: string | null;
     readonly etatCommande: (orderId: string) => Promise<OrderFetch>;
     readonly remise: (orderId: string, buyerRef: string) => Promise<RemiseFetch>;
+    /**
+     * PAYER-TOUT-1 — an article paid inside a panier pays its PRODUCT at its
+     * own door, from its own tracking: the holder that paid the panier is
+     * kept on the phone, so this re-entry CAN start a door payment, and
+     * « Je suis à la porte » is offered. Absent (a single re-entry) ⇒ withheld,
+     * exactly as before.
+     */
+    readonly payerALaPorte?: ((orderId: string, essai: number) => Promise<OrderFetch>) | undefined;
+    /** PAYER-TOUT-1 — what « C'est terminé » forgets on the phone: a panier
+     *  article's own line, never the single order's slot. Absent ⇒ the single
+     *  slot, as before. */
+    readonly oublier?: (() => void) | undefined;
+  } | undefined;
+  /**
+   * ═══ PAYER-TOUT-1 — THE PANIER, PAID AT ONCE (founder ruling 2026-09-22) ═══
+   *
+   * Present ⇒ this flow pays a whole panier in ONE payment. `quoteSource` is
+   * the panier's (panier-source.ts), so the address screen, the payment
+   * screen, the operator wait and the retry are this flow's own, unchanged.
+   * What differs is only what the panier has and one article has not: C1
+   * lists the articles, C4 lists their lines and counts the parcels, and C6
+   * lists each article's own order with its own « Suivre » — which hands
+   * that order to the host (`onSuivre`), because each article is tracked,
+   * delivered and paid at its door on its own.
+   */
+  readonly panier?: {
+    readonly articles: readonly ArticlePanierVue[];
+    readonly lignes: () => readonly { readonly nom: string; readonly produitFcfa: number }[];
+    readonly payes: () => readonly { readonly orderId: string; readonly buyerRef: string; readonly nom: string }[];
+    readonly onSuivre: (orderId: string, buyerRef: string, nom: string) => void;
   } | undefined;
   /** VRAI-SUIVI — after « C'est terminé » clears the stored order, the host
    *  decides where she lands (main.ts reloads onto the shell). */
@@ -225,6 +255,8 @@ interface FlowState {
   serverQuote: ClienteQuote | null;
   /** The refusal NAME currently on screen (server's word, or 'unreachable'). */
   refus: string | null;
+  /** PAYER-TOUT-1 — in a panier, the article the refusal on screen is about. */
+  refusArticle: string | null;
   /**
    * The live quote's handles: its expiry instant and its reservation. `reserve`
    * takes NO argument — the command id was minted once with the quote and is
@@ -507,6 +539,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
     diapo: 0,
     serverQuote: null,
     refus: null,
+    refusArticle: null,
     live: null,
     horlogeDouteuse: false,
     prixRafraichi: false,
@@ -550,6 +583,14 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
     init.suivi?.etatCommande ?? (state.live !== null ? state.live.etatCommande : null) ?? init.reprise?.etatCommande ?? null;
   const lireRemise = (): ((orderId: string, buyerRef: string) => Promise<RemiseFetch>) | null =>
     init.suivi?.remise ?? (state.live !== null ? state.live.remise : null) ?? init.reprise?.remise ?? null;
+  /**
+   * PAYER-TOUT-1 — WHO CAN START HER DOOR PAYMENT: the live checkout's handle,
+   * or a panier article's own (its re-entry carries the panier's holder).
+   * null = nobody can, and the door road is withheld — the single re-entry's
+   * standing law.
+   */
+  const porteHandle = (): ((orderId: string, essai: number) => Promise<OrderFetch>) | null =>
+    state.live !== null ? state.live.payerALaPorte : (init.suivi?.payerALaPorte ?? null);
 
   /**
    * THE ONE QUOTE EVERY SCREEN READS. The server's answer wins the moment it
@@ -1072,6 +1113,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
     state.paying = 'idle';
     // Landing on a screen ends the refusal that was standing in front of it.
     state.refus = null;
+    state.refusArticle = null;
     // Pixel order (§3): prefill FIRST, the explicit extra LAST — so a jump's
     // own resets (« Commander » → C3 vide · C4 → livraison non choisie) always
     // win over the prefill. Inverting this leaked the demo zone/repère into
@@ -1116,10 +1158,11 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
   function screenHtml(): string {
     // A NAMED REFUSAL OUTRANKS EVERY SCREEN. It is not an overlay and not a
     // toast: while it stands, there is no price, so no priced screen may draw.
-    if (state.refus !== null) return renderRefus(state.refus);
+    if (state.refus !== null) return renderRefus(state.refus, state.refusArticle ?? undefined);
     const q = quoteOrNull();
     switch (state.screen) {
       case 'C1':
+        if (init.panier !== undefined) return renderC1Panier({ shopName: m.shopName, articles: init.panier.articles });
         return renderC1(m, { epuise: state.stock === 'out', sansVoix: init.sansVoix ?? false, diapo: state.diapo });
       case 'C3':
         return renderC3(c3State());
@@ -1138,6 +1181,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
           // the one true sentence; the fallbacks above become unreachable
           // fiction on this road and must never paint.
           ...(init.livraisonListe !== undefined ? { livreChez: init.livraisonListe.nom } : {}),
+          ...(init.panier !== undefined ? { panier: { lignes: init.panier.lignes() } } : {}),
         });
       case 'C5':
         return q === null ? renderRefus('') : renderC5(m, q, {
@@ -1170,6 +1214,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
           // LISTE-MERCI — the creator's prénom alone; the number stays in
           // state and never enters the DOM.
           merci: state.merci !== null ? { nom: state.merci.nom } : undefined,
+          panier: init.panier !== undefined ? { articles: init.panier.payes() } : undefined,
         });
       case 'C7': {
         if (reel) {
@@ -1198,7 +1243,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
             // the door whenever the arrival fact lagged. Only `livree` still
             // closes the road: a delivered order has no code left to give.
             voirCode: !state.livree,
-            porte: state.live !== null,
+            porte: porteHandle() !== null,
             relance: state.suiviRelance,
             horsPortee: state.suiviHorsPortee,
             terminee: state.livree && !state.termineeVue,
@@ -1207,16 +1252,19 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
         return renderC7({ step: state.step, problem: state.problem, demo });
       }
       case 'C8':
-        return q === null ? renderRefus('') : renderC8(m, q, {
+        // PAYER-TOUT-1 — a panier article's tracking has no quote, and needs
+        // none: what she owes at this door is her ORDER's own amount, as the
+        // server last carried it.
+        return q === null && porteHandle() === null ? renderRefus('') : renderC8(m, q, {
           door: state.door,
           pay: state.pay ?? 'B',
           reason: state.reason,
           // THE SERVER'S SPLIT for her chosen mode, or NO figure at all. Same
           // rule as C6's amount clause: `undefined` is a state with no amount,
           // never a state with a fallback one.
-          duAlaPorte: state.pay === null
-            ? undefined
-            : splitFor(q, state.delivery ?? 'today', state.pay)?.dueAtDelivery,
+          duAlaPorte: state.pay !== null && q !== null
+            ? splitFor(q, state.delivery ?? 'today', state.pay)?.dueAtDelivery
+            : state.montants?.dueAtDelivery,
         });
       case 'C10':
         // The end of the road. It takes no state: everything it says is true of
@@ -1294,6 +1342,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
     state.loading = false;
     if (fetched.status !== 'ready') {
       state.refus = nomDuRefus(fetched);
+      state.refusArticle = fetched.status === 'refused' ? (fetched.article ?? null) : null;
       render();
       return;
     }
@@ -1488,12 +1537,12 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
    * `revelationPermise` let C9 exist.
    */
   function payerALaPorte(gen: number): void {
-    const live = state.live;
+    const payer = porteHandle();
     const id = state.orderId;
-    if (live === null || id === null) return;
+    if (payer === null || id === null) return;
     state.door = 'accepted';
     render();
-    void live.payerALaPorte(id, state.essaiPorte).then((r) => {
+    void payer(id, state.essaiPorte).then((r) => {
       if (gen !== generation) return;
       if (r.status !== 'order') {
         // The service refused to start the collection, or we could not read the
@@ -1518,9 +1567,9 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
    * money owed and nothing claimed — never on a drop code.
    */
   function suivreLaPorte(orderId: string, gen: number, etape: number): void {
-    const live = state.live;
-    if (live === null) return;
-    void live.etatCommande(orderId).then((r) => {
+    const lire = lireCommande();
+    if (lire === null) return;
+    void lire(orderId).then((r) => {
       if (gen !== generation) return;
       if (r.status === 'order') {
         state.doorLeg = r.order.doorLeg ?? null;
@@ -1782,6 +1831,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
         // order path we did not get through.
         state.paying = 'idle';
         state.refus = nomDuRefus(r);
+        state.refusArticle = r.status === 'refused' ? (r.article ?? null) : null;
         render();
         return;
       }
@@ -2398,6 +2448,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
             if (r.status !== 'reserved') {
               state.paying = 'idle';
               state.refus = nomDuRefus(r);
+              state.refusArticle = r.status === 'refused' ? (r.article ?? null) : null;
               render();
               return;
             }
@@ -2508,6 +2559,15 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
         // manual check).
         demarrerSuivi();
         return;
+      // PAYER-TOUT-1 — one article of the paid panier: its own order, its own
+      // tracking, handed to the host with her read token (never through the DOM).
+      case 'suivre-article': {
+        const orderId = el.getAttribute('data-order') ?? '';
+        const paye = init.panier?.payes().find((p) => p.orderId === orderId);
+        if (paye === undefined || state.confirmState !== 'confirmed') return;
+        init.panier?.onSuivre(paye.orderId, paye.buyerRef, paye.nom);
+        return;
+      }
       case 'simuler':
         // BELT AND BRACES on the renderer's own omission: the simulation must
         // never advance a REAL order's timeline, even if something emits the
@@ -2525,7 +2585,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
         // code » takes her to the DOOR — the SAME screen « Je suis à la porte »
         // opens — where she pays and the code reveals on confirmation. Full
         // prepay and an already-paid door keep the direct reveal below.
-        if (state.live !== null && state.confirmState === 'confirmed' && state.doorLeg === 'due') {
+        if (porteHandle() !== null && state.confirmState === 'confirmed' && state.doorLeg === 'due') {
           jump('C8', { door: 'inspecting', leg2: 'idle', reason: null });
           return;
         }
@@ -2578,7 +2638,8 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
       case 'suivi-terminer': {
         // « Terminer » — the phone forgets the finished order. The order itself
         // lives on the service; only the shortcut goes away.
-        oublierCommande(localStorageOrUndefined());
+        if (init.suivi?.oublier !== undefined) init.suivi.oublier();
+        else oublierCommande(localStorageOrUndefined());
         state.termineeVue = true;
         if (init.onTerminee !== undefined) {
           // A host that wants to own the ending gets it (the shell uses this to
@@ -2642,8 +2703,8 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
         // The order must exist and be confirmed before anything at the door
         // happens at all. Then: money owed ⇒ COLLECT IT; nothing owed ⇒ the
         // reveal, still behind `revelationPermise`.
-        if (state.live !== null && state.confirmState !== 'confirmed') return;
-        if (state.live !== null && state.doorLeg === 'due') {
+        if (porteHandle() !== null && state.confirmState !== 'confirmed') return;
+        if (porteHandle() !== null && state.doorLeg === 'due') {
           payerALaPorte(generation);
           return;
         }
@@ -2668,7 +2729,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
       // retry works. The provider key belongs to the LEG and is reused, so a
       // retry cannot collect twice.
       case 'reessayer-porte':
-        if (state.live === null || state.orderId === null) return;
+        if (porteHandle() === null || state.orderId === null) return;
         clearT();
         state.essaiPorte += 1;
         payerALaPorte(generation);

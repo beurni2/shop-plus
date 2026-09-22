@@ -90,6 +90,13 @@ class_name = "WishlistDO"
 name = "DLQ"
 class_name = "DeadLetterDO"
 
+# PAYER-TOUT-1 — one instance per grouped payment (`grp-…`, derived from its
+# set of quotes): the buyer's boutique panier paid in one collection, each
+# article still its own order. Same UNPROVEN-UNTIL-DEPLOY caveat as the header.
+[[durable_objects.bindings]]
+name = "PAYMENT_GROUP"
+class_name = "PaymentGroupDO"
+
 # FIRST-DEPLOY MIGRATION — create both DO classes. `new_sqlite_classes` is CORRECT
 # AND MANDATORY, not a coin-flip: Cloudflare stopped issuing key-value-backed DO
 # namespaces (changelog 2026-07-09) to any account without a pre-existing one, and
@@ -164,6 +171,13 @@ new_sqlite_classes = ["WishlistDO"]
 [[migrations]]
 tag = "v10"
 new_sqlite_classes = ["DeadLetterDO"]
+
+# PAYER-TOUT-1 — PaymentGroupDO on its OWN tag, the append-only law every tag
+# above states. Same UNPROVEN-UNTIL-DEPLOY caveat: Miniflare binds this class
+# from its own test config, never from this file.
+[[migrations]]
+tag = "v11"
+new_sqlite_classes = ["PaymentGroupDO"]
 
 # The PRIVATE R2 bucket (exists: Standard, jurisdiction default, location hint
 # ENAM). Reads go THROUGH the Worker (GET /media/{key}); never a public custom

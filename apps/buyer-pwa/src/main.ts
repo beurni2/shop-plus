@@ -41,6 +41,9 @@ function monterCliente(...args: Parameters<typeof createCliente>): void {
 import { clienteProduit, clienteProduitReel, composeQuote, harnessFrancs } from './cliente/seed';
 import { commandIdFor, commandeGardee, forgetRequestKey, localStorageOrUndefined, orderCommandIdFor, requestKeyFor, resolveQuotePort, villeDe } from './cliente/quote-port';
 import { SUIVI } from './cliente/screens';
+import { monterMesArticles, monterPanier } from './cliente/panier-montage';
+import { panierPaye } from './cliente/panier-port';
+import { t } from './i18n';
 import { fetchClienteQuote, MODES_WIRE, type QuoteBase, type QuoteFetch } from './cliente/quote-model';
 import { LISTE_TOKEN, resolveListePort } from './vitrine/liste';
 import { productFromSeed, seedProduct } from './vitrine/catalog';
@@ -725,6 +728,47 @@ if (app) {
       // render-only from there. « Voir la boutique › » navigates to her full
       // vitrine at the canon `/v/{slug}` (base-aware), the FROZEN attribution
       // seam — arrival locked to her above.
+      /**
+       * ═══ PAYER-TOUT-1 — `?panier=pid,pid,…`: HER PANIER, PAID AT ONCE ═══
+       * (founder ruling 2026-09-22). The boutique's band sends the in-stock
+       * articles she kept; each pid resolves exactly as a single product does
+       * (described wins, seed is the offline fallback). Fewer than two left
+       * to pay — sold out since, or a mangled link — is not a panier: she
+       * lands on her boutique, where the band tells the truth.
+       */
+      const panierParam = params.get('panier');
+      if (panierParam !== null) {
+        const pids = [...new Set(panierParam.split(',').filter((p) => p !== ''))];
+        const produits = pids
+          .map((p) => resolved.products?.find((x) => x.pid === p) ?? (seedProduct(p) ? productFromSeed(seedProduct(p)!) : undefined))
+          .filter((p): p is NonNullable<typeof p> => p !== undefined && p.inStock);
+        if (produits.length < 2 || produits.length > 10) {
+          mountVitrine(app as HTMLElement, signedSlug);
+          return;
+        }
+        const main = document.createElement('main');
+        app.append(main);
+        monterPanier(main, {
+          monter: monterCliente,
+          boutique: {
+            name: resolved.storefront.name,
+            slug: signedSlug,
+            zone: resolved.storefront.zone,
+            resellerId: resolved.storefront.resellerId,
+          },
+          articles: produits.map((p) => {
+            const photo = p.assetRefs.find((r) => r !== '');
+            return { pid: p.pid, nom: p.name, prixFcfa: p.priceFcfa, ...(photo !== undefined ? { photo } : {}) };
+          }),
+          session: sessionStorageOrUndefined(),
+          garde: localStorageOrUndefined(),
+          onVitrine: (slug) => {
+            window.location.href = vitrineHref(window.location.pathname, slug);
+          },
+          onTerminee: () => window.location.reload(),
+        });
+        return;
+      }
       const defaultPid = resolved.storefront.curatedItems[0] ?? 'p1';
       const pid = params.get('pid') || defaultPid;
       // BUYER-LIVE-WIRE-4 — THE PRODUCT PAGE READS WHAT THE SERVICE DESCRIBED,
@@ -1097,6 +1141,38 @@ if (app) {
     // which is where it always rendered. `prepend` keeps that position without
     // depending on any other element existing.
     app.prepend(suiviBtn);
+  }
+
+  /**
+   * PAYER-TOUT-1 — « MES ARTICLES PAYÉS ENSEMBLE », the same quiet band for a
+   * panier paid at once: it reopens the list, and each article's own tracking
+   * from there. Built with `textContent`, like its neighbour.
+   */
+  const panierGarde = clienteDemo === null ? panierPaye(localStorageOrUndefined()) : undefined;
+  if (panierGarde !== undefined) {
+    const paye = panierGarde;
+    const btn = document.createElement('button');
+    btn.className = 'ma-commande';
+    btn.setAttribute('data-role', 'mes-articles');
+    const label = document.createElement('span');
+    label.textContent = t('cl.panier.reentree');
+    const compte = document.createElement('span');
+    compte.className = 'ma-commande-ref';
+    compte.textContent = String(paye.articles.length);
+    btn.append(label, compte);
+    btn.addEventListener('click', () => {
+      for (const child of Array.from(app.children)) child.remove();
+      const main = document.createElement('main');
+      app.append(main);
+      monterMesArticles(main, {
+        monter: monterCliente,
+        paye,
+        session: sessionStorageOrUndefined(),
+        garde: localStorageOrUndefined(),
+        onTerminee: () => window.location.reload(),
+      });
+    });
+    app.prepend(btn);
   }
 }
 

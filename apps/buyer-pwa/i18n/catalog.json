@@ -3322,5 +3322,83 @@
   "fr": "{titre} — {duree} (démo)",
   "register": "neutral",
   "screenClass": "label"
+ },
+ {
+  "key": "cl.panier.titre",
+  "fr": "Votre panier · {n} articles",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.panier.un_paiement",
+  "fr": "Un seul paiement pour tout le panier.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.panier.colis_a_part",
+  "fr": "Chaque article a son colis, vérifié et scellé par Séra.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.panier.livraisons",
+  "fr": "{n} livraisons par Séra",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.panier.refus_overline",
+  "fr": "Un article manque",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.panier.refus_titre",
+  "fr": "{nom} n’est plus disponible.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.panier.refus_phrase",
+  "fr": "Retirez-le du panier pour payer le reste. Rien n’a été payé.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.panier.refus_action",
+  "fr": "Revenir au panier",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.panier.confirme_titre",
+  "fr": "Vos commandes sont enregistrées.",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.panier.commandes",
+  "fr": "{n} commandes, une par article",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.panier.suivre",
+  "fr": "Suivre",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.panier.reentree",
+  "fr": "Mes articles payés ensemble",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "vit.panier_payer_tout",
+  "fr": "Payer les {n} articles ensemble",
+  "register": "selling",
+  "screenClass": "label"
  }
 ]

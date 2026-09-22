@@ -33,7 +33,7 @@
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
-    "@platform/contracts": "git+https://github.com/beurni2/platform-contracts.git#d1aa3612927e117b17654eda3cdb7aec206b09d0&path:packages/contracts",
+    "@platform/contracts": "git+https://github.com/beurni2/platform-contracts.git#73da9277650bc6ed8f9f6f80b5c7043dc95c397b&path:packages/contracts",
     "@platform/i18n": "git+https://github.com/beurni2/platform-contracts.git#a418ca4ba5521d3f50ccf7c8abb538525a6ecc32&path:packages/i18n",
     "@shop-plus/commerce-core": "workspace:*",
     "@types/react": "~19.2.2",

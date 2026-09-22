@@ -1004,6 +1004,12 @@ export interface C4State {
    * `?demo-cliente=` harness still drives off the composed mock quote.
    */
   readonly ligneUnique?: boolean | undefined;
+  /**
+   * PAYER-TOUT-1 — the panier's récap: each article with its own product
+   * price (read off ITS quote), and the delivery line counts the parcels —
+   * one per article — at the service's summed fee.
+   */
+  readonly panier?: { readonly lignes: readonly { readonly nom: string; readonly produitFcfa: number }[] } | undefined;
 }
 
 export function renderC4(q: ClienteQuote, s: C4State): string {
@@ -1023,7 +1029,7 @@ export function renderC4(q: ClienteQuote, s: C4State): string {
     '<div class="cl-opt cl-course" data-role="livraison-unique">',
     '<div class="cl-course-fil"></div>',
     '<div class="cl-course-corps">',
-    `<div class="cl-opt-row"><span class="cl-course-ic">${iconScooter(20, 1.8)}</span><span class="cl-course-col"><span class="cl-opt-title">${t('cl.c4.livraison_par_sera')}</span><span class="cl-opt-fee">${fmtFCFA(q.feeToday)}</span></span></div>`,
+    `<div class="cl-opt-row"><span class="cl-course-ic">${iconScooter(20, 1.8)}</span><span class="cl-course-col"><span class="cl-opt-title">${s.panier !== undefined ? tf('cl.panier.livraisons', { n: String(s.panier.lignes.length) }) : t('cl.c4.livraison_par_sera')}</span><span class="cl-opt-fee">${fmtFCFA(q.feeToday)}</span></span></div>`,
     `<div class="cl-opt-sub">${t('cl.c4.verifie_scelle')}</div>`,
     `<div class="cl-course-preuves"><span class="cl-preuve">${iconCheck(12, 3)}${t('cl.c4.preuve_verifie')}</span><span class="cl-preuve">${iconCheck(12, 3)}${t('cl.c4.preuve_scelle')}</span><span class="cl-preuve">${iconCheck(12, 3)}${t('cl.c4.preuve_livre')}</span></div>`,
     '</div>',
@@ -1055,6 +1061,7 @@ export function renderC4(q: ClienteQuote, s: C4State): string {
           ].join(''),
     '</div>',
     `<div class="cl-law">${t('cl.c4.loi')}</div>`,
+    s.panier !== undefined ? renderLignesPanier(s.panier.lignes) : '',
     s.ligneUnique === true ? ligne : options.map((o) => {
       const on = s.delivery === o.k;
       return [
@@ -1675,8 +1682,35 @@ export function refusVue(reason: string): RefusVue {
   return REFUS[reason] ?? REFUS_GENERIQUE;
 }
 
-export function renderRefus(reason: string): string {
-  const v = refusVue(reason);
+/**
+ * PAYER-TOUT-1 — the refusals that mean « this ARTICLE cannot be bought now »:
+ * in a panier they name it, and the way out is to take it off the panier and
+ * pay the rest. Every other refusal keeps its own sentence.
+ */
+const REFUS_ARTICLE = new Set([
+  'out_of_stock',
+  'product_unavailable',
+  'listing_unknown',
+  'listing_not_live',
+  'not_found',
+  'already_reserved',
+  'reservation_held_by_another',
+  'attribution_locked_elsewhere',
+]);
+
+export function refusVuePanier(reason: string, article: string | undefined): RefusVue {
+  if (article === undefined || !REFUS_ARTICLE.has(reason)) return refusVue(reason);
+  return {
+    overline: t('cl.panier.refus_overline'),
+    titre: tf('cl.panier.refus_titre', { nom: `<v>${esc(article)}</v>` }),
+    phrase: t('cl.panier.refus_phrase'),
+    action: 'voir-boutique',
+    libelle: t('cl.panier.refus_action'),
+  };
+}
+
+export function renderRefus(reason: string, article?: string): string {
+  const v = refusVuePanier(reason, article);
   return [
     `<div class="cl-screen" data-screen="REFUS" data-motif="${esc(reason)}">`,
     stepHead('retour-c3', t('cl.refus.titre_ecran')),
@@ -2128,10 +2162,24 @@ export function renderC6(
      * deliberately not here: it stays in flow state and never enters the DOM.
      */
     merci?: { nom: string } | undefined;
+    /**
+     * PAYER-TOUT-1 — the panier paid at once: each article is its own order,
+     * so the confirmation lists them, each with its own « Suivre ».
+     */
+    panier?: { articles: readonly { readonly orderId: string; readonly nom: string }[] } | undefined;
   },
 ): string {
   let body: string;
-  if (o.confirmState === 'confirmed') {
+  if (o.confirmState === 'confirmed' && o.panier !== undefined) {
+    body = [
+      '<div class="cl-conf" data-etat="confirmee">',
+      `<div class="cl-conf-disc">${iconCheck(36, 2.6)}</div>`,
+      `<div class="cl-conf-title">${t('cl.panier.confirme_titre')}</div>`,
+      `<div class="cl-conf-body">${o.paid === undefined ? t('cl.c6.paiement_confirme') : tf('cl.c6.paiement_confirme_montant', { X: `<b>${fmtFCFA(o.paid.paidNow)}</b>` })}</div>`,
+      '</div>',
+      renderSuiviPanier(o.panier.articles),
+    ].join('');
+  } else if (o.confirmState === 'confirmed') {
     // ONE BYTE, ONE SENTENCE. The amount clause exists only when the server
     // carried an amount for the mode she chose.
     body = [
@@ -2258,9 +2306,108 @@ export function renderC6(
      * she is waiting. « Vérifier à nouveau » appears in the body once the
      * automatic checks stop, and that is the only thing there is to offer.
      */
-    o.confirmState === 'confirmed'
+    o.confirmState === 'confirmed' && o.panier === undefined
       ? `<button class="cl-cta cl-cta-c6" data-action="suivre">${t('cl.c6.suivre')}</button>`
       : '',
+    `<div class="cl-footnote">${t('cl.chrome.numero_prive')}</div>`,
+    '</div>',
+  ].join('');
+}
+
+/* ------------------------------------------ PAYER-TOUT-1 — the panier ---- */
+
+/** One article of the panier, as the boutique showed it (name, signed price, photo). */
+export interface ArticlePanierVue {
+  readonly nom: string;
+  readonly prixFcfa: number;
+  /** The article's photo, already absolute; absent ⇒ the woven « sans photo ». */
+  readonly photo?: string | undefined;
+}
+
+/**
+ * THE PANIER'S FIRST SCREEN — what she is about to pay for, in one look: each
+ * article, and the two promises that make one payment calm (one payment, and
+ * each article still its own parcel, verified and sealed by Séra). One
+ * primary action. No total here: the service states it once the destination
+ * is known, like the single road's price.
+ */
+export function renderC1Panier(o: { readonly shopName: string; readonly articles: readonly ArticlePanierVue[] }): string {
+  return [
+    '<div class="cl-screen cl-etape" data-screen="C1" data-panier="">',
+    stepHead('voir-boutique', tf('cl.panier.titre', { n: String(o.articles.length) })),
+    `<div class="cl-panier-boutique">${tf('cl.c1.vendu_par', { boutique: esc(o.shopName) })}</div>`,
+    '<div class="cl-panier-liste" data-role="panier-liste">',
+    o.articles
+      .map((a) =>
+        [
+          '<div class="cl-panier-ligne" data-role="panier-article">',
+          a.photo !== undefined && a.photo !== ''
+            ? `<img class="cl-panier-img" src="${esc(a.photo)}" alt="" loading="lazy" decoding="async">`
+            : '<div class="cl-panier-img cl-weave"></div>',
+          `<div class="cl-panier-nom"><v>${esc(a.nom)}</v></div>`,
+          `<div class="cl-panier-prix">${fmtFCFA(a.prixFcfa)}</div>`,
+          '</div>',
+        ].join(''),
+      )
+      .join(''),
+    '</div>',
+    '<div class="cl-trust">',
+    `<div class="cl-trust-row"><span class="cl-trust-ic">${iconShieldCheck(17, 1.8)}</span><span class="cl-trust-txt">${t('cl.panier.un_paiement')}</span></div>`,
+    `<div class="cl-trust-row"><span class="cl-trust-ic">${iconScooter(17, 1.8)}</span><span class="cl-trust-txt">${t('cl.panier.colis_a_part')}</span></div>`,
+    '</div>',
+    `<button class="cl-cta cl-cta-c1" data-action="commander">${t('cl.chrome.continuer')}</button>`,
+    `<div class="cl-footnote">${t('cl.chrome.numero_prive')}</div>`,
+    '</div>',
+  ].join('');
+}
+
+/** The récap's article lines: each article's own product price, from its own quote. */
+function renderLignesPanier(lignes: readonly { readonly nom: string; readonly produitFcfa: number }[]): string {
+  return [
+    '<div class="cl-panier-recap" data-role="panier-recap">',
+    lignes
+      .map(
+        (l) =>
+          `<div class="cl-panier-recap-ligne"><span class="cl-panier-nom"><v>${esc(l.nom)}</v></span><span class="cl-panier-prix">${fmtFCFA(l.produitFcfa)}</span></div>`,
+      )
+      .join(''),
+    '</div>',
+  ].join('');
+}
+
+/**
+ * EACH ARTICLE'S OWN ORDER, EACH WITH ITS OWN « SUIVRE » — on the panier's
+ * confirmation and on « Mes articles » after a reload: one list, two places.
+ * Only the order id rides the button; her read token stays in memory.
+ */
+export function renderSuiviPanier(articles: readonly { readonly orderId: string; readonly nom: string }[]): string {
+  return [
+    '<div class="cl-panier-suivi" data-role="panier-suivi">',
+    `<div class="cl-panier-suivi-titre">${tf('cl.panier.commandes', { n: String(articles.length) })}</div>`,
+    articles
+      .map((a) =>
+        [
+          '<div class="cl-panier-ligne" data-role="panier-commande">',
+          `<div class="cl-panier-nom"><v>${esc(a.nom)}</v></div>`,
+          `<button class="cl-panier-suivre" data-action="suivre-article" data-order="${esc(a.orderId)}">${t('cl.panier.suivre')}</button>`,
+          '</div>',
+        ].join(''),
+      )
+      .join(''),
+    `<div class="cl-panier-suivi-note">${t('cl.panier.colis_a_part')}</div>`,
+    '</div>',
+  ].join('');
+}
+
+/**
+ * « MES ARTICLES PAYÉS ENSEMBLE » — the way back to each article's tracking
+ * after the tab died: the same list the confirmation shows, nothing more.
+ */
+export function renderMesArticles(articles: readonly { readonly orderId: string; readonly nom: string }[]): string {
+  return [
+    '<div class="cl-screen" data-screen="MES-ARTICLES">',
+    `<div class="cl-stephead"><div class="cl-steptitle">${t('cl.panier.reentree')}</div></div>`,
+    renderSuiviPanier(articles),
     `<div class="cl-footnote">${t('cl.chrome.numero_prive')}</div>`,
     '</div>',
   ].join('');
@@ -2382,7 +2529,7 @@ export interface C8State {
   readonly duAlaPorte?: number | undefined;
 }
 
-export function renderC8(m: ClienteProduit, q: ClienteQuote, s: C8State): string {
+export function renderC8(m: ClienteProduit, _q: ClienteQuote | null, s: C8State): string {
   // THE SERVER'S OWN BYTE for what is owed at the door, never `produitFcfa`
   // re-read as if the two were the same thing. They are equal by §5.5 today;
   // the day a mode splits differently, this screen must follow the split.

@@ -3,6 +3,8 @@ import { decodeSur } from '../src/decode-sur.js';
 import lstRouter, { ListingDO } from './listing-do.js';
 import checkoutRouter, { CheckoutDO } from './checkout-do.js';
 import orderRouter, { OrderDO, televerserNoteVocale } from './order-do.js';
+import { PaymentGroupDO, groupRouter } from './payment-group-do.js';
+import { isGroupId } from '../src/payment-group-core.js';
 import {
   FulfillmentAcceptedEventSchema,
   FulfillmentReadyEventSchema,
@@ -62,7 +64,7 @@ const PAGE_DISPATCH = 40;
  *
  * wrangler binds these two classes by their exported names.
  */
-export { StorefrontDO, ListingDO, CheckoutDO, OrderDO, DispatchIndexDO, ResellerFeedDO, BuyerLadderDO, ResellerAccountsDO, WishlistDO, DeadLetterDO };
+export { StorefrontDO, ListingDO, CheckoutDO, OrderDO, DispatchIndexDO, ResellerFeedDO, BuyerLadderDO, ResellerAccountsDO, WishlistDO, DeadLetterDO, PaymentGroupDO };
 /**
  * C1/C2 (audit) — the DURABLE attribution-lock authority (SP-I09b.3
  * first-lock-wins), deployed by joining THIS combined Worker like every other
@@ -107,6 +109,11 @@ interface Env extends WriteAuthEnv {
    *  WISHLIST: absent ⇒ the webhook door answers its named refusals and parks
    *  nothing; present (wrangler.toml, migration v10) ⇒ poison is kept byte-exact. */
   DLQ?: DurableObjectNamespace;
+  /** PAYER-TOUT-1 — one instance per grouped payment (`grp-…`, derived from its
+   *  set of quotes). OPTIONAL like DLQ: absent ⇒ the group doors answer a named
+   *  503 and a group webhook is an unknown order; present (migration v11) ⇒ a
+   *  buyer can pay her boutique panier at once. */
+  PAYMENT_GROUP?: DurableObjectNamespace;
   /** SP3.3a — the certified sandbox provider's behaviour knobs. UNSET on the
    *  deploy (the well-behaved provider); read by OrderDO, never by a route. */
   PAYMENT_SANDBOX_BEHAVIOR?: string;
@@ -190,7 +197,8 @@ const CORPS_MAX_MEDIA = IMAGE_MAX_BYTES + 64 * 1024;
 
 function corpsMaxPour(pathname: string): number {
   if (pathname === '/media/upload') return CORPS_MAX_MEDIA;
-  if (pathname === '/checkout/order' || pathname === '/listes') return CORPS_MAX_NOTE;
+  // PAYER-TOUT-1 — the grouped payment carries the same one voice note.
+  if (pathname === '/checkout/order' || pathname === '/checkout/group' || pathname === '/listes') return CORPS_MAX_NOTE;
   // The two money webhooks are secret-gated, never anonymous, and the spine's
   // own bounded-envelope law (a megabyte `command_id` is refused BY NAME,
   // `malformed_payload`, pinned in order-do.e2e and porte-custody.e2e) must
@@ -252,7 +260,7 @@ export default {
     // in src/limite.ts and wrangler.toml.
     if (
       request.method === 'POST' &&
-      (pathname === '/checkout/quote' || pathname === '/checkout/order' || pathname === '/listes') &&
+      (pathname === '/checkout/quote' || pathname === '/checkout/order' || pathname === '/checkout/group' || pathname === '/listes') &&
       !(await admis(env.LIMITE_CREATIONS, request))
     ) {
       return withReadCors(refusLimite());
@@ -523,6 +531,50 @@ export default {
       });
       if (createSource !== undefined && answered.status === 200) {
         await mirrorDispatchRow(env, createSource);
+      }
+      return withReadCors(answered);
+    }
+
+    /**
+     * ═══ PAYER-TOUT-1 — THE GROUPED PAYMENT'S THREE DOORS (founder ruling
+     *     2026-09-22, « 1 then 2 ») ═══
+     *
+     * PUBLIC on the order doors' EXACT terms, and matched exactly like them:
+     * two `===` and one anchored single-segment regex. What that does NOT open:
+     *   · NO AMOUNT CAN ARRIVE — both bodies are allowlists with no money
+     *     field; the total is the server's sum of each quote's own figure.
+     *   · NO ECONOMICS CAN LEAVE — the price answer is four totals of figures
+     *     each article's quote view already shows her; the pay and read
+     *     answers are each order's own projection, built inside the order.
+     *   · IT CANNOT DECLARE MONEY RECEIVED — it asks the provider for one
+     *     collection; only the secret-gated webhook confirms, and every order
+     *     judges that confirmation in the vault against its own records.
+     * The pay door shares the anonymous create ceiling (above) and the voice
+     * note's body cap; a read never spends either.
+     */
+    const isGroupPay = pathname === '/checkout/group';
+    const isGroupPrice = pathname === '/checkout/group/price';
+    const isGroupById = /^\/checkout\/group\/[^/]+$/.test(pathname) && !isGroupPrice;
+    if (request.method === 'OPTIONS' && (isGroupPay || isGroupPrice || isGroupById)) {
+      return checkoutPreflight();
+    }
+    if (
+      (request.method === 'POST' && (isGroupPay || isGroupPrice)) ||
+      (request.method === 'GET' && isGroupById)
+    ) {
+      if (env.PAYMENT_GROUP === undefined) {
+        return withReadCors(Response.json({ error: 'paiement_groupe_indisponible' }, { status: 503 }));
+      }
+      const answered = await groupRouter.fetch(request, {
+        CHECKOUT: env.CHECKOUT,
+        PAYMENT_GROUP: env.PAYMENT_GROUP,
+        LADDER: env.LADDER,
+      });
+      // BC-1a — every order the payment created enters the dispatch index at
+      // this same moment, like a single order at its create.
+      if (isGroupPay && answered.status === 200) {
+        const body = (await answered.clone().json().catch(() => null)) as { articles?: { orderId?: unknown }[] } | null;
+        await mirrorDispatchRows(env, (body?.articles ?? []).map((a) => a.orderId));
       }
       return withReadCors(answered);
     }
@@ -1649,7 +1701,13 @@ export default {
      */
     if (request.method === 'GET' && /^\/checkout\/webhook\/leg-key\//.test(pathname)) {
       if (!(await paymentWebhookAuthorized(request, env))) return unauthorized();
-      return orderRouter.fetch(request, { ORDER: env.ORDER, CHECKOUT: env.CHECKOUT, LADDER: env.LADDER });
+      return orderRouter.fetch(request, {
+        ORDER: env.ORDER,
+        CHECKOUT: env.CHECKOUT,
+        LADDER: env.LADDER,
+        // PAYER-TOUT-1 — a group id's key is its group's.
+        ...(env.PAYMENT_GROUP !== undefined ? { PAYMENT_GROUP: env.PAYMENT_GROUP } : {}),
+      });
     }
     if (
       request.method === 'POST' &&
@@ -1666,6 +1724,8 @@ export default {
         // RESERVATION-REGLE-1 — the parked-poison book, handed to THIS road
         // only: the webhook door is the one consumer that parks what it refuses.
         ...(env.DLQ !== undefined ? { DLQ: env.DLQ } : {}),
+        // PAYER-TOUT-1 — a confirmation naming a group goes to its group.
+        ...(env.PAYMENT_GROUP !== undefined ? { PAYMENT_GROUP: env.PAYMENT_GROUP } : {}),
         // SP6.3 — the §6.4 ladder book, NAMED EXPLICITLY like its two
         // neighbours. This composition root hands each router the exact
         // bindings it may reach rather than the whole env, so a capability
@@ -2354,12 +2414,37 @@ async function mirrorDispatchRow(env: Env, source: Request): Promise<void> {
       if (typeof fromEvent === 'string' && fromEvent !== '') orderId = fromEvent;
     }
     if (orderId === undefined) return;
+    // PAYER-TOUT-1 — a confirmation naming a GROUP registers each of its
+    // orders: the index lists orders, never a payment.
+    if (isGroupId(orderId)) {
+      if (env.PAYMENT_GROUP === undefined) return;
+      const res = await env.PAYMENT_GROUP.get(env.PAYMENT_GROUP.idFromName(orderId)).fetch(
+        new Request('https://do/entry/parts'),
+      );
+      const parts = (await res.json().catch(() => null)) as { orderIds?: unknown[] } | null;
+      await mirrorDispatchRows(env, parts?.orderIds ?? []);
+      return;
+    }
     await env.DISPATCH.get(env.DISPATCH.idFromName(DISPATCH_INDEX_NAME)).fetch(
       new Request('https://do/register', { method: 'POST', body: JSON.stringify({ orderId }) }),
     );
   } catch {
     // Swallowed on purpose — see above. Nothing downstream depends on this row
     // existing; the dispatch list self-repairs at the next webhook.
+  }
+}
+
+/** PAYER-TOUT-1 — the same best-effort registration, for every order of a grouped payment. */
+async function mirrorDispatchRows(env: Env, orderIds: readonly unknown[]): Promise<void> {
+  for (const orderId of orderIds) {
+    if (typeof orderId !== 'string' || orderId === '' || isGroupId(orderId)) continue;
+    try {
+      await env.DISPATCH.get(env.DISPATCH.idFromName(DISPATCH_INDEX_NAME)).fetch(
+        new Request('https://do/register', { method: 'POST', body: JSON.stringify({ orderId }) }),
+      );
+    } catch {
+      // Swallowed on purpose, like its single twin: the next webhook repairs.
+    }
   }
 }
 

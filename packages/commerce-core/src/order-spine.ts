@@ -94,6 +94,13 @@ export type SpineRefusalReason =
    * real aggregator retries forever. Named and refused 422 instead.
    */
   | 'malformed_payload'
+  /**
+   * PAYER-TOUT-1 — this order's own share in the grouped payment disagrees
+   * with its own immutable Quote, or the order is not among the group's
+   * parts. Both are local records contradicting each other, never provider
+   * truth; refused before a franc is recorded.
+   */
+  | 'group_share_mismatch'
   /** RELATED-PARTY-1 (§6.5) — the appeal and the ruling, refused by name. */
   | 'nothing_to_contest'
   | 'already_contested'
@@ -181,6 +188,20 @@ function escrowPayloadMalformed(p: Record<string, unknown>): boolean {
   if (fee === undefined || fee === null) return false;
   if (typeof fee !== 'number') return true;
   return !(Number.isSafeInteger(fee) && fee >= 0);
+}
+
+/**
+ * PAYER-TOUT-1 (founder ruling 2026-09-22) — the grouped payment this order
+ * belongs to, as the order's own durable origin recorded it at birth: ONE
+ * provider collection for several orders of one boutique, each order keeping
+ * its own quote, leg, custody and refund. `parts` lists every order of the
+ * group with its checkout-leg amount, ordered by orderId; `correlationId` is
+ * the group's, the one the provider was charged under.
+ */
+export interface GroupPaymentShares {
+  readonly groupId: string;
+  readonly correlationId: string;
+  readonly parts: readonly { readonly orderId: string; readonly amount: number }[];
 }
 
 export class OrderSpine {
@@ -531,6 +552,167 @@ export class OrderSpine {
   }
 
   /**
+   * PAYER-TOUT-1 — the provider's confirmation of a GROUPED checkout
+   * collection: one charge, under the group's own correlation and provider
+   * key, covering the checkout leg of every order in `groupe.parts`. The same
+   * webhook is handed to each order of the group; each order judges it here
+   * against its OWN records and funds its OWN leg only.
+   *
+   * The checks are the single-order twin's, re-aimed at the group: canon
+   * envelope, event name, the GROUP's correlation, idempotency on command_id,
+   * `payment_pending`, the group's provider key, a payload `order_id` that may
+   * only name the group, the provider amount equal TO THE FRANC to the sum of
+   * the parts, this order among the parts with a share equal to its own
+   * Quote's `amountPaidAtCheckout`, a funded status. The escrow records this
+   * order's share — copied from the immutable Quote, which is proven to be
+   * one term of a total the provider itself stated.
+   *
+   * THE FEE (⏳ aggregator Decision, Build Spec §12 — safest default, flagged):
+   * the provider states ONE fee for the one collection. It is copied whole
+   * onto the first part (by orderId) and 0 onto the others, so the group's
+   * records carry exactly the provider's figure once — never N times, never
+   * a split this vault would have to invent.
+   */
+  onGroupProviderPaymentEvent(
+    raw: unknown,
+    expectedProviderKey: string | null,
+    groupe: GroupPaymentShares,
+  ): SpineOutcome {
+    const parsed = PlatformEventSchema.safeParse(raw);
+    if (!parsed.success) return { applied: false, reason: 'not_a_platform_event' };
+    const event = parsed.data;
+    if (event.name !== 'payment.checkout_leg_confirmed.v1') {
+      return { applied: false, reason: 'unexpected_event_name' };
+    }
+    if (event.envelope.correlation_id !== groupe.correlationId) {
+      return { applied: false, reason: 'wrong_correlation' };
+    }
+    if (this.processedCommandIds.has(event.envelope.command_id)) {
+      return { applied: true, duplicate: true };
+    }
+    if (this.journeyState.state !== 'payment_pending' || this.orderId === undefined) {
+      // The twin's two Contract-§6 alerts, same conditions, the group's ids.
+      const late = event.payload as Record<string, unknown>;
+      if (
+        (this.journeyState.state === 'payment_failed' || this.journeyState.state === 'cancelled') &&
+        this.paymentFailure !== undefined &&
+        this.checkGroupWebhookIds(late, expectedProviderKey, groupe) === null
+      ) {
+        return {
+          applied: false,
+          reason: 'out_of_order',
+          alert: this.reconAlert('genuine_webhook_after_local_failure', event, {
+            leg: 'checkout',
+            group_id: groupe.groupId,
+            local_state: this.journeyState.state,
+            local_failure_reason: this.paymentFailure.reason,
+            local_failure_at: this.paymentFailure.at,
+            provider_amount: typeof late['amount'] === 'number' ? late['amount'] : null,
+          }),
+        };
+      }
+      if (
+        (this.journeyState.state === 'paid' || this.journeyState.state === 'confirmed') &&
+        this.checkGroupWebhookIds(late, expectedProviderKey, groupe) === null
+      ) {
+        return {
+          applied: false,
+          reason: 'out_of_order',
+          alert: this.reconAlert('conflicting_provider_confirmation', event, {
+            leg: 'checkout',
+            group_id: groupe.groupId,
+            local_state: this.journeyState.state,
+          }),
+        };
+      }
+      return { applied: false, reason: 'out_of_order' };
+    }
+
+    const p = event.payload as Record<string, unknown>;
+    const idCheck = this.checkGroupWebhookIds(p, expectedProviderKey, groupe);
+    if (idCheck !== null) {
+      return {
+        applied: false,
+        reason: idCheck,
+        alert: this.reconAlert('webhook_names_foreign_charge', event, {
+          leg: 'checkout',
+          group_id: groupe.groupId,
+          refusal: idCheck,
+          payload_attempt_id: typeof p['payment_attempt_id'] === 'string' ? p['payment_attempt_id'] : null,
+          payload_order_id: typeof p['order_id'] === 'string' ? p['order_id'] : null,
+        }),
+      };
+    }
+
+    const own = groupe.parts.find((part) => part.orderId === this.orderId);
+    if (own === undefined || own.amount !== this.quote.amountPaidAtCheckout) {
+      return { applied: false, reason: 'group_share_mismatch' };
+    }
+    let total = 0;
+    for (const part of groupe.parts) {
+      if (!Number.isSafeInteger(part.amount) || part.amount <= 0) {
+        return { applied: false, reason: 'group_share_mismatch' };
+      }
+      total += part.amount;
+    }
+    if (!Number.isSafeInteger(total)) return { applied: false, reason: 'group_share_mismatch' };
+
+    const amount = p['amount'];
+    const status = p['status'];
+    if (typeof amount !== 'number' || amount !== total) {
+      return {
+        applied: false,
+        reason: 'amount_mismatch',
+        alert: this.reconAlert('provider_amount_contradicts_quote', event, {
+          leg: 'checkout',
+          group_id: groupe.groupId,
+          provider_amount: typeof amount === 'number' ? amount : null,
+          expected_amount: total,
+        }),
+      };
+    }
+    if (status !== 'held' && status !== 'captured') {
+      return { applied: false, reason: 'unfunded_leg_status' };
+    }
+    if (escrowPayloadMalformed(p)) {
+      return { applied: false, reason: 'malformed_payload' };
+    }
+
+    const recorded = this.ledger.recordEscrowFromProvider({
+      orderId: this.orderId,
+      provider: String(p['provider'] ?? 'sandbox-provider'),
+      paymentAttemptId: String(p['payment_attempt_id'] ?? ''),
+      legType: 'checkout',
+      collectRef: String(p['collectRef'] ?? event.envelope.command_id),
+      // This order's share, copied from its immutable Quote — proven above to
+      // be its own part of the total the provider stated to the franc.
+      amount: this.quote.amountPaidAtCheckout,
+      fee: groupe.parts[0]?.orderId === this.orderId && typeof p['fee'] === 'number' ? p['fee'] : 0,
+      status,
+    });
+    if (!recorded.ok) {
+      return {
+        applied: false,
+        reason: recorded.reason,
+        alert: this.reconAlert('conflicting_provider_confirmation', event, {
+          leg: 'checkout',
+          group_id: groupe.groupId,
+          refusal: recorded.reason,
+        }),
+      };
+    }
+
+    const advanced = this.advance({
+      command_id: event.envelope.command_id,
+      actor: event.envelope.actor,
+      serverTime: event.envelope.serverTime,
+      to: 'paid',
+    });
+    if (!advanced.ok) return { applied: false, reason: 'out_of_order' };
+    return { applied: true, duplicate: false };
+  }
+
+  /**
    * Order confirmation — NO CONFIRMED ORDER WITHOUT FUNDED LEGS (SP3.2,
    * SP-I13). The runtime check inspects the recorded EscrowTxn: a checkout
    * leg with status held|captured covering amountPaidAtCheckout exactly.
@@ -717,6 +899,22 @@ export class OrderSpine {
     ) {
       return 'order_mismatch';
     }
+    return null;
+  }
+
+  /**
+   * PAYER-TOUT-1 — the grouped twin of `checkWebhookIds`: the key is the
+   * group's, and the payload's `order_id` — the merchant reference the
+   * provider was charged with — may only name the GROUP.
+   */
+  private checkGroupWebhookIds(
+    p: Record<string, unknown>,
+    expectedProviderKey: string | null,
+    groupe: GroupPaymentShares,
+  ): 'attempt_mismatch' | 'order_mismatch' | null {
+    if (p['payment_attempt_id'] !== expectedProviderKey) return 'attempt_mismatch';
+    const ref = p['order_id'];
+    if (typeof ref === 'string' && ref !== '' && ref !== groupe.groupId) return 'order_mismatch';
     return null;
   }
 

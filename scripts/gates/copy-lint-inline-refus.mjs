@@ -257,6 +257,14 @@ const ECRANS = {
   'cl.galerie.compteur': M('neutral', L(['{n}', '{total}'])), 'cl.galerie.suivante': M('neutral', L()),
   // the flow's spoken sentence
   'cl.flow.note_perdue': M('money', S()),
+  // PAYER-TOUT-1 — the panier paid at once: its C1 title and trust rows, C4's
+  // parcel count, the refusal that names the article, C6's list of orders,
+  // and the list that reopens each article's tracking.
+  'cl.panier.titre': M('selling', L(['{n}'])), 'cl.panier.un_paiement': M('money', S()), 'cl.panier.colis_a_part': M('money', S()),
+  'cl.panier.livraisons': M('money', L(['{n}'])), 'cl.panier.refus_overline': M('money', L()),
+  'cl.panier.refus_titre': M('money', S(['{nom}'])), 'cl.panier.refus_phrase': M('money', S()), 'cl.panier.refus_action': M('money', L()),
+  'cl.panier.confirme_titre': M('money', L()), 'cl.panier.commandes': M('money', L(['{n}'])), 'cl.panier.suivre': M('money', L()),
+  'cl.panier.reentree': M('money', L()),
 };
 
 /** Every pinned key, flattened: key → { register, screenClass, fills }. */

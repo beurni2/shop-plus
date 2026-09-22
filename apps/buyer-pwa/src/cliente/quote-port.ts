@@ -196,7 +196,7 @@ export type OrderOutcome =
   | { readonly status: 'order'; readonly order: ServerOrder }
   /** The server's own refusal name, verbatim — `quote_not_reserved`,
    *  `reservation_expired`, `reservation_held_by_another`, `quote_expired`… */
-  | { readonly status: 'refused'; readonly reason: string }
+  | { readonly status: 'refused'; readonly reason: string; readonly article?: string }
   | { readonly status: 'unreachable' }
   | { readonly status: 'unreadable' };
 
@@ -1025,11 +1025,16 @@ const KEY_PREFIX = 'sp-quote-key:';
  *  order. Identical to `checkout-do.ts`'s `fingerprint` set on purpose: if the
  *  two ever disagree the server answers `request_key_reused` 409, so this list
  *  is the client half of that contract. */
-function intentFingerprint(intent: QuoteIntent): string {
+function intentFingerprint(intent: QuoteIntent, portee?: string): string {
   // LISTE-ADRESSE — the liste joins the print ONLY when present, so every
   // existing intent's key stays byte-identical across this deploy.
   const socle = [intent.slug, intent.pid, intent.zoneTo, intent.attributionResellerId, intent.paymentMode];
-  return (intent.listeRef !== undefined ? [...socle, intent.listeRef] : socle).join('|');
+  const avecListe = intent.listeRef !== undefined ? [...socle, intent.listeRef] : socle;
+  // PAYER-TOUT-1 — a panier's quotes live in their OWN slots (the panier's
+  // composition is the scope): the same article bought alone and bought in
+  // this panier are two quotes, so two orders, and never one order asked to
+  // join a payment it was not born into. Absent ⇒ byte-identical to before.
+  return (portee !== undefined ? [...avecListe, `panier:${portee}`] : avecListe).join('|');
 }
 
 /**
@@ -1045,8 +1050,8 @@ function intentFingerprint(intent: QuoteIntent): string {
  * fresh uuid. That costs idempotency on retry, never correctness: the server
  * still issues at most one quote per key.
  */
-export function requestKeyFor(intent: QuoteIntent, storage?: Storage): string | undefined {
-  const slot = KEY_PREFIX + intentFingerprint(intent);
+export function requestKeyFor(intent: QuoteIntent, storage?: Storage, portee?: string): string | undefined {
+  const slot = KEY_PREFIX + intentFingerprint(intent, portee);
   if (storage === undefined) return mintUuid();
   try {
     const existing = storage.getItem(slot);
@@ -1199,10 +1204,10 @@ export function orderCommandIdFor(quoteId: string, essai: number, storage?: Stor
  * surface: the old quote is dead, a new price needs a new key, and reusing the
  * dead one would answer with the dead quote's own expiry forever.
  */
-export function forgetRequestKey(intent: QuoteIntent, storage?: Storage): void {
+export function forgetRequestKey(intent: QuoteIntent, storage?: Storage, portee?: string): void {
   if (storage === undefined) return;
   try {
-    storage.removeItem(KEY_PREFIX + intentFingerprint(intent));
+    storage.removeItem(KEY_PREFIX + intentFingerprint(intent, portee));
   } catch {
     /* storage unavailable — the next ask mints a fresh key anyway */
   }

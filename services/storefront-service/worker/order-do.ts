@@ -28,10 +28,12 @@ import {
   rebuildOrderSpine,
   toBuyerOrderView,
   type ChargeFault,
+  type OrderGroupe,
   type OrderInput,
   type OrderOrigin,
   type ReservationReceipt,
 } from '../src/order-core.js';
+import { isGroupId } from '../src/payment-group-core.js';
 import { readSandboxBehavior, sandboxPaymentProvider, type ChargeOutcome } from '../src/payment-port.js';
 import { LISTE_REF } from '../src/wishlist-core.js';
 import { lireEligibilite } from './buyer-ladder-do.js';
@@ -39,7 +41,7 @@ import { timingSafeEqual } from './auth.js';
 
 /** SP6.3 — the one mode whose order consults the §6.4 ladder. Spelled once
  *  so the check and the vault agree on one string. */
-const DOOR_MODE = 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR';
+export const DOOR_MODE = 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR';
 import { RESELLER_FEED_NAME } from './reseller-feed-do.js';
 import { compteEnPause, RESELLER_ACCOUNTS_NAME } from './reseller-accounts-do.js';
 import { DLQ_NAME, PARK_MAX_BYTES, storedBytes } from './dead-letter-do.js';
@@ -344,6 +346,14 @@ const LEG_KEYS_KEY = 'provider-leg-keys';
  * a question anyone has to answer by inspection.
  */
 const DOOR_ATTEMPTS_KEY = 'door-payment-attempts';
+/**
+ * PAYER-TOUT-1 — which attempt of its GROUP this order's current attempt
+ * belongs to, and the hold that attempt was authorized on. Written in the
+ * same durable moment as the attempt itself, so the group's failure notice
+ * can end exactly this attempt and release exactly this hold — and a stale
+ * notice for an older attempt ends nothing.
+ */
+const GROUP_ATTEMPT_KEY = 'group-attempt';
 const DOOR_RESULTS_KEY = 'door-command-results';
 
 /**
@@ -623,6 +633,30 @@ export function readBuyerContactWire(
   if (typeof audioB64 !== 'string' || audioB64.length === 0 || audioB64.length > AUDIO_B64_MAX_CHARS) return null;
   if (!BASE64.test(audioB64)) return null;
   return { contact, audioB64 };
+}
+
+/**
+ * PAYER-TOUT-1 — the group as the group object hands it to each order, read
+ * strictly: every order stores it as an origin fact for ever, so a malformed
+ * one is refused at the door rather than frozen into an order.
+ */
+export function readOrderGroupe(value: unknown): OrderGroupe | null {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return null;
+  const g = value as Record<string, unknown>;
+  const { groupId, correlationId, providerKey, parts } = g;
+  if (typeof groupId !== 'string' || !isGroupId(groupId)) return null;
+  if (typeof correlationId !== 'string' || correlationId !== `corr-${groupId}`) return null;
+  if (typeof providerKey !== 'string' || providerKey === '') return null;
+  if (!Array.isArray(parts) || parts.length === 0) return null;
+  const lus: { orderId: string; amount: number }[] = [];
+  for (const part of parts as unknown[]) {
+    if (part === null || typeof part !== 'object') return null;
+    const { orderId, amount } = part as Record<string, unknown>;
+    if (typeof orderId !== 'string' || orderId === '') return null;
+    if (typeof amount !== 'number' || !Number.isSafeInteger(amount) || amount <= 0) return null;
+    lus.push({ orderId, amount });
+  }
+  return { groupId, correlationId, providerKey, parts: lus };
 }
 
 export interface OrderDOEnv {
@@ -930,6 +964,101 @@ export class OrderDO {
       return this.create(args.quoteId, args.holderRef, args.commandId, args.quoteBytes, args.fulfillment ?? undefined, contact, listeRef, audioB64);
     }
 
+    /**
+     * ═══ PAYER-TOUT-1 — THE THREE ROADS THE GROUP TAKES TO EACH OF ITS ORDERS ═══
+     * Internal only (the composition root maps no public path to `/entry/*`),
+     * called by `PaymentGroupDO` alone:
+     *   · group-check   — may this holder pay for this order inside this group
+     *                     now? The whole create gate, and NOTHING written.
+     *   · group-create  — birth (or retry) inside the group: the create road
+     *                     up to its durable moment, and never a charge.
+     *   · group-charged — the group's charge did not go through: end exactly
+     *                     the attempt the group made, release exactly its hold.
+     */
+    if (request.method === 'POST' && pathname === '/entry/group-check') {
+      const args = (await request.json().catch(() => null)) as {
+        quoteId?: unknown;
+        holderRef?: unknown;
+        groupId?: unknown;
+        quoteBytes?: unknown;
+        fulfillment?: { zoneTo?: unknown } | null;
+      } | null;
+      if (
+        args === null ||
+        typeof args.quoteId !== 'string' || args.quoteId === '' ||
+        typeof args.holderRef !== 'string' || args.holderRef === '' ||
+        typeof args.groupId !== 'string' || args.groupId === '' ||
+        (args.quoteBytes !== undefined && typeof args.quoteBytes !== 'string')
+      ) {
+        return Response.json({ ok: false, reason: 'malformed' }, { status: 400 });
+      }
+      const wireZone = args.fulfillment?.zoneTo;
+      return this.groupCheck(
+        args.quoteId,
+        args.holderRef,
+        args.groupId,
+        args.quoteBytes,
+        typeof wireZone === 'string' && wireZone !== '' ? wireZone : undefined,
+      );
+    }
+
+    if (request.method === 'POST' && pathname === '/entry/group-create') {
+      let args: CreateArgs & { groupe?: OrderGroupe; groupAttemptId?: unknown };
+      try {
+        args = (await request.json()) as CreateArgs & { groupe?: OrderGroupe; groupAttemptId?: unknown };
+      } catch {
+        return Response.json({ ok: false, reason: 'malformed' }, { status: 400 });
+      }
+      const groupe = readOrderGroupe(args.groupe);
+      if (
+        typeof args.quoteId !== 'string' || args.quoteId === '' ||
+        typeof args.holderRef !== 'string' || args.holderRef === '' ||
+        typeof args.commandId !== 'string' || args.commandId === '' ||
+        typeof args.groupAttemptId !== 'string' || args.groupAttemptId === '' ||
+        groupe === null
+      ) {
+        return Response.json({ ok: false, reason: 'malformed' }, { status: 400 });
+      }
+      // The contact arrives in its STORED form: the group uploaded her note
+      // once and hands every order the same minted ref.
+      let contact: BuyerContact | null = null;
+      if (args.contact !== undefined && args.contact !== null) {
+        contact = readBuyerContact(args.contact);
+        if (contact === null) return Response.json({ ok: false, reason: 'malformed' }, { status: 400 });
+      }
+      return this.create(
+        args.quoteId,
+        args.holderRef,
+        args.commandId,
+        args.quoteBytes,
+        args.fulfillment ?? undefined,
+        contact,
+        null,
+        undefined,
+        { groupe, groupAttemptId: args.groupAttemptId },
+      );
+    }
+
+    if (request.method === 'POST' && pathname === '/entry/group-charged') {
+      const args = (await request.json().catch(() => null)) as {
+        groupId?: unknown;
+        groupAttemptId?: unknown;
+        outcome?: unknown;
+      } | null;
+      if (
+        args === null ||
+        typeof args.groupId !== 'string' ||
+        typeof args.groupAttemptId !== 'string' ||
+        (args.outcome !== 'timeout' &&
+          args.outcome !== 'idempotency_key_amount_mismatch' &&
+          args.outcome !== 'group_incomplete' &&
+          args.outcome !== 'provider_amount_divergence')
+      ) {
+        return Response.json({ ok: false, reason: 'malformed' }, { status: 400 });
+      }
+      return this.groupCharged(args.groupId, args.groupAttemptId, args.outcome);
+    }
+
     /** ORDER-PAID-WIRE-1b — the OUTBOX READ. Internal wire only (the composition
      *  root never routes it publicly): evidence for tests, state for the future
      *  operator console. Absent = the order never confirmed. */
@@ -1055,6 +1184,11 @@ export class OrderDO {
       const keys = (await this.state.storage.get<Record<string, string>>(LEG_KEYS_KEY)) ?? {};
       const legKey = Object.prototype.hasOwnProperty.call(keys, leg) ? keys[leg] : undefined;
       if (legKey === undefined) return Response.json({ ok: false }, { status: 404 });
+      // PAYER-TOUT-1 — a grouped order's checkout key is its GROUP's; the
+      // stand-in is told so, and confirms the group rather than this order.
+      if (leg === 'checkout' && origin.groupe !== undefined) {
+        return Response.json({ ok: true, legKey, groupId: origin.groupe.groupId });
+      }
       return Response.json({ ok: true, legKey });
     }
 
@@ -1871,9 +2005,26 @@ export class OrderDO {
     listeRef: string | null = null,
     /** NOTE-VOCALE-APRES-GARDE-1 — her note's bytes; uploaded below, only past the gate. */
     audioB64: string | undefined = undefined,
+    /**
+     * PAYER-TOUT-1 — present when this order is born into (or retried inside)
+     * a grouped payment: the group's shares and key, and the group attempt
+     * this create belongs to. The group charges; this object never does.
+     */
+    grouped: { groupe: OrderGroupe; groupAttemptId: string } | undefined = undefined,
   ): Promise<Response> {
     const origin = await this.state.storage.get<StoredOrigin>(ORIGIN_KEY);
     const receipt = await this.state.storage.get<ReservationReceipt>(RECEIPT_KEY);
+    // PAYER-TOUT-1 — ONE ORDER, ONE PAYMENT ROAD, FOR EVER. An order born in a
+    // group is paid, retried and confirmed by its group only: a single create
+    // here would mint a second key for a leg the group's key already charged.
+    // And an order born alone, or in another group, never joins this one — its
+    // leg key may already have gone to a provider under another collection.
+    if (grouped === undefined && origin?.groupe !== undefined) {
+      return Response.json({ ok: false, reason: 'order_in_group' }, { status: 409 });
+    }
+    if (grouped !== undefined && origin !== undefined && origin.groupe?.groupId !== grouped.groupe.groupId) {
+      return Response.json({ ok: false, reason: 'order_in_other_payment' }, { status: 409 });
+    }
     // THE REPLAY ROAD (see the header): a command that already MOVED something
     // replays its stored answer to the receipt's own holder, clock unconsulted.
     // OWN PROPERTY ONLY: a bare `results[commandId]` walks the prototype chain,
@@ -1914,6 +2065,16 @@ export class OrderDO {
 
     const orderId = orderIdForQuote(quoteId);
     const now = new Date().toISOString();
+
+    // PAYER-TOUT-1 — this order's share in the group IS its own checkout leg,
+    // read off its own quote; a group that says otherwise is refused before
+    // anything is claimed, written or charged.
+    if (grouped !== undefined) {
+      const part = grouped.groupe.parts.find((p) => p.orderId === orderId);
+      if (part === undefined || part.amount !== leg.amount) {
+        return Response.json({ ok: false, reason: 'group_share_mismatch' }, { status: 422 });
+      }
+    }
 
     /**
      * ═══ PAUSE-VENTE-1 (founder ruling 2026-09-17) — A PAUSED RESELLER SELLS
@@ -2004,7 +2165,9 @@ export class OrderDO {
     const existingKey = Object.prototype.hasOwnProperty.call(legKeys, leg.legType)
       ? legKeys[leg.legType]
       : undefined;
-    const providerKey = existingKey ?? mintProviderLegKey();
+    // PAYER-TOUT-1 — a grouped order's checkout leg is charged under the
+    // GROUP's one key, minted once by the group and durable there first.
+    const providerKey = grouped !== undefined ? grouped.groupe.providerKey : (existingKey ?? mintProviderLegKey());
 
     let stored: StoredOrigin;
     let log: OrderInput[];
@@ -2053,6 +2216,8 @@ export class OrderDO {
         // original (`stored = origin`), so a liste can never be attached to —
         // or detached from — an order that already exists.
         ...(listeRef !== null ? { listeRef } : {}),
+        // PAYER-TOUT-1 — born into its group, for ever.
+        ...(grouped !== undefined ? { groupe: grouped.groupe } : {}),
       };
       attemptId = mintPaymentAttemptId();
       log = [
@@ -2184,6 +2349,12 @@ export class OrderDO {
     if (receipt !== undefined) await this.state.storage.put(RECEIPT_KEY, receipt);
     await this.state.storage.put(LOG_KEY, log);
     await this.state.storage.put(ATTEMPTS_KEY, attempts);
+    if (grouped !== undefined) {
+      await this.state.storage.put(GROUP_ATTEMPT_KEY, {
+        groupAttemptId: grouped.groupAttemptId,
+        reservationId: decision.reservationId,
+      });
+    }
     // RESERVATION-REGLE-1 — the order is `payment_pending` from this moment:
     // the stuck-saga watch is armed with it, in the same durable act.
     await this.armStuckWatch(now);
@@ -2241,6 +2412,28 @@ export class OrderDO {
       : undefined;
     if (durableKey === undefined || durableKey !== providerKey) {
       return this.endAttemptOnFault(quote, stored, log, attemptId, 'leg_key_not_durable', decision.reservationId);
+    }
+
+    /**
+     * PAYER-TOUT-1 — A GROUPED ORDER STOPS HERE, payment_pending and durable,
+     * and answers. Its group charges ONCE for every order it holds, after all
+     * of them stand here; the outcome comes back through `/entry/group-charged`
+     * (a failure) or the provider's webhook (the only payment truth).
+     */
+    if (grouped !== undefined) {
+      const walkedGroup = rebuildOrderSpine(quote, stored, log);
+      const groupAnswer = {
+        ok: true,
+        view: toBuyerOrderView({
+          orderId: stored.orderId,
+          state: walkedGroup.journey.state,
+          quote,
+          doorLeg: walkedGroup.doorLegState,
+        }),
+        buyerRef,
+      };
+      await this.state.storage.put(RESULTS_KEY, { ...results, [commandId]: groupAnswer });
+      return Response.json(groupAnswer);
     }
 
     const charge = await this.charge({
@@ -2326,6 +2519,122 @@ export class OrderDO {
     // NOTE-VOCALE-APRES-GARDE-1 — what became of her note rides THIS answer
     // only, never the stored replay: a replayed command uploaded nothing.
     return Response.json(noteVocale === undefined ? answer : { ...answer, noteVocale });
+  }
+
+  /**
+   * PAYER-TOUT-1 — THE GROUP'S QUESTION, ANSWERED WITH NOTHING WRITTEN: the
+   * create gate (her hold, the quote's freshness, a paused reseller) exactly
+   * as `create()` runs it, then what this order is today — not born yet
+   * (`nouvelle`), failed and retryable (`echouee`), or on its way (`en_cours`)
+   * — and the facts the group needs to prove its panier is one boutique, one
+   * mode, one destination. Every figure is read off this order's own quote.
+   */
+  private async groupCheck(
+    quoteId: string,
+    holderRef: string,
+    groupId: string,
+    wireQuoteBytes: string | undefined,
+    wireZoneTo: string | undefined,
+  ): Promise<Response> {
+    const origin = await this.state.storage.get<StoredOrigin>(ORIGIN_KEY);
+    if (origin !== undefined && origin.groupe?.groupId !== groupId) {
+      return Response.json({ ok: false, reason: 'order_in_other_payment' }, { status: 409 });
+    }
+    const receipt = await this.state.storage.get<ReservationReceipt>(RECEIPT_KEY);
+    const decision = decideCreateOrder({
+      quoteBytes: origin?.quoteBytes ?? wireQuoteBytes,
+      quoteId,
+      holderRef,
+      ...(receipt !== undefined ? { receipt } : { receipt: undefined }),
+      now: new Date(),
+    });
+    if (!decision.ok) return Response.json({ ok: false, reason: decision.reason }, { status: 422 });
+    const quote = decision.quote;
+    const leg = checkoutLegOf(decision.legs);
+    if (leg === undefined) return Response.json({ ok: false, reason: 'quote_split_incoherent' }, { status: 422 });
+    if (await compteEnPause(this.env, quote.attributionResellerId)) {
+      return Response.json({ ok: false, reason: 'reseller_paused' }, { status: 422 });
+    }
+    let etat: 'nouvelle' | 'echouee' | 'en_cours' = 'nouvelle';
+    if (origin !== undefined) {
+      const log = (await this.state.storage.get<OrderInput[]>(LOG_KEY)) ?? [];
+      etat = rebuildOrderSpine(quote, origin, log).journey.state === 'payment_failed' ? 'echouee' : 'en_cours';
+    }
+    return Response.json({
+      ok: true,
+      etat,
+      orderId: orderIdForQuote(quoteId),
+      paymentMode: quote.paymentMode,
+      attributionResellerId: quote.attributionResellerId,
+      zoneTo: origin !== undefined ? origin.fulfillment?.zoneTo : wireZoneTo,
+      amountPaidAtCheckout: leg.amount,
+      amountDueAtDelivery: quote.amountDueAtDelivery,
+      deliveryFee: quote.deliveryFee,
+      productSubtotal: quote.productSubtotal,
+    });
+  }
+
+  /**
+   * PAYER-TOUT-1 — THE GROUP'S CHARGE DID NOT GO THROUGH. Ends exactly the
+   * attempt the group made (a notice for an older group attempt, or for an
+   * order no longer waiting, ends nothing and says so) through the vault's
+   * own failure edge, and releases exactly the hold that attempt was
+   * authorized on — the same exit a single order's failed charge takes, so
+   * her retry and the stock rule both work unchanged.
+   *
+   * ⏳ The recorded reason is the single road's documented default: a time-out
+   * is `charge_timeout`; everything else — a provider refusal, a group that
+   * could not be completed, a divergent echo — is `charge_rejected`, the one
+   * value meaning « this attempt ended and no money is claimed for it »
+   * (see `chargeFaultInput`).
+   */
+  private async groupCharged(
+    groupId: string,
+    groupAttemptId: string,
+    outcome: 'timeout' | 'idempotency_key_amount_mismatch' | 'group_incomplete' | 'provider_amount_divergence',
+  ): Promise<Response> {
+    const origin = await this.state.storage.get<StoredOrigin>(ORIGIN_KEY);
+    if (origin === undefined) return Response.json({ ok: false, reason: 'unknown_order' }, { status: 404 });
+    if (origin.groupe?.groupId !== groupId) {
+      return Response.json({ ok: false, reason: 'order_in_other_payment' }, { status: 409 });
+    }
+    const quote = parseStoredQuote(origin.quoteBytes);
+    if (quote === undefined) return Response.json({ ok: false, reason: 'stored_quote_unreadable' }, { status: 422 });
+    const log = (await this.state.storage.get<OrderInput[]>(LOG_KEY)) ?? [];
+    const marker = await this.state.storage.get<{ groupAttemptId: string; reservationId: string }>(GROUP_ATTEMPT_KEY);
+    const spine = rebuildOrderSpine(quote, origin, log);
+    const vue = (s: OrderSpine) =>
+      toBuyerOrderView({ orderId: origin.orderId, state: s.journey.state, quote, doorLeg: s.doorLegState });
+    if (marker === undefined || marker.groupAttemptId !== groupAttemptId || spine.journey.state !== 'payment_pending') {
+      return Response.json({ ok: true, ended: false, view: vue(spine) });
+    }
+    const next: OrderInput[] = [
+      ...log,
+      {
+        kind: 'fail',
+        // The GROUP attempt's id: minted once per group attempt, so one notice
+        // is one failure however often it is delivered.
+        command_id: `ord-grp-fail-${groupAttemptId}`,
+        actor: ORDER_ACTOR,
+        serverTime: new Date().toISOString(),
+        reason: outcome === 'timeout' ? 'charge_timeout' : 'charge_rejected',
+      },
+    ];
+    const walked = rebuildOrderSpine(quote, origin, next);
+    if (walked.journey.state !== 'payment_failed') {
+      return Response.json({ ok: true, ended: false, view: vue(spine) });
+    }
+    await this.state.storage.put(LOG_KEY, next);
+    const attempts = (await this.state.storage.get<AttemptRecord[]>(ATTEMPTS_KEY)) ?? [];
+    const last = attempts[attempts.length - 1];
+    if (last !== undefined && (outcome === 'timeout' || outcome === 'idempotency_key_amount_mismatch')) {
+      last.outcome = outcome;
+      await this.state.storage.put(ATTEMPTS_KEY, attempts);
+    }
+    const releaseId = last?.attemptId ?? groupAttemptId;
+    await this.queueReservationRelease(origin, `rel-${releaseId}`, marker.reservationId);
+    await this.queueHoldRelease(origin, `hrel-${releaseId}`, marker.reservationId);
+    return Response.json({ ok: true, ended: true, view: vue(walked) });
   }
 
   /**
@@ -3210,7 +3519,13 @@ export class OrderDO {
     const chkLegKey: string | null = Object.prototype.hasOwnProperty.call(chkLegKeys, 'checkout')
       ? (chkLegKeys['checkout'] as string)
       : null;
-    const outcome = applyOrderInput(spine, { kind: 'provider', event, expectedProviderKey: chkLegKey });
+    // PAYER-TOUT-1 — an order born in a group is judged as the group's: the
+    // input kind is chosen by the order's own durable origin, never by the payload.
+    const providerInput: OrderInput =
+      origin.groupe !== undefined
+        ? { kind: 'group_provider', event, expectedProviderKey: chkLegKey, groupe: origin.groupe }
+        : { kind: 'provider', event, expectedProviderKey: chkLegKey };
+    const outcome = applyOrderInput(spine, providerInput);
     if (!outcome.applied) {
       // RAPPROCHEMENT-1 (audit B4): a Contract-§6 contradiction refusal
       // carries its alert — SUNK durably before the refusal is answered.
@@ -3267,7 +3582,7 @@ export class OrderDO {
     }
 
     const parsed = PlatformEventSchema.parse(event);
-    let next: OrderInput[] = [...log, { kind: 'provider', event, expectedProviderKey: chkLegKey }];
+    let next: OrderInput[] = [...log, providerInput];
     const confirm: OrderInput = {
       kind: 'confirm',
       // Derived from the provider event's own command id, so a redelivery can
@@ -3776,7 +4091,7 @@ export class OrderDO {
  * uses. It is NEVER a caller's value: an idempotency key a buyer could choose is
  * a key a buyer could collide with someone else's charge.
  */
-function mintPaymentAttemptId(): string {
+export function mintPaymentAttemptId(): string {
   return `att-${crypto.randomUUID()}`;
 }
 
@@ -3787,7 +4102,7 @@ function mintPaymentAttemptId(): string {
  * conflation of exactly these two, a reader of any log or record must be able to
  * tell them apart at a glance.
  */
-function mintProviderLegKey(): string {
+export function mintProviderLegKey(): string {
   return `pk-${crypto.randomUUID()}`;
 }
 
@@ -3872,6 +4187,12 @@ interface Env {
    *  quote road is gated on the same binding, so no address-priced quote
    *  can exist for this door to mismatch. */
   WISHLIST?: DurableObjectNamespace;
+  /**
+   * PAYER-TOUT-1 — the grouped payments, for the webhook and the sandbox key
+   * read only: a confirmation naming a group id (`grp-…`) is the group's to
+   * hand to its orders. Absent ⇒ a group id is simply an unknown order.
+   */
+  PAYMENT_GROUP?: DurableObjectNamespace;
 }
 
 /** The order object's refusals that are SHAPE poison (the vault could not read the event), not state. */
@@ -3966,14 +4287,14 @@ const ORDER_FIELDS = ['quoteId', 'holderRef', 'commandId', 'contact', 'listeRef'
 const DOOR_CHARGE_FIELDS = ['holderRef', 'commandId'];
 
 /** The id alphabet every server-minted id in this repo already uses. */
-const ID_ALPHABET = /^[A-Za-z0-9][A-Za-z0-9_-]{0,191}$/;
+export const ID_ALPHABET = /^[A-Za-z0-9][A-Za-z0-9_-]{0,191}$/;
 
-function bounded(value: unknown, max: number): value is string {
+export function bounded(value: unknown, max: number): value is string {
   return typeof value === 'string' && value.length > 0 && value.length <= max;
 }
 
 /** A malformed id is simply not an id — it decodes to `undefined`, never a 500. */
-function decodeId(raw: string): string | undefined {
+export function decodeId(raw: string): string | undefined {
   try {
     return decodeURIComponent(raw);
   } catch {
@@ -3981,10 +4302,14 @@ function decodeId(raw: string): string | undefined {
   }
 }
 
-function statusForRefusal(reason: string): number {
+export function statusForRefusal(reason: string): number {
   if (reason === 'quote_unknown' || reason === 'unknown_order' || reason === 'not_found') return 404;
   // Someone else holds this quote: a STATE, spoken plainly, with no money on it.
   if (reason === 'reservation_held_by_another' || reason === 'retry_refused') return 409;
+  // PAYER-TOUT-1 — an order already bound to one payment road, and a group
+  // still finishing its last attempt: states, spoken plainly, never money.
+  if (reason === 'order_in_group' || reason === 'order_in_other_payment') return 409;
+  if (reason === 'paiement_occupe') return 503;
   return 422;
 }
 
@@ -4470,7 +4795,14 @@ export default {
         return badRequest('bad_field', 'order_id');
       }
 
-      const res = await orderStub(env, orderId).fetch(
+      // PAYER-TOUT-1 — the merchant reference the provider echoes names what
+      // was charged: an order, or a group of them. A group hands the SAME
+      // event to each of its orders, which judge it in the vault.
+      const stub = isGroupId(orderId)
+        ? env.PAYMENT_GROUP?.get(env.PAYMENT_GROUP.idFromName(orderId))
+        : orderStub(env, orderId);
+      if (stub === undefined) return refuse('unknown_order');
+      const res = await stub.fetch(
         new Request('https://do/entry/webhook', {
           method: 'POST',
           body: JSON.stringify({ event: parsed.data }),
@@ -4525,6 +4857,13 @@ export default {
         const orderId = decodeId(legKeyMatch[1]!);
         if (orderId === undefined || !ID_ALPHABET.test(orderId)) return badRequest('bad_field', 'orderId');
         const leg = new URL(request.url).searchParams.get('leg') ?? 'checkout';
+        if (isGroupId(orderId)) {
+          if (env.PAYMENT_GROUP === undefined || leg !== 'checkout') return refuse('unknown_order');
+          const res = await env.PAYMENT_GROUP.get(env.PAYMENT_GROUP.idFromName(orderId)).fetch(
+            new Request('https://do/entry/leg-key'),
+          );
+          return new Response(res.body, { status: res.status, headers: { 'Content-Type': 'application/json' } });
+        }
         const res = await orderStub(env, orderId).fetch(
           new Request(`https://do/entry/leg-key?leg=${encodeURIComponent(leg)}`),
         );

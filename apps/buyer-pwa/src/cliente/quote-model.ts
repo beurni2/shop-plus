@@ -205,7 +205,8 @@ export function prixExpire(expiry: string, now: number): boolean {
 
 export type ReserveFetch =
   | { readonly status: 'reserved'; readonly expiresAt?: string }
-  | { readonly status: 'refused'; readonly reason: string }
+  /** PAYER-TOUT-1 — `article`: in a panier, the name of the article the refusal is about. */
+  | { readonly status: 'refused'; readonly reason: string; readonly article?: string }
   /** Nothing answered. » Pas de connexion « is true only here. */
   | { readonly status: 'unreachable' }
   /** Something answered and it was not usable. */
@@ -308,7 +309,8 @@ export type QuoteFetch =
        */
       readonly remise: (orderId: string, buyerRef: string) => Promise<RemiseFetch>;
     }
-  | { readonly status: 'refused'; readonly reason: string }
+  /** PAYER-TOUT-1 — `article`: in a panier, the name of the article the refusal is about. */
+  | { readonly status: 'refused'; readonly reason: string; readonly article?: string }
   | { readonly status: 'unreachable' }
   | { readonly status: 'unreadable' };
 

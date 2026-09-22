@@ -9,6 +9,7 @@ import {
 import {
   OrderSpine,
   type DoorLegState,
+  type GroupPaymentShares,
   type PaymentFailureReason,
   type RelatedPartyAppeal,
   type RelatedPartyResolution,
@@ -489,6 +490,20 @@ export type OrderInput =
       readonly expectedProviderKey?: string | null;
     }
   /**
+   * PAYER-TOUT-1 — the provider's confirmation of the GROUPED collection this
+   * order belongs to. A separate kind for the same reason `door_provider` is
+   * one: which judgement applies is decided where the order's durable origin
+   * says it belongs to a group, never by reading the payload and guessing.
+   * The shares ride the log so a replay re-judges with exactly what the
+   * original judgement saw.
+   */
+  | {
+      readonly kind: 'group_provider';
+      readonly event: unknown;
+      readonly expectedProviderKey: string | null;
+      readonly groupe: GroupPaymentShares;
+    }
+  /**
    * SP4.2a — THE DOOR LEG'S PROVIDER TRUTH, and it is a SEPARATE KIND from
    * `provider` on purpose.
    *
@@ -575,6 +590,20 @@ export interface OrderOrigin {
    * for a token it never minted). OPTIONAL: most orders have no liste.
    */
   readonly listeRef?: string;
+  /**
+   * PAYER-TOUT-1 — the grouped payment this order was born into, when the
+   * buyer paid several articles of one boutique at once. An ORIGIN fact like
+   * its neighbours: written once, immutable after, and the reason every later
+   * provider confirmation for this order is judged as the group's. Absent on
+   * every order paid on its own.
+   */
+  readonly groupe?: OrderGroupe;
+}
+
+/** PAYER-TOUT-1 — what an order keeps of its group: the shares the vault judges against. */
+export interface OrderGroupe extends GroupPaymentShares {
+  /** The one provider key the group was charged under — this order's checkout leg key too. */
+  readonly providerKey: string;
 }
 
 export function rebuildOrderSpine(
@@ -643,6 +672,16 @@ export function applyOrderInput(spine: OrderSpine, input: OrderInput): ApplyOutc
     }
     case 'provider': {
       const outcome = spine.onProviderPaymentEvent(input.event, input.expectedProviderKey);
+      return outcome.applied
+        ? { applied: true, duplicate: outcome.duplicate }
+        : {
+            applied: false,
+            reason: outcome.reason,
+            ...(outcome.alert !== undefined ? { alert: outcome.alert } : {}),
+          };
+    }
+    case 'group_provider': {
+      const outcome = spine.onGroupProviderPaymentEvent(input.event, input.expectedProviderKey, input.groupe);
       return outcome.applied
         ? { applied: true, duplicate: outcome.duplicate }
         : {
