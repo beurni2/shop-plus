@@ -74,7 +74,7 @@ test('DEMO · boutique → « Payer les 2 articles ensemble » → one payment �
   await suivre.first().click();
   await expect(page.locator('[data-screen="C7"]')).toBeVisible();
 
-  // SHE LEAVES AND COMES BACK — « Mes articles payés ensemble » reopens them.
+  // SHE LEAVES AND COMES BACK — « Mes articles commandés ensemble » reopens them.
   await page.goto('/?demo-vitrine=aicha-4821');
   const bande = page.locator('[data-role="mes-articles"]');
   await expect(bande).toBeVisible();
@@ -103,6 +103,7 @@ interface Wire {
 const FIG: Record<string, { produit: number; frais: number }> = {
   p1: { produit: 11_500, frais: 1_000 },
   p2: { produit: 20_500, frais: 1_000 },
+  p4: { produit: 9_200, frais: 1_000 },
 };
 
 async function service(page: Page, o: { refuseReserveOf?: string; groupStates?: string[]; door?: boolean } = {}): Promise<Wire> {
@@ -206,8 +207,8 @@ async function service(page: Page, o: { refuseReserveOf?: string; groupStates?: 
   return w;
 }
 
-async function jusquauPaiement(page: Page, mode: 'A' | 'B' = 'A'): Promise<void> {
-  await page.goto(ENTRY);
+async function jusquauPaiement(page: Page, mode: 'A' | 'B' = 'A', entree = ENTRY): Promise<void> {
+  await page.goto(entree);
   await page.locator('[data-screen="C1"][data-panier]').waitFor();
   await page.locator('[data-action="commander"]').click();
   await page.locator('[data-screen="C3"]').waitFor();
@@ -261,6 +262,48 @@ test('REAL · one article gone at the hold: she is told WHICH one, nothing is pa
   await expect(refus).toContainText('Rien n’a été payé.');
   await expect(refus.locator('[data-action="voir-boutique"]')).toBeVisible();
   expect(w.groupes).toHaveLength(0);
+});
+
+test('REAL · she takes the gone article off and pays the rest: her OWN holds are replayed, never a second hold against them (verifier MAJOR 1)', async ({ page }) => {
+  const w = await service(page, { refuseReserveOf: 'p4' });
+  await jusquauPaiement(page, 'A', `${BASE}/?demo-signed=aicha-4821&panier=p1,p2,p4`);
+  await page.locator('[data-action="payer"]').click();
+  const refus = page.locator('[data-screen="REFUS"]');
+  await expect(refus).toContainText('Sandales cuir homme n’est plus disponible.');
+  const premiers = w.reserves.filter((r) => !r.url.includes('q-p4-')).map((r) => ({ url: r.url, commandId: r.body['commandId'], holderRef: r.body['holderRef'] }));
+  expect(premiers).toHaveLength(2);
+  // The way out is pressable and leads to her boutique.
+  await Promise.all([page.waitForURL(/\/v\/aicha-4821/), refus.locator('[data-action="voir-boutique"]').click()]);
+
+  // Her boutique's button sends the panier without it — in the same tab.
+  w.reserves.length = 0;
+  await jusquauPaiement(page, 'A');
+  await page.locator('[data-action="payer"]').click();
+  await expect(page.locator('[data-role="panier-suivi"]')).toBeVisible({ timeout: 20_000 });
+  const seconds = w.reserves.map((r) => ({ url: r.url, commandId: r.body['commandId'], holderRef: r.body['holderRef'] }));
+  expect(seconds).toEqual(premiers);
+  expect(w.groupes.at(-1)!['holderRef']).toBe(premiers[0]!.holderRef);
+});
+
+test('REAL · the tab that paid is left before the operator confirms: opening an article\'s tracking later takes it off her boutique\'s panier (verifier minor 1)', async ({ page }) => {
+  const w = await service(page, { groupStates: ['payment_pending'] });
+  await page.goto(`${BASE}/`);
+  await page.evaluate(() => localStorage.setItem('shopplus.panier.v1', JSON.stringify({ 'aicha-4821': ['p1', 'p2', 'p5'] })));
+  await jusquauPaiement(page);
+  await page.locator('[data-action="payer"]').click();
+  await expect(page.locator('[data-etat="attente-operateur"]')).toBeVisible();
+  const panier = () => page.evaluate(() => (JSON.parse(localStorage.getItem('shopplus.panier.v1') ?? '{}') as Record<string, string[]>)['aicha-4821']);
+  expect(await panier()).toEqual(['p1', 'p2', 'p5']);
+
+  // She leaves; later, « Mes articles commandés ensemble » → one article's own tracking.
+  await page.goto(`${BASE}/?demo-signed=aicha-4821`);
+  await page.locator('[data-role="mes-articles"]').click();
+  await expect(page.locator('[data-screen="MES-ARTICLES"]')).toBeVisible();
+  await page.locator('[data-action="suivre-article"][data-order="ord-q-p1-A"]').click();
+  await expect(page.locator('[data-screen="C7"]')).toBeVisible();
+  await expect.poll(() => w.orderReads.includes('ord-q-p1-A')).toBe(true);
+  // Its order reads paid: THAT article leaves her panier; the others stay.
+  await expect.poll(panier).toEqual(['p2', 'p5']);
 });
 
 test('REAL · pay at the door: the one payment is the delivery fees; each article pays its product at ITS door, under the panier\'s holder', async ({ page }) => {

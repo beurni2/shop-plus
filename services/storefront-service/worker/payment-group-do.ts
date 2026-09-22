@@ -310,17 +310,28 @@ export class PaymentGroupDO {
       const created = await this.post(part.orderId, '/entry/group-create', {
         quoteId: part.quoteId,
         holderRef: args.holderRef,
-        commandId: args.commandId,
+        // Verifier BLOCKER 1 — the order's command is THIS ATTEMPT's: her
+        // command sent again after a refusal is a new attempt, and each order
+        // it had moved is RETRIED, never answered from the old attempt's reply.
+        commandId: attempt.attemptId,
         ...(q?.quoteBytes !== undefined ? { quoteBytes: q.quoteBytes } : {}),
         fulfillment: q?.fulfillment ?? null,
         contact,
         groupe,
         groupAttemptId: attempt.attemptId,
       });
-      const c = created.json as { ok?: boolean; reason?: string; view?: BuyerOrderView; buyerRef?: string } | null;
+      const c = created.json as
+        | { ok?: boolean; reason?: string; view?: BuyerOrderView; buyerRef?: string; groupAttemptId?: string }
+        | null;
       if (c === null || c.ok !== true || c.view === undefined || typeof c.buyerRef !== 'string') {
         await this.endAttempt(nextAttempts, attempt, 'group_incomplete');
         return refusal(c?.reason ?? 'paiement_occupe', { quoteId: part.quoteId });
+      }
+      // THE CHARGE WAITS ON THE LIVE TRUTH: every order waiting for payment,
+      // in THIS attempt — or nothing is asked of the provider.
+      if (c.view.state !== 'payment_pending' || c.groupAttemptId !== attempt.attemptId) {
+        await this.endAttempt(nextAttempts, attempt, 'group_incomplete');
+        return refusal('paiement_occupe', { quoteId: part.quoteId });
       }
       commandes.push({ orderId: part.orderId, view: c.view, buyerRef: c.buyerRef });
     }

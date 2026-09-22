@@ -3391,7 +3391,7 @@
  },
  {
   "key": "cl.panier.reentree",
-  "fr": "Mes articles payés ensemble",
+  "fr": "Mes articles commandés ensemble",
   "register": "money",
   "screenClass": "label"
  },

@@ -117,6 +117,36 @@ describe('PAYER-TOUT-1 — « Payer les N articles ensemble »: one button, only
     togglePanier('chez-awa-1', 'p2');
     expect(pidsAPayer(SF as never, prods([{ pid: 'p2', inStock: false }]) as never)).toEqual(['p3', 'p1']);
   });
+
+  it('never offers to pay again what her phone records as already ordered in THIS boutique (verifier minor 1)', async () => {
+    const { pidsAPayer } = await import('../src/vitrine/render');
+    const { garderPanierPaye } = await import('../src/cliente/panier-port');
+    togglePanier('chez-awa-1', 'p1');
+    togglePanier('chez-awa-1', 'p2');
+    togglePanier('chez-awa-1', 'p3');
+    garderPanierPaye(
+      {
+        groupId: 'grp-1',
+        holderRef: 'h',
+        at: 'T',
+        slug: 'chez-awa-1',
+        articles: [
+          { orderId: 'o1', buyerRef: 'r1', nom: 'Article 1', pid: 'p1' },
+          { orderId: 'o2', buyerRef: 'r2', nom: 'Article 2', pid: 'p2' },
+        ],
+      },
+      localStorage,
+    );
+    expect(pidsAPayer(SF as never, prods() as never)).toEqual(['p3']);
+    const band = html().split('data-role="vitrine-panier"')[1]!.split('data-role="vitrine-a-la-une"')[0]!;
+    expect(band).not.toContain('data-action="panier-payer"');
+    // Another boutique's record never hides this one's articles.
+    garderPanierPaye(
+      { groupId: 'grp-2', holderRef: 'h', at: 'T', slug: 'une-autre-9999', articles: [{ orderId: 'o9', buyerRef: 'r9', nom: 'X', pid: 'p1' }] },
+      localStorage,
+    );
+    expect(pidsAPayer(SF as never, prods() as never)).toEqual(['p1', 'p2', 'p3']);
+  });
 });
 
 describe('the button — every in-stock article can be put in the panier from the ONE disc beside its price, and a kept one shows it', () => {

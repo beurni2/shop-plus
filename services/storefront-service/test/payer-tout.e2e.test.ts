@@ -1,5 +1,5 @@
 import { OrderConfirmedEventSchema } from '@platform/contracts';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Miniflare } from 'miniflare';
@@ -28,6 +28,7 @@ const SCRIPT = 'dist/worker/worker.mjs';
 const persist = mkdtempSync(join(tmpdir(), 'payer-tout-'));
 const persistSlow = mkdtempSync(join(tmpdir(), 'payer-tout-slow-'));
 const persistSansGroupe = mkdtempSync(join(tmpdir(), 'payer-tout-sans-'));
+const persistRejeu = mkdtempSync(join(tmpdir(), 'payer-tout-rejeu-'));
 const T0 = '2026-09-22T08:00:00.000Z';
 const WEBHOOK_SECRET = 'test-payment-webhook-secret-grp1';
 const signed = { 'X-Payment-Webhook-Key': WEBHOOK_SECRET, 'Content-Type': 'application/json' };
@@ -113,13 +114,27 @@ async function restart(): Promise<void> {
 }
 let slow: Miniflare | undefined;
 let sansGroupe: Miniflare | undefined;
+let rejeu: Miniflare | undefined;
 
 afterAll(async () => {
   await mf.dispose();
   if (slow !== undefined) await slow.dispose();
   if (sansGroupe !== undefined) await sansGroupe.dispose();
-  for (const dir of [persist, persistSlow, persistSansGroupe]) rmSync(dir, { recursive: true, force: true });
+  if (rejeu !== undefined) await rejeu.dispose();
+  for (const dir of [persist, persistSlow, persistSansGroupe, persistRejeu]) rmSync(dir, { recursive: true, force: true });
 });
+
+/** One Durable Object's stored state, removed from a stopped runtime's persist dir. Returns the files removed. */
+function effacerObjet(dir: string, hex: string): number {
+  let n = 0;
+  for (const entry of readdirSync(dir, { recursive: true, withFileTypes: true })) {
+    if (entry.isFile() && entry.name.startsWith(hex)) {
+      rmSync(join(entry.parentPath, entry.name));
+      n += 1;
+    }
+  }
+  return n;
+}
 
 /* ─────────────────────────────── the harness ─────────────────────────────── */
 
@@ -538,6 +553,57 @@ describe('PAYER-TOUT-1 — one payment for the panier, one order per article, on
     const applied = await webhook(slow, await confirmation(slow, groupId, total));
     expect(applied.status, applied.text).toBe(200);
     for (const id of orderIds) expect((await audit(slow, id)).state).toBe('confirmed');
+  });
+
+  it('the SAME pay command sent again after a mid-payment refusal RETRIES the order it had moved; the one charge funds every order, no late alert', async () => {
+    // Verifier BLOCKER 1: the order answered the repeated command from its OLD
+    // saved reply (« payment_pending ») while it had failed, and the group
+    // charged for an order that would refuse the money.
+    let m = makeMf(persistRejeu);
+    rejeu = m;
+    const { q1, q2, holderRef, orderIds } = await panier(m, '09');
+    const [premier, second] = [...orderIds].sort() as [string, string];
+    const locks = await m.getDurableObjectNamespace('ATTRIBUTION_LOCK');
+    const lockHex = locks.idFromName(second).toString();
+    const lockRes = await locks.get(locks.idFromName(second)).fetch('https://do/lock', {
+      method: 'POST',
+      body: JSON.stringify({ checkoutRef: second, resellerId: 'rs-someone-else', tokenId: 'tok-other', at: T0 }),
+    });
+    expect(lockRes.status).toBe(200);
+    const quoteIds = [q1.quoteId, q2.quoteId];
+    const first = await post(m, '/checkout/group', { quoteIds, holderRef, commandId: 'cmd-grp-09' });
+    expect(first.status, first.text).toBe(422);
+    expect(first.json['error']).toBe('attribution_locked_elsewhere');
+    expect((await audit(m, premier)).state).toBe('payment_failed');
+
+    // The collision clears: a real restart with that one lock gone from storage
+    // — the stand-in for any refusal that does not last (a busy object, a 503).
+    await m.dispose();
+    const effaces = effacerObjet(persistRejeu, lockHex);
+    expect(effaces).toBeGreaterThan(0);
+    m = makeMf(persistRejeu);
+    rejeu = m;
+
+    // She goes back and pays again: her first article held afresh, the SAME command.
+    await reserve(m, (premier === `ord-${q1.quoteId}` ? q1 : q2).quoteId, holderRef);
+    const again = await post(m, '/checkout/group', { quoteIds, holderRef, commandId: 'cmd-grp-09' });
+    expect(again.status, again.text).toBe(200);
+    const groupId = String(again.json['groupId']);
+    expect(again.json['state']).toBe('payment_pending');
+    // THE LEDGER: the first order was RETRIED under this attempt, not answered from its old reply.
+    const a1 = await audit(m, premier);
+    expect(a1.state).toBe('payment_pending');
+    expect(a1.attempts).toHaveLength(2);
+    expect((await audit(m, second)).state).toBe('payment_pending');
+
+    const total = q1.amountPaidAtCheckout + q2.amountPaidAtCheckout;
+    const applied = await webhook(m, await confirmation(m, groupId, total));
+    expect(applied.status, applied.text).toBe(200);
+    for (const id of orderIds) {
+      const a = await audit(m, id);
+      expect(a.state).toBe('confirmed');
+      expect(a.reconAlerts).toEqual([]);
+    }
   });
 
   it('the group doors are closed without the binding, and a group webhook without the secret never routes', async () => {

@@ -40,7 +40,16 @@ import {
   type ServerQuote,
 } from './quote-port';
 import { retirerDuPanier } from '../vitrine/panier';
-import { garderPanierPaye, titulairePanier, type ArticlePaye, type GroupeOutcome, type PanierPort, type PrixPanier } from './panier-port';
+import {
+  garderPanierPaye,
+  oublierPanierPaye,
+  panierPaye,
+  titulairePanier,
+  type ArticlePaye,
+  type GroupeOutcome,
+  type PanierPort,
+  type PrixPanier,
+} from './panier-port';
 
 export interface ArticlePanier {
   readonly pid: string;
@@ -65,6 +74,36 @@ export interface SourcePanier {
 
 const FULL: PaymentModeWire = 'FULL_PREPAY';
 const DOOR: PaymentModeWire = 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR';
+
+/**
+ * The quotes a payment was SENT for, in this tab: once an order may be born on
+ * a quote it belongs to that payment for ever (an order never joins another),
+ * so a panier whose articles changed since takes fresh quotes instead.
+ */
+const LIE_PREFIX = 'sp-panier-lie:';
+
+function lireLie(slug: string, storage: Storage | undefined): readonly string[] | undefined {
+  try {
+    const raw = storage?.getItem(LIE_PREFIX + slug);
+    if (raw === null || raw === undefined || raw === '') return undefined;
+    const v = JSON.parse(raw) as unknown;
+    return Array.isArray(v) && v.every((x) => typeof x === 'string') ? (v as string[]) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function ecrireLie(slug: string, ids: readonly string[] | undefined, storage: Storage | undefined): void {
+  try {
+    if (ids === undefined) storage?.removeItem(LIE_PREFIX + slug);
+    else storage?.setItem(LIE_PREFIX + slug, JSON.stringify([...ids].sort()));
+  } catch {
+    /* best-effort — the service refuses an order in another payment by name */
+  }
+}
+
+const memeEnsemble = (a: readonly string[], b: readonly string[]): boolean =>
+  a.length === b.length && [...a].sort().join('\n') === [...b].sort().join('\n');
 
 /** Race every door ask against ONE grace period, counted from the moment the full prices are known. */
 async function portesDansLeDelai(asks: readonly Promise<QuoteOutcome>[], graceMs: number): Promise<readonly QuoteOutcome[] | null> {
@@ -111,13 +150,21 @@ export function creerSourcePanier(args: {
   readonly doorGraceMs?: number;
 }): SourcePanier {
   const { port, articles } = args;
-  // The panier's composition is its scope: the same articles, the same keys.
+  // The panier's composition names its PAYMENT: the same articles, the same pay command.
   const portee = [...articles.map((a) => a.pid)].sort().join(',');
+  // Its quotes and holds are kept per BOUTIQUE panier (verifier MAJOR 1): an
+  // article taken off leaves the others on the quotes, and the holds, she
+  // already has — asking afresh would meet her own hold on a one-unit stock.
+  const perimetre = `boutique:${args.slug}`;
   let lignes: readonly LignePanier[] = [];
   let payes: readonly ArticlePaye[] = [];
   let titulaireCourant: string | null = null;
   /** quoteId → the article's name, so a refusal and a paid order can name it. */
   const noms = new Map<string, string>();
+  /** quoteId → the article's product, so the paid record can name it. */
+  const produits = new Map<string, string>();
+  /** Forgets the current articles' quote keys — set by each pricing, for the day they are paid. */
+  let oublierCles = (): void => {};
 
   const intent = (a: ArticlePanier, quartier: string, paymentMode: PaymentModeWire): QuoteIntent => ({
     slug: args.slug,
@@ -140,12 +187,29 @@ export function creerSourcePanier(args: {
     if (g.commandes !== undefined) {
       payes = g.commandes.map((c) => {
         const quoteId = [...noms.keys()].find((q) => c.orderId.endsWith(q));
-        return { orderId: c.orderId, buyerRef: c.buyerRef, nom: quoteId !== undefined ? noms.get(quoteId) ?? '' : '' };
+        const pid = quoteId !== undefined ? produits.get(quoteId) : undefined;
+        return {
+          orderId: c.orderId,
+          buyerRef: c.buyerRef,
+          nom: quoteId !== undefined ? noms.get(quoteId) ?? '' : '',
+          ...(pid !== undefined ? { pid } : {}),
+        };
       });
-      garderPanierPaye({ groupId: g.groupId, holderRef: titulaire, at: new Date().toISOString(), articles: payes }, args.garde);
     }
-    // Paid AND confirmed: these articles leave her boutique's panier.
-    if (g.state === 'confirmed') retirerDuPanier(args.slug, articles.map((a) => a.pid));
+    // The phone keeps only a payment that did not fail (verifier minor 2): a
+    // failed one is not hers to follow, and its record would say otherwise.
+    if (g.state === 'payment_failed') {
+      if (panierPaye(args.garde)?.groupId === g.groupId) oublierPanierPaye(args.garde);
+    } else if (g.commandes !== undefined) {
+      garderPanierPaye({ groupId: g.groupId, holderRef: titulaire, at: new Date().toISOString(), slug: args.slug, articles: payes }, args.garde);
+    }
+    // Paid AND confirmed: these articles leave her boutique's panier, and
+    // their quotes with them — the next panier with one of them is a new sale.
+    if (g.state === 'confirmed') {
+      retirerDuPanier(args.slug, articles.map((a) => a.pid));
+      oublierCles();
+      ecrireLie(args.slug, undefined, args.session);
+    }
     return {
       status: 'order',
       order: {
@@ -159,12 +223,14 @@ export function creerSourcePanier(args: {
   };
 
   const quoteSource = async (quartier: string, renouveler?: boolean): Promise<QuoteFetch> => {
-    if (renouveler === true) {
-      for (const a of articles) for (const m of [FULL, DOOR]) forgetRequestKey(intent(a, quartier, m), args.session, portee);
-    }
+    const oublier = (): void => {
+      for (const a of articles) for (const m of [FULL, DOOR]) forgetRequestKey(intent(a, quartier, m), args.session, perimetre);
+    };
+    if (renouveler === true) oublier();
+    oublierCles = oublier;
     const cles = articles.map((a) => ({
-      full: requestKeyFor(intent(a, quartier, FULL), args.session, portee),
-      door: requestKeyFor(intent(a, quartier, DOOR), args.session, portee),
+      full: requestKeyFor(intent(a, quartier, FULL), args.session, perimetre),
+      door: requestKeyFor(intent(a, quartier, DOOR), args.session, perimetre),
     }));
     if (cles.some((c) => c.full === undefined || c.door === undefined)) return { status: 'refused', reason: 'no_secure_random' };
 
@@ -182,8 +248,23 @@ export function creerSourcePanier(args: {
       quotes.push(f.quote);
     }
     const portes = await portesDansLeDelai(doorAsks, args.doorGraceMs ?? DOOR_GRACE_MS);
+    // A quote a payment was sent for belongs to that payment: a CHANGED panier
+    // that still carries one takes fresh quotes (once — the fresh ones are free).
+    const lie = lireLie(args.slug, args.session);
+    if (lie !== undefined && renouveler !== true) {
+      const ici = [...quotes, ...(portes ?? []).flatMap((d) => (d.status === 'quote' ? [d.quote] : []))].map((q) => q.quoteId);
+      const memePanier = memeEnsemble(lie, quotes.map((q) => q.quoteId)) || memeEnsemble(lie, ici.slice(quotes.length));
+      if (!memePanier && ici.some((id) => lie.includes(id))) {
+        ecrireLie(args.slug, undefined, args.session);
+        return quoteSource(quartier, true);
+      }
+    }
     noms.clear();
-    for (const [i, q] of quotes.entries()) noms.set(q.quoteId, articles[i]!.nom);
+    produits.clear();
+    for (const [i, q] of quotes.entries()) {
+      noms.set(q.quoteId, articles[i]!.nom);
+      produits.set(q.quoteId, articles[i]!.pid);
+    }
     const doorQuotes: ServerQuote[] = [];
     let bIndisponible = portes === null;
     for (const [i, full] of quotes.entries()) {
@@ -195,6 +276,7 @@ export function creerSourcePanier(args: {
       } else {
         doorQuotes.push(door.quote);
         noms.set(door.quote.quoteId, articles[i]!.nom);
+        produits.set(door.quote.quoteId, articles[i]!.pid);
       }
     }
 
@@ -226,7 +308,7 @@ export function creerSourcePanier(args: {
     lignes = quotes.map((q, i) => ({ nom: articles[i]!.nom, produitFcfa: q.productSubtotal }));
 
     // 3. ONE HOLDER FOR THE WHOLE PANIER, and each quote's own hold command.
-    const titulaire = titulairePanier(portee, args.session);
+    const titulaire = titulairePanier(perimetre, args.session);
     if (titulaire === undefined) return { status: 'refused', reason: 'no_secure_random' };
     titulaireCourant = titulaire;
     const commandes = new Map<string, string>();
@@ -265,6 +347,8 @@ export function creerSourcePanier(args: {
         // One command per (panier, mode, attempt): a double tap replays, a retry is new.
         const cmd = orderCommandIdFor(`panier#${portee}#${mode}`, essai, args.session);
         if (cmd === undefined) return { status: 'refused', reason: 'no_secure_random' };
+        // Recorded BEFORE the payment leaves: from here an order may exist on these quotes.
+        ecrireLie(args.slug, cibles.map((q) => q.quoteId), args.session);
         return commeCommande(await port.payer(cibles.map((q) => q.quoteId), cmd, titulaire, contact), titulaire);
       },
       etatCommande: async (groupId: string): Promise<OrderFetch> => commeCommande(await port.etat(groupId), titulaire),

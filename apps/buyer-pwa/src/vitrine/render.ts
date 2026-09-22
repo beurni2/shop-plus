@@ -38,6 +38,8 @@ import {
 import { VITRINE_THEMES } from './themes';
 import { isFavorite } from './favorites';
 import { inPanier, panierOf } from './panier';
+import { pidsPayes } from '../cliente/panier-port';
+import { localStorageOrUndefined } from '../cliente/quote-port';
 import { listeGardee, type CadeauListe, type ListePublique } from './liste';
 import { ligneCadeau } from '../cadeau';
 import { QUARTIERS_OUAGADOUGOU } from '../cliente/quartiers-ouagadougou';
@@ -531,7 +533,8 @@ export function renderPanierBand(sf: Storefront, described?: readonly VitrinePro
    * payment screens, once her destination is known. One article ⇒ no button —
    * its own page is the road, exactly as before.
    */
-  const aPayer = articles.filter((p) => p.inStock);
+  // The SAME list the tap sends — one source for the count and the payment.
+  const aPayer = pidsAPayer(sf, described);
   const payer =
     aPayer.length >= 2 && aPayer.length <= PANIER_PAYER_MAX
       ? `<button class="vt-panier-payer" data-action="panier-payer">${tf('vit.panier_payer_tout', { n: String(aPayer.length) })}</button>`
@@ -548,10 +551,13 @@ export function renderPanierBand(sf: Storefront, described?: readonly VitrinePro
 /** The service pays at most ten articles at once (its fan-out bound). */
 export const PANIER_PAYER_MAX = 10;
 
-/** The in-stock articles the band's « payer ensemble » sends, in her order. */
+/** The in-stock articles the band's « payer ensemble » sends, in her order —
+ *  never one her phone records as already ordered in a panier payment (the
+ *  tab that paid may have died before it could take them off her panier). */
 export function pidsAPayer(sf: Storefront, described?: readonly VitrineProduct[]): string[] {
   const parPid = new Map(orderedProducts(sf, undefined, described).map((p) => [p.pid, p]));
-  return panierOf(sf.slug).filter((pid) => parPid.get(pid)?.inStock === true);
+  const dejaPayes = pidsPayes(sf.slug, localStorageOrUndefined());
+  return panierOf(sf.slug).filter((pid) => parPid.get(pid)?.inStock === true && !dejaPayes.has(pid));
 }
 
 /* ------------------------------------------------- LISTE-ENVIES-1 (2026-08-25) -- */

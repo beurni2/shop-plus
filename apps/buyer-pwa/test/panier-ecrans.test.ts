@@ -84,9 +84,9 @@ describe('PAYER-TOUT-1 — the panier on the checkout', () => {
     expect(renderRefus('out_of_stock')).toBe(renderRefus('out_of_stock', undefined));
   });
 
-  it('« Mes articles payés ensemble » is the same list', () => {
+  it('« Mes articles commandés ensemble » is the same list', () => {
     const html = renderMesArticles([{ orderId: 'ord-1', nom: 'Robe bogolan' }]);
     expect(html).toContain('data-order="ord-1"');
-    expect(texte(html)).toContain('Mes articles payés ensemble');
+    expect(texte(html)).toContain('Mes articles commandés ensemble');
   });
 });

@@ -435,6 +435,10 @@ export function resolvePanierPort(prixParPid: ReadonlyMap<string, number>): Pani
  * that paid it (each article's door is paid under it), and per article its
  * order, its read token and its name. ONE slot, newest wins — pilot scale,
  * the single road's own law (`sp-commande:v1`). No amount, no contact, no code.
+ * The boutique's slug and each article's product id ride too (both public, in
+ * her link): the boutique never offers to pay again what this record names,
+ * and an article leaves her panier once its own tracking reads it paid —
+ * even when the tab that paid died before the operator confirmed.
  */
 export const PANIER_PAYE_CLE = 'sp-panier-paye:v1';
 
@@ -442,12 +446,14 @@ export interface ArticlePaye {
   readonly orderId: string;
   readonly buyerRef: string;
   readonly nom: string;
+  readonly pid?: string;
 }
 
 export interface PanierPaye {
   readonly groupId: string;
   readonly holderRef: string;
   readonly at: string;
+  readonly slug?: string;
   readonly articles: readonly ArticlePaye[];
 }
 
@@ -460,7 +466,13 @@ export function garderPanierPaye(p: PanierPaye, storage?: Storage): void {
         groupId: p.groupId,
         holderRef: p.holderRef,
         at: p.at,
-        articles: p.articles.map((a) => ({ orderId: a.orderId, buyerRef: a.buyerRef, nom: a.nom })),
+        ...(p.slug !== undefined ? { slug: p.slug } : {}),
+        articles: p.articles.map((a) => ({
+          orderId: a.orderId,
+          buyerRef: a.buyerRef,
+          nom: a.nom,
+          ...(a.pid !== undefined ? { pid: a.pid } : {}),
+        })),
       }),
     );
   } catch {
@@ -479,13 +491,20 @@ export function panierPaye(storage?: Storage): PanierPaye | undefined {
     for (const a of v['articles'] as unknown[]) {
       const o = a !== null && typeof a === 'object' ? (a as Record<string, unknown>) : {};
       if (!nonVide(o['orderId']) || !nonVide(o['buyerRef']) || typeof o['nom'] !== 'string') return undefined;
-      articles.push({ orderId: o['orderId'], buyerRef: o['buyerRef'], nom: o['nom'] });
+      articles.push({ orderId: o['orderId'], buyerRef: o['buyerRef'], nom: o['nom'], ...(nonVide(o['pid']) ? { pid: o['pid'] } : {}) });
     }
     if (articles.length === 0) return undefined;
-    return { groupId: v['groupId'], holderRef: v['holderRef'], at: v['at'], articles };
+    return { groupId: v['groupId'], holderRef: v['holderRef'], at: v['at'], ...(nonVide(v['slug']) ? { slug: v['slug'] } : {}), articles };
   } catch {
     return undefined;
   }
+}
+
+/** The products of this boutique the record names — never offered for payment again while it stands. */
+export function pidsPayes(slug: string, storage?: Storage): ReadonlySet<string> {
+  const p = panierPaye(storage);
+  if (p === undefined || p.slug !== slug) return new Set();
+  return new Set(p.articles.flatMap((a) => (a.pid !== undefined ? [a.pid] : [])));
 }
 
 /** « C'est terminé » on one article: its line goes; the last one takes the slot with it. */
@@ -507,8 +526,9 @@ export function oublierPanierPaye(storage?: Storage): void {
 }
 
 /**
- * THE PANIER'S HOLDER — one opaque token per panier composition, kept for the
- * tab's life so a reload replays her own holds. Every article's hold is taken
+ * THE PANIER'S HOLDER — one opaque token per boutique panier (the scope its
+ * quotes are kept under), kept for the tab's life so a reload, or a panier
+ * with one article taken off, replays her own holds. Every article's hold is taken
  * under it (the service's group requires ONE holder across the panier), and
  * each article's door is later paid under it.
  */

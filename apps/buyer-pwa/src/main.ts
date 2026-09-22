@@ -1144,7 +1144,7 @@ if (app) {
   }
 
   /**
-   * PAYER-TOUT-1 — « MES ARTICLES PAYÉS ENSEMBLE », the same quiet band for a
+   * PAYER-TOUT-1 — « MES ARTICLES COMMANDÉS ENSEMBLE », the same quiet band for a
    * panier paid at once: it reopens the list, and each article's own tracking
    * from there. Built with `textContent`, like its neighbour.
    */

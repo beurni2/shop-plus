@@ -5,6 +5,7 @@ import {
   garderPanierPaye,
   httpPanierPort,
   panierPaye,
+  pidsPayes,
   retirerArticlePaye,
   type GroupeOutcome,
   type PanierPort,
@@ -40,6 +41,7 @@ const EXPIRY_PROCHE = new Date(Date.now() + 5 * 60_000).toISOString();
 const FIG: Record<string, { produit: number; frais: number }> = {
   p1: { produit: 11_500, frais: 1_000 },
   p2: { produit: 25_000, frais: 1_500 },
+  p3: { produit: 8_000, frais: 1_000 },
 };
 
 interface Journal {
@@ -55,6 +57,8 @@ function service(over: {
   prix?: (ids: readonly string[]) => PrixOutcome;
   reserve?: (quoteId: string) => ReserveOutcome;
   payer?: GroupeOutcome;
+  /** The real service's law: a fresh request key is a fresh quote. */
+  cleDansId?: boolean;
 } = {}): { port: PanierPort; j: Journal } {
   const j: Journal = { requests: [], reserves: [], prix: [], payes: [] };
   const port: PanierPort = {
@@ -67,7 +71,7 @@ function service(over: {
       return {
         status: 'quote',
         quote: {
-          quoteId: `q-${intent.pid}-${door ? 'B' : 'A'}`,
+          quoteId: `q-${intent.pid}-${door ? 'B' : 'A'}${over.cleDansId === true ? `-${key.slice(-8)}` : ''}`,
           paymentMode: intent.paymentMode,
           productSubtotal: f.produit,
           deliveryFee: f.frais,
@@ -85,12 +89,15 @@ function service(over: {
     async prix(ids) {
       j.prix.push([...ids]);
       if (over.prix !== undefined) return over.prix(ids);
-      const door = ids[0]!.endsWith('-B');
+      const door = ids[0]!.split('-')[2] === 'B';
+      const figs = ids.map((id) => FIG[id.split('-')[1]!]!);
+      const produit = figs.reduce((n, f) => n + f.produit, 0);
+      const frais = figs.reduce((n, f) => n + f.frais, 0);
       return {
         status: 'prix',
         prix: door
-          ? { paymentMode: 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR', articles: 2, amountPaidAtCheckout: 2_500, amountDueAtDelivery: 36_500, deliveryTotal: 2_500, productTotal: 36_500 }
-          : { paymentMode: 'FULL_PREPAY', articles: 2, amountPaidAtCheckout: 39_000, amountDueAtDelivery: 0, deliveryTotal: 2_500, productTotal: 36_500 },
+          ? { paymentMode: 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR', articles: ids.length, amountPaidAtCheckout: frais, amountDueAtDelivery: produit, deliveryTotal: frais, productTotal: produit }
+          : { paymentMode: 'FULL_PREPAY', articles: ids.length, amountPaidAtCheckout: produit + frais, amountDueAtDelivery: 0, deliveryTotal: frais, productTotal: produit },
       };
     },
     async payer(quoteIds, commandId, holderRef) {
@@ -228,13 +235,17 @@ describe('PAYER-TOUT-1 — the panier\'s price, spoken as one quote', () => {
     expect(svc.j.payes[2]!.commandId).not.toBe(svc.j.payes[0]!.commandId);
     // Each article's own order, named, kept on the phone with the holder — for its tracking and its door.
     expect(s.payes()).toEqual([
-      { orderId: 'ord-q-p1-A', buyerRef: 'ref-1', nom: 'Robe bogolan' },
-      { orderId: 'ord-q-p2-A', buyerRef: 'ref-2', nom: 'Sac en cuir' },
+      { orderId: 'ord-q-p1-A', buyerRef: 'ref-1', nom: 'Robe bogolan', pid: 'p1' },
+      { orderId: 'ord-q-p2-A', buyerRef: 'ref-2', nom: 'Sac en cuir', pid: 'p2' },
     ]);
     const kept = panierPaye(garde);
     expect(kept?.groupId).toBe('grp-abc');
     expect(kept?.holderRef).toBe(svc.j.reserves[0]!.holderRef);
     expect(kept?.articles.map((a) => a.nom)).toEqual(['Robe bogolan', 'Sac en cuir']);
+    // Her boutique and each product ride the record, so the boutique never offers them again.
+    expect(kept?.slug).toBe('aicha-4821');
+    expect([...pidsPayes('aicha-4821', garde)].sort()).toEqual(['p1', 'p2']);
+    expect(pidsPayes('une-autre-1234', garde).size).toBe(0);
   });
 
   it('the panier\'s quotes live in their OWN key slots — never the key the same article gets bought alone', async () => {
@@ -280,6 +291,82 @@ describe('PAYER-TOUT-1 — the panier\'s price, spoken as one quote', () => {
     const r = await source(svc2.port).s.quoteSource('Gounghin');
     if (r.status !== 'ready') throw new Error('not ready');
     expect(await r.commander('A', 0)).toEqual({ status: 'refused', reason: 'reservation_expired', article: 'Robe bogolan' });
+  });
+
+  it('an article taken off after its refusal: the others keep their quotes and replay HER OWN holds (verifier MAJOR 1)', async () => {
+    const session = memoire();
+    const svc3 = service({
+      cleDansId: true,
+      reserve: (q) => (q.startsWith('q-p3-') ? { status: 'refused', reason: 'out_of_stock' } : { status: 'reserved' }),
+    });
+    const panier = (articles: readonly { pid: string; nom: string }[]) =>
+      creerSourcePanier({ port: svc3.port, slug: 'aicha-4821', ville: 'Ouagadougou', resellerId: 'rs-1', articles, session, garde: memoire(), doorGraceMs: 50 });
+    const trois = await panier([...ARTICLES, { pid: 'p3', nom: 'Pagne tissé' }]).quoteSource('Gounghin');
+    if (trois.status !== 'ready') throw new Error('not ready');
+    expect(await trois.reserve('A')).toEqual({ status: 'refused', reason: 'out_of_stock', article: 'Pagne tissé' });
+    const avant = svc3.j.reserves.filter((x) => !x.quoteId.startsWith('q-p3-'));
+    expect(avant).toHaveLength(2);
+
+    // She takes it off and pays the rest: the SAME quotes, hold commands and holder —
+    // her own holds replayed, never a fresh hold meeting hers on a one-unit stock.
+    const deux = await panier(ARTICLES).quoteSource('Gounghin');
+    if (deux.status !== 'ready') throw new Error('not ready');
+    expect(await deux.reserve('A')).toEqual({ status: 'reserved' });
+    expect(svc3.j.reserves.slice(-2)).toEqual(avant);
+  });
+
+  it('a quote a payment was SENT for stays that payment\'s: the same panier reuses it, a CHANGED panier takes fresh quotes', async () => {
+    const session = memoire();
+    const svcK = service({ cleDansId: true });
+    const panier = (articles: readonly { pid: string; nom: string }[]) =>
+      creerSourcePanier({ port: svcK.port, slug: 'aicha-4821', ville: 'Ouagadougou', resellerId: 'rs-1', articles, session, garde: memoire(), doorGraceMs: 50 });
+    const r = await panier(ARTICLES).quoteSource('Gounghin');
+    if (r.status !== 'ready') throw new Error('not ready');
+    await r.reserve('A');
+    await r.commander('A', 0);
+    const envoyes = svcK.j.payes[0]!.quoteIds;
+
+    // The same panier again (a reload): the SAME quotes — the payment already sent, never a second.
+    const memes = await panier(ARTICLES).quoteSource('Gounghin');
+    expect(memes.status === 'ready' && memes.ids.fullQuoteId).toBe(envoyes[0]);
+
+    // She adds an article: the two already sent for are priced afresh (an order never joins another payment).
+    const change = await panier([...ARTICLES, { pid: 'p3', nom: 'Pagne tissé' }]).quoteSource('Gounghin');
+    if (change.status !== 'ready') throw new Error('not ready');
+    const prixDuChange = svcK.j.prix.at(-2)!;
+    expect(prixDuChange).toHaveLength(3);
+    expect(prixDuChange.some((id) => envoyes.includes(id))).toBe(false);
+  });
+
+  it('a FAILED payment is not kept as hers to follow; a pending one is, until it fails (verifier minor 2)', async () => {
+    const garde = memoire();
+    const failed: GroupeOutcome = {
+      status: 'groupe',
+      groupe: {
+        groupId: 'grp-abc',
+        state: 'payment_failed',
+        amountPaidAtCheckout: 39_000,
+        amountDueAtDelivery: 0,
+        articles: [],
+        commandes: [
+          { orderId: 'ord-q-p1-A', buyerRef: 'ref-1' },
+          { orderId: 'ord-q-p2-A', buyerRef: 'ref-2' },
+        ],
+      },
+    };
+    const echec = await source(service({ payer: failed }).port, memoire(), garde).s.quoteSource('Gounghin');
+    if (echec.status !== 'ready') throw new Error('not ready');
+    await echec.commander('A', 0);
+    expect(panierPaye(garde)).toBeUndefined();
+
+    const svcP = service();
+    const attente = await source(svcP.port, memoire(), garde).s.quoteSource('Gounghin');
+    if (attente.status !== 'ready') throw new Error('not ready');
+    await attente.commander('A', 0);
+    expect(panierPaye(garde)?.groupId).toBe('grp-abc');
+    svcP.port.etat = async () => failed;
+    await attente.etatCommande('grp-abc');
+    expect(panierPaye(garde)).toBeUndefined();
   });
 });
 

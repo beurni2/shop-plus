@@ -5,7 +5,7 @@
  *    own price source (panier-source.ts);
  *  · one paid article's tracking — `createCliente` at C7 over that ORDER's
  *    own reads, with its door payment possible (the panier's holder is kept);
- *  · « Mes articles payés ensemble » — the list that reopens each tracking
+ *  · « Mes articles commandés ensemble » — the list that reopens each tracking
  *    after the tab died.
  *
  * Moving from one to the next REPLACES the host element: a flow's listeners
@@ -26,9 +26,13 @@ import {
   type PanierPaye,
 } from './panier-port';
 import { orderCommandIdFor, villeDe } from './quote-port';
+import { retirerDuPanier } from '../vitrine/panier';
 import { tf } from '../i18n';
 
 type Monter = (host: HTMLElement, init: ClienteInit) => void;
+
+/** Her money is not yet the operator's word in these two states; every later one is a paid order. */
+const PAS_ENCORE_PAYE = new Set(['payment_pending', 'payment_failed']);
 
 export interface BoutiquePanier {
   readonly name: string;
@@ -77,7 +81,15 @@ export function monterSuiviArticle(
     suivi: {
       orderId: article.orderId,
       buyerRef: article.buyerRef,
-      etatCommande: (id) => port.orderState(id),
+      etatCommande: async (id) => {
+        const r = await port.orderState(id);
+        // Paid for good: the article leaves her boutique's panier here too,
+        // for the tab that paid may have died before it heard (verifier minor 1).
+        if (r.status === 'order' && !PAS_ENCORE_PAYE.has(r.order.state) && article.pid !== undefined && args.boutique.slug !== '') {
+          retirerDuPanier(args.boutique.slug, [article.pid]);
+        }
+        return r;
+      },
       remise: (id, ref) => port.remise(id, ref),
       // Her door, under the holder that paid the panier; without it (a phone
       // that lost it) the door road is withheld, never faked.
@@ -129,9 +141,10 @@ export function monterPanier(
       lignes: source.lignes,
       payes: source.payes,
       onSuivre: (orderId, buyerRef, nom) => {
+        const pid = source.payes().find((a) => a.orderId === orderId)?.pid;
         monterSuiviArticle(host, {
           monter: args.monter,
-          article: { orderId, buyerRef, nom },
+          article: { orderId, buyerRef, nom, ...(pid !== undefined ? { pid } : {}) },
           titulaire: source.titulaire(),
           boutique: args.boutique,
           session: args.session,
@@ -144,7 +157,7 @@ export function monterPanier(
   });
 }
 
-/** « Mes articles payés ensemble » — each article's tracking, reopened from the phone's record. */
+/** « Mes articles commandés ensemble » — each article's tracking, reopened from the phone's record. */
 export function monterMesArticles(
   host: HTMLElement,
   args: {
@@ -170,8 +183,8 @@ export function monterMesArticles(
       monter: args.monter,
       article,
       titulaire: paye.holderRef,
-      // The record keeps no boutique (nothing worth stealing); C7 reads none.
-      boutique: { name: '', slug: '', zone: '' },
+      // The record keeps only the boutique's public slug (to tidy her panier); C7 reads no name.
+      boutique: { name: '', slug: paye.slug ?? '', zone: '' },
       session: args.session,
       garde: args.garde,
       onTerminee: args.onTerminee,

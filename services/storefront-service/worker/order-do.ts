@@ -1961,6 +1961,26 @@ export class OrderDO {
   }
 
   /**
+   * PAYER-TOUT-1 (verifier BLOCKER 1) — A GROUPED CREATE IS ALWAYS ANSWERED
+   * AS THE ORDER STANDS NOW, with the group attempt it belongs to. A saved
+   * reply can say `payment_pending` for an order that has failed since (its
+   * attempt ended, its stuck watch fired), and the group charges on this
+   * answer: it must be the live state, never a memory of it.
+   */
+  private async repondreAuGroupe(): Promise<Response> {
+    const view = await this.projectForBuyer();
+    if (view === undefined) return Response.json({ ok: false, reason: 'unknown_order' });
+    const jetonExistant = await this.state.storage.get<string>(BUYER_REF_KEY);
+    const marker = await this.state.storage.get<{ groupAttemptId: string }>(GROUP_ATTEMPT_KEY);
+    return Response.json({
+      ok: true,
+      view,
+      ...(jetonExistant !== undefined ? { buyerRef: jetonExistant } : {}),
+      ...(marker !== undefined ? { groupAttemptId: marker.groupAttemptId } : {}),
+    });
+  }
+
+  /**
    * CREATE THE ORDER FROM A RESERVED QUOTE — or refuse, by name.
    *
    * IDEMPOTENT ON `commandId`, and deliberately only for ACCEPTED outcomes: a
@@ -2038,7 +2058,7 @@ export class OrderDO {
       receipt.quoteId === quoteId &&
       receipt.holderRef === holderRef
     ) {
-      return Response.json(results[commandId]);
+      return grouped !== undefined ? this.repondreAuGroupe() : Response.json(results[commandId]);
     }
     // Everything past here can MOVE something, so the WHOLE gate runs — quote
     // and hold freshness included. A cached command under the WRONG holder
@@ -2262,7 +2282,7 @@ export class OrderDO {
          * this branch is exactly the lost-first-response recovery — a client
          * that re-creates under a fresh command id must still reach her token.
          */
-        return this.repondreCommeElleEst();
+        return grouped !== undefined ? this.repondreAuGroupe() : this.repondreCommeElleEst();
       }
       /* ── the retry: payment_failed → payment_pending, a NEW attempt id ── */
       stored = origin;
@@ -2332,7 +2352,7 @@ export class OrderDO {
      * can interleave again.
      */
     const logFrais = (await this.state.storage.get<OrderInput[]>(LOG_KEY)) ?? [];
-    if (logFrais.length !== logLu.length) return this.repondreCommeElleEst();
+    if (logFrais.length !== logLu.length) return grouped !== undefined ? this.repondreAuGroupe() : this.repondreCommeElleEst();
 
     // THE ATTEMPT AND ITS PROVIDER KEY ARE DURABLE BEFORE THE PROVIDER IS CALLED.
     // If this process dies mid-charge, both survive: the attempt can never be
@@ -2431,6 +2451,7 @@ export class OrderDO {
           doorLeg: walkedGroup.doorLegState,
         }),
         buyerRef,
+        groupAttemptId: grouped.groupAttemptId,
       };
       await this.state.storage.put(RESULTS_KEY, { ...results, [commandId]: groupAnswer });
       return Response.json(groupAnswer);
