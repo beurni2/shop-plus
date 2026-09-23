@@ -292,9 +292,12 @@ test('REAL · COLIS-2 — her door payment gets no answer, and she gives the san
   await expect.poll(() => w.portes.length).toBe(2);
   // A new attempt of hers, never the first one's id replayed.
   expect(w.portes[1]!.body['commandId']).not.toBe(w.portes[0]!.body['commandId']);
+  // Her phone asks again for the set it last showed her; it is the SERVICE
+  // that leaves out what the rider took back (storefront colis.e2e).
+  expect([...(w.portes[1]!.body['orderIds'] as string[])].sort()).toEqual(['ord-q-p1-B', 'ord-q-p2-B']);
   // The operator screen names the service's amount: the bazin alone (11 500), never both (32 000).
-  await expect(page.locator('[data-etat="paiement-porte"]')).toContainText('11');
-  await expect(page.locator('[data-etat="paiement-porte"]')).not.toContainText('32');
+  await expect(page.locator('[data-etat="paiement-porte"]')).toContainText(/11\s?500/);
+  await expect(page.locator('[data-etat="paiement-porte"]')).not.toContainText(/32\s?000/);
   w.confirmationRetenue = false;
   // …and she reaches her code for what she kept.
   await expect(page.locator('[data-screen="C9"]')).toBeVisible({ timeout: 20_000 });

@@ -143,7 +143,7 @@ function makeMf(dir: string, extra: Record<string, string> = {}): Miniflare {
       }
       if (request.method === 'POST' && path === '/produce-shop/door-reference') {
         const [orderId, commandId, reference] = [body['orderId'], body['command_id'], body['reference']];
-        if (typeof orderId !== 'string' || typeof commandId !== 'string' || commandId === '' || commandId.length > 200 || typeof reference !== 'string' || reference === '' || reference.length > 200) {
+        if (typeof orderId !== 'string' || typeof commandId !== 'string' || commandId === '' || commandId.length > 256 || typeof reference !== 'string' || reference === '' || reference.length > 256) {
           return Response.json({ ok: false, reason: 'malformed' }, { status: 400 });
         }
         custodyActs.push({ path, orderId, reference });

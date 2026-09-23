@@ -131,6 +131,14 @@ export type RefundOutcome =
  *                       (a late request may still land): it is `unknown`.
  *   · `unknown`       — anything else, including « still waiting for her ».
  * The caller acts only on the first two; `unknown` changes nothing.
+ *
+ * ⚠ ON `not_collected` THE CALLER SPENDS A NEW KEY (a smaller payment, for
+ * what she keeps). If an adapter ever answered it wrongly and the old key
+ * took the money after all, that late confirmation is refused on an article
+ * already paid and only alerted on its record — nothing refunds it by itself
+ * yet (COLIS-2 verifier M1, put to the founder). So a real adapter may NOT
+ * be wired until it is certified (Execution Contract §3) to answer
+ * `not_collected` only for a failure its provider guarantees final.
  */
 export interface ChargeStatusCommand {
   readonly orderId: string;
