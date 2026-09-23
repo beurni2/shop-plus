@@ -137,7 +137,11 @@ describe('RESERVATION-FOURNISSEUR-1 — the reserve holds the unit on Boutik+', 
     const before = releasesOf().length;
     const c = await creerCommande('0004');
     expect(c.state, 'the first charge times out (PAYMENT_SANDBOX_BEHAVIOR)').toBe('payment_failed');
-    expect(porte.holds!.has(`${PV}|${c.firstReservationId}`), 'held at reserve').toBe(true);
+    // Held at reserve: the producer was ASKED to hold this reservation. Its
+    // live map is not read here — the release wire may already have run on a
+    // slow runner (ci 696 went red on exactly that race), and the release
+    // itself is asserted below.
+    expect(holdsOf().some((h) => h.body['reservationId'] === c.firstReservationId), 'held at reserve').toBe(true);
     const a = await jusqua(c.orderId, (x) => x.holdRelease?.status === 'delivered');
     expect(a.holdRelease).toMatchObject({
       status: 'delivered',
