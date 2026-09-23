@@ -16,6 +16,9 @@ import { ORDER_STATUSES, PlatformEventSchema, type PlatformEvent } from '@platfo
  *   refund:  paid | confirmed → refunded   (REMBOURSEMENT-1, founder ruling
  *            2026-09-23 — reached ONLY by the vault's refund judge, once the
  *            provider has confirmed every refund due, to the franc)
+ *            refunded → paid   (REMBOURSEMENT-2 — ONLY a door payment the
+ *            provider confirms after the refund, a charge in flight at the
+ *            door: money is held again until its own refund is confirmed)
  *
  * Unknown or out-of-order transitions REFUSE CLOSED. Every accepted
  * transition emits one enveloped PlatformEvent. Chain ids are write-once,
@@ -42,6 +45,7 @@ const FAILURE_NEXT: Readonly<Partial<Record<OrderState, readonly OrderState[]>>>
   payment_failed: ['payment_pending', 'cancelled'],
   paid: ['refunded'],
   confirmed: ['refunded'],
+  refunded: ['paid'],
 };
 
 /** The correlation chain (§2.3 steps 6–8): grows monotonically, never mutates. */

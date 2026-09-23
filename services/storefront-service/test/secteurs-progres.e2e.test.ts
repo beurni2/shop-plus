@@ -275,6 +275,13 @@ describe('SECTEURS-PROGRES-1 — with both secrets bound, each writer opens exac
     expect((await vue(orderId))['readyAt']).toBeUndefined();
     expect((await progress(ready('2026-09-03T09:15:00.000Z', 'br2'), BOUTIK_SECRET)).status).toBe(200);
     expect((await vue(orderId))['readyAt']).toBe('2026-09-03T09:15:00.000Z');
+
+    // REMBOURSEMENT-2 — the supplier's refusal is Boutik+'s fact too: Séra's
+    // credential cannot open a refund with it (refused by name, nothing opened).
+    const rejete = { name: 'fulfillment.rejected.v1', envelope: progressEnvelope('rj2'), payload: { orderId, at: '2026-09-03T09:20:00.000Z' } };
+    const volRefus = await progress(rejete, SERA_SECRET);
+    expect(`${volRefus.status} ${(safeJson(await volRefus.text()))['reason']}`).toBe('403 wrong_writer');
+    expect((await vue(orderId))['remboursement']).toBeUndefined();
   }, 60_000);
 
   it('an unknown credential stays the uniform 401 on both doors — the split adds no oracle', async () => {

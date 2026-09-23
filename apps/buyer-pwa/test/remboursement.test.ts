@@ -69,6 +69,17 @@ describe('readOrder — her refund crosses the wire as the server said it, or no
     }
   });
 
+  it('REMBOURSEMENT-2 — the reason crosses as one of the two words; any other word drops the refund whole', async () => {
+    const indispo = await lire({ ...ORDRE, remboursement: { etat: 'en_cours', montant: 12_500, motif: 'indisponible' } });
+    expect(indispo.status === 'order' && indispo.order.remboursement).toEqual({ etat: 'en_cours', montant: 12_500, motif: 'indisponible' });
+    const retour = await lire({ ...ORDRE, remboursement: { etat: 'fait', montant: 12_500, motif: 'retour' } });
+    expect(retour.status === 'order' && retour.order.remboursement).toEqual({ etat: 'fait', montant: 12_500, motif: 'retour' });
+    for (const motif of ['perdu', '', 1, null]) {
+      const got = await lire({ ...ORDRE, remboursement: { etat: 'en_cours', montant: 12_500, motif } });
+      expect(got.status === 'order' && got.order.remboursement, JSON.stringify(motif)).toBeUndefined();
+    }
+  });
+
   it('no refund on the wire ⇒ none on the order (absence announces nothing)', async () => {
     const got = await lire(ORDRE);
     expect(got.status === 'order' && got.order.remboursement).toBeUndefined();
@@ -116,6 +127,21 @@ describe('renderC7 — the refund card', () => {
     expect(html).not.toContain('Remboursement fait');
     expect(html).not.toContain('data-action="voir-code"');
     expect(html).not.toContain('data-action="porte"');
+  });
+
+  it('REMBOURSEMENT-2 — an article not available says so, never « the parcel is going back »', () => {
+    const enCours = renderC7({ ...REEL, remboursement: { etat: 'en_cours', montant: 12_500, motif: 'indisponible' } });
+    expect(enCours).toContain(`12${NNBSP}500${NNBSP}FCFA vous reviennent`);
+    expect(enCours).toContain(t('cl.remboursement.indisponible_corps'));
+    expect(enCours).not.toContain('Le colis retourne');
+    expect(enCours).not.toContain('data-action="voir-code"');
+    const fait = renderC7({ ...REEL, remboursement: { etat: 'fait', montant: 12_500, motif: 'indisponible' } });
+    // The whole sentence is the card's body — the « retour » one is a tail of it.
+    expect(fait).toContain(`<div class="cl-rembourse-corps">${t('cl.remboursement.indisponible_fait_corps')}</div>`);
+    // `retour` keeps REMBOURSEMENT-1's words exactly.
+    const retour = renderC7({ ...REEL, remboursement: { etat: 'en_cours', montant: 12_500, motif: 'retour' } });
+    expect(retour).toContain(t('cl.remboursement.en_cours_corps'));
+    expect(retour).not.toContain(t('cl.remboursement.indisponible_corps'));
   });
 
   it('without a refund the screen is unchanged — the door and code roads stay where they were', () => {

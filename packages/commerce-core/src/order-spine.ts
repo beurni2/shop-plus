@@ -223,7 +223,9 @@ export interface GroupPaymentShares {
 export type RefusCourse =
   | { readonly nature: 'refus_justifie'; readonly faultClass: string }
   | { readonly nature: 'refus_acheteur'; readonly faultClass: string; readonly fraisRetenus: boolean }
-  | { readonly nature: 'livraison_rejetee' };
+  | { readonly nature: 'livraison_rejetee' }
+  /** REMBOURSEMENT-2 — the supplier refused a paid order (seller fault, B6.1). */
+  | { readonly nature: 'refus_fournisseur' };
 
 export function lireRefusCourse(payload: unknown): RefusCourse | undefined {
   if (payload === null || typeof payload !== 'object' || Array.isArray(payload)) return undefined;
@@ -336,7 +338,11 @@ export class OrderSpine {
     to: string;
     chainAdditions?: Record<string, string>;
   }): TransitionOutcome {
-    if (cmd.to === 'refunded') return { ok: false, journey: this.journeyState, reason: 'out_of_order', attempted: cmd.to };
+    // `refunded` is reached, and left, only by the provider's own word: the
+    // refund judge in, a late door payment out (REMBOURSEMENT-2).
+    if (cmd.to === 'refunded' || this.journeyState.state === 'refunded') {
+      return { ok: false, journey: this.journeyState, reason: 'out_of_order', attempted: cmd.to };
+    }
     return this.avancer(cmd);
   }
 
@@ -491,6 +497,69 @@ export class OrderSpine {
         pending_since: notification.since,
         ttl_policy_version: policy.version,
       },
+    });
+  }
+
+  /**
+   * REMBOURSEMENT-2 — A REFUND THE PROVIDER ACCEPTED BUT NEVER CONFIRMED, past
+   * the same versioned TTL the other stuck watches use. Detection only: the
+   * caller owns the line, its clock (`demandeLe`, when the provider accepted
+   * the ask) and the « once per line » record, as it owns the outbox.
+   */
+  checkStuckRefund(
+    nowIso: string,
+    policy: { version: string; ttlMs: number },
+    ligne: { refundKey: string; legType: 'checkout' | 'door'; demandeLe: string },
+  ): PlatformEvent | null {
+    if (this.orderId !== undefined && this.ledger.refundsFor(this.orderId).some((r) => r.refundKey === ligne.refundKey)) {
+      return null;
+    }
+    if (Date.parse(nowIso) - Date.parse(ligne.demandeLe) <= policy.ttlMs) return null;
+    return PlatformEventSchema.parse({
+      name: 'saga.stuck.v1',
+      envelope: {
+        command_id: `saga-stuck-refund-${ligne.refundKey}`,
+        correlation_id: this.journeyState.correlationId,
+        aggregateVersion: this.journeyState.aggregateVersion,
+        actor: 'commerce-core:ops',
+        serverTime: nowIso,
+        version: '1',
+      },
+      payload: {
+        ...this.journeyState.chain,
+        status: this.journeyState.state,
+        stuck_in: 'refund',
+        blocked_on: 'provider_refund_confirmation',
+        leg: ligne.legType,
+        refund_key: ligne.refundKey,
+        pending_since: ligne.demandeLe,
+        ttl_policy_version: policy.version,
+      },
+    });
+  }
+
+  /**
+   * REMBOURSEMENT-2 — a refund that cannot proceed on its own, said to the
+   * operator at once: the provider refused the ask by name, or Séra's refusal
+   * fact could not be read (so no refund was decided at all).
+   */
+  alerteRemboursement(
+    scenario: 'provider_refused_refund' | 'refusal_fact_unreadable',
+    cle: string,
+    nowIso: string,
+    extra: Record<string, unknown>,
+  ): PlatformEvent {
+    return PlatformEventSchema.parse({
+      name: 'reconciliation.alert.v1',
+      envelope: {
+        command_id: `recon-refund-${scenario}-${cle}`,
+        correlation_id: this.journeyState.correlationId,
+        aggregateVersion: this.journeyState.aggregateVersion,
+        actor: 'commerce-core:ops',
+        serverTime: nowIso,
+        version: '1',
+      },
+      payload: { ...this.journeyState.chain, alert: scenario, ...extra },
     });
   }
 
@@ -944,6 +1013,19 @@ export class OrderSpine {
           refusal: recorded.reason,
         }),
       };
+    }
+    // REMBOURSEMENT-2 — a door payment confirmed on an order already
+    // `refunded` (the charge was in flight when Séra refused the parcel) is
+    // money held again: the order goes back to `paid` until that refund is
+    // confirmed too, so its label never runs ahead of the money.
+    if (this.journeyState.state === 'refunded') {
+      const retour = this.avancer({
+        command_id: `${event.envelope.command_id}:porte-apres-remboursement`,
+        actor: event.envelope.actor,
+        serverTime: event.envelope.serverTime,
+        to: 'paid',
+      });
+      if (!retour.ok) return { applied: false, reason: 'out_of_order', alert: null };
     }
 
     this.doorLeg = 'paid';

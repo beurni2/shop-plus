@@ -165,9 +165,15 @@ describe('REMBOURSEMENT-1 — what goes back, decided from the order\'s own reco
     expect(d.spine.journey.state).toBe('refunded');
     expect(d.spine.ledger.escrowFor(d.orderId)!.status).toBe('refunded');
 
+    // Nothing local moves a refunded order (REMBOURSEMENT-2).
+    expect(d.spine.advance({ command_id: 'ops-x', actor: 'ops', serverTime: T, to: 'paid' }).ok).toBe(false);
+    expect(d.spine.advance({ command_id: 'ops-y', actor: 'ops', serverTime: T, to: 'confirmed' }).ok).toBe(false);
+
     payerLaPorte(d);
-    // Money held again: the record no longer claims every franc went back.
+    // Money held again: the record no longer claims every franc went back,
+    // and neither does the order's own label (REMBOURSEMENT-2).
     expect(d.spine.ledger.escrowFor(d.orderId)!.status).toBe('hold');
+    expect(d.spine.journey.state).toBe('paid');
     const plan = d.spine.decideRefund(JUSTIFIE);
     if (!plan.ok) throw new Error(plan.reason);
     const porte = plan.lignes.find((l) => l.legType === 'door')!;
@@ -177,6 +183,7 @@ describe('REMBOURSEMENT-1 — what goes back, decided from the order\'s own reco
     const evenement = refundEvents(d.provider).find((e) => e.payload['refund_key'] === 'rf-door-r9')!;
     expect(d.spine.onProviderRefundEvent(evenement, attendus)).toEqual({ applied: true, duplicate: false });
     expect(d.spine.ledger.escrowFor(d.orderId)!.status).toBe('refunded');
+    expect(d.spine.journey.state).toBe('refunded');
     expect(d.spine.ledger.refundsFor(d.orderId).map((r) => [r.legType, r.amount])).toEqual([
       ['checkout', d.quote.amountPaidAtCheckout],
       ['door', d.quote.amountDueAtDelivery],
@@ -253,6 +260,20 @@ describe('REMBOURSEMENT-1 — the provider\'s refund confirmation, judged to the
     const avecFrais = { ...event, payload: { ...event.payload, fee: 75 } };
     expect(c.spine.onProviderRefundEvent(avecFrais, attendus).applied).toBe(true);
     expect(c.spine.ledger.refundsFor(c.orderId)[0]).toMatchObject({ amount: c.quote.amountPaidAtCheckout, fee: 75 });
+  });
+
+  it('REMBOURSEMENT-2 — a refund accepted and never confirmed is told once past the stuck limit, never before, never once confirmed', () => {
+    const c = commandePayee('j5');
+    const [attendu] = demander(c, JUSTIFIE);
+    const ligne = { refundKey: attendu!.refundKey, legType: attendu!.legType, demandeLe: T };
+    const politique = { version: 'stuck-ttl.v1', ttlMs: 60_000 };
+    const a = (ms: number) => new Date(Date.parse(T) + ms).toISOString();
+    expect(c.spine.checkStuckRefund(a(60_000), politique, ligne)).toBeNull();
+    const alerte = c.spine.checkStuckRefund(a(60_001), politique, ligne);
+    expect(alerte?.name).toBe('saga.stuck.v1');
+    expect(alerte?.payload).toMatchObject({ stuck_in: 'refund', blocked_on: 'provider_refund_confirmation', refund_key: attendu!.refundKey, leg: 'checkout', pending_since: T });
+    expect(c.spine.onProviderRefundEvent(refundEvents(c.provider)[0], [attendu!]).applied).toBe(true);
+    expect(c.spine.checkStuckRefund(a(600_000), politique, ligne)).toBeNull();
   });
 
   it('the ledger never gives back more than the leg collected, whatever reaches it (the backstop under the judge)', () => {

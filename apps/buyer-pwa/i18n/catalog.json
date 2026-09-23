@@ -1314,6 +1314,18 @@
   "screenClass": "status"
  },
  {
+  "key": "cl.remboursement.indisponible_corps",
+  "fr": "Cet article n’est plus disponible. Votre argent revient sur le numéro qui a payé.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.remboursement.indisponible_fait_corps",
+  "fr": "Cet article n’était plus disponible. L’argent est revenu sur le numéro qui a payé.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
   "key": "cl.remboursement.frais_gardes",
   "fr": "La livraison ({D}\u202fFCFA) reste payée\u00a0: le livreur est bien venu jusqu’à vous.",
   "register": "money",

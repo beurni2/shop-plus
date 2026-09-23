@@ -71,7 +71,7 @@ let refusedRespond: 'ok' | 'down' = 'ok';
 
 let mf: Miniflare;
 
-function makeMf(persistDir: string): Miniflare {
+function makeMf(persistDir: string, extraBindings: Record<string, string> = {}): Miniflare {
   return new Miniflare({
     modules: true,
     scriptPath: SCRIPT,
@@ -86,6 +86,7 @@ function makeMf(persistDir: string): Miniflare {
       CHECKOUT_OPS_SECRET: OPS_SECRET,
       PROGRESS_WRITE_SECRET: PROGRESS_SECRET,
       FULFILLMENT_WRITE_SECRET: FULFILL_SECRET,
+      ...extraBindings,
     },
     serviceBindings: {
       OFFER: async (request: Request) => {
@@ -594,7 +595,7 @@ describe('REMBOURSEMENT-1 — a refused course refunds her; only the provider\'s
     expect(ouvert.remboursement!.lignes[0]!.refundRef).toBe(`refund-${ouvert.remboursement!.lignes[0]!.refundKey}`);
     // Her screen: her money, on its way back — the amount she paid, nothing else.
     const enCours = await vueDe(orderId);
-    expect(enCours['remboursement']).toEqual({ etat: 'en_cours', montant: paye });
+    expect(enCours['remboursement']).toEqual({ etat: 'en_cours', montant: paye, motif: 'retour' });
     expect(JSON.stringify(enCours)).not.toContain('rf-');
 
     // The stand-in reads ONLY what it was asked, behind the secret.
@@ -613,7 +614,7 @@ describe('REMBOURSEMENT-1 — a refused course refunds her; only the provider\'s
     expect(fini.escrow.status).toBe('refunded');
     expect(fini.escrow.paymentLegs[0]!.status).toBe('refunded');
     expect(fini.refunds).toEqual([expect.objectContaining({ amount: paye, refundKey: r.refundKey, fee: 0 })]);
-    expect((await vueDe(orderId))['remboursement']).toEqual({ etat: 'fait', montant: paye });
+    expect((await vueDe(orderId))['remboursement']).toEqual({ etat: 'fait', montant: paye, motif: 'retour' });
     expect((await vueDe(orderId))['state']).toBe('refunded');
 
     // A redelivery is absorbed; a refused fact delivered again opens nothing new.
@@ -640,12 +641,12 @@ describe('REMBOURSEMENT-1 — a refused course refunds her; only the provider\'s
     expect(a.remboursement).toMatchObject({ decision: 'ouvert', retenu: deliveryFee });
     expect(a.remboursement!.lignes.map((l) => l.amount)).toEqual([amountPaidAtCheckout - deliveryFee]);
     // Her screen is told WHY it is less than she paid: the fee the vault kept.
-    expect((await vueDe(orderId))['remboursement']).toEqual({ etat: 'en_cours', montant: amountPaidAtCheckout - deliveryFee, fraisGardes: deliveryFee });
+    expect((await vueDe(orderId))['remboursement']).toEqual({ etat: 'en_cours', montant: amountPaidAtCheckout - deliveryFee, fraisGardes: deliveryFee, motif: 'retour' });
     const [r] = (await demandesDe(orderId)).json.remboursements!;
     expect((await confirmer(orderId, r!)).status).toBe(200);
     const fini = await auditDe(orderId);
     expect(fini.state).toBe('refunded');
-    expect((await vueDe(orderId))['remboursement']).toEqual({ etat: 'fait', montant: amountPaidAtCheckout - deliveryFee, fraisGardes: deliveryFee });
+    expect((await vueDe(orderId))['remboursement']).toEqual({ etat: 'fait', montant: amountPaidAtCheckout - deliveryFee, fraisGardes: deliveryFee, motif: 'retour' });
     // Not every franc came back — the leg is not called refunded.
     expect(fini.escrow.status).toBe('hold');
   }, 60_000);
@@ -685,4 +686,177 @@ describe('REMBOURSEMENT-1 — a refused course refunds her; only the provider\'s
       expect.arrayContaining(['provider_refund_contradicts_request', 'webhook_names_foreign_refund']),
     );
   }, 60_000);
+});
+
+/**
+ * ═══ REMBOURSEMENT-2 — THE SUPPLIER REFUSES A PAID ORDER (Boutik+ B6.1:
+ *     « Accept/reject … → refund saga ») ═══
+ *
+ * Boutik+ sends the canon `fulfillment.rejected.v1` on the same progress door
+ * as accepted/ready, with the same strict {orderId, at} payload. The order
+ * refunds her every franc (seller fault: the Protection Fund's to absorb,
+ * never her refund's gate), once, and her screen is told the article could
+ * not be supplied — not that a parcel came back.
+ */
+describe('REMBOURSEMENT-2 — the supplier refuses a paid order: she is refunded every franc', () => {
+  const rejete = (orderId: string, payload: Record<string, unknown> = { orderId, at: '2026-09-23T11:00:00.000Z' }) => ({
+    name: 'fulfillment.rejected.v1',
+    envelope: {
+      command_id: `fulfillment-rejected-${orderId}`, correlation_id: `corr-${orderId}`,
+      aggregateVersion: 2, actor: 'offer-service:fulfillment', serverTime: '2026-09-23T11:00:00.000Z', version: '1',
+    },
+    payload,
+  });
+  const auditDe = async (orderId: string) => {
+    const ns = await mf.getDurableObjectNamespace('ORDER');
+    return (await (await ns.get(ns.idFromName(orderId)).fetch('https://do/entry/audit')).json()) as {
+      state: string;
+      remboursement: { decision: string; refus: { nature: string } | null; lignes: { etat: string; amount: number }[] } | null;
+    };
+  };
+  const vueDe = async (orderId: string) =>
+    safeJson(await (await mf.dispatchFetch(`http://c/checkout/order/${encodeURIComponent(orderId)}`)).text());
+
+  it('the refusal opens her refund — every franc, asked of the provider — and her screen hears « indisponible »; a redelivery changes nothing', async () => {
+    const orderId = await realOrder('0301');
+    const paye = devis.get(orderId)!.amountPaidAtCheckout;
+    expect((await progress(rejete(orderId))).status).toBe(200);
+    const deadline = Date.now() + 8_000;
+    let a = await auditDe(orderId);
+    while (a.remboursement?.lignes[0]?.etat !== 'demande' && Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 50));
+      a = await auditDe(orderId);
+    }
+    expect(a.remboursement).toMatchObject({ decision: 'ouvert', refus: { nature: 'refus_fournisseur' } });
+    expect(a.remboursement!.lignes).toEqual([expect.objectContaining({ etat: 'demande', amount: paye })]);
+    expect((await vueDe(orderId))['remboursement']).toEqual({ etat: 'en_cours', montant: paye, motif: 'indisponible' });
+    const encore = await progress(rejete(orderId));
+    expect(await encore.json()).toEqual({ ok: true, status: 'duplicate' });
+    expect((await auditDe(orderId)).remboursement!.lignes).toHaveLength(1);
+  }, 60_000);
+
+  it('the payload is the canon progress payload or nothing: an extra field is refused at the door, and nothing opens', async () => {
+    const orderId = await realOrder('0302');
+    const res = await progress(rejete(orderId, { orderId, at: '2026-09-23T11:00:00.000Z', supplierId: 'sup-1' }));
+    expect(res.status).toBe(400);
+    expect((await auditDe(orderId)).remboursement).toBeNull();
+  }, 60_000);
+});
+
+/**
+ * ═══ REMBOURSEMENT-2 — A REFUND THAT CANNOT FINISH BY ITSELF IS TOLD TO THE
+ *     FOUNDER (founder order 2026-09-23: « go for … this ») ═══
+ *
+ * Three ways a refund stops on its own, each on the real Worker: the provider
+ * declines the ask by name; Séra's refusal fact cannot be read (no refund was
+ * decided); the provider accepted the ask and never confirmed it, past the
+ * same stuck limit the other watches use. Each sinks an alert on the order's
+ * record AND shows on his console row — the place he actually looks.
+ */
+describe('REMBOURSEMENT-2 — a refund that cannot finish by itself is told to the founder', () => {
+  const auditDe = async (orderId: string) => {
+    const ns = await mf.getDurableObjectNamespace('ORDER');
+    return (await (await ns.get(ns.idFromName(orderId)).fetch('https://do/entry/audit')).json()) as {
+      state: string;
+      remboursement: { decision: string; lignes: { etat: string; essais: number; refundKey: string; alerteLe?: string }[] } | null;
+      reconAlerts: { name: string; payload: Record<string, unknown> }[];
+    };
+  };
+  const rangeeDe = async (orderId: string) => {
+    const ns = await mf.getDurableObjectNamespace('ORDER');
+    return (await (await ns.get(ns.idFromName(orderId)).fetch('https://do/entry/dispatch')).json()) as { remboursement: unknown };
+  };
+  async function jusqua<T>(lire: () => Promise<T>, ok: (v: T) => boolean, timeoutMs = 8_000): Promise<T> {
+    const deadline = Date.now() + timeoutMs;
+    let v = await lire();
+    while (!ok(v) && Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 50));
+      v = await lire();
+    }
+    return v;
+  }
+  const signe = { 'Content-Type': 'application/json', 'X-Payment-Webhook-Key': WEBHOOK_SECRET };
+
+  describe('the provider declines the refund by name', () => {
+    let principal: Miniflare;
+    const dir = mkdtempSync(join(tmpdir(), 'rembourse-refus-'));
+    beforeAll(() => {
+      principal = mf;
+      mf = makeMf(dir, { PAYMENT_SANDBOX_BEHAVIOR: JSON.stringify({ refuseRefunds: true }) });
+    });
+    afterAll(async () => {
+      await mf.dispose();
+      mf = principal;
+      rmSync(dir, { recursive: true, force: true });
+    });
+
+    it('the line is final and never re-asked; the alert names it; his console row says the refund is blocked', async () => {
+      const orderId = await realOrder('0201');
+      expect((await progress(refusedEvent(orderId))).status).toBe(200);
+      const a = await jusqua(() => auditDe(orderId), (x) => x.remboursement?.lignes[0]?.etat === 'refuse');
+      expect(a.remboursement!.lignes).toEqual([expect.objectContaining({ etat: 'refuse', essais: 1 })]);
+      const alerte = a.reconAlerts.find((x) => x.payload['alert'] === 'provider_refused_refund');
+      expect(alerte?.payload).toMatchObject({ leg: 'checkout', refund_key: a.remboursement!.lignes[0]!.refundKey, provider_reason: 'refund_declined' });
+      expect((await rangeeDe(orderId)).remboursement).toEqual({ etat: 'bloque', raison: 'refus_du_prestataire' });
+      // Never asked again, never alerted twice.
+      await new Promise((r) => setTimeout(r, 1_500));
+      const apres = await auditDe(orderId);
+      expect(apres.remboursement!.lignes[0]!.essais).toBe(1);
+      expect(apres.reconAlerts.filter((x) => x.payload['alert'] === 'provider_refused_refund')).toHaveLength(1);
+    }, 60_000);
+
+    it('a refusal fact Séra sent that cannot be read decides nothing — and says so at once', async () => {
+      const orderId = await realOrder('0202');
+      const illisible = { ...refusedEvent(orderId), payload: { order_id: orderId, task_id: `task-${orderId}`, quoi: 'inconnu' } };
+      expect((await progress(illisible)).status).toBe(200);
+      const a = await jusqua(() => auditDe(orderId), (x) => x.remboursement !== null);
+      expect(a.remboursement).toMatchObject({ decision: 'refus_illisible', lignes: [] });
+      expect(a.reconAlerts.map((x) => x.payload['alert'])).toContain('refusal_fact_unreadable');
+      expect((await rangeeDe(orderId)).remboursement).toEqual({ etat: 'bloque', raison: 'refus_illisible' });
+    }, 60_000);
+  });
+
+  describe('the provider accepts the refund and never confirms it', () => {
+    let principal: Miniflare;
+    const dir = mkdtempSync(join(tmpdir(), 'rembourse-bloque-'));
+    beforeAll(() => {
+      principal = mf;
+      mf = makeMf(dir, { STUCK_SAGA_TTL_MS: '800' });
+    });
+    afterAll(async () => {
+      await mf.dispose();
+      mf = principal;
+      rmSync(dir, { recursive: true, force: true });
+    });
+
+    it('past the stuck limit the founder is told ONCE; the confirmation then clears his row to « fait »', async () => {
+      const orderId = await realOrder('0203');
+      expect((await progress(refusedEvent(orderId))).status).toBe(200);
+      const demande = await jusqua(() => auditDe(orderId), (x) => x.remboursement?.lignes[0]?.etat === 'demande');
+      expect((await rangeeDe(orderId)).remboursement).toEqual({ etat: 'en_cours' });
+      const cle = demande.remboursement!.lignes[0]!.refundKey;
+      const bloque = await jusqua(
+        () => auditDe(orderId),
+        (x) => x.reconAlerts.some((y) => y.name === 'saga.stuck.v1' && y.payload['stuck_in'] === 'refund'),
+      );
+      const stuck = bloque.reconAlerts.filter((y) => y.name === 'saga.stuck.v1' && y.payload['stuck_in'] === 'refund');
+      expect(stuck).toHaveLength(1);
+      expect(stuck[0]!.payload).toMatchObject({ blocked_on: 'provider_refund_confirmation', refund_key: cle, leg: 'checkout' });
+      expect((await rangeeDe(orderId)).remboursement).toEqual({ etat: 'bloque', raison: 'sans_confirmation' });
+
+      // The provider's word arrives late: the refund is done, and his row says so.
+      const demandes = (await (await mf.dispatchFetch(`http://c/checkout/webhook/refund-key/${encodeURIComponent(orderId)}`, { headers: signe })).json()) as {
+        remboursements: { legType: string; refundKey: string; amount: number; collectRef: string }[];
+      };
+      const ok = await mf.dispatchFetch('http://c/checkout/webhook/refund', {
+        method: 'POST', headers: signe, body: JSON.stringify(composeSandboxRefund(orderId, demandes.remboursements[0]!, new Date().toISOString())),
+      });
+      expect(ok.status).toBe(200);
+      expect((await rangeeDe(orderId)).remboursement).toEqual({ etat: 'fait' });
+      expect((await auditDe(orderId)).state).toBe('refunded');
+      // Once: no second stuck alert after it cleared.
+      await new Promise((r) => setTimeout(r, 1_200));
+      expect((await auditDe(orderId)).reconAlerts.filter((y) => y.name === 'saga.stuck.v1' && y.payload['stuck_in'] === 'refund')).toHaveLength(1);
+    }, 60_000);
+  });
 });

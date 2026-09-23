@@ -848,9 +848,11 @@ export interface BuyerOrderView {
    * `fraisGardes` is her delivery fee the vault KEPT on a buyer refusal (the
    * rider came), present only when > 0, so her screen can say why the refund
    * is smaller than what she paid. `rien` (montant 0): the refusal left
-   * nothing to give back but that fee — the delivery still ended.
+   * nothing to give back but that fee — the delivery still ended. `motif`
+   * (REMBOURSEMENT-2) is why: the parcel came back, or the article could not
+   * be supplied.
    */
-  readonly remboursement?: { readonly etat: 'en_cours' | 'fait' | 'rien'; readonly montant: number; readonly fraisGardes?: number };
+  readonly remboursement?: { readonly etat: 'en_cours' | 'fait' | 'rien'; readonly montant: number; readonly fraisGardes?: number; readonly motif?: 'retour' | 'indisponible' };
 }
 
 export function toBuyerOrderView(args: {
@@ -868,7 +870,7 @@ export function toBuyerOrderView(args: {
     readonly arrivedAt?: string;
     readonly livree?: boolean;
   };
-  readonly remboursement?: { readonly etat: 'en_cours' | 'fait' | 'rien'; readonly montant: number; readonly fraisGardes?: number };
+  readonly remboursement?: { readonly etat: 'en_cours' | 'fait' | 'rien'; readonly montant: number; readonly fraisGardes?: number; readonly motif?: 'retour' | 'indisponible' };
 }): BuyerOrderView {
   const suivi = args.suivi ?? {};
   return {
@@ -895,6 +897,7 @@ export function toBuyerOrderView(args: {
             ...(args.remboursement.fraisGardes !== undefined && args.remboursement.fraisGardes > 0
               ? { fraisGardes: args.remboursement.fraisGardes }
               : {}),
+            ...(args.remboursement.motif !== undefined ? { motif: args.remboursement.motif } : {}),
           },
         }
       : {}),

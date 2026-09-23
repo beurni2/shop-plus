@@ -45,13 +45,13 @@ onlyBuiltDependencies:
 # be2199c — lives in JOURNAL.md under the slice that made it.
 #
 # INSTALLED (verified 2026-09-23):
-#   @platform/contracts    1918793 → 3.18.0  FRAIS-PARTAGES-1 + REMBOURSEMENT-1
-#                          (founder ruling 2026-09-23): a grouped fee shared
-#                          pro-rata; a refused delivery refunded by fault class
-#                          (§7 SP6). ONE additive shape change since 3.13.1
-#                          besides 3.14.0's @platform/taxonomy package: the
-#                          event name `payment.refund_confirmed.v1`.
-#   @platform/kernel-types 1918793 → 3.18.0  moves WITH contracts, always.
+#   @platform/contracts    40d65c7 → 3.19.0  REMBOURSEMENT-2 (founder order
+#                          2026-09-23): the supplier's refusal refunds in full;
+#                          a stuck or declined refund is told to the founder
+#                          (§7 SP6, docs only). ONE additive shape change since
+#                          3.13.1 besides 3.14.0's @platform/taxonomy package:
+#                          the event name `payment.refund_confirmed.v1` (3.18.0).
+#   @platform/kernel-types 40d65c7 → 3.19.0  moves WITH contracts, always.
 #   @platform/ui-tokens    be2199c → 1.1.0   ONE default instance for
 #                          buyer-pwa + reseller-app + the certification
 #                          transitive (Grand Teint API); the four manifests
@@ -60,6 +60,6 @@ onlyBuiltDependencies:
 #                          to a418ca4 → 3.12.0 (the copy-lint with the F12
 #                          administrative-register stems).
 overrides:
-  "@platform/kernel-types": "git+https://github.com/beurni2/platform-contracts.git#19187932221a8deeeabe22d0420e6d3ce3568b9b&path:packages/kernel-types"
-  "@platform/contracts": "git+https://github.com/beurni2/platform-contracts.git#19187932221a8deeeabe22d0420e6d3ce3568b9b&path:packages/contracts"
+  "@platform/kernel-types": "git+https://github.com/beurni2/platform-contracts.git#40d65c76152297a1bd749fa604214c4ebf21160b&path:packages/kernel-types"
+  "@platform/contracts": "git+https://github.com/beurni2/platform-contracts.git#40d65c76152297a1bd749fa604214c4ebf21160b&path:packages/contracts"
   "@platform/ui-tokens": "git+https://github.com/beurni2/platform-contracts.git#be2199c95d27e6ae5f6c7381c12e18a9796d9800&path:packages/ui-tokens"

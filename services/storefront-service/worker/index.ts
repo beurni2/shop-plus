@@ -7,6 +7,7 @@ import { PaymentGroupDO, groupRouter } from './payment-group-do.js';
 import { isGroupId } from '../src/payment-group-core.js';
 import {
   FulfillmentAcceptedEventSchema,
+  FulfillmentProgressPayloadSchema,
   FulfillmentReadyEventSchema,
   PlatformEventSchema,
 } from '@platform/contracts';
@@ -962,6 +963,27 @@ export default {
        * validated signal: the order id bounded, the raw event forwarded
        * verbatim, the DO first-wins per order.
        */
+      /**
+       * REMBOURSEMENT-2 — Boutik+'s `fulfillment.rejected.v1`: the supplier
+       * refused a paid order. Canon lists the name; its payload is the SAME
+       * canon progress payload as accepted/ready — {orderId, at}, strict — so
+       * it is bound here to that artifact: anything more is refused 400. Only
+       * Boutik+'s credential may write it.
+       */
+      const rejetee = PlatformEventSchema.safeParse(raw);
+      if (rejetee.success && rejetee.data.name === 'fulfillment.rejected.v1') {
+        if (writer === 'sera') {
+          return Response.json({ ok: false, reason: 'wrong_writer' }, { status: 403 });
+        }
+        const p = FulfillmentProgressPayloadSchema.safeParse(rejetee.data.payload);
+        if (!p.success) return Response.json({ ok: false, reason: 'event_not_canonical' }, { status: 400 });
+        return env.ORDER.get(env.ORDER.idFromName(p.data.orderId)).fetch(
+          new Request('https://do/entry/fournisseur-refuse', {
+            method: 'POST',
+            body: JSON.stringify({ at: p.data.at }),
+          }),
+        );
+      }
       const refusee = PlatformEventSchema.safeParse(raw);
       if (refusee.success && refusee.data.name === 'delivery.refused.v1') {
         if (writer === 'boutik') {

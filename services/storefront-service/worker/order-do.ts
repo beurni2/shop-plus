@@ -153,11 +153,17 @@ const BOUTIK_REFUSED_KEY = 'boutik-refused-outbox';
  * it moves the order to `refunded`.
  */
 const REFUND_KEY = 'remboursement';
+/** REMBOURSEMENT-2 — the supplier's refusal of this paid order, first-wins. */
+const FOURNISSEUR_REFUS_KEY = 'fournisseur-refus';
 interface LigneRemboursementStockee extends RemboursementAttendu {
   etat: 'a_demander' | 'demande' | 'refuse';
   essais: number;
   refundRef?: string;
   motifRefus?: string;
+  /** REMBOURSEMENT-2 — when the provider accepted the ask: the stuck watch's clock. */
+  demandeLe?: string;
+  /** REMBOURSEMENT-2 — when the operator was told this line is stuck (once). */
+  alerteLe?: string;
 }
 interface RemboursementStocke {
   ouvertLe: string;
@@ -1336,6 +1342,7 @@ export class OrderDO {
         contact: contact ?? null,
         productVersionId: origin.fulfillment?.productVersionId ?? '',
         zoneTo: origin.fulfillment?.zoneTo ?? '',
+        remboursement: await this.remboursementPourOperateur(spine, origin.orderId),
       });
     }
 
@@ -1558,6 +1565,25 @@ export class OrderDO {
       await this.ouvrirRemboursement(event);
       await this.state.storage.setAlarm(Date.now()).catch(() => undefined);
       return Response.json({ ok: true, status: 'recorded' });
+    }
+
+    /**
+     * REMBOURSEMENT-2 — THE SUPPLIER REFUSED THIS PAID ORDER (Boutik+ B6.1:
+     * « Accept/reject »). INTERNAL ONLY: the composition root checked Boutik+'s
+     * credential and the canon payload. First-wins; it opens her refund — every
+     * franc, seller fault (the Protection Fund's to absorb, never gating her) —
+     * and re-arms the alarm that asks the provider. A redelivery re-arms too.
+     */
+    if (request.method === 'POST' && pathname === '/entry/fournisseur-refuse') {
+      const body = (await request.json().catch(() => null)) as { at?: unknown } | null;
+      if (body === null || typeof body.at !== 'string') return Response.json({ ok: false, reason: 'malformed' }, { status: 400 });
+      const origin = await this.state.storage.get<StoredOrigin>(ORIGIN_KEY);
+      if (origin === undefined) return Response.json({ ok: false, reason: 'unknown_order' }, { status: 404 });
+      const deja = await this.state.storage.get(FOURNISSEUR_REFUS_KEY);
+      if (deja === undefined) await this.state.storage.put(FOURNISSEUR_REFUS_KEY, { at: body.at });
+      await this.ouvrirRemboursementAvec({ nature: 'refus_fournisseur' }, null);
+      if (await this.remboursementADemander()) await this.state.storage.setAlarm(Date.now()).catch(() => undefined);
+      return Response.json({ ok: true, status: deja === undefined ? 'recorded' : 'duplicate' });
     }
 
     /**
@@ -2856,6 +2882,8 @@ export class OrderDO {
     // RESERVATION-REGLE-2 — the supplier-notification watch, on the first
     // wire's row, after its flush has had this tick's try.
     const supplierDueAt = await this.watchStuckSupplier();
+    // REMBOURSEMENT-2 — the stuck-refund watch, after this tick's asks.
+    const refundDueAt = await this.watchStuckRefund();
     const stillPending = Math.max(boutikPending, seraPending, livraisonPending, armPending, doorSignalPending, refusPending, offertPending, releasePending, holdReleasePending, remboursementPending);
     // ONE alarm, three wants: the outbox backoff and the two watches' due
     // times. The nearest wins; the others are re-derived when the alarm fires
@@ -2864,6 +2892,7 @@ export class OrderDO {
     if (stillPending > 0) wants.push(Date.now() + outboxBackoffMs(stillPending));
     if (stuckDueAt !== undefined) wants.push(stuckDueAt);
     if (supplierDueAt !== undefined) wants.push(supplierDueAt);
+    if (refundDueAt !== undefined) wants.push(refundDueAt);
     if (wants.length > 0) {
       await this.state.storage.setAlarm(Math.min(...wants));
     }
@@ -3535,6 +3564,69 @@ export class OrderDO {
     return pendingSince + ttl + 1;
   }
 
+  /**
+   * REMBOURSEMENT-2 — HER REFUND AS THE FOUNDER'S CONSOLE SHOWS IT: its state,
+   * and — the alert he reads — why it is blocked when it cannot finish by
+   * itself. No key, no reference, no franc: those stay on the audit.
+   */
+  private async remboursementPourOperateur(
+    spine: ReturnType<typeof rebuildOrderSpine>,
+    orderId: string,
+  ): Promise<
+    | { etat: 'en_cours' | 'fait' | 'rien' }
+    | { etat: 'bloque'; raison: 'refus_illisible' | 'refus_du_prestataire' | 'sans_confirmation' }
+    | null
+  > {
+    const r = await this.state.storage.get<RemboursementStocke>(REFUND_KEY);
+    if (r === undefined) return null;
+    if (r.decision === 'refus_illisible') return { etat: 'bloque', raison: 'refus_illisible' };
+    if (r.decision !== 'ouvert') return null;
+    if (r.lignes.length === 0) return { etat: 'rien' };
+    const confirmes = new Set(spine.ledger.refundsFor(orderId).map((x) => x.refundKey));
+    const ouvertes = r.lignes.filter((l) => !confirmes.has(l.refundKey));
+    if (ouvertes.length === 0) return { etat: 'fait' };
+    if (ouvertes.some((l) => l.etat === 'refuse')) return { etat: 'bloque', raison: 'refus_du_prestataire' };
+    if (ouvertes.some((l) => l.alerteLe !== undefined)) return { etat: 'bloque', raison: 'sans_confirmation' };
+    return { etat: 'en_cours' };
+  }
+
+  /**
+   * REMBOURSEMENT-2 — THE STUCK-REFUND WATCH: a line the provider accepted and
+   * never confirmed past the stuck TTL is told to the operator once; returns
+   * the next due time while one is still inside its TTL.
+   */
+  private async watchStuckRefund(): Promise<number | undefined> {
+    const r = await this.state.storage.get<RemboursementStocke>(REFUND_KEY);
+    const enAttente = (r?.lignes ?? []).filter((l) => l.etat === 'demande' && l.demandeLe !== undefined && l.alerteLe === undefined);
+    if (r === undefined || enAttente.length === 0) return undefined;
+    const origin = await this.state.storage.get<StoredOrigin>(ORIGIN_KEY);
+    const quote = origin === undefined ? undefined : parseStoredQuote(origin.quoteBytes);
+    if (origin === undefined || quote === undefined) return undefined;
+    const log = (await this.state.storage.get<OrderInput[]>(LOG_KEY)) ?? [];
+    const spine = rebuildOrderSpine(quote, origin, log);
+    const now = new Date().toISOString();
+    const ttl = this.stuckTtlMs();
+    const confirmes = new Set(spine.ledger.refundsFor(origin.orderId).map((x) => x.refundKey));
+    let prochain: number | undefined;
+    for (const ligne of enAttente) {
+      if (confirmes.has(ligne.refundKey)) continue;
+      const stuck = spine.checkStuckRefund(now, { version: STUCK_SAGA_POLICY_VERSION, ttlMs: ttl }, {
+        refundKey: ligne.refundKey,
+        legType: ligne.legType,
+        demandeLe: ligne.demandeLe!,
+      });
+      if (stuck !== null) {
+        await this.sinkReconAlerts([stuck]);
+        ligne.alerteLe = now;
+        await this.state.storage.put(REFUND_KEY, r);
+        continue;
+      }
+      const du = Date.parse(ligne.demandeLe!) + ttl + 1;
+      prochain = prochain === undefined ? du : Math.min(prochain, du);
+    }
+    return prochain;
+  }
+
   private async sinkReconAlerts(alerts: readonly PlatformEvent[]): Promise<void> {
     if (alerts.length === 0) return;
     const held =
@@ -3931,7 +4023,11 @@ export class OrderDO {
     }
     // REMBOURSEMENT-1 — Séra refused the parcel: nothing more is collected at
     // a door it is leaving (her refund is already decided from what she paid).
-    if ((await this.state.storage.get(BOUTIK_REFUSED_KEY)) !== undefined) {
+    // REMBOURSEMENT-2 — nor once any refund is open (the supplier's refusal).
+    if (
+      (await this.state.storage.get(BOUTIK_REFUSED_KEY)) !== undefined ||
+      (await this.state.storage.get(REFUND_KEY)) !== undefined
+    ) {
       return Response.json({ ok: false, reason: 'course_refusee' }, { status: 422 });
     }
 
@@ -4186,9 +4282,12 @@ export class OrderDO {
         // still has to learn the delivery ended.
         const r = await this.state.storage.get<RemboursementStocke>(REFUND_KEY);
         if (r === undefined || r.decision !== 'ouvert') return {};
+        // REMBOURSEMENT-2 — WHY, in her words' terms: the parcel came back,
+        // or the article could not be supplied.
+        const motif = r.refus?.nature === 'refus_fournisseur' ? ('indisponible' as const) : ('retour' as const);
         const montant = r.lignes.reduce((somme, l) => somme + l.amount, 0);
         if (montant === 0) {
-          return r.retenu > 0 ? { remboursement: { etat: 'rien' as const, montant: 0, fraisGardes: r.retenu } } : {};
+          return r.retenu > 0 ? { remboursement: { etat: 'rien' as const, montant: 0, fraisGardes: r.retenu, motif } } : {};
         }
         const confirmes = new Set(spine.ledger.refundsFor(origin.orderId).map((x) => x.refundKey));
         return {
@@ -4196,6 +4295,7 @@ export class OrderDO {
             etat: r.lignes.every((l) => confirmes.has(l.refundKey)) ? ('fait' as const) : ('en_cours' as const),
             montant,
             ...(r.retenu > 0 ? { fraisGardes: r.retenu } : {}),
+            motif,
           },
         };
       })()),
@@ -4210,18 +4310,35 @@ export class OrderDO {
    * is RECORDED as such (the operator reads it on the audit), never guessed at.
    */
   private async ouvrirRemboursement(event: unknown): Promise<void> {
+    const parsed = PlatformEventSchema.safeParse(event);
+    await this.ouvrirRemboursementAvec(
+      parsed.success ? lireRefusCourse(parsed.data.payload) : undefined,
+      parsed.success ? parsed.data.envelope.command_id : null,
+    );
+  }
+
+  /**
+   * REMBOURSEMENT-2 — the ONE opening, whatever ended the order: Séra's
+   * refused course or the supplier's refusal. First-wins across both: an
+   * order is refunded once.
+   */
+  private async ouvrirRemboursementAvec(refus: RefusCourse | undefined, source: string | null): Promise<void> {
     if ((await this.state.storage.get(REFUND_KEY)) !== undefined) return;
     const origin = await this.state.storage.get<StoredOrigin>(ORIGIN_KEY);
     const quote = origin === undefined ? undefined : parseStoredQuote(origin.quoteBytes);
     if (origin === undefined || quote === undefined) return;
-    const parsed = PlatformEventSchema.safeParse(event);
-    const refus = parsed.success ? lireRefusCourse(parsed.data.payload) : undefined;
     const ouvertLe = new Date().toISOString();
+    const log = (await this.state.storage.get<OrderInput[]>(LOG_KEY)) ?? [];
     if (refus === undefined) {
       await this.state.storage.put(REFUND_KEY, { ouvertLe, refus: null, decision: 'refus_illisible', retenu: 0, lignes: [] } satisfies RemboursementStocke);
+      // REMBOURSEMENT-2 — no refund could be decided: the operator is told now.
+      await this.sinkReconAlerts([
+        rebuildOrderSpine(quote, origin, log).alerteRemboursement('refusal_fact_unreadable', origin.orderId, ouvertLe, {
+          refusal_command_id: source,
+        }),
+      ]);
       return;
     }
-    const log = (await this.state.storage.get<OrderInput[]>(LOG_KEY)) ?? [];
     const plan = rebuildOrderSpine(quote, origin, log).decideRefund(refus);
     if (!plan.ok) {
       await this.state.storage.put(REFUND_KEY, { ouvertLe, refus, decision: plan.reason, retenu: 0, lignes: [] } satisfies RemboursementStocke);
@@ -4297,6 +4414,7 @@ export class OrderDO {
       if (reponse.accepted) {
         ligne.etat = 'demande';
         ligne.refundRef = reponse.refundRef;
+        ligne.demandeLe = new Date().toISOString();
       } else if (reponse.reason === 'timeout') {
         pending = Math.max(pending, ligne.essais);
       } else {
@@ -4304,6 +4422,21 @@ export class OrderDO {
         ligne.motifRefus = reponse.reason;
       }
       await this.state.storage.put(REFUND_KEY, r);
+      if (ligne.etat === 'refuse') {
+        // REMBOURSEMENT-2 — a refusal by name is final for this line: the
+        // operator is told now (the line's etat changes once, so once).
+        const quote = parseStoredQuote(origin.quoteBytes);
+        if (quote !== undefined) {
+          const log = (await this.state.storage.get<OrderInput[]>(LOG_KEY)) ?? [];
+          await this.sinkReconAlerts([
+            rebuildOrderSpine(quote, origin, log).alerteRemboursement('provider_refused_refund', ligne.refundKey, new Date().toISOString(), {
+              leg: ligne.legType,
+              refund_key: ligne.refundKey,
+              provider_reason: ligne.motifRefus ?? null,
+            }),
+          ]);
+        }
+      }
     }
     return pending;
   }

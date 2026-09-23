@@ -930,7 +930,7 @@ describe('REMBOURSEMENT-1 — pay at the door, once Séra has refused the parcel
     const o = await confirmedDoorOrder('0901');
     const res = await refus(o.orderId, { family: 'return', reason_code: 'change_of_mind', fault_class: 'buyer', fee_retained: true });
     expect(res.status).toBe(200);
-    expect((await vue(o.orderId))['remboursement']).toEqual({ etat: 'rien', montant: 0, fraisGardes: 1_000 });
+    expect((await vue(o.orderId))['remboursement']).toEqual({ etat: 'rien', montant: 0, fraisGardes: 1_000, motif: 'retour' });
     const charge = await mf.dispatchFetch(`http://c/checkout/order/${encodeURIComponent(o.orderId)}/door-charge`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ holderRef: 'holder-0901', commandId: 'cmd-door-0901' }),
@@ -949,19 +949,21 @@ describe('REMBOURSEMENT-1 — pay at the door, once Séra has refused the parcel
     await jusquADemande(o.orderId, 1);
     await confirmerTout(o.orderId);
     expect((await auditDe(o.orderId)).state).toBe('refunded');
-    expect((await vue(o.orderId))['remboursement']).toEqual({ etat: 'fait', montant: 1_000 });
+    expect((await vue(o.orderId))['remboursement']).toEqual({ etat: 'fait', montant: 1_000, motif: 'retour' });
 
     // The provider's door confirmation lands now — provider truth, recorded.
     const porte = await postWebhook('/checkout/webhook/door', await trueDoorEvent(o.orderId));
     expect(porte.status, porte.text).toBe(200);
     const apres = await auditDe(o.orderId);
     expect(apres.escrow.status, 'money is held again — the record must not claim it all went back').toBe('hold');
+    // REMBOURSEMENT-2 — and the order's own label no longer runs ahead of it.
+    expect(apres.state, 'the order still read « refunded » with money held').toBe('paid');
     await jusquADemande(o.orderId, 2);
     expect((await auditDe(o.orderId)).remboursement!.lignes.map((l) => [l.legType, l.amount])).toEqual([
       ['checkout', 1_000],
       ['door', 11_500],
     ]);
-    expect((await vue(o.orderId))['remboursement']).toEqual({ etat: 'en_cours', montant: 12_500 });
+    expect((await vue(o.orderId))['remboursement']).toEqual({ etat: 'en_cours', montant: 12_500, motif: 'retour' });
     // A redelivered door webhook adds nothing.
     expect((await postWebhook('/checkout/webhook/door', await trueDoorEvent(o.orderId))).status).toBe(200);
     expect((await auditDe(o.orderId)).remboursement!.lignes).toHaveLength(2);
@@ -970,6 +972,34 @@ describe('REMBOURSEMENT-1 — pay at the door, once Séra has refused the parcel
     const fin = await auditDe(o.orderId);
     expect(fin.refunds.map((r) => [r.legType, r.amount])).toEqual([['checkout', 1_000], ['door', 11_500]]);
     expect(fin.escrow.status).toBe('refunded');
-    expect((await vue(o.orderId))['remboursement']).toEqual({ etat: 'fait', montant: 12_500 });
+    expect(fin.state).toBe('refunded');
+    expect((await vue(o.orderId))['remboursement']).toEqual({ etat: 'fait', montant: 12_500, motif: 'retour' });
+  }, 60_000);
+
+  it('REMBOURSEMENT-2 — the supplier refuses a pay-at-the-door order: what she paid comes back, and no door charge can start', async () => {
+    const o = await confirmedDoorOrder('0903');
+    const rejete = await mf.dispatchFetch('http://c/fulfillment/progress', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${PROGRESS_SECRET}` },
+      body: JSON.stringify({
+        name: 'fulfillment.rejected.v1',
+        envelope: {
+          command_id: `ful-rejected-${o.orderId}`, correlation_id: `corr-${o.orderId}`,
+          aggregateVersion: 1, actor: 'offer-service:fulfillment', serverTime: '2026-09-23T10:00:00.000Z', version: 'v1',
+        },
+        payload: { orderId: o.orderId, at: '2026-09-23T10:00:00.000Z' },
+      }),
+    });
+    expect(rejete.status, await rejete.clone().text()).toBe(200);
+    await jusquADemande(o.orderId, 1);
+    expect((await auditDe(o.orderId)).remboursement!.lignes.map((l) => [l.legType, l.amount])).toEqual([['checkout', 1_000]]);
+    expect((await vue(o.orderId))['remboursement']).toEqual({ etat: 'en_cours', montant: 1_000, motif: 'indisponible' });
+    const charge = await mf.dispatchFetch(`http://c/checkout/order/${encodeURIComponent(o.orderId)}/door-charge`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ holderRef: 'holder-0903', commandId: 'cmd-door-0903' }),
+    });
+    expect(charge.status).toBe(422);
+    expect(await charge.json()).toEqual({ error: 'course_refusee' });
+    expect((await auditDe(o.orderId)).escrow.paymentLegs.map((l) => l.legType)).toEqual(['checkout']);
   }, 60_000);
 });

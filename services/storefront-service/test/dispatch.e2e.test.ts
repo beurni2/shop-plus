@@ -220,7 +220,9 @@ describe('BC-1a — the contact travels to exactly one reader', () => {
     expect(row['zoneTo']).toBe('Ouagadougou');
     expect(row['productVersionId']).toBe('pv-dispatch-1');
     // the projection is an allowlist: no quote bytes, no attempts, no amounts
-    expect(Object.keys(row).sort()).toEqual(['contact', 'createdAt', 'exists', 'ok', 'orderId', 'productVersionId', 'state', 'zoneTo']);
+    expect(Object.keys(row).sort()).toEqual(['contact', 'createdAt', 'exists', 'ok', 'orderId', 'productVersionId', 'remboursement', 'state', 'zoneTo']);
+    // REMBOURSEMENT-2 — the refund status rides the row; nothing to refund here.
+    expect(row['remboursement']).toBeNull();
 
     // THE PROPERTY: the public order view — raw bytes — carries no contact.
     const pub = await mf.dispatchFetch(`http://c/checkout/order/${encodeURIComponent(orderId)}`);

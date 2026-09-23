@@ -32,6 +32,10 @@ export interface PaymentMockConfig {
   /** REMBOURSEMENT-1 — the first N initiateRefund calls time out; the retry
    * must reuse the SAME refund key and never refund twice. */
   timeoutFirstNRefunds?: number;
+  /** REMBOURSEMENT-2 — the provider declines every refund ask by name (a real
+   * aggregator can: its own balance or rules); the order must record it and
+   * tell the operator, never retry it silently. */
+  refuseRefunds?: boolean;
 }
 
 /** REMBOURSEMENT-1 — one refund of one paid leg, asked under its own key. */
@@ -48,7 +52,7 @@ export interface RefundRequest {
 export type RefundResponse =
   | { outcome: 'accepted'; refundKey: string; refundRef: string }
   | { outcome: 'timeout' }
-  | { outcome: 'rejected_invalid'; reason: 'idempotency_key_amount_mismatch' | 'refund_exceeds_collection' };
+  | { outcome: 'rejected_invalid'; reason: 'idempotency_key_amount_mismatch' | 'refund_exceeds_collection' | 'refund_declined' };
 
 export interface ChargeRequest {
   orderId: string;
@@ -86,11 +90,13 @@ export class MockPaymentProvider {
   private staleReadsRemaining: number;
   private timeoutsRemaining: number;
   private refundTimeoutsRemaining: number;
+  private readonly refuseRefunds: boolean;
 
   constructor(private readonly config: PaymentMockConfig = {}) {
     this.staleReadsRemaining = config.staleStatusReads ?? 0;
     this.timeoutsRemaining = config.timeoutFirstNInitiates ?? 0;
     this.refundTimeoutsRemaining = config.timeoutFirstNRefunds ?? 0;
+    this.refuseRefunds = config.refuseRefunds === true;
   }
 
   /**
@@ -104,6 +110,7 @@ export class MockPaymentProvider {
       this.refundTimeoutsRemaining -= 1;
       return { outcome: 'timeout' };
     }
+    if (this.refuseRefunds) return { outcome: 'rejected_invalid', reason: 'refund_declined' };
     const existing = this.refunds.get(request.refundKey);
     if (existing) {
       if (existing.request.amount !== request.amount) {

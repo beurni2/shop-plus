@@ -116,7 +116,7 @@ export type RefundOutcome =
   | { readonly accepted: true; readonly refundRef: string }
   | {
       readonly accepted: false;
-      readonly reason: 'timeout' | 'idempotency_key_amount_mismatch' | 'refund_exceeds_collection';
+      readonly reason: 'timeout' | 'idempotency_key_amount_mismatch' | 'refund_exceeds_collection' | 'refund_declined';
     };
 
 export interface PaymentProviderPort {
