@@ -15,7 +15,9 @@ import {
   type IdentityPatch,
   type StorefrontEntry,
 } from '../src/storefront-core.js';
+import { PACKAGE_ORDERS_MAX, PACKAGE_ORDERS_MIN } from '@platform/contracts';
 import { decodeSur } from '../src/decode-sur.js';
+import { fusionnerMemoire } from '../src/colis-source.js';
 import { refuseStoreName } from '../src/store-name-policy.js';
 
 /**
@@ -43,6 +45,10 @@ import { refuseStoreName } from '../src/store-name-policy.js';
 const ENTRY_KEY = 'storefront-entry';
 const POINTER_KEY = 'slug-pointer';
 const INDEX_KEY = 'index-list';
+/** COLIS-2 — which of this shop's products Boutik+ said leave together. */
+const COLIS_MEMOIRE_KEY = 'colis-memoire';
+/** Bounded like every stored list here: far above any boutique's catalogue. */
+const COLIS_MEMOIRE_MAX_IDS = 500;
 
 interface ToggleArgs {
   id: string;
@@ -69,6 +75,34 @@ export class StorefrontDO {
     const { pathname } = new URL(request.url);
 
     // ── storefront-instance ops (idFromName(id)) ─────────────────────────────
+    /**
+     * COLIS-2 — the shop's memory of its products' groupings (see
+     * `src/colis-source.ts`). Internal only: reached through the composition
+     * root's namespace, never through the public router below. Groups of
+     * product ids, never a supplier; a new group joins the ones it touches.
+     */
+    if (pathname === '/entry/colis-memoire') {
+      const connus = (await this.state.storage.get<string[][]>(COLIS_MEMOIRE_KEY)) ?? [];
+      if (request.method === 'GET') return Response.json({ ok: true, groupes: connus });
+      if (request.method === 'POST') {
+        const body = (await request.json().catch(() => null)) as { groupes?: unknown } | null;
+        const groupes = body?.groupes;
+        if (
+          !Array.isArray(groupes) ||
+          !groupes.every(
+            (g) =>
+              Array.isArray(g) && g.length >= PACKAGE_ORDERS_MIN && g.length <= PACKAGE_ORDERS_MAX && new Set(g).size === g.length &&
+              g.every((x) => typeof x === 'string' && x !== '' && x.length <= 191),
+          )
+        ) {
+          return Response.json({ ok: false, reason: 'malformed' }, { status: 400 });
+        }
+        const suivants = fusionnerMemoire(connus, groupes as string[][]);
+        if (suivants.flat().length > COLIS_MEMOIRE_MAX_IDS) return Response.json({ ok: false, reason: 'memoire_pleine' }, { status: 409 });
+        await this.state.storage.put(COLIS_MEMOIRE_KEY, suivants);
+        return Response.json({ ok: true });
+      }
+    }
     if (request.method === 'POST' && pathname === '/entry/create') {
       let cmd: CreateStorefrontCommand;
       try {

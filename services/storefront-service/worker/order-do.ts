@@ -261,6 +261,24 @@ const CUSTODY_ARM_KEY = 'custody-arm-outbox';
  */
 const DOOR_SIGNAL_KEY = 'custody-door-signal-outbox';
 /**
+ * COLIS-2 — DECLARE A PACKAGE'S DOOR COLLECTION TO CUSTODY, before any
+ * charge. A package's one door payment is charged under its collection's own
+ * reference, and a provider confirms that reference and the sum — never a
+ * list of what it paid for (founder, 2026-09-23: « a real payment provider
+ * must send the article list back »: no longer). So when this article enters
+ * a collection, it tells its OWN custody file, over the same road as the arm
+ * wire (`/produce-shop/door-reference`), that this reference pays its door
+ * leg. It carries no money: custody still waits for the provider's
+ * confirmation naming that reference.
+ *
+ * One row per collection this article entered (`collectId` → its fate),
+ * at-least-once under a deterministic command id. Custody's 200 ends a row;
+ * `order_not_open` (the course has no custody file yet) keeps it pending; any
+ * other 409 is custody's recorded refusal. The door signal waits while a row
+ * is pending: custody could not yet tell the payment is this article's.
+ */
+const DOOR_REFERENCE_KEY = 'custody-door-reference-outbox';
+/**
  * RAPPROCHEMENT-1 (E3 seed) — THE DURABLE ALERT SINK (audit B4 closed: alerts
  * were minted and dropped). Every reconciliation.alert.v1 the vault's refusal
  * paths or the reconcile pass mint is RECORDED here — deduped on the alert's
@@ -411,6 +429,16 @@ interface PorteColis {
   readonly correlationId: string;
   readonly providerKey: string;
   readonly parts: readonly { readonly orderId: string; readonly amount: number }[];
+}
+
+/** COLIS-2 — one collection reference on its way to this order's custody file. */
+interface DoorReferenceRow {
+  readonly status: 'pending' | 'delivered';
+  readonly orderId: string;
+  readonly attempts: number;
+  readonly outcome?: 'accepted' | 'refused';
+  readonly reason?: string;
+  readonly deliveredAt?: string;
 }
 
 /**
@@ -1192,6 +1220,8 @@ export class OrderDO {
         attempts?: number;
         deliveredAt?: string;
       }>(LISTE_OFFERT_KEY);
+      // COLIS-2 — each collection reference's fate on its way to custody.
+      const references = await this.state.storage.get<Record<string, DoorReferenceRow>>(DOOR_REFERENCE_KEY);
       return Response.json({
         ok: true,
         outbox,
@@ -1206,6 +1236,21 @@ export class OrderDO {
                 attempts: armement.attempts,
                 ...(armement.deliveredAt !== undefined ? { deliveredAt: armement.deliveredAt } : {}),
               },
+            }
+          : {}),
+        ...(references !== undefined
+          ? {
+              doorReferences: Object.fromEntries(
+                Object.entries(references).map(([ref, r]) => [
+                  ref,
+                  {
+                    status: r.status,
+                    attempts: r.attempts,
+                    ...(r.outcome !== undefined ? { outcome: r.outcome } : {}),
+                    ...(r.reason !== undefined ? { reason: r.reason } : {}),
+                  },
+                ]),
+              ),
             }
           : {}),
         ...(porte !== undefined
@@ -2123,7 +2168,14 @@ export class OrderDO {
       // Its own share, as its own quote says it — or it does not join.
       const own = collecte.parts.find((x) => x.orderId === c.orderId);
       if (own === undefined || own.amount !== c.amount) return Response.json({ ok: false, reason: 'group_share_mismatch' }, { status: 422 });
-      await this.state.storage.put(PORTES_COLIS_KEY, { ...portes, [args.collectId]: collecte });
+      // COLIS-2 — its custody file hears the collection's reference in the
+      // same write: entered and « custody will be told » are one fact.
+      const references = (await this.state.storage.get<Record<string, DoorReferenceRow>>(DOOR_REFERENCE_KEY)) ?? {};
+      await this.state.storage.put({
+        [PORTES_COLIS_KEY]: { ...portes, [args.collectId]: collecte },
+        [DOOR_REFERENCE_KEY]: { ...references, [args.collectId]: { status: 'pending', orderId: c.orderId as string, attempts: 0 } },
+      });
+      await this.state.storage.setAlarm(Date.now()).catch(() => undefined);
       return Response.json({ ok: true, status: 'entered' });
     }
 
@@ -3008,7 +3060,11 @@ export class OrderDO {
     const annulationPending = await this.flushSeraOutbox(SERA_ANNULATION_KEY);
     const livraisonPending = await this.flushBoutikDeliveredOutbox();
     const armPending = await this.flushCustodyArmOutbox();
-    const doorSignalPending = await this.flushDoorSignalOutbox();
+    // COLIS-2 — a package's collection reference reaches custody BEFORE its
+    // door signal: until it has, custody could not tell the payment is this
+    // article's, so the signal waits on the same backoff.
+    const referencePending = await this.flushDoorReferenceOutbox();
+    const doorSignalPending = referencePending > 0 ? await this.doorSignalEnAttente() : await this.flushDoorSignalOutbox();
     const refusPending = await this.flushBoutikRefusedOutbox();
     const offertPending = await this.flushListeOffertOutbox();
     // RESERVATION-REGLE-1 adds the EIGHTH — the reservation release — likewise,
@@ -3024,7 +3080,7 @@ export class OrderDO {
     const supplierDueAt = await this.watchStuckSupplier();
     // REMBOURSEMENT-2 — the stuck-refund watch, after this tick's asks.
     const refundDueAt = await this.watchStuckRefund();
-    const stillPending = Math.max(boutikPending, seraPending, annulationPending, livraisonPending, armPending, doorSignalPending, refusPending, offertPending, releasePending, holdReleasePending, remboursementPending);
+    const stillPending = Math.max(boutikPending, seraPending, annulationPending, livraisonPending, armPending, referencePending, doorSignalPending, refusPending, offertPending, releasePending, holdReleasePending, remboursementPending);
     // ONE alarm, three wants: the outbox backoff and the two watches' due
     // times. The nearest wins; the others are re-derived when the alarm fires
     // (setAlarm overwrites, it never merges).
@@ -3296,6 +3352,58 @@ export class OrderDO {
    * either side), any 5xx, and every transport failure stay `pending` on the
    * shared backoff — an outage or misconfiguration must never eat the fact.
    */
+  /**
+   * COLIS-2 — every collection reference this article entered, told to its
+   * own custody file (see DOOR_REFERENCE_KEY). Returns the highest attempt
+   * count still pending, 0 when nothing is.
+   */
+  private async flushDoorReferenceOutbox(): Promise<number> {
+    const rows = await this.state.storage.get<Record<string, DoorReferenceRow>>(DOOR_REFERENCE_KEY);
+    if (rows === undefined) return 0;
+    const secret = this.env.SHOP_ARM_SECRET ?? '';
+    const next: Record<string, DoorReferenceRow> = { ...rows };
+    let pending = 0;
+    for (const [reference, row] of Object.entries(rows)) {
+      if (row.status !== 'pending') continue;
+      let done: { outcome: 'accepted' | 'refused'; reason?: string } | undefined;
+      if (this.env.CUSTODY !== undefined && secret !== '') {
+        const res = await this.env.CUSTODY.fetch(
+          new Request('https://custody/produce-shop/door-reference', {
+            method: 'POST',
+            signal: AbortSignal.timeout(FLUSHER_TIMEOUT_MS),
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${secret}` },
+            body: JSON.stringify({ orderId: row.orderId, command_id: `door-reference-${row.orderId}-${reference}`, reference }),
+          }),
+        ).catch(() => undefined);
+        if (res !== undefined) {
+          if (res.ok) {
+            done = { outcome: 'accepted' };
+          } else if (res.status === 409) {
+            const body = (await res.json().catch(() => null)) as { reason?: unknown } | null;
+            const reason = typeof body?.reason === 'string' ? body.reason : undefined;
+            // No custody file yet is a state, not a verdict: the course is
+            // not opened. Every other 409 is custody's recorded refusal.
+            if (reason !== 'order_not_open') done = { outcome: 'refused', ...(reason !== undefined ? { reason } : {}) };
+          }
+        }
+      }
+      if (done !== undefined) {
+        next[reference] = { ...row, status: 'delivered', outcome: done.outcome, ...(done.reason !== undefined ? { reason: done.reason } : {}), attempts: row.attempts + 1, deliveredAt: new Date().toISOString() };
+      } else {
+        next[reference] = { ...row, attempts: row.attempts + 1 };
+        pending = Math.max(pending, row.attempts + 1);
+      }
+    }
+    await this.state.storage.put(DOOR_REFERENCE_KEY, next);
+    return pending;
+  }
+
+  /** The door signal's own backoff rung while it waits for a reference. */
+  private async doorSignalEnAttente(): Promise<number> {
+    const outbox = await this.state.storage.get<{ status: string; attempts: number }>(DOOR_SIGNAL_KEY);
+    return outbox?.status === 'pending' ? Math.max(1, outbox.attempts) : 0;
+  }
+
   private async flushDoorSignalOutbox(): Promise<number> {
     const outbox = await this.state.storage.get<{
       status: 'pending' | 'delivered';

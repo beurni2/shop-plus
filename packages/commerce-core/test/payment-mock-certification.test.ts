@@ -156,3 +156,40 @@ describe('§3 re-certification — grown payment-provider mock (WO-2.5, door flo
     expect(door.event.payload['amount']).toBe(DOOR_PRODUCT);
   });
 });
+
+/**
+ * COLIS-2 — what became of a charge whose answer was lost, as the mock's
+ * provider answers it. `not_collected` is a FINAL answer, given only for a
+ * charge that failed and took nothing; a stale read or a key never seen is
+ * `unknown` and promises nothing — the caller acts on neither.
+ */
+describe('COLIS-2 — the mock says what became of a lost charge', () => {
+  const charge = (key: string) => ({ orderId: 'grp-1-porte-1', paymentAttemptId: key, amount: 21_500, correlationId: 'corr-grp-1-porte-1', requestedAtIso: '2026-09-23T10:00:00.000Z', legType: 'door' as const });
+
+  it('a timed-out charge that took nothing is `not_collected` — and one never seen is `unknown`', () => {
+    const provider = new MockPaymentProvider({ timeoutFirstNInitiates: 1 });
+    expect(provider.initiateCharge(charge('pk-1'))).toEqual({ outcome: 'timeout' });
+    expect(provider.chargeStatus('pk-1')).toEqual({ status: 'not_collected' });
+    expect(provider.chargeStatus('pk-jamais')).toEqual({ status: 'unknown' });
+    // Nothing was taken: it has no webhook to deliver.
+    expect(provider.webhookDeliveryPlan()).toEqual([]);
+  });
+
+  it('a timed-out charge that TOOK the money is `collected`, and its confirmation still comes', () => {
+    const provider = new MockPaymentProvider({ timeoutFirstNInitiates: 1, timeoutCollects: true });
+    expect(provider.initiateCharge(charge('pk-2'))).toEqual({ outcome: 'timeout' });
+    expect(provider.chargeStatus('pk-2')).toEqual({ status: 'collected', collectRef: 'collect-pk-2' });
+    const [d] = provider.webhookDeliveryPlan();
+    expect(d?.event.payload['payment_attempt_id']).toBe('pk-2');
+    // Retried under the same key, it takes nothing twice.
+    expect(provider.initiateCharge(charge('pk-2'))).toMatchObject({ outcome: 'accepted', collectRef: 'collect-pk-2' });
+    expect(provider.webhookDeliveryPlan()).toHaveLength(1);
+  });
+
+  it('a STALE read is `unknown` — never `not_collected` — even for a charge that took the money', () => {
+    const provider = new MockPaymentProvider({ timeoutFirstNInitiates: 1, timeoutCollects: true, staleStatusReads: 1 });
+    provider.initiateCharge(charge('pk-3'));
+    expect(provider.chargeStatus('pk-3')).toEqual({ status: 'unknown' });
+    expect(provider.chargeStatus('pk-3')).toEqual({ status: 'collected', collectRef: 'collect-pk-3' });
+  });
+});

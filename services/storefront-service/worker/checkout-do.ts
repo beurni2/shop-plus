@@ -678,7 +678,7 @@ async function readAuthority(
   env: Env,
   slug: string,
   pid: string,
-): Promise<{ entry: ListingEntry | undefined; zoneFrom: string; resellerId?: string; curated?: readonly string[] }> {
+): Promise<{ entry: ListingEntry | undefined; zoneFrom: string; resellerId?: string; curated?: readonly string[]; storefrontId?: string }> {
   const sfRes = await env.STOREFRONT_DO.fetch(new Request(`https://do/s/${encodeURIComponent(slug)}`)).catch(() => undefined);
   if (sfRes === undefined || sfRes.status !== 200) return { entry: undefined, zoneFrom: '' };
   const sf = (await sfRes.json().catch(() => null)) as
@@ -728,6 +728,7 @@ async function readAuthority(
     zoneFrom: sf.zone,
     ...(resellerId !== undefined ? { resellerId } : {}),
     ...(curated !== undefined ? { curated } : {}),
+    storefrontId: sf.id,
   };
 }
 
@@ -815,7 +816,7 @@ export default {
       }
 
       // 3. THE AUTHORITY READS, then the delivery price — both server-side.
-      const { entry, zoneFrom, resellerId, curated } = await readAuthority(env, req.slug, req.pid);
+      const { entry, zoneFrom, resellerId, curated, storefrontId } = await readAuthority(env, req.slug, req.pid);
       /**
        * ═══ PAUSE-VENTE-1 (founder ruling 2026-09-17) — A PAUSED RESELLER
        * SELLS NOTHING: no quote is minted for her shop. ═══
@@ -930,7 +931,8 @@ export default {
       let colis: { pids: string[]; packageFee: number; share: number } | undefined;
       const panierDeLaBoutique = req.panier !== undefined && (curated === undefined || req.panier.every((id) => curated.includes(id)));
       if (req.panier !== undefined && panierDeLaBoutique && entry !== undefined && delivery?.serviceable === true && env.COLIS !== undefined) {
-        const groups = await env.COLIS.grouper(req.panier).catch(() => undefined);
+        // COLIS-2 — named by her shop, whose memory answers when Boutik+ cannot.
+        const groups = await env.COLIS.grouper(req.panier, storefrontId).catch(() => undefined);
         const mine = groups?.find((g) => g.includes(req.pid));
         if (mine !== undefined && mine.length >= PACKAGE_ORDERS_MIN) {
           const shares = splitPackageDeliveryFee(delivery.fee, mine.length);

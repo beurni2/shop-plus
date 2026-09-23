@@ -37,10 +37,14 @@ interface Wire {
   remises: { url: string; auth: string | null }[];
   /** The articles the RIDER recorded as given back — each order's read then carries its refund. */
   rendus: Set<string>;
+  /** COLIS-2 — how many door payments the operator leaves unanswered (the service's `timeout`). */
+  porteSansReponse: number;
+  /** COLIS-2 — while true, the operator has not confirmed yet: door legs still read `due`. */
+  confirmationRetenue: boolean;
 }
 
 async function service(page: Page): Promise<Wire> {
-  const w: Wire = { quotes: [], groupes: [], portes: [], doorCharges: [], remises: [], rendus: new Set() };
+  const w: Wire = { quotes: [], groupes: [], portes: [], doorCharges: [], remises: [], rendus: new Set(), porteSansReponse: 0, confirmationRetenue: false };
   const payees = new Set<string>();
   const expiry = (): string => new Date(Date.now() + 15 * 60_000).toISOString();
   await page.route('**/checkout/**', async (route: Route) => {
@@ -80,7 +84,7 @@ async function service(page: Page): Promise<Wire> {
         orderId: id, state,
         amountPaidAtCheckout: b ? part : f.produit + part,
         amountDueAtDelivery: b ? f.produit : 0,
-        doorLeg: !b ? 'none' : payees.has(id) ? 'paid' : 'due',
+        doorLeg: !b ? 'none' : payees.has(id) && !w.confirmationRetenue ? 'paid' : 'due',
         acceptedAt: t0, readyAt: t0, departedAt: t0, arrivedAt: t0,
         ...(w.rendus.has(id) ? { remboursement: { etat: 'en_cours', montant: part, motif: 'retour' } } : {}),
       };
@@ -99,7 +103,14 @@ async function service(page: Page): Promise<Wire> {
     };
     if (/\/checkout\/group\/[^/]+\/porte$/.test(url) && req.method() === 'POST') {
       w.portes.push({ url, body });
-      const ids = body['orderIds'] as string[];
+      // COLIS-2 — the operator did not answer: the service's own refusal.
+      if (w.porteSansReponse > 0) {
+        w.porteSansReponse -= 1;
+        return json(422, { error: 'timeout' });
+      }
+      // The service pays what she keeps: an article the rider took back leaves
+      // the payment (its lost first try took nothing — storefront colis.e2e).
+      const ids = (body['orderIds'] as string[]).filter((id) => !w.rendus.has(id));
       for (const id of ids) payees.add(id);
       return json(200, {
         articles: ids.map((id) => ({ ...commande(id, 'confirmed'), doorLeg: 'due' })),
@@ -249,4 +260,42 @@ test('REAL · she gave everything back to the rider: nothing to pay here, and «
   await expect(page.locator('[data-action="porte-bon"]')).toBeDisabled();
   await expect(page.locator('[data-action="porte-probleme"]')).toBeEnabled();
   expect(w.portes).toHaveLength(0);
+});
+
+test('REAL · COLIS-2 — her door payment gets no answer, and she gives the sandals back before trying again: the retry is there, it asks ONCE more, and she is asked only for what she keeps', async ({ page }) => {
+  const w = await service(page);
+  await jusquauPaiement(page, 'B');
+  await page.locator('[data-action="continuer-c4"]').click();
+  await page.locator('[data-screen="C5"]').waitFor();
+  await page.locator('[data-action="choix-paiement"][data-mode="B"]').click();
+  await page.locator('[data-action="payer"]').click();
+  await expect(page.locator('[data-role="panier-suivi"]')).toBeVisible({ timeout: 20_000 });
+  await page.locator('[data-action="suivre-article"][data-order="ord-q-p1-B"]').click();
+  await page.locator('[data-action="porte"]').click();
+  await page.locator('[data-screen="C8"]').waitFor();
+  const articles = page.locator('[data-role="colis-porte"] [data-role="colis-article"]');
+  await expect(articles).toHaveCount(2);
+
+  // She keeps both and pays — the operator does not answer.
+  w.porteSansReponse = 1;
+  await page.locator('[data-action="porte-bon"]').click();
+  await expect(page.locator('[data-etat="porte-echec"]')).toBeVisible({ timeout: 10_000 });
+  expect(w.portes).toHaveLength(1);
+  expect([...(w.portes[0]!.body['orderIds'] as string[])].sort()).toEqual(['ord-q-p1-B', 'ord-q-p2-B']);
+
+  // The rider takes the sandals back; she tries again — the way on is there, and wired.
+  w.rendus.add('ord-q-p2-B');
+  w.confirmationRetenue = true;
+  const encore = page.locator('[data-action="reessayer-porte"]');
+  await expect(encore).toBeEnabled();
+  await encore.click();
+  await expect.poll(() => w.portes.length).toBe(2);
+  // A new attempt of hers, never the first one's id replayed.
+  expect(w.portes[1]!.body['commandId']).not.toBe(w.portes[0]!.body['commandId']);
+  // The operator screen names the service's amount: the bazin alone (11 500), never both (32 000).
+  await expect(page.locator('[data-etat="paiement-porte"]')).toContainText('11');
+  await expect(page.locator('[data-etat="paiement-porte"]')).not.toContainText('32');
+  w.confirmationRetenue = false;
+  // …and she reaches her code for what she kept.
+  await expect(page.locator('[data-screen="C9"]')).toBeVisible({ timeout: 20_000 });
 });

@@ -76,13 +76,6 @@ export interface ChargeCommand {
    * is no branch anywhere that infers a leg from an amount.
    */
   readonly legType: 'checkout' | 'door';
-  /**
-   * COLIS-FOURNISSEUR-1 (verifier B1) — ONE collection for several orders (a
-   * package's door): what it pays for, each order and its amount. The
-   * provider echoes it on its confirmation, which is how custody knows the
-   * one payment is each article's.
-   */
-  readonly parts?: readonly { readonly orderId: string; readonly amount: number }[];
 }
 
 /**
@@ -126,9 +119,34 @@ export type RefundOutcome =
       readonly reason: 'timeout' | 'idempotency_key_amount_mismatch' | 'refund_exceeds_collection' | 'refund_declined';
     };
 
+/**
+ * COLIS-2 (founder, 2026-09-23: « if her door payment's answer is lost and
+ * she gives an article back before retrying, the retry still covers it ») —
+ * THE THIRD VERB: what became of a charge whose answer never came, asked
+ * under its own key. What a real adapter may answer is bound here, because
+ * the whole safety of acting on it rests on it:
+ *   · `collected`     — the provider TOOK the money under that key.
+ *   · `not_collected` — a FINAL answer: the charge failed or expired and the
+ *                       key will never take money. « Not found » is NOT this
+ *                       (a late request may still land): it is `unknown`.
+ *   · `unknown`       — anything else, including « still waiting for her ».
+ * The caller acts only on the first two; `unknown` changes nothing.
+ */
+export interface ChargeStatusCommand {
+  readonly orderId: string;
+  readonly paymentAttemptId: string;
+  readonly legType: 'checkout' | 'door';
+}
+
+export type ChargeStatus =
+  | { readonly status: 'collected'; readonly collectRef: string }
+  | { readonly status: 'not_collected' }
+  | { readonly status: 'unknown' };
+
 export interface PaymentProviderPort {
   initiateCharge(command: ChargeCommand): Promise<ChargeOutcome>;
   initiateRefund(command: RefundCommand): Promise<RefundOutcome>;
+  chargeStatus(command: ChargeStatusCommand): Promise<ChargeStatus>;
 }
 
 /**
@@ -182,6 +200,13 @@ export function sandboxPaymentProvider(
   attemptsAlreadyInitiated: number,
   /** REMBOURSEMENT-1 — the same durable count, for refunds this order already asked. */
   refundsAlreadyInitiated = 0,
+  /**
+   * COLIS-2 — the charges already asked, in the order they were asked, from
+   * the caller's durable record: the mock forgets them, so its answer to
+   * `chargeStatus` is rebuilt by asking them again of a fresh mock with the
+   * same behaviour — the provider's memory, replayed, never guessed.
+   */
+  historique: readonly ChargeCommand[] = [],
 ): PaymentProviderPort {
   const budget = behavior.timeoutFirstNInitiates ?? 0;
   const refundBudget = behavior.timeoutFirstNRefunds ?? 0;
@@ -191,6 +216,20 @@ export function sandboxPaymentProvider(
     timeoutFirstNRefunds: Math.max(0, refundBudget - refundsAlreadyInitiated),
   });
   return {
+    chargeStatus(command: ChargeStatusCommand): Promise<ChargeStatus> {
+      const rejeu = new MockPaymentProvider(behavior);
+      for (const h of historique) {
+        rejeu.initiateCharge({
+          orderId: h.orderId,
+          paymentAttemptId: h.paymentAttemptId,
+          amount: h.amount,
+          correlationId: h.correlationId,
+          requestedAtIso: h.requestedAtIso,
+          legType: h.legType,
+        });
+      }
+      return Promise.resolve(rejeu.chargeStatus(command.paymentAttemptId));
+    },
     initiateRefund(command: RefundCommand): Promise<RefundOutcome> {
       const response = mock.initiateRefund({
         orderId: command.orderId,
@@ -213,7 +252,6 @@ export function sandboxPaymentProvider(
         correlationId: command.correlationId,
         requestedAtIso: command.requestedAtIso,
         legType: command.legType,
-        ...(command.parts !== undefined ? { parts: command.parts } : {}),
       });
       // `chargedAmount` is the figure THIS CALL carried, echoed from the command
       // itself — never re-derived, so it cannot disagree with what was asked.

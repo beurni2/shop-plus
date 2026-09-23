@@ -725,6 +725,17 @@ describe('the provider seam — one verb, the certified mock, no aggregator', ()
     expect(second.accepted).toBe(true);
   });
 
+  it('COLIS-2 — the status of a lost charge is the provider’s memory REPLAYED from the durable history, never a guess', async () => {
+    const lost = { orderId: 'grp-1-porte-1', paymentAttemptId: 'pk-1', amount: 21_500, correlationId: 'corr-grp-1-porte-1', requestedAtIso: T, legType: 'door' as const };
+    const ask = { orderId: 'grp-1-porte-1', paymentAttemptId: 'pk-1', legType: 'door' as const };
+    // A fresh instance with the history: the timed-out charge took nothing.
+    expect(await sandboxPaymentProvider({ timeoutFirstNInitiates: 1 }, 1, 0, [lost]).chargeStatus(ask)).toEqual({ status: 'not_collected' });
+    // …or took the money, when the sandbox says its timeouts collect.
+    expect(await sandboxPaymentProvider({ timeoutFirstNInitiates: 1, timeoutCollects: true }, 1, 0, [lost]).chargeStatus(ask)).toEqual({ status: 'collected', collectRef: 'collect-pk-1' });
+    // Without the history the provider never saw it: it cannot say.
+    expect(await sandboxPaymentProvider({ timeoutFirstNInitiates: 1 }, 1).chargeStatus(ask)).toEqual({ status: 'unknown' });
+  });
+
   it('an unreadable behaviour config is the WELL-BEHAVED provider, never an unknown one', () => {
     expect(readSandboxBehavior(undefined)).toEqual({});
     expect(readSandboxBehavior('')).toEqual({});

@@ -22,11 +22,15 @@ import { OPS_SECRET, seance } from './seance';
  *    strict `{productVersionIds}` of 2–10 distinct ids or 400, and an answer
  *    that groups the asked ids by supplier in the order asked, an unknown
  *    product alone — never a supplier id.
- *  · CUSTODY (Séra): the arm door records; the door-signal door answers as
- *    sera `custody-spine.ts` consumeDoorPaidSignal decides (verifier B1): a
- *    signal is this order's only when the provider's event names it — its
- *    `order_id`, or its echoed `parts` — else 409 `door_signal_not_awaited`,
- *    the retryable refusal.
+ *  · CUSTODY (Séra): the arm door records; the door-reference door records
+ *    the collection references declared to each article's file (sera
+ *    `custody-do.ts` `/door-reference`: `command_id` + `reference`, 200
+ *    `{ok, duplicate}`); the door-signal door answers as sera
+ *    `custody-spine.ts` consumeDoorPaidSignal decides (COLIS-2): a signal is
+ *    this order's only when the provider's event names it by `order_id` or
+ *    names a reference declared to it BEFORE — else 409
+ *    `door_signal_not_awaited`, the retryable refusal. No article list is
+ *    read: a real provider sends none.
  *
  * EVERY OUTCOME IS ASKED OF THE LEDGER — each order's audit and outbox reads,
  * the bytes each wire carried — never of a response alone.
@@ -50,8 +54,16 @@ const SUPPLY = [
 
 const fulfillmentPosts: unknown[] = [];
 const groupingAsks: { auth: string | null; body: unknown }[] = [];
+/** COLIS-2 — Boutik+'s grouping door is down (answers 503) while this is set. */
+let groupingEnPanne = false;
 const armPosts: Record<string, unknown>[] = [];
 const doorSignalPosts: Record<string, unknown>[] = [];
+/** COLIS-2 — every act on custody, in the order custody heard it. */
+const custodyActs: { path: string; orderId: string; reference?: string }[] = [];
+/** COLIS-2 — the references each article's custody file was told, per order. */
+const declared = new Map<string, Set<string>>();
+/** COLIS-2 — orders whose custody file does not exist yet: custody answers 409 `order_not_open`. */
+const sansDossier = new Set<string>();
 
 /** Boutik+'s grouping door, with its real bounds. */
 function grouping(auth: string | null, body: unknown): Response {
@@ -105,6 +117,7 @@ function makeMf(dir: string, extra: Record<string, string> = {}): Miniflare {
         const body = await request.json().catch(() => null);
         const auth = request.headers.get('Authorization');
         groupingAsks.push({ auth, body });
+        if (groupingEnPanne) return Response.json({ error: 'unavailable' }, { status: 503 });
         return grouping(auth, body);
       }
       const single = /^\/supply-projection\/([^/]+)$/.exec(path);
@@ -128,13 +141,25 @@ function makeMf(dir: string, extra: Record<string, string> = {}): Miniflare {
         armPosts.push(body);
         return Response.json({ ok: true, status: 'armed', kind: body['kind'] });
       }
+      if (request.method === 'POST' && path === '/produce-shop/door-reference') {
+        const [orderId, commandId, reference] = [body['orderId'], body['command_id'], body['reference']];
+        if (typeof orderId !== 'string' || typeof commandId !== 'string' || commandId === '' || commandId.length > 200 || typeof reference !== 'string' || reference === '' || reference.length > 200) {
+          return Response.json({ ok: false, reason: 'malformed' }, { status: 400 });
+        }
+        custodyActs.push({ path, orderId, reference });
+        if (sansDossier.has(orderId)) return Response.json({ ok: false, reason: 'order_not_open' }, { status: 409 });
+        const refs = declared.get(orderId) ?? new Set<string>();
+        const duplicate = refs.has(reference);
+        refs.add(reference);
+        declared.set(orderId, refs);
+        return Response.json({ ok: true, duplicate });
+      }
       if (request.method === 'POST' && path === '/produce-shop/door-signal') {
         doorSignalPosts.push(body);
+        custodyActs.push({ path, orderId: String(body['orderId']) });
         const payload = ((body['event'] as { payload?: Record<string, unknown> } | undefined)?.payload ?? {}) as Record<string, unknown>;
-        const parts = payload['parts'];
-        const sienne =
-          payload['order_id'] === body['orderId'] ||
-          (Array.isArray(parts) && parts.some((x) => (x as Record<string, unknown> | null)?.['order_id'] === body['orderId']));
+        const ref = payload['order_id'];
+        const sienne = ref === body['orderId'] || (typeof ref === 'string' && (declared.get(String(body['orderId']))?.has(ref) ?? false));
         if (!sienne) return Response.json({ ok: false, reason: 'door_signal_not_awaited' }, { status: 409 });
         return Response.json({ ok: true, duplicate: false });
       }
@@ -229,6 +254,7 @@ async function outbox(orderId: string) {
     seraOutbox?: { fact: Record<string, unknown> };
     seraAnnulation?: { status: string; fact: Record<string, unknown> };
     doorSignal?: { status?: string; outcome?: string; reason?: string };
+    doorReferences?: Record<string, { status: string; outcome?: string }>;
   };
 }
 
@@ -420,10 +446,22 @@ describe('COLIS-FOURNISSEUR-1 — one package and one delivery fee per supplier,
     const key = await call(`/checkout/webhook/leg-key/${encodeURIComponent(collectId)}?leg=door`, { headers: signed });
     expect(key.status, key.text).toBe(200);
     const total = qa.amountDueAtDelivery + qb.amountDueAtDelivery;
-    // What the collection was charged for, read beside its key: the provider echoes it (B1).
-    expect(key.json['parts']).toEqual([oa, ob].sort().map((id) => ({ orderId: id, amount: id === oa ? qa.amountDueAtDelivery : qb.amountDueAtDelivery })));
+    // COLIS-2 — the key read gives the key and nothing about what it pays for:
+    // no provider sends an article list back, and nothing here needs one.
+    expect(Object.keys(key.json).sort()).toEqual(['groupId', 'legKey', 'ok']);
+    // Each article told ITS OWN custody file the collection's reference, and
+    // custody heard it before any door payment reached it.
+    for (const id of [oa, ob]) {
+      let fate = (await outbox(id)).doorReferences?.[collectId];
+      for (let i = 0; i < 40 && fate?.status !== 'delivered'; i += 1) {
+        await new Promise((r) => setTimeout(r, 100));
+        fate = (await outbox(id)).doorReferences?.[collectId];
+      }
+      expect(fate, `${id}: its custody file never heard the reference`).toMatchObject({ status: 'delivered', outcome: 'accepted' });
+      expect(declared.get(id)?.has(collectId), id).toBe(true);
+    }
     const provider = new MockPaymentProvider({});
-    provider.initiateCharge({ orderId: collectId, paymentAttemptId: String(key.json['legKey']), amount: total, correlationId: `corr-${collectId}`, requestedAtIso: T0, legType: 'door', parts: key.json['parts'] as { orderId: string; amount: number }[] });
+    provider.initiateCharge({ orderId: collectId, paymentAttemptId: String(key.json['legKey']), amount: total, correlationId: `corr-${collectId}`, requestedAtIso: T0, legType: 'door' });
     const plan = provider.webhookDeliveryPlan().find((d) => d.event.name === 'payment.door_leg_confirmed.v1')!;
     const event = PlatformEventSchema.parse({ ...plan.event, payload: { ...(plan.event.payload as Record<string, unknown>), fee: 101 } });
 
@@ -443,8 +481,11 @@ describe('COLIS-FOURNISSEUR-1 — one package and one delivery fee per supplier,
     expect(porteB.amount).toBe(qb.amountDueAtDelivery);
     expect(porteA.amount + porteB.amount).toBe(total);
     expect(porteA.fee + porteB.fee).toBe(101);
-    // Each article tells custody its own door leg is paid — and custody,
-    // reading the provider's own list, takes it as THIS article's (B1).
+    // Each article tells custody its own door leg is paid — and custody takes
+    // it as THIS article's, the provider's event naming a reference declared
+    // to it first (COLIS-2): the payload carries no article list at all.
+    expect((event.payload as Record<string, unknown>)['parts']).toBeUndefined();
+    expect((event.payload as Record<string, unknown>)['order_id']).toBe(collectId);
     await waitFor(() => new Set(doorSignalPosts.map((p) => p['orderId'])).size >= 2);
     expect([...new Set(doorSignalPosts.map((p) => p['orderId']))].sort()).toEqual([oa, ob].sort());
     for (const id of [oa, ob]) {
@@ -453,7 +494,10 @@ describe('COLIS-FOURNISSEUR-1 — one package and one delivery fee per supplier,
         await new Promise((r) => setTimeout(r, 100));
         fate = (await outbox(id)).doorSignal;
       }
-      expect(fate, `${id}: custody never took its door payment`).toMatchObject({ status: 'delivered' });
+      expect(fate, `${id}: custody never took its door payment`).toMatchObject({ status: 'delivered', outcome: 'accepted' });
+      // The declaration reached custody before the first signal did.
+      const actes = custodyActs.filter((a) => a.orderId === id);
+      expect(actes.findIndex((a) => a.path === '/produce-shop/door-reference')).toBeLessThan(actes.findIndex((a) => a.path === '/produce-shop/door-signal'));
     }
     // A redelivery is absorbed by both.
     expect((await post('/checkout/webhook/door', event, signed)).json['status']).toBe('duplicate');
@@ -490,8 +534,10 @@ describe('COLIS-FOURNISSEUR-1 — one package and one delivery fee per supplier,
     expect(seule.status, seule.text).toBe(200);
     expect(seule.json['montant']).toBe(r.qa.amountDueAtDelivery);
     expect((seule.json['articles'] as { orderId: string }[]).map((a) => a.orderId)).toEqual([r.oa]);
-    const cle = await call(`/checkout/webhook/leg-key/${encodeURIComponent(`${r.groupId}-porte-1`)}?leg=door`, { headers: signed });
-    expect(cle.json['parts']).toEqual([{ orderId: r.oa, amount: r.qa.amountDueAtDelivery }]);
+    // Only the bazin entered the collection: only its custody file heard of it.
+    await waitFor(() => declared.get(r.oa)?.has(`${r.groupId}-porte-1`) === true);
+    expect(declared.get(r.oa)?.has(`${r.groupId}-porte-1`)).toBe(true);
+    expect(declared.get(r.ob)?.has(`${r.groupId}-porte-1`) ?? false).toBe(false);
 
     // M5 — two requests at the same moment: ONE collection, its key the one both articles hold.
     const c = await payer('05');
@@ -507,56 +553,226 @@ describe('COLIS-FOURNISSEUR-1 — one package and one delivery fee per supplier,
     const k = await call(`/checkout/webhook/leg-key/${encodeURIComponent(collectId)}?leg=door`, { headers: signed });
     const provider = new MockPaymentProvider({});
     const total = c.qa.amountDueAtDelivery + c.qb.amountDueAtDelivery;
-    provider.initiateCharge({ orderId: collectId, paymentAttemptId: String(k.json['legKey']), amount: total, correlationId: `corr-${collectId}`, requestedAtIso: T0, legType: 'door', parts: k.json['parts'] as { orderId: string; amount: number }[] });
+    provider.initiateCharge({ orderId: collectId, paymentAttemptId: String(k.json['legKey']), amount: total, correlationId: `corr-${collectId}`, requestedAtIso: T0, legType: 'door' });
     const event = provider.webhookDeliveryPlan().find((d) => d.event.name === 'payment.door_leg_confirmed.v1')!.event;
     const applied = await post('/checkout/webhook/door', event, signed);
     expect(applied.status, applied.text).toBe(200);
     for (const id of [c.oa, c.ob]) expect((await audit(id)).doorLeg, `${id}: the key both articles hold`).toBe('paid');
   }, 60_000);
 
-  it('verifier M3 + m1: a door payment the provider did not answer is retried AS IT WAS (never a second collection), and the door has a ceiling', async () => {
-    const dir = mkdtempSync(join(tmpdir(), 'colis-lent-'));
-    const lent = makeMf(dir, { PAYMENT_SANDBOX_BEHAVIOR: JSON.stringify({ timeoutFirstNInitiates: 1 }), DOOR_ATTEMPTS_MAX: '1' });
+  /**
+   * COLIS-2 — HER DOOR PAYMENT'S ANSWER IS LOST, AND SHE GIVES AN ARTICLE BACK
+   * BEFORE RETRYING (founder, 2026-09-23: « the retry still covers it and it's
+   * refunded afterwards … it's not the kindest screen »). On a Worker whose
+   * sandbox provider does not answer her first door payment, the rider records
+   * her refusal of the sandals, and she asks again for the bazin alone. The
+   * provider is asked what became of the first payment, under its own key —
+   * the three answers a provider can give, one walk each.
+   */
+  async function porteSansReponse(n: string, behavior: Record<string, unknown>, extra: Record<string, string> = {}) {
+    const dir = mkdtempSync(join(tmpdir(), `colis-lent-${n}-`));
+    const lent = makeMf(dir, { PAYMENT_SANDBOX_BEHAVIOR: JSON.stringify({ timeoutFirstNInitiates: 1, ...behavior }), ...extra });
     cible = lent;
-    try {
-      const DOOR: Mode = 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR';
-      const shop = await seedShop('06');
-      const [qa, qb] = [await quote(shop, 'pv-colis-a', DOOR, PANIER.slice(0, 2)), await quote(shop, 'pv-colis-b', DOOR, PANIER.slice(0, 2))];
-      const holderRef = 'holder-colis-06';
-      for (const q of [qa, qb]) await reserve(q.quoteId, holderRef);
-      // The delivery fees: the first charge times out, the retry goes through.
-      const first = await post('/checkout/group', { quoteIds: [qa.quoteId, qb.quoteId], holderRef, commandId: 'cmd-colis-06a', contact: CONTACT });
-      expect(first.json['state']).toBe('payment_failed');
-      const groupId = String(first.json['groupId']);
-      for (const q of [qa, qb]) await reserve(q.quoteId, holderRef);
-      const second = await post('/checkout/group', { quoteIds: [qa.quoteId, qb.quoteId], holderRef, commandId: 'cmd-colis-06b', contact: CONTACT });
-      expect(second.status, second.text).toBe(200);
-      const packageId = (second.json['colis'] as { packageId: string }[])[0]!.packageId;
-      await confirmer(groupId, D);
-      const [oa, ob] = [`ord-${qa.quoteId}`, `ord-${qb.quoteId}`];
+    const DOOR: Mode = 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR';
+    const shop = await seedShop(n);
+    const [qa, qb] = [await quote(shop, 'pv-colis-a', DOOR, PANIER.slice(0, 2)), await quote(shop, 'pv-colis-b', DOOR, PANIER.slice(0, 2))];
+    const holderRef = `holder-colis-${n}`;
+    for (const q of [qa, qb]) await reserve(q.quoteId, holderRef);
+    // The delivery fees: the first charge times out, the retry goes through.
+    const first = await post('/checkout/group', { quoteIds: [qa.quoteId, qb.quoteId], holderRef, commandId: `cmd-colis-${n}a`, contact: CONTACT });
+    expect(first.json['state']).toBe('payment_failed');
+    const groupId = String(first.json['groupId']);
+    for (const q of [qa, qb]) await reserve(q.quoteId, holderRef);
+    const second = await post('/checkout/group', { quoteIds: [qa.quoteId, qb.quoteId], holderRef, commandId: `cmd-colis-${n}b`, contact: CONTACT });
+    expect(second.status, second.text).toBe(200);
+    const packageId = (second.json['colis'] as { packageId: string }[])[0]!.packageId;
+    await confirmer(groupId, D);
+    const [oa, ob] = [`ord-${qa.quoteId}`, `ord-${qb.quoteId}`];
 
-      // Her door payment for both: the provider does not answer.
-      const perdu = await post(`/checkout/group/${groupId}/porte`, { packageId, orderIds: [oa, ob], holderRef, commandId: 'cmd-porte-06a' });
-      expect(perdu.json['error']).toBe('timeout');
-      // The sandals are refused since; she asks for the bazin alone. The one
-      // collection the provider was asked for is what answers — its attempts
-      // spent, the door says so by name — and no second collection exists.
-      await post(
-        '/fulfillment/progress',
-        {
-          name: 'fulfillment.rejected.v1',
-          envelope: { command_id: `ful-rejected-${ob}`, correlation_id: `corr-${ob}`, aggregateVersion: 1, actor: 'offer-service:fulfillment', serverTime: '2026-09-23T10:00:00.000Z', version: 'v1' },
-          payload: { orderId: ob, at: '2026-09-23T10:00:00.000Z' },
-        },
-        { 'Content-Type': 'application/json', Authorization: `Bearer ${PROGRESS_SECRET}` },
-      );
-      const encore = await post(`/checkout/group/${groupId}/porte`, { packageId, orderIds: [oa], holderRef, commandId: 'cmd-porte-06b' });
-      expect(encore.json['error']).toBe('door_attempts_exhausted');
-      expect((await call(`/checkout/webhook/leg-key/${encodeURIComponent(`${groupId}-porte-2`)}?leg=door`, { headers: signed })).status).toBe(404);
-    } finally {
+    // Her door payment for both: the provider does not answer.
+    const perdu = await post(`/checkout/group/${groupId}/porte`, { packageId, orderIds: [oa, ob], holderRef, commandId: `cmd-porte-${n}a` });
+    expect(perdu.json['error']).toBe('timeout');
+    // The rider records that she gives the sandals back (a valid refusal at the door).
+    const refus = await post(
+      '/fulfillment/progress',
+      {
+        name: 'delivery.refused.v1',
+        envelope: { command_id: `refus-${ob}`, correlation_id: `corr-${ob}`, aggregateVersion: 9, actor: 'custody-service:e1', serverTime: '2026-09-23T10:00:00.000Z', version: '1' },
+        payload: { order_id: ob, task_id: `task-${ob}`, rejection: 'valid_rejection', fault_class: 'seller' },
+      },
+      { 'Content-Type': 'application/json', Authorization: `Bearer ${PROGRESS_SECRET}` },
+    );
+    expect(refus.status, refus.text).toBe(200);
+    // She asks again, for what she keeps.
+    const encore = await post(`/checkout/group/${groupId}/porte`, { packageId, orderIds: [oa], holderRef, commandId: `cmd-porte-${n}b` });
+    const cle = (i: number) => call(`/checkout/webhook/leg-key/${encodeURIComponent(`${groupId}-porte-${i}`)}?leg=door`, { headers: signed });
+    const fin = async () => {
       cible = mf;
       await lent.dispose();
       rmSync(dir, { recursive: true, force: true });
+    };
+    return { qa, qb, oa, ob, groupId, packageId, holderRef, encore, cle, fin };
+  }
+
+  /** The provider's door confirmation of one collection, as the certified mock builds it. */
+  async function confirmerPorte(collectId: string, amount: number) {
+    const k = await call(`/checkout/webhook/leg-key/${encodeURIComponent(collectId)}?leg=door`, { headers: signed });
+    expect(k.status, k.text).toBe(200);
+    const provider = new MockPaymentProvider({});
+    provider.initiateCharge({ orderId: collectId, paymentAttemptId: String(k.json['legKey']), amount, correlationId: `corr-${collectId}`, requestedAtIso: T0, legType: 'door' });
+    const event = provider.webhookDeliveryPlan().find((d) => d.event.name === 'payment.door_leg_confirmed.v1')!.event;
+    return post('/checkout/webhook/door', event, signed);
+  }
+
+  async function lignesRendues(orderId: string) {
+    const ns = await cible.getDurableObjectNamespace('ORDER');
+    const res = await ns.get(ns.idFromName(orderId)).fetch('https://do/entry/audit');
+    const a = (await res.json()) as { remboursement: { lignes: { legType: string; amount: number }[] } | null };
+    return a.remboursement?.lignes.map((l) => [l.legType, l.amount]) ?? [];
+  }
+
+  it('COLIS-2 — the provider says the lost payment TOOK NOTHING: it is closed, and she pays for the bazin alone — the sandals are never charged, so nothing of theirs comes back', async () => {
+    const w = await porteSansReponse('06', {});
+    try {
+      expect(w.encore.status, w.encore.text).toBe(200);
+      expect(w.encore.json['montant']).toBe(w.qa.amountDueAtDelivery);
+      expect((w.encore.json['articles'] as { orderId: string }[]).map((a) => a.orderId)).toEqual([w.oa]);
+      // A NEW payment, under its own key — the closed one is never asked again.
+      const [k1, k2] = [await w.cle(1), await w.cle(2)];
+      expect(k2.status, k2.text).toBe(200);
+      expect(k2.json['legKey']).not.toBe(k1.json['legKey']);
+      // Its reference reached the bazin's custody file.
+      await waitFor(() => declared.get(w.oa)?.has(`${w.groupId}-porte-2`) === true);
+      expect(declared.get(w.oa)?.has(`${w.groupId}-porte-2`)).toBe(true);
+      // The provider confirms it: the bazin's door leg is paid, to the franc.
+      const ok = await confirmerPorte(`${w.groupId}-porte-2`, w.qa.amountDueAtDelivery);
+      expect(ok.status, ok.text).toBe(200);
+      const [aa, ab] = [await audit(w.oa), await audit(w.ob)];
+      expect(aa.doorLeg).toBe('paid');
+      expect(aa.escrow!.paymentLegs.filter((l) => l.legType === 'door').map((l) => l.amount)).toEqual([w.qa.amountDueAtDelivery]);
+      // The sandals: never charged at the door, so no door money to give back.
+      expect(ab.escrow!.paymentLegs.filter((l) => l.legType === 'door')).toEqual([]);
+      expect((await lignesRendues(w.ob)).filter(([leg]) => leg === 'door')).toEqual([]);
+    } finally {
+      await w.fin();
+    }
+  }, 60_000);
+
+  it('COLIS-2 — the provider says the lost payment TOOK THE MONEY: it stands as asked, never a second charge beside it — and the sandals are refunded when its confirmation lands', async () => {
+    const w = await porteSansReponse('08', { timeoutCollects: true });
+    try {
+      expect(w.encore.status, w.encore.text).toBe(200);
+      // What was taken is what she is told: both articles, the one sum.
+      expect(w.encore.json['montant']).toBe(w.qa.amountDueAtDelivery + w.qb.amountDueAtDelivery);
+      expect((await w.cle(2)).status, 'a second collection exists').toBe(404);
+      // A second ask answers the same payment — still never a new one.
+      const redit = await post(`/checkout/group/${w.groupId}/porte`, { packageId: w.packageId, orderIds: [w.oa], holderRef: w.holderRef, commandId: 'cmd-porte-08c' });
+      expect(redit.status, redit.text).toBe(200);
+      expect(redit.json['montant']).toBe(w.qa.amountDueAtDelivery + w.qb.amountDueAtDelivery);
+      expect((await w.cle(2)).status).toBe(404);
+      // The provider's confirmation of what it took lands.
+      const ok = await confirmerPorte(`${w.groupId}-porte-1`, w.qa.amountDueAtDelivery + w.qb.amountDueAtDelivery);
+      expect(ok.status, ok.text).toBe(200);
+      expect((await audit(w.oa)).doorLeg).toBe('paid');
+      // The given-back sandals: their door money goes back to her, to the franc.
+      let lignes = await lignesRendues(w.ob);
+      for (let i = 0; i < 80 && !lignes.some(([leg]) => leg === 'door'); i += 1) {
+        await new Promise((r) => setTimeout(r, 100));
+        lignes = await lignesRendues(w.ob);
+      }
+      expect(lignes.filter(([leg]) => leg === 'door')).toEqual([['door', w.qb.amountDueAtDelivery]]);
+    } finally {
+      await w.fin();
+    }
+  }, 60_000);
+
+  it('COLIS-2 — the provider CANNOT SAY what became of it: the payment is retried AS IT WAS (never a second one beside it), under the door’s ceiling', async () => {
+    const w = await porteSansReponse('09', { staleStatusReads: 1 }, { DOOR_ATTEMPTS_MAX: '1' });
+    try {
+      expect(w.encore.json['error']).toBe('door_attempts_exhausted');
+      expect((await w.cle(2)).status).toBe(404);
+    } finally {
+      await w.fin();
+    }
+  }, 60_000);
+
+  it('COLIS-2 — custody cannot take the declaration yet: the provider’s confirmation is recorded, but the door signal WAITS — it reaches custody only after the reference did, and is never refused for it', async () => {
+    const shop = await seedShop('10');
+    const DOOR: Mode = 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR';
+    const [qa, qb] = [await quote(shop, 'pv-colis-a', DOOR, PANIER.slice(0, 2)), await quote(shop, 'pv-colis-b', DOOR, PANIER.slice(0, 2))];
+    const holderRef = 'holder-colis-10';
+    for (const q of [qa, qb]) await reserve(q.quoteId, holderRef);
+    const paid = await post('/checkout/group', { quoteIds: [qa.quoteId, qb.quoteId], holderRef, commandId: 'cmd-colis-10', contact: CONTACT });
+    expect(paid.status, paid.text).toBe(200);
+    const groupId = String(paid.json['groupId']);
+    const packageId = (paid.json['colis'] as { packageId: string }[])[0]!.packageId;
+    await confirmer(groupId, D);
+    const [oa, ob] = [`ord-${qa.quoteId}`, `ord-${qb.quoteId}`];
+    const collectId = `${groupId}-porte-1`;
+    for (const id of [oa, ob]) sansDossier.add(id);
+    try {
+      const porte = await post(`/checkout/group/${groupId}/porte`, { packageId, orderIds: [oa, ob], holderRef, commandId: 'cmd-porte-10' });
+      expect(porte.status, porte.text).toBe(200);
+      // Each article tried to declare, and custody had no file: still pending.
+      await waitFor(() => [oa, ob].every((id) => custodyActs.some((a) => a.orderId === id && a.reference === collectId)));
+      for (const id of [oa, ob]) expect((await outbox(id)).doorReferences?.[collectId]).toMatchObject({ status: 'pending' });
+
+      // The provider confirms the one payment: recorded on both articles…
+      const k = await call(`/checkout/webhook/leg-key/${encodeURIComponent(collectId)}?leg=door`, { headers: signed });
+      const provider = new MockPaymentProvider({});
+      provider.initiateCharge({ orderId: collectId, paymentAttemptId: String(k.json['legKey']), amount: qa.amountDueAtDelivery + qb.amountDueAtDelivery, correlationId: `corr-${collectId}`, requestedAtIso: T0, legType: 'door' });
+      const event = provider.webhookDeliveryPlan().find((d) => d.event.name === 'payment.door_leg_confirmed.v1')!.event;
+      expect((await post('/checkout/webhook/door', event, signed)).status).toBe(200);
+      for (const id of [oa, ob]) expect((await audit(id)).doorLeg).toBe('paid');
+      // …but custody is not told before it knows the reference.
+      await new Promise((r) => setTimeout(r, 600));
+      expect(doorSignalPosts.filter((p) => p['orderId'] === oa || p['orderId'] === ob)).toEqual([]);
+      for (const id of [oa, ob]) expect((await outbox(id)).doorSignal).toMatchObject({ status: 'pending' });
+
+      // Custody opens the files; a redelivered confirmation wakes the wires.
+      for (const id of [oa, ob]) sansDossier.delete(id);
+      expect((await post('/checkout/webhook/door', event, signed)).json['status']).toBe('duplicate');
+      for (const id of [oa, ob]) {
+        let fate = (await outbox(id)).doorSignal;
+        for (let i = 0; i < 40 && fate?.status !== 'delivered'; i += 1) {
+          await new Promise((r) => setTimeout(r, 100));
+          fate = (await outbox(id)).doorSignal;
+        }
+        expect(fate, id).toMatchObject({ status: 'delivered', outcome: 'accepted' });
+        expect((await outbox(id)).doorReferences?.[collectId]).toMatchObject({ status: 'delivered', outcome: 'accepted' });
+        // ONE signal each, taken the first time: never refused for want of the reference.
+        expect(doorSignalPosts.filter((p) => p['orderId'] === id)).toHaveLength(1);
+      }
+    } finally {
+      for (const id of [oa, ob]) sansDossier.delete(id);
+    }
+  }, 60_000);
+
+  it('COLIS-2 — Boutik+ cannot be reached: the shop remembers what it was told, so her package still costs ONE delivery — and a shop that was never told still prices each article alone', async () => {
+    const shop = await seedShop('11');
+    const duo = PANIER.slice(0, 2);
+    // Boutik+ answers once: the bazin and the bag leave from one supplier.
+    expect((await quote(shop, 'pv-colis-a', 'FULL_PREPAY', duo)).deliveryFee).toBe(splitPackageDeliveryFee(D, 2)[0]);
+    groupingEnPanne = true;
+    try {
+      // Boutik+ is down. Asked again, it does not answer — and her quotes still split ONE fee.
+      const avant = groupingAsks.length;
+      const [qa, qb] = [await quote(shop, 'pv-colis-a', 'FULL_PREPAY', duo), await quote(shop, 'pv-colis-b', 'FULL_PREPAY', duo)];
+      expect(groupingAsks.length, 'Boutik+ was still asked first').toBeGreaterThan(avant);
+      expect([qa.deliveryFee, qb.deliveryFee]).toEqual(splitPackageDeliveryFee(D, 2));
+      // A product never grouped before (the karité) travels alone, at the full fee.
+      expect((await quote(shop, 'pv-colis-c', 'FULL_PREPAY', PANIER)).deliveryFee).toBe(D);
+      // …and the package pays whole, as ONE package with ONE delivery.
+      for (const q of [qa, qb]) await reserve(q.quoteId, 'holder-colis-11');
+      const paid = await post('/checkout/group', { quoteIds: [qa.quoteId, qb.quoteId], holderRef: 'holder-colis-11', commandId: 'cmd-colis-11', contact: CONTACT });
+      expect(paid.status, paid.text).toBe(200);
+      expect((paid.json['colis'] as { orderIds: string[] }[]).map((c) => c.orderIds.length)).toEqual([2]);
+
+      // Another shop was never told anything: during the outage its articles are alone.
+      const autre = await seedShop('12');
+      expect((await quote(autre, 'pv-colis-a', 'FULL_PREPAY', duo)).deliveryFee).toBe(D);
+    } finally {
+      groupingEnPanne = false;
     }
   }, 60_000);
 

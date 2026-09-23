@@ -1,7 +1,7 @@
 import { splitPackageDeliveryFee } from '@platform/contracts';
 import { describe, expect, it } from 'vitest';
 import { decideIssueQuote } from '../src/checkout-core.js';
-import { BoundColisGrouping, AbsentColisGrouping, GROUPING_ROUTE } from '../src/colis-source.js';
+import { BoundColisGrouping, AbsentColisGrouping, GROUPING_ROUTE, MemorisedColisGrouping, fusionnerMemoire, grouperDeMemoire, type ColisGroupingPort, type ColisMemoire } from '../src/colis-source.js';
 import { quoteDeliveryFee } from '../src/delivery-source.js';
 import type { ListingEntry } from '../src/listing-core.js';
 import { colisIdFor, decideColis, type ColisEntry } from '../src/payment-group-core.js';
@@ -121,5 +121,57 @@ describe('Boutik+\'s grouping, asked and believed only when it is a grouping of 
       expect(await new BoundColisGrouping(producer(c).fetcher, 's').grouper(['pv-a', 'pv-b', 'pv-c'])).toBeUndefined();
     }
     expect(await new AbsentColisGrouping().grouper()).toBeUndefined();
+  });
+});
+
+/* ────────────── COLIS-2 — when Boutik+ cannot be reached, the shop remembers ────────────── */
+
+describe('COLIS-2 — the shop remembers which of its products leave together, and uses it only when Boutik+ is silent', () => {
+  function memoire(): ColisMemoire & { parBoutique: Map<string, string[][]> } {
+    const parBoutique = new Map<string, string[][]>();
+    return {
+      parBoutique,
+      lire: async (b) => parBoutique.get(b) ?? [],
+      retenir: async (b, g) => void parBoutique.set(b, fusionnerMemoire(parBoutique.get(b) ?? [], g)),
+    };
+  }
+  const repond = (answer: readonly (readonly string[])[] | undefined): ColisGroupingPort & { asks: number } => {
+    const port = { asks: 0, grouper: async () => { port.asks += 1; return answer; } };
+    return port;
+  };
+
+  it('an answer is believed and remembered for THIS shop — only its real groups, never an article alone', async () => {
+    const m = memoire();
+    const g = new MemorisedColisGrouping(repond([['pv-a', 'pv-b'], ['pv-c']]), m);
+    expect(await g.grouper(['pv-a', 'pv-b', 'pv-c'], 'sf-1')).toEqual([['pv-a', 'pv-b'], ['pv-c']]);
+    expect(m.parBoutique.get('sf-1')).toEqual([['pv-a', 'pv-b']]);
+    expect(m.parBoutique.get('sf-2')).toBeUndefined();
+  });
+
+  it('Boutik+ silent: what it once joined stays joined; what it never joined travels alone — in the order asked', async () => {
+    const m = memoire();
+    await new MemorisedColisGrouping(repond([['pv-a', 'pv-b'], ['pv-c']]), m).grouper(['pv-a', 'pv-b', 'pv-c'], 'sf-1');
+    const panne = new MemorisedColisGrouping(repond(undefined), m);
+    expect(await panne.grouper(['pv-b', 'pv-c', 'pv-a', 'pv-neuf'], 'sf-1')).toEqual([['pv-b', 'pv-a'], ['pv-c'], ['pv-neuf']]);
+    // Another shop's memory is its own: nothing learned elsewhere is used.
+    expect(await panne.grouper(['pv-a', 'pv-b'], 'sf-2')).toEqual([['pv-a'], ['pv-b']]);
+    // With no shop named, nothing is remembered or read.
+    expect(await panne.grouper(['pv-a', 'pv-b'])).toBeUndefined();
+  });
+
+  it('an answer always wins over the memory, and a memory that cannot be read changes nothing', async () => {
+    const m = memoire();
+    await new MemorisedColisGrouping(repond([['pv-a', 'pv-b']]), m).grouper(['pv-a', 'pv-b'], 'sf-1');
+    expect(await new MemorisedColisGrouping(repond([['pv-a'], ['pv-b']]), m).grouper(['pv-a', 'pv-b'], 'sf-1')).toEqual([['pv-a'], ['pv-b']]);
+    const cassee: ColisMemoire = { lire: async () => { throw new Error('down'); }, retenir: async () => { throw new Error('down'); } };
+    expect(await new MemorisedColisGrouping(repond(undefined), cassee).grouper(['pv-a', 'pv-b'], 'sf-1')).toBeUndefined();
+    expect(await new MemorisedColisGrouping(repond([['pv-a', 'pv-b']]), cassee).grouper(['pv-a', 'pv-b'], 'sf-1')).toEqual([['pv-a', 'pv-b']]);
+  });
+
+  it('groups that share a product are one supplier\'s, so they merge; disjoint ones stay apart', () => {
+    expect(fusionnerMemoire([['pv-a', 'pv-b'], ['pv-x', 'pv-y']], [['pv-c', 'pv-b']])).toEqual([['pv-a', 'pv-b', 'pv-c'], ['pv-x', 'pv-y']]);
+    expect(fusionnerMemoire([['pv-a', 'pv-b'], ['pv-x', 'pv-y']], [['pv-b', 'pv-x']])).toEqual([['pv-a', 'pv-b', 'pv-x', 'pv-y']]);
+    expect(fusionnerMemoire([], [['pv-b', 'pv-a']])).toEqual([['pv-a', 'pv-b']]);
+    expect(grouperDeMemoire(['pv-c', 'pv-a'], [['pv-a', 'pv-b', 'pv-c']])).toEqual([['pv-c', 'pv-a']]);
   });
 });

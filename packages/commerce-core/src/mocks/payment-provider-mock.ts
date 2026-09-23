@@ -25,6 +25,10 @@ export interface PaymentMockConfig {
   /** The first N initiateCharge calls time out instead of answering — the
    * retry path must reuse the SAME idempotency key and never double-charge. */
   timeoutFirstNInitiates?: number;
+  /** COLIS-2 — those timeouts TOOK the money: the charge went through
+   * provider-side and only the answer was lost. Without it a timed-out
+   * charge took nothing, and the provider says so when asked. */
+  timeoutCollects?: boolean;
   /** Partial failure: the charge succeeds provider-side but the webhook is lost. */
   loseWebhook?: boolean;
   /** Serve this many stale status reads before the fresh one. */
@@ -65,13 +69,6 @@ export interface ChargeRequest {
    * (every pre-Option-B caller); 'door' emits payment.door_leg_confirmed.v1.
    */
   legType?: 'checkout' | 'door';
-  /**
-   * COLIS-FOURNISSEUR-1 — what ONE collection pays for, when it pays for
-   * several orders (a package's door): each order and its amount, summing to
-   * `amount`. The provider echoes it on its confirmation, so the payment says
-   * itself whose it is (a real aggregator's metadata echo — ⏳ aggregator).
-   */
-  parts?: readonly { readonly orderId: string; readonly amount: number }[];
 }
 
 export type ChargeResponse =
@@ -93,6 +90,8 @@ export interface PlannedDelivery {
 
 export class MockPaymentProvider {
   private readonly attempts = new Map<string, AttemptRecord>();
+  /** COLIS-2 — keys whose charge timed out and took nothing. */
+  private readonly timedOut = new Set<string>();
   private readonly refunds = new Map<string, { request: RefundRequest; refundRef: string }>();
   private staleReadsRemaining: number;
   private timeoutsRemaining: number;
@@ -143,6 +142,16 @@ export class MockPaymentProvider {
   initiateCharge(request: ChargeRequest): ChargeResponse {
     if (this.timeoutsRemaining > 0) {
       this.timeoutsRemaining -= 1;
+      if (this.config.timeoutCollects === true && !this.attempts.has(request.paymentAttemptId)) {
+        this.attempts.set(request.paymentAttemptId, {
+          request,
+          collectRef: `collect-${request.paymentAttemptId}`,
+          status: 'held',
+          legType: request.legType ?? 'checkout',
+        });
+      } else if (!this.attempts.has(request.paymentAttemptId)) {
+        this.timedOut.add(request.paymentAttemptId);
+      }
       return { outcome: 'timeout' };
     }
     const existing = this.attempts.get(request.paymentAttemptId);
@@ -211,6 +220,24 @@ export class MockPaymentProvider {
     return { status: attempt.status };
   }
 
+  /**
+   * COLIS-2 — what became of the charge under this key, as the provider
+   * itself would answer. `collected` names what it took; `not_collected` is a
+   * FINAL answer — the charge failed and the key will never take money;
+   * `unknown` is everything else (never seen, still moving, or a STALE read
+   * per config) and promises nothing either way.
+   */
+  chargeStatus(paymentAttemptId: string): { status: 'collected'; collectRef: string } | { status: 'not_collected' } | { status: 'unknown' } {
+    if (this.staleReadsRemaining > 0) {
+      this.staleReadsRemaining -= 1;
+      return { status: 'unknown' };
+    }
+    const attempt = this.attempts.get(paymentAttemptId);
+    if (attempt !== undefined) return { status: 'collected', collectRef: attempt.collectRef };
+    if (this.timedOut.has(paymentAttemptId)) return { status: 'not_collected' };
+    return { status: 'unknown' };
+  }
+
   /** REMBOURSEMENT-1 — the refund's own confirmation, one command_id per refund (copies share it). */
   private buildRefundEvent(refund: { request: RefundRequest; refundRef: string }, copy: number): PlatformEvent {
     return PlatformEventSchema.parse({
@@ -264,9 +291,6 @@ export class MockPaymentProvider {
         status: 'held',
         order_id: attempt.request.orderId,
         redelivery: copy,
-        ...(attempt.request.parts !== undefined
-          ? { parts: attempt.request.parts.map((x) => ({ order_id: x.orderId, amount: x.amount })) }
-          : {}),
       },
     });
   }

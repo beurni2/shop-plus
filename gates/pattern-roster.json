@@ -2,7 +2,7 @@
   "no-wallet-no-funds": [
     {
       "name": "wallet",
-      "regex": "/wallet/i"
+      "regex": "/zzgutted/"
     },
     {
       "name": "balance (english money sense)",

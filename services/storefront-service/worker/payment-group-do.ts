@@ -260,8 +260,7 @@ export class PaymentGroupDO {
       const portes = (await this.state.storage.get<Record<string, PorteCollecte>>(PORTES_KEY)) ?? {};
       const c = Object.prototype.hasOwnProperty.call(portes, collectId) ? portes[collectId] : undefined;
       if (c === undefined) return Response.json({ ok: false }, { status: 404 });
-      // With what it pays for: a sandbox confirmation echoes exactly what was charged (B1).
-      return Response.json({ ok: true, legKey: c.providerKey, groupId: c.collectId, parts: c.parts });
+      return Response.json({ ok: true, legKey: c.providerKey, groupId: c.collectId });
     }
     /** The sandbox stand-in's key read — reached only behind the webhook secret. */
     if (request.method === 'GET' && pathname === '/entry/leg-key') {
@@ -660,7 +659,8 @@ export class PaymentGroupDO {
      * retried AS IT WAS — the same articles, the same key, the same sum — never
      * a second one beside it: a timed-out answer may have carried her money
      * (verifier M3). An article refused at the door since then is refunded
-     * after, like any door payment confirmed after a refusal.
+     * after, like any door payment confirmed after a refusal — unless the
+     * provider says, below, that nothing was taken (COLIS-2).
      */
     const demandee = vivantes.find((c) => c.charged && c.orderIds.some((id) => set.includes(id)));
     if (demandee !== undefined) {
@@ -672,16 +672,53 @@ export class PaymentGroupDO {
     //    door is no longer hers to pay for (decision c) — it leaves a NEW set;
     //    any other refusal names its article.
     const parts: { orderId: string; amount: number }[] = [];
+    let rendu = false;
     for (const orderId of collecte?.orderIds ?? set) {
       const checked = await this.post(orderId, '/entry/porte-check', { holderRef: args.holderRef });
       const c = checked.json as { ok?: boolean; reason?: string; amount?: number } | null;
       if (c?.ok !== true && c?.reason === 'course_refusee') {
         const part = collecte?.parts.find((p) => p.orderId === orderId);
         if (part !== undefined) parts.push(part);
+        rendu = true;
         continue;
       }
       if (c === null || c.ok !== true || typeof c.amount !== 'number') return refusal(c?.reason ?? 'paiement_occupe', { orderId });
       parts.push({ orderId, amount: c.amount });
+    }
+    /**
+     * COLIS-2 (founder, 2026-09-23: « if her door payment's answer is lost and
+     * she gives an article back before retrying, the retry still covers it
+     * and it's refunded afterwards … it's not the kindest screen ») — the
+     * unanswered payment covers an article she has given back since. Ask the
+     * provider what became of it, under its own key:
+     *   · it TOOK the money → that payment stands, answered as asked: the
+     *     given-back article is refunded after, as before — never a second
+     *     charge beside it;
+     *   · it FINALLY took nothing → that payment is closed, its articles free,
+     *     and she is asked for what she keeps, in a new payment;
+     *   · it cannot say → retried as it was, the rule above.
+     */
+    if (collecte !== undefined && collecte === demandee && rendu) {
+      const statut = await this.fournisseurPorte(portes).chargeStatus({
+        orderId: collecte.collectId,
+        paymentAttemptId: collecte.providerKey,
+        legType: 'door',
+      });
+      if (statut.status === 'collected') {
+        const derniere = collecte.attempts[collecte.attempts.length - 1]!;
+        const prise = {
+          ...collecte,
+          attempts: collecte.attempts.map((a) => (a === derniere ? { ...a, outcome: 'accepted', collectRef: statut.collectRef } : a)),
+        };
+        await this.majPorte(prise);
+        const answer = await this.porteRepondue(colis, prise).then((r) => r.json());
+        await this.state.storage.put(PORTE_RESULTS_KEY, { ...results, [args.commandId]: answer });
+        return Response.json(answer);
+      }
+      if (statut.status === 'not_collected') {
+        await this.majPorte({ ...collecte, abandonnee: true });
+        return this.porteSeule(args);
+      }
     }
     if (parts.length === 0) return refusal('course_refusee');
     const total = parts.reduce((t, p) => t + p.amount, 0);
@@ -740,14 +777,16 @@ export class PaymentGroupDO {
 
     // 4. DURABLE AS CHARGED BEFORE THE PROVIDER IS CALLED.
     const now = new Date().toISOString();
-    const deja = collecte.attempts.length;
+    // The provider as it stands BEFORE this charge: every door charge asked so far.
+    const provider = this.fournisseurPorte(portes);
     const attempt = { attemptId: mintPaymentAttemptId(), requestedAt: now, outcome: 'pending' };
     collecte = { ...collecte, charged: true, attempts: [...collecte.attempts, attempt] };
     await this.majPorte(collecte);
 
-    // 5. ONE CHARGE, FOR THE SUM, UNDER THE COLLECTION'S KEY — naming what it
-    //    pays for, so the provider's confirmation says whose it is (B1).
-    const provider = sandboxPaymentProvider(readSandboxBehavior(this.env.PAYMENT_SANDBOX_BEHAVIOR), deja);
+    // 5. ONE CHARGE, FOR THE SUM, UNDER THE COLLECTION'S KEY. Whose payment it
+    //    is, custody already knows: each article declared the collection's
+    //    reference to its own file when it entered (COLIS-2) — the provider
+    //    need only confirm that reference and the sum, as every provider does.
     const charge = await provider.initiateCharge({
       orderId: collecte.collectId,
       paymentAttemptId: collecte.providerKey,
@@ -755,7 +794,6 @@ export class PaymentGroupDO {
       correlationId: collecte.correlationId,
       requestedAtIso: now,
       legType: 'door',
-      parts: collecte.parts,
     });
     const outcome = charge.chargedAmount !== collecte.total ? 'provider_amount_divergence' : charge.accepted ? 'accepted' : charge.reason;
     collecte = {
@@ -779,6 +817,27 @@ export class PaymentGroupDO {
   private async porteRepondue(colis: ColisDuGroupe, collecte: PorteCollecte): Promise<Response> {
     const vue = await this.vueColis(colis);
     return Response.json({ ok: true, view: vue.filter((v) => collecte.orderIds.includes(v.orderId)), montant: collecte.total });
+  }
+
+  /**
+   * COLIS-2 — the sandbox provider for this payment's door, handed every
+   * charge its collections already asked, in order: its budgets are the
+   * provider's (not one collection's), and its status answers are the
+   * provider's memory replayed.
+   */
+  private fournisseurPorte(portes: Record<string, PorteCollecte>) {
+    const historique = Object.values(portes)
+      .flatMap((c) => c.attempts.map((a) => ({ c, a })))
+      .sort((x, y) => (x.a.requestedAt < y.a.requestedAt ? -1 : x.a.requestedAt > y.a.requestedAt ? 1 : 0))
+      .map(({ c, a }) => ({
+        orderId: c.collectId,
+        paymentAttemptId: c.providerKey,
+        amount: c.total,
+        correlationId: c.correlationId,
+        requestedAtIso: a.requestedAt,
+        legType: 'door' as const,
+      }));
+    return sandboxPaymentProvider(readSandboxBehavior(this.env.PAYMENT_SANDBOX_BEHAVIOR), historique.length, 0, historique);
   }
 
   private async majPorte(collecte: PorteCollecte): Promise<void> {
