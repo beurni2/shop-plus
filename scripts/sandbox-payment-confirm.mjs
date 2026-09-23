@@ -88,6 +88,39 @@ export function composeSandboxConfirmation(orderId, amount, nowIso, legKey) {
   };
 }
 
+/**
+ * REMBOURSEMENT-1 (founder ruling 2026-09-23) — the refund confirmation a
+ * sandbox provider would deliver for ONE refund the order asked for: its key,
+ * the collection it was taken from, the amount asked. Field-for-field the
+ * certified mock's refund event, mirrored for the same zero-dependency reason
+ * as the confirmation above; the seam test holds it to the real Worker. The
+ * command id derives from the refund key, so a re-dispatch is a redelivery.
+ */
+export function composeSandboxRefund(orderId, remboursement, nowIso) {
+  return {
+    name: 'payment.refund_confirmed.v1',
+    envelope: {
+      command_id: `whk-sandbox-refund-${remboursement.refundKey}`,
+      correlation_id: `corr-${orderId}`,
+      aggregateVersion: 1,
+      actor: SANDBOX_ACTOR,
+      serverTime: nowIso,
+      version: '1',
+    },
+    payload: {
+      provider: 'sandbox-provider',
+      refund_key: remboursement.refundKey,
+      refundRef: `refund-${remboursement.refundKey}`,
+      collectRef: remboursement.collectRef,
+      amount: remboursement.amount,
+      fee: 0,
+      status: 'refunded',
+      order_id: orderId,
+      redelivery: false,
+    },
+  };
+}
+
 /** The header the webhook gate reads (`auth.ts` PAYMENT_WEBHOOK_KEY_HEADER). */
 export const WEBHOOK_KEY_HEADER = 'X-Payment-Webhook-Key';
 
@@ -98,6 +131,12 @@ async function main() {
   if (base === '' || pasted === '' || secret === '') {
     console.error('missing STOREFRONT_BASE, ORDER_ID or PAYMENT_WEBHOOK_SECRET');
     process.exit(2);
+  }
+
+  // REMBOURSEMENT-1 — the refund mode: confirm the refunds this ORDER asked for.
+  if ((process.env.REMBOURSEMENT ?? '').trim() === 'true') {
+    await rembourser(base, pasted, secret);
+    return;
   }
 
   // PAYER-TOUT-1 — an order paid inside a group is confirmed AS its group.
@@ -187,6 +226,52 @@ async function main() {
     process.exit(1);
   }
   console.log('CONFIRMED. The buyer sees it paid; the Boutik+ board and the Séra funding fact follow by outbox (at-least-once, within about a minute).');
+}
+
+/**
+ * REMBOURSEMENT-1 — the provider's refund half. It reads, behind the webhook
+ * secret, ONLY the refunds this order asked of the provider (a refused
+ * delivery opens them; nothing else can), confirms each, and reads the
+ * order's own view after: `refunded` is the vault's word, not this script's.
+ */
+async function rembourser(base, orderId, secret) {
+  if (orderId.startsWith('grp-')) {
+    console.error('REFUSING: a refund belongs to ONE order — paste the refused article\'s order id (ord-…), not the group\'s.');
+    process.exit(1);
+  }
+  const probe = await fetch(`${base}/checkout/webhook/refund-key/${encodeURIComponent(orderId)}`, {
+    headers: { [WEBHOOK_KEY_HEADER]: secret },
+  });
+  const body = await probe.json().catch(() => ({}));
+  if (probe.status === 401) {
+    console.error('KEY READ REFUSED 401 — PAYMENT_WEBHOOK_SECRET here does not match the deployed Worker.');
+    process.exit(1);
+  }
+  if (probe.status !== 200 || !Array.isArray(body.remboursements)) {
+    console.error(`NO REFUND ASKED for ${orderId} (HTTP ${probe.status}) — a refund exists only after Séra refused the delivery home. Nothing was sent.`);
+    process.exit(1);
+  }
+  for (const r of body.remboursements) {
+    const res = await fetch(`${base}/checkout/webhook/refund`, {
+      method: 'POST',
+      headers: { [WEBHOOK_KEY_HEADER]: secret, 'Content-Type': 'application/json' },
+      body: JSON.stringify(composeSandboxRefund(orderId, r, new Date().toISOString())),
+    });
+    const answer = await res.json().catch(() => ({}));
+    if (res.status !== 200) {
+      console.error(`REFUND CONFIRMATION REFUSED: HTTP ${res.status} ${JSON.stringify(answer)} — nothing moved.`);
+      process.exit(1);
+    }
+    console.log(`refund of ${r.amount} FCFA (${r.legType}) confirmed: ${JSON.stringify(answer)}`);
+  }
+  const after = await fetch(`${base}/checkout/order/${encodeURIComponent(orderId)}`);
+  const vue = await after.json().catch(() => ({}));
+  console.log(`order ${orderId}: state=${String(vue.state ?? '')}`);
+  if (vue.state !== 'refunded') {
+    console.error('the confirmations answered 200 but the order is not refunded — investigate before retrying.');
+    process.exit(1);
+  }
+  console.log('REFUNDED. The buyer sees her money on its way back.');
 }
 
 // Import-safe: the seam test imports the composition without running this.

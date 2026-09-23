@@ -10,6 +10,7 @@ import {
   OrderSpine,
   type DoorLegState,
   type GroupPaymentShares,
+  type RemboursementAttendu,
   type PaymentFailureReason,
   type RelatedPartyAppeal,
   type RelatedPartyResolution,
@@ -532,6 +533,13 @@ export type OrderInput =
    * the frozen Quote — this kind adds nothing of its own.
    */
   | { readonly kind: 'eligibility'; readonly event: unknown }
+  /**
+   * REMBOURSEMENT-1 — the provider's REFUND truth, with the refunds this order
+   * asked for (their keys and amounts) riding the log beside it, so a replay
+   * re-judges exactly what the original judgement saw — the `expectedProviderKey`
+   * law, applied to money going back.
+   */
+  | { readonly kind: 'refund_provider'; readonly event: unknown; readonly attendus: readonly RemboursementAttendu[] }
   /** RELATED-PARTY-1 (§6.5) — the decision, her appeal, the founder's ruling: three replayable facts on the log. */
   | { readonly kind: 'related_party'; readonly decision: RelatedPartyDecision }
   | { readonly kind: 'related_party_appeal'; readonly appeal: RelatedPartyAppeal }
@@ -690,6 +698,16 @@ export function applyOrderInput(spine: OrderSpine, input: OrderInput): ApplyOutc
             ...(outcome.alert !== undefined ? { alert: outcome.alert } : {}),
           };
     }
+    case 'refund_provider': {
+      const outcome = spine.onProviderRefundEvent(input.event, input.attendus);
+      return outcome.applied
+        ? { applied: true, duplicate: outcome.duplicate }
+        : {
+            applied: false,
+            reason: outcome.reason,
+            ...(outcome.alert !== undefined ? { alert: outcome.alert } : {}),
+          };
+    }
     case 'eligibility': {
       const outcome = spine.onEligibilityEvent(input.event);
       return outcome.applied
@@ -822,6 +840,16 @@ export interface BuyerOrderView {
    * presence IS the fact). A state, never an amount.
    */
   readonly livree?: boolean;
+  /**
+   * REMBOURSEMENT-1 — HER REFUND, when a refused delivery opened one: what goes
+   * back to her (the sum of the refunds asked, each copied from her own paid
+   * legs) and whether the provider has confirmed it. A state and her own money,
+   * nothing else — no key, no collection reference, no provider fee.
+   * `fraisGardes` is her delivery fee the vault KEPT on a buyer refusal (the
+   * rider came), present only when > 0, so her screen can say why the refund
+   * is smaller than what she paid.
+   */
+  readonly remboursement?: { readonly etat: 'en_cours' | 'fait'; readonly montant: number; readonly fraisGardes?: number };
 }
 
 export function toBuyerOrderView(args: {
@@ -839,6 +867,7 @@ export function toBuyerOrderView(args: {
     readonly arrivedAt?: string;
     readonly livree?: boolean;
   };
+  readonly remboursement?: { readonly etat: 'en_cours' | 'fait'; readonly montant: number; readonly fraisGardes?: number };
 }): BuyerOrderView {
   const suivi = args.suivi ?? {};
   return {
@@ -857,6 +886,17 @@ export function toBuyerOrderView(args: {
     ...(suivi.departedAt !== undefined ? { departedAt: suivi.departedAt } : {}),
     ...(suivi.arrivedAt !== undefined ? { arrivedAt: suivi.arrivedAt } : {}),
     ...(suivi.livree !== undefined ? { livree: suivi.livree } : {}),
+    ...(args.remboursement !== undefined
+      ? {
+          remboursement: {
+            etat: args.remboursement.etat,
+            montant: args.remboursement.montant,
+            ...(args.remboursement.fraisGardes !== undefined && args.remboursement.fraisGardes > 0
+              ? { fraisGardes: args.remboursement.fraisGardes }
+              : {}),
+          },
+        }
+      : {}),
   };
 }
 

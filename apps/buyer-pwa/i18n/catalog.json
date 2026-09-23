@@ -1266,6 +1266,42 @@
   "screenClass": "label"
  },
  {
+  "key": "cl.remboursement.overline",
+  "fr": "Remboursement",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.remboursement.en_cours",
+  "fr": "{X}\u202fFCFA vous reviennent",
+  "register": "money",
+  "screenClass": "checkout"
+ },
+ {
+  "key": "cl.remboursement.en_cours_corps",
+  "fr": "Le colis retourne chez la vendeuse. Votre argent revient sur le numéro qui a payé.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.remboursement.fait",
+  "fr": "Remboursement fait\u00a0:\u00a0{X}\u202fFCFA",
+  "register": "money",
+  "screenClass": "checkout"
+ },
+ {
+  "key": "cl.remboursement.fait_corps",
+  "fr": "L’argent est revenu sur le numéro qui a payé.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.remboursement.frais_gardes",
+  "fr": "La livraison ({D}\u202fFCFA) reste payée\u00a0: le livreur est bien venu jusqu’à vous.",
+  "register": "money",
+  "screenClass": "checkout"
+ },
+ {
   "key": "cl.suivi.c9_attente",
   "fr": "Votre code apparaîtra ici quand le livreur sera à votre porte. Jamais avant.",
   "register": "money",

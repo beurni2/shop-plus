@@ -161,12 +161,13 @@ describe('E2 cancellation — pre-payment allowed; post-payment refuses closed (
     expect(JSON.stringify(spine.ledger.escrowFor('order-c3'))).toBe(escrowBefore);
   });
 
-  it('refunded is UNREACHABLE at E2 — no transition path in', () => {
+  it('refunded is never reached by a local command — before the money moved, or after it (REMBOURSEMENT-1: only the refund judge)', () => {
     const spine = freshSpine('c4');
     toPaymentPending(spine, 'c4');
     const attempt = spine.advance({ command_id: 'x5', actor: 'a', serverTime: LATER(1), to: 'refunded' });
     expect(attempt.ok).toBe(false);
     if (!attempt.ok) expect(attempt.reason).toBe('out_of_order');
+    expect(spine.journey.state).toBe('payment_pending');
   });
 });
 

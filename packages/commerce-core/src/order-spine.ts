@@ -105,7 +105,16 @@ export type SpineRefusalReason =
   | 'nothing_to_contest'
   | 'already_contested'
   | 'nothing_to_resolve'
-  | 'already_resolved';
+  | 'already_resolved'
+  /** REMBOURSEMENT-1 — a refund confirmation naming no refund this order asked for. */
+  | 'refund_key_unknown'
+  /** REMBOURSEMENT-1 — the provider says something other than « refunded ». */
+  | 'unconfirmed_refund_status'
+  /** REMBOURSEMENT-1 — the ledger's refusals of a refund (see `recordRefundFromProvider`). */
+  | 'no_escrow_for_refund'
+  | 'refund_leg_unknown'
+  | 'refund_exceeds_leg'
+  | 'conflicting_refund';
 
 export type SpineOutcome =
   | { applied: true; duplicate: boolean }
@@ -204,6 +213,77 @@ export interface GroupPaymentShares {
   readonly parts: readonly { readonly orderId: string; readonly amount: number }[];
 }
 
+/**
+ * REMBOURSEMENT-1 (founder ruling 2026-09-23) — what Séra's refused-course
+ * fact (`delivery.refused.v1`) says, read off the three payloads its custody
+ * spine emits: a justified refusal at the door, a buyer's own refusal (with
+ * Séra's word on whether the delivery fee is kept), a delivery check the
+ * server rejected. Anything else is unreadable, and no refund is decided on it.
+ */
+export type RefusCourse =
+  | { readonly nature: 'refus_justifie'; readonly faultClass: string }
+  | { readonly nature: 'refus_acheteur'; readonly faultClass: string; readonly fraisRetenus: boolean }
+  | { readonly nature: 'livraison_rejetee' };
+
+export function lireRefusCourse(payload: unknown): RefusCourse | undefined {
+  if (payload === null || typeof payload !== 'object' || Array.isArray(payload)) return undefined;
+  const p = payload as Record<string, unknown>;
+  const faute = typeof p['fault_class'] === 'string' && p['fault_class'] !== '' ? p['fault_class'] : undefined;
+  if (p['rejection'] === 'valid_rejection' && faute !== undefined) return { nature: 'refus_justifie', faultClass: faute };
+  if (typeof p['family'] === 'string' && faute !== undefined && typeof p['fee_retained'] === 'boolean') {
+    return { nature: 'refus_acheteur', faultClass: faute, fraisRetenus: p['fee_retained'] };
+  }
+  if (p['result'] === 'rejected') return { nature: 'livraison_rejetee' };
+  return undefined;
+}
+
+/** One paid leg's refund: which leg, against which collection, how much goes back. */
+export interface LigneRemboursement {
+  readonly legType: 'checkout' | 'door';
+  readonly collectRef: string;
+  readonly amount: number;
+}
+
+export type PlanRemboursement =
+  | { readonly ok: true; readonly lignes: readonly LigneRemboursement[]; readonly retenu: number }
+  | { readonly ok: false; readonly reason: 'pas_paye' | 'livraison_acceptee' };
+
+/** A refund the order asked for, as the refund judge checks the provider's answer against it. */
+export interface RemboursementAttendu extends LigneRemboursement {
+  readonly refundKey: string;
+}
+
+/**
+ * FRAIS-PARTAGES-1 (founder ruling 2026-09-23) — this order's share of the
+ * collection's ONE provider fee: in proportion to its part, to the franc.
+ * The francs the proportional floors leave over go one each to the largest
+ * remainders; a tie goes to the lower order id. Every order of the group runs
+ * this on the same facts (the frozen parts, the provider's one fee), so the
+ * shares add up to the provider's fee exactly without any order reading
+ * another's record. Exact integer arithmetic: no float ever touches a franc.
+ */
+export function partDesFrais(
+  parts: readonly { readonly orderId: string; readonly amount: number }[],
+  frais: number,
+  orderId: string,
+): number {
+  const total = parts.reduce((s, p) => s + BigInt(p.amount), 0n);
+  const f = BigInt(frais);
+  const lignes = parts.map((p) => ({
+    orderId: p.orderId,
+    base: (f * BigInt(p.amount)) / total,
+    reste: (f * BigInt(p.amount)) % total,
+  }));
+  const manque = f - lignes.reduce((s, l) => s + l.base, 0n);
+  const servis = [...lignes]
+    .sort((a, b) => (a.reste !== b.reste ? (a.reste > b.reste ? -1 : 1) : a.orderId < b.orderId ? -1 : 1))
+    .slice(0, Number(manque))
+    .map((l) => l.orderId);
+  const mienne = lignes.find((l) => l.orderId === orderId);
+  if (mienne === undefined) return 0;
+  return Number(mienne.base + (servis.includes(orderId) ? 1n : 0n));
+}
+
 export class OrderSpine {
   readonly ledger = new LedgerRecords();
   private journeyState: OrderJourney;
@@ -243,8 +323,24 @@ export class OrderSpine {
     return this.journeyState;
   }
 
-  /** Local commands (reserve confirmation, payment initiation) advance the machine. */
+  /**
+   * Local commands (reserve confirmation, payment initiation) advance the machine.
+   * NEVER to `refunded`: money going back is provider truth, and only the refund
+   * judge (`onProviderRefundEvent`) may record it — a local command that could
+   * would be a refund nobody paid.
+   */
   advance(cmd: {
+    command_id: string;
+    actor: string;
+    serverTime: string;
+    to: string;
+    chainAdditions?: Record<string, string>;
+  }): TransitionOutcome {
+    if (cmd.to === 'refunded') return { ok: false, journey: this.journeyState, reason: 'out_of_order', attempted: cmd.to };
+    return this.avancer(cmd);
+  }
+
+  private avancer(cmd: {
     command_id: string;
     actor: string;
     serverTime: string;
@@ -687,7 +783,8 @@ export class OrderSpine {
       // This order's share, copied from its immutable Quote — proven above to
       // be its own part of the total the provider stated to the franc.
       amount: this.quote.amountPaidAtCheckout,
-      fee: groupe.parts[0]?.orderId === this.orderId && typeof p['fee'] === 'number' ? p['fee'] : 0,
+      // FRAIS-PARTAGES-1 — its share of the collection's one fee, not the whole of it.
+      fee: typeof p['fee'] === 'number' ? partDesFrais(groupe.parts, p['fee'], this.orderId) : 0,
       status,
     });
     if (!recorded.ok) {
@@ -900,6 +997,120 @@ export class OrderSpine {
       return 'order_mismatch';
     }
     return null;
+  }
+
+  /**
+   * REMBOURSEMENT-1 (founder ruling 2026-09-23) — WHAT GOES BACK, decided from
+   * this order's own records only: the legs the provider funded (the ledger),
+   * the delivery fee its immutable Quote names, and Séra's word on fault.
+   * Every paid leg is refunded in full, except that a buyer's refusal whose fee
+   * Séra kept leaves D on the checkout leg (Option B: that leg IS D, so only a
+   * paid door leg goes back). Nothing is refunded before the money moved, and
+   * nothing after acceptance: an order with settlement obligations was
+   * delivered and accepted (§6.3 finality).
+   */
+  decideRefund(refus: RefusCourse): PlanRemboursement {
+    const escrow = this.orderId === undefined ? undefined : this.ledger.escrowFor(this.orderId);
+    if (escrow === undefined || (this.journeyState.state !== 'paid' && this.journeyState.state !== 'confirmed')) {
+      return { ok: false, reason: 'pas_paye' };
+    }
+    if (this.ledger.obligationsFor(this.orderId!).length > 0) return { ok: false, reason: 'livraison_acceptee' };
+    const garde = refus.nature === 'refus_acheteur' && refus.fraisRetenus ? this.quote.deliveryFee : 0;
+    let retenu = 0;
+    const lignes: LigneRemboursement[] = [];
+    for (const leg of escrow.paymentLegs) {
+      const garde_ici = leg.legType === 'checkout' ? Math.min(garde, leg.amount) : 0;
+      retenu += garde_ici;
+      if (leg.amount - garde_ici > 0) {
+        lignes.push({ legType: leg.legType, collectRef: leg.collectRef, amount: leg.amount - garde_ici });
+      }
+    }
+    return { ok: true, lignes, retenu };
+  }
+
+  /**
+   * REMBOURSEMENT-1 — THE PROVIDER'S REFUND TRUTH, judged like a payment's:
+   * the order's own correlation, deduped on the envelope, a refund key this
+   * order asked for (`attendus`, replayed from the log with the event), the
+   * amount to the franc, the collection it was taken from, a « refunded »
+   * status. Recorded in the ledger; the order becomes `refunded` only when
+   * every refund it asked for is confirmed — never on a local command.
+   */
+  onProviderRefundEvent(raw: unknown, attendus: readonly RemboursementAttendu[]): SpineOutcome {
+    const parsed = PlatformEventSchema.safeParse(raw);
+    if (!parsed.success) return { applied: false, reason: 'not_a_platform_event' };
+    const event = parsed.data;
+    if (event.name !== 'payment.refund_confirmed.v1') return { applied: false, reason: 'unexpected_event_name' };
+    if (event.envelope.correlation_id !== this.journeyState.correlationId) {
+      return { applied: false, reason: 'wrong_correlation' };
+    }
+    if (this.processedCommandIds.has(event.envelope.command_id)) return { applied: true, duplicate: true };
+    const p = event.payload as Record<string, unknown>;
+    const key = p['refund_key'];
+    const attendu = attendus.find((a) => a.refundKey === key);
+    if (attendu === undefined || this.orderId === undefined) {
+      return {
+        applied: false,
+        reason: 'refund_key_unknown',
+        alert: this.reconAlert('webhook_names_foreign_refund', event, {
+          payload_refund_key: typeof key === 'string' ? key : null,
+        }),
+      };
+    }
+    const ref = p['order_id'];
+    if (typeof ref === 'string' && ref !== '' && ref !== this.orderId) return { applied: false, reason: 'order_mismatch' };
+    const etat = this.journeyState.state;
+    if (etat !== 'paid' && etat !== 'confirmed' && etat !== 'refunded') return { applied: false, reason: 'out_of_order' };
+    const amount = p['amount'];
+    if (typeof amount !== 'number' || amount !== attendu.amount) {
+      return {
+        applied: false,
+        reason: 'amount_mismatch',
+        alert: this.reconAlert('provider_refund_contradicts_request', event, {
+          leg: attendu.legType,
+          provider_amount: typeof amount === 'number' ? amount : null,
+          expected_amount: attendu.amount,
+        }),
+      };
+    }
+    if (p['collectRef'] !== attendu.collectRef) return { applied: false, reason: 'refund_leg_unknown' };
+    if (p['status'] !== 'refunded') return { applied: false, reason: 'unconfirmed_refund_status' };
+    const fee = p['fee'];
+    if (fee !== undefined && fee !== null && !(typeof fee === 'number' && Number.isSafeInteger(fee) && fee >= 0)) {
+      return { applied: false, reason: 'malformed_payload' };
+    }
+    const recorded = this.ledger.recordRefundFromProvider({
+      orderId: this.orderId,
+      legType: attendu.legType,
+      collectRef: attendu.collectRef,
+      refundKey: attendu.refundKey,
+      amount,
+      fee: typeof fee === 'number' ? fee : 0,
+    });
+    if (!recorded.ok) {
+      return {
+        applied: false,
+        reason: recorded.reason,
+        alert: this.reconAlert('conflicting_provider_refund', event, { leg: attendu.legType, refusal: recorded.reason }),
+      };
+    }
+    if (recorded.replay) {
+      this.processedCommandIds.add(event.envelope.command_id);
+      return { applied: true, duplicate: true };
+    }
+    const confirmes = new Set(this.ledger.refundsFor(this.orderId).map((r) => r.refundKey));
+    if (etat !== 'refunded' && attendus.every((a) => confirmes.has(a.refundKey))) {
+      const advanced = this.avancer({
+        command_id: event.envelope.command_id,
+        actor: event.envelope.actor,
+        serverTime: event.envelope.serverTime,
+        to: 'refunded',
+      });
+      if (!advanced.ok) return { applied: false, reason: 'out_of_order' };
+    } else {
+      this.processedCommandIds.add(event.envelope.command_id);
+    }
+    return { applied: true, duplicate: false };
   }
 
   /**

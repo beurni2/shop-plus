@@ -2446,10 +2446,47 @@ export interface C7State {
   readonly horsPortee?: boolean | undefined;
   /** livree ⇒ « C'est terminé » — dismissing clears the phone's memory of it. */
   readonly terminee?: boolean | undefined;
+  /**
+   * REMBOURSEMENT-1 — her refund, as the server carried it. Present ⇒ the
+   * delivery is over: the card says what comes back and why, and the door and
+   * code roads close (there is no parcel left to pay for or to open).
+   */
+  readonly remboursement?:
+    | { readonly etat: 'en_cours' | 'fait'; readonly montant: number; readonly fraisGardes?: number | undefined }
+    | undefined;
+}
+
+/** REMBOURSEMENT-1 — the refund card's copy (money register, §10.5). */
+const REMBOURSEMENT = {
+  overline: t('cl.remboursement.overline'),
+  enCours: t('cl.remboursement.en_cours'),
+  enCoursCorps: t('cl.remboursement.en_cours_corps'),
+  fait: t('cl.remboursement.fait'),
+  faitCorps: t('cl.remboursement.fait_corps'),
+  fraisGardes: t('cl.remboursement.frais_gardes'),
+};
+
+/**
+ * HER REFUND, in the server's own francs — the sum and the kept fee are each
+ * one server field, filled as they came, never added or subtracted here.
+ */
+function renderRemboursement(r: NonNullable<C7State['remboursement']>): string {
+  const fait = r.etat === 'fait';
+  return [
+    `<div class="cl-rembourse" data-role="remboursement" data-etat="${fait ? 'fait' : 'en-cours'}">`,
+    `<div class="cl-rembourse-overline">${REMBOURSEMENT.overline}</div>`,
+    `<div class="cl-rembourse-montant">${fillMontants(fait ? REMBOURSEMENT.fait : REMBOURSEMENT.enCours, { X: r.montant })}</div>`,
+    `<div class="cl-rembourse-corps">${fait ? REMBOURSEMENT.faitCorps : REMBOURSEMENT.enCoursCorps}</div>`,
+    r.fraisGardes !== undefined
+      ? `<div class="cl-rembourse-frais" data-role="frais-gardes">${fillMontants(REMBOURSEMENT.fraisGardes, { D: r.fraisGardes })}</div>`
+      : '',
+    '</div>',
+  ].join('');
 }
 
 export function renderC7(s: C7State): string {
-  const atDoor = s.step >= 5 && !s.problem && s.step < 6 && s.porte !== false;
+  const rembourse = s.remboursement !== undefined;
+  const atDoor = s.step >= 5 && !s.problem && s.step < 6 && s.porte !== false && !rembourse;
   // THE SIMULATION EXISTS ONLY OFF THE REAL PATH. `!s.reel` is structural, not
   // a preference: `demo` defaults true on every mount that never says
   // otherwise, and that default put « Simuler » under a real buyer's thumb.
@@ -2461,6 +2498,7 @@ export function renderC7(s: C7State): string {
     }</div>`,
     `<div class="cl-c7-intro">${SUIVI.intro}</div>`,
     s.problem ? `<div class="cl-problem" data-role="problem-banner">${t('cl.c7.probleme')}</div>` : '',
+    s.remboursement !== undefined ? renderRemboursement(s.remboursement) : '',
     // The last read did not land — one added fact about the network, zero
     // removed facts about the delivery (the C6 hors-portee law, one screen on).
     s.horsPortee === true
@@ -2494,7 +2532,7 @@ export function renderC7(s: C7State): string {
     // delivery (2026-08-13; it used to wait on the arrival fact, which locked
     // her out at the door whenever that fact lagged). The code itself remains
     // the remise route's to answer — C9 waits honestly until it does.
-    s.voirCode === true && !s.problem
+    s.voirCode === true && !s.problem && !rembourse
       ? `<button class="cl-cta cl-cta-door" data-action="voir-code">${SUIVI.voirCode}</button>`
       : '',
     // The automatic reads ran out — asking again is her choice, one request.

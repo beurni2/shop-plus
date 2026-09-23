@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Miniflare } from 'miniflare';
 import { afterAll, describe, expect, it } from 'vitest';
-import { composeSandboxConfirmation } from '../../../scripts/sandbox-payment-confirm.mjs';
+import { composeSandboxConfirmation, composeSandboxRefund } from '../../../scripts/sandbox-payment-confirm.mjs';
 import { OPS_SECRET, seance, type Seance } from './seance';
 
 /**
@@ -29,6 +29,8 @@ const persist = mkdtempSync(join(tmpdir(), 'payer-tout-'));
 const persistSlow = mkdtempSync(join(tmpdir(), 'payer-tout-slow-'));
 const persistSansGroupe = mkdtempSync(join(tmpdir(), 'payer-tout-sans-'));
 const persistRejeu = mkdtempSync(join(tmpdir(), 'payer-tout-rejeu-'));
+const persistRembourse = mkdtempSync(join(tmpdir(), 'payer-tout-rembourse-'));
+const PROGRESS_SECRET = 'test-progress-write-secret-grp1';
 const T0 = '2026-09-22T08:00:00.000Z';
 const WEBHOOK_SECRET = 'test-payment-webhook-secret-grp1';
 const signed = { 'X-Payment-Webhook-Key': WEBHOOK_SECRET, 'Content-Type': 'application/json' };
@@ -81,6 +83,8 @@ function makeMf(persistDir: string, sandboxBehavior?: string, withGroups = true)
       CHECKOUT_OPS_SECRET: OPS_SECRET,
       FULFILLMENT_WRITE_SECRET: 'test-fulfillment-write-secret-grp1',
       PAYMENT_WEBHOOK_SECRET: WEBHOOK_SECRET,
+      // REMBOURSEMENT-1 — Séra's refused-course fact arrives on the progress door.
+      PROGRESS_WRITE_SECRET: PROGRESS_SECRET,
       ...(sandboxBehavior !== undefined ? { PAYMENT_SANDBOX_BEHAVIOR: sandboxBehavior } : {}),
     },
     serviceBindings: {
@@ -115,13 +119,15 @@ async function restart(): Promise<void> {
 let slow: Miniflare | undefined;
 let sansGroupe: Miniflare | undefined;
 let rejeu: Miniflare | undefined;
+let rembourse: Miniflare | undefined;
 
 afterAll(async () => {
   await mf.dispose();
   if (slow !== undefined) await slow.dispose();
   if (sansGroupe !== undefined) await sansGroupe.dispose();
   if (rejeu !== undefined) await rejeu.dispose();
-  for (const dir of [persist, persistSlow, persistSansGroupe, persistRejeu]) rmSync(dir, { recursive: true, force: true });
+  if (rembourse !== undefined) await rembourse.dispose();
+  for (const dir of [persist, persistSlow, persistSansGroupe, persistRejeu, persistRembourse]) rmSync(dir, { recursive: true, force: true });
 });
 
 /** One Durable Object's stored state, removed from a stopped runtime's persist dir. Returns the files removed. */
@@ -285,7 +291,7 @@ async function panier(m: Miniflare, n: string, mode: Mode = 'FULL_PREPAY') {
 /* ──────────────────────────────── the walks ──────────────────────────────── */
 
 describe('PAYER-TOUT-1 — one payment for the panier, one order per article, on the real Worker', () => {
-  it('the server states ONE total, pays it ONCE, and every order is funded with ITS OWN share; the fee lands once', async () => {
+  it('the server states ONE total, pays it ONCE, and every order is funded with ITS OWN share; the fee is shared to the franc', async () => {
     fulfillmentPosts.length = 0;
     const { q1, q2, holderRef, orderIds } = await panier(mf, '01');
     expect(q1.amountPaidAtCheckout).not.toBe(q2.amountPaidAtCheckout);
@@ -350,8 +356,20 @@ describe('PAYER-TOUT-1 — one payment for the panier, one order per article, on
     expect(leg2.amount).toBe(q2.amountPaidAtCheckout);
     expect(leg1.amount + leg2.amount).toBe(total);
     expect(leg1.collectRef).toBe(leg2.collectRef);
+    // FRAIS-PARTAGES-1 — the one fee shared by amount, worked out here by hand:
+    // each order's floor of 150 × its share, the franc left over to the larger remainder.
+    const ids = [`ord-${q1.quoteId}`, `ord-${q2.quoteId}`];
+    const montants = [q1.amountPaidAtCheckout, q2.amountPaidAtCheckout];
+    const planchers = montants.map((m) => Math.floor((150 * m) / total));
+    const restes = montants.map((m) => (150 * m) % total);
+    const attendu = [...planchers];
+    if (150 - planchers[0]! - planchers[1]! === 1) {
+      const gagnant = restes[0] === restes[1] ? (ids[0]! < ids[1]! ? 0 : 1) : restes[0]! > restes[1]! ? 0 : 1;
+      attendu[gagnant]! += 1;
+    }
+    expect([leg1.fee, leg2.fee]).toEqual(attendu);
     expect(leg1.fee + leg2.fee).toBe(150);
-    expect([leg1.fee, leg2.fee].sort()).toEqual([0, 150]);
+    expect(Math.min(leg1.fee, leg2.fee)).toBeGreaterThan(0);
 
     // Each order carries its own downstream facts: Boutik+'s order.confirmed
     // (one per article, each its own order and product) and Séra's funding fact.
@@ -604,6 +622,95 @@ describe('PAYER-TOUT-1 — one payment for the panier, one order per article, on
       expect(a.state).toBe('confirmed');
       expect(a.reconAlerts).toEqual([]);
     }
+  });
+
+  it('REMBOURSEMENT-1 — ONE article refused home is refunded ITS OWN amount out of the grouped collection; the other order is untouched; a timed-out refund waits under its stored key', async () => {
+    // A provider whose FIRST refund ask times out (the certified mock's knob).
+    rembourse = makeMf(persistRembourse, JSON.stringify({ timeoutFirstNRefunds: 1 }));
+    const m = rembourse;
+    const { q1, q2, holderRef, orderIds } = await panier(m, '10');
+    const total = q1.amountPaidAtCheckout + q2.amountPaidAtCheckout;
+    const paid = await post(m, '/checkout/group', { quoteIds: [q1.quoteId, q2.quoteId], holderRef, commandId: 'cmd-grp-10' });
+    expect(paid.status, paid.text).toBe(200);
+    const groupId = String(paid.json['groupId']);
+    expect((await webhook(m, await confirmation(m, groupId, total, { fee: 150 }))).status).toBe(200);
+    const [refusee, gardee] = orderIds as [string, string];
+    const partRefusee = refusee === `ord-${q1.quoteId}` ? q1.amountPaidAtCheckout : q2.amountPaidAtCheckout;
+
+    // Séra refuses ONE article home.
+    const refus = await post(
+      m,
+      '/fulfillment/progress',
+      {
+        name: 'delivery.refused.v1',
+        envelope: { command_id: `door-valid-rejection-${refusee}`, correlation_id: `corr-${refusee}`, aggregateVersion: 9, actor: 'custody-service:e1', serverTime: T0, version: '1' },
+        payload: { order_id: refusee, task_id: `task-${refusee}`, rejection: 'valid_rejection', fault_class: 'seller' },
+      },
+      { 'Content-Type': 'application/json', Authorization: `Bearer ${PROGRESS_SECRET}` },
+    );
+    expect(`${refus.status} ${refus.text}`).toBe('200 {"ok":true,"status":"recorded"}');
+
+    // The first ask timed out: the line waits, its key already stored, nothing asked twice.
+    type AuditRemb = { remboursement: { lignes: { etat: string; essais: number; refundKey: string; amount: number; collectRef: string }[] } | null };
+    const lire = async () => (await audit(m, refusee)) as unknown as Awaited<ReturnType<typeof audit>> & AuditRemb & { refunds: { amount: number; collectRef: string }[] };
+    await waitFor(() => false, 300);
+    let a = await lire();
+    for (let i = 0; i < 40 && (a.remboursement?.lignes[0]?.essais ?? 0) < 1; i += 1) {
+      await new Promise((r) => setTimeout(r, 50));
+      a = await lire();
+    }
+    const ligne = a.remboursement!.lignes[0]!;
+    expect(ligne).toMatchObject({ etat: 'a_demander', essais: 1, amount: partRefusee });
+    expect(ligne.refundKey).toMatch(/^rf-/);
+    // Its OWN amount, against the collection it shared with the other order.
+    expect(ligne.collectRef).toBe(a.escrow!.paymentLegs[0]!.collectRef);
+    expect(ligne.collectRef).toBe((await audit(m, gardee)).escrow!.paymentLegs[0]!.collectRef);
+    // Not asked yet ⇒ the stand-in has nothing to confirm.
+    expect((await call(m, `/checkout/webhook/refund-key/${encodeURIComponent(refusee)}`, { headers: signed })).status).toBe(404);
+  });
+
+  it('REMBOURSEMENT-1 — asked and confirmed: the refused article is refunded, its sibling stays confirmed, the collection is never refunded twice', async () => {
+    const { q1, q2, holderRef, orderIds } = await panier(mf, '11');
+    const total = q1.amountPaidAtCheckout + q2.amountPaidAtCheckout;
+    const paid = await post(mf, '/checkout/group', { quoteIds: [q1.quoteId, q2.quoteId], holderRef, commandId: 'cmd-grp-11' });
+    const groupId = String(paid.json['groupId']);
+    expect((await webhook(mf, await confirmation(mf, groupId, total))).status).toBe(200);
+    const [refusee, gardee] = orderIds as [string, string];
+    const partRefusee = refusee === `ord-${q1.quoteId}` ? q1.amountPaidAtCheckout : q2.amountPaidAtCheckout;
+    const refus = await post(
+      mf,
+      '/fulfillment/progress',
+      {
+        name: 'delivery.refused.v1',
+        envelope: { command_id: `door-valid-rejection-${refusee}`, correlation_id: `corr-${refusee}`, aggregateVersion: 9, actor: 'custody-service:e1', serverTime: T0, version: '1' },
+        payload: { order_id: refusee, task_id: `task-${refusee}`, rejection: 'valid_rejection', fault_class: 'seller' },
+      },
+      { 'Content-Type': 'application/json', Authorization: `Bearer ${PROGRESS_SECRET}` },
+    );
+    expect(refus.status).toBe(200);
+
+    let demandes = await call(mf, `/checkout/webhook/refund-key/${encodeURIComponent(refusee)}`, { headers: signed });
+    for (let i = 0; i < 80 && demandes.status !== 200; i += 1) {
+      await new Promise((r) => setTimeout(r, 50));
+      demandes = await call(mf, `/checkout/webhook/refund-key/${encodeURIComponent(refusee)}`, { headers: signed });
+    }
+    expect(demandes.status, demandes.text).toBe(200);
+    const [r] = demandes.json['remboursements'] as { refundKey: string; amount: number; collectRef: string }[];
+    expect(r!.amount).toBe(partRefusee);
+    const applied = await post(mf, '/checkout/webhook/refund', composeSandboxRefund(refusee, r!, new Date().toISOString()), signed);
+    expect(`${applied.status} ${applied.text}`).toBe('200 {"status":"applied","state":"refunded"}');
+
+    expect((await audit(mf, refusee)).state).toBe('refunded');
+    const soeur = (await audit(mf, gardee)) as Awaited<ReturnType<typeof audit>> & { refunds: unknown[] };
+    expect(soeur.state).toBe('confirmed');
+    expect(soeur.refunds).toEqual([]);
+    // The refund names ONE order: sent to the sibling, it is refused, never applied.
+    const auMauvais = await post(mf, '/checkout/webhook/refund', composeSandboxRefund(gardee, r!, new Date().toISOString()), signed);
+    expect(auMauvais.status).not.toBe(200);
+    expect((await audit(mf, gardee)).state).toBe('confirmed');
+    // A refund confirmation can never name the group.
+    const auGroupe = await post(mf, '/checkout/webhook/refund', composeSandboxRefund(groupId, r!, new Date().toISOString()), signed);
+    expect(auGroupe.status).toBe(400);
   });
 
   it('the group doors are closed without the binding, and a group webhook without the secret never routes', async () => {

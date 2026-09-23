@@ -182,6 +182,16 @@ export interface ServerOrder {
    * order that `POST /checkout/order` handed back.
    */
   readonly buyerRef?: string | undefined;
+  /**
+   * REMBOURSEMENT-1 — her refund, when a refused delivery opened one: the sum
+   * going back to her, whether the provider confirmed it, and the delivery fee
+   * kept on her own refusal (present only when > 0). Validated alone in
+   * `readOrder` and dropped whole when malformed — a refund we cannot read is
+   * one we do not announce.
+   */
+  readonly remboursement?:
+    | { readonly etat: 'en_cours' | 'fait'; readonly montant: number; readonly fraisGardes?: number | undefined }
+    | undefined;
 }
 
 /**
@@ -749,6 +759,7 @@ async function readOrder(res: Response): Promise<OrderOutcome> {
   const readyAt = marqueIso(brut['readyAt']);
   const departedAt = marqueIso(brut['departedAt']);
   const arrivedAt = marqueIso(brut['arrivedAt']);
+  const remboursement = lireRemboursement(brut['remboursement']);
   return {
     status: 'order',
     order: {
@@ -771,7 +782,29 @@ async function readOrder(res: Response): Promise<OrderOutcome> {
       // answer by the service's design; carried verbatim when it is a real
       // string, silent otherwise.
       ...(nonEmpty(brut['buyerRef']) ? { buyerRef: brut['buyerRef'] } : {}),
+      ...(remboursement !== undefined ? { remboursement } : {}),
     },
+  };
+}
+
+/**
+ * REMBOURSEMENT-1 — HER REFUND, OR NOTHING. One of the service's two words, a
+ * positive franc sum, and the kept fee only as a positive franc sum; anything
+ * else drops the refund whole (and only the refund — the order read survives).
+ */
+function lireRemboursement(v: unknown): ServerOrder['remboursement'] {
+  if (v === null || typeof v !== 'object') return undefined;
+  const r = v as Record<string, unknown>;
+  const etat = r['etat'];
+  const montant = r['montant'];
+  const frais = r['fraisGardes'];
+  if (etat !== 'en_cours' && etat !== 'fait') return undefined;
+  if (!Number.isSafeInteger(montant) || (montant as number) <= 0) return undefined;
+  if (frais !== undefined && (!Number.isSafeInteger(frais) || (frais as number) <= 0)) return undefined;
+  return {
+    etat,
+    montant: montant as number,
+    ...(frais !== undefined ? { fraisGardes: frais as number } : {}),
   };
 }
 

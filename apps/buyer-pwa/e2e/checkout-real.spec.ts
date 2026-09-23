@@ -1180,6 +1180,65 @@ test('VRAI-SUIVI · re-entry — « Ma commande » reopens the REAL tracking of 
 });
 
 /**
+ * ═══ REMBOURSEMENT-1 — SHE REFUSED THE PARCEL AT THE DOOR ═══
+ *
+ * She is on her code screen, the rider is there, and she refuses (the rider
+ * records it; the server opens her refund). Her screen must not sit on a code
+ * nobody will ever ask for: the watch carries her back to the tracking, where
+ * the card says what comes back, why the delivery fee stays paid, and — once
+ * the provider confirms — that it is done. A confirmed refund ends the watch,
+ * and « C'est terminé » takes her home.
+ */
+test('REMBOURSEMENT-1 · a refused parcel: from her code screen to the refund card, then done, then home', async ({ page }) => {
+  test.setTimeout(120_000);
+  const REFUS = { ...MARQUES_ARRIVEE, remboursement: { etat: 'en_cours', montant: 11_500, fraisGardes: 1_000 } };
+  const FAIT = { ...MARQUES_ARRIVEE, remboursement: { etat: 'fait', montant: 11_500, fraisGardes: 1_000 } };
+  const wire = await scriptService(page, {
+    orderStates: ['confirmed', 'confirmed', 'confirmed', 'paid', 'paid', 'refunded'],
+    // Read 0 is C6's; 1 lands the arrival on C7; 2 is C9's first read; the
+    // refusal lands on 3 (two seconds later, while she is on C9); 5 confirms it.
+    marques: [{}, MARQUES_ARRIVEE, MARQUES_ARRIVEE, REFUS, REFUS, FAIT],
+    codeRemise: '246810',
+  });
+  await askForPrice(page);
+  await toPayer(page, 'A');
+  await page.locator('[data-action="payer"]').click();
+  await page.locator('[data-etat="confirmee"]').waitFor({ timeout: 15_000 });
+  await page.locator('[data-action="suivre"]').click();
+  await page.locator('[data-screen="C7"]').waitFor();
+  await page.locator('[data-action="voir-code"]').click();
+  await page.locator('[data-screen="C9"]').waitFor();
+
+  // THE REFUSAL LANDS WHILE SHE HOLDS HER CODE — the watch carries her back.
+  const carte = page.locator('[data-role="remboursement"]');
+  await carte.waitFor({ timeout: 15_000 });
+  expect(await screenOf(page)).toBe('C7');
+  await expect(carte).toHaveAttribute('data-etat', 'en-cours');
+  const enCours = (await carte.innerText()).replace(/\s+/g, ' ');
+  expect(enCours).toContain('11 500 FCFA vous reviennent');
+  expect(enCours).toContain('Votre argent revient sur le numéro qui a payé');
+  expect(enCours).toContain('1 000 FCFA');
+  // No code left to open and no door left to pay.
+  await expect(page.locator('[data-action="voir-code"]')).toHaveCount(0);
+  await expect(page.locator('[data-action="porte"]')).toHaveCount(0);
+
+  // THE PROVIDER CONFIRMS — the card says it is done.
+  await expect(carte).toHaveAttribute('data-etat', 'fait', { timeout: 15_000 });
+  expect((await carte.innerText()).replace(/\s+/g, ' ')).toContain('Remboursement fait');
+  expect((await carte.innerText()).replace(/\s+/g, ' ')).toContain('11 500 FCFA');
+
+  // A CONFIRMED REFUND ENDS THE WATCH — nothing further can change, so no read.
+  const lues = wire.orderReads.length;
+  await page.waitForTimeout(7_000);
+  expect(wire.orderReads.length, 'the watch kept reading a finished refund').toBe(lues);
+
+  // …and the one way on is pressable and takes her home, the phone forgetting it.
+  await page.locator('[data-action="suivi-terminer"]').click();
+  await page.locator('[data-screen="C1"]').waitFor({ timeout: 10_000 });
+  expect(await page.evaluate(() => localStorage.getItem('sp-commande:v1'))).toBeNull();
+});
+
+/**
  * ═══ SUIVI-VIVANT, THE TWO THINGS ITS OWN TESTS COULD NOT SEE ═══
  *
  * The slice that made the delivery watch hold instead of expiring was proven by

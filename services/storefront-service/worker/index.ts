@@ -203,7 +203,7 @@ function corpsMaxPour(pathname: string): number {
   // own bounded-envelope law (a megabyte `command_id` is refused BY NAME,
   // `malformed_payload`, pinned in order-do.e2e and porte-custody.e2e) must
   // stay reachable rather than be shadowed by a 413 at the root.
-  if (pathname === '/checkout/webhook/payment' || pathname === '/checkout/webhook/door') return CORPS_MAX_NOTE;
+  if (pathname === '/checkout/webhook/payment' || pathname === '/checkout/webhook/door' || pathname === '/checkout/webhook/refund') return CORPS_MAX_NOTE;
   return CORPS_MAX;
 }
 
@@ -1699,7 +1699,7 @@ export default {
      * declare money received — reading one opaque key widens nothing), GET
      * only, and it RETIRES with the tool at the Real-Money Gate.
      */
-    if (request.method === 'GET' && /^\/checkout\/webhook\/leg-key\//.test(pathname)) {
+    if (request.method === 'GET' && /^\/checkout\/webhook\/(leg-key|refund-key)\//.test(pathname)) {
       if (!(await paymentWebhookAuthorized(request, env))) return unauthorized();
       return orderRouter.fetch(request, {
         ORDER: env.ORDER,
@@ -1711,7 +1711,7 @@ export default {
     }
     if (
       request.method === 'POST' &&
-      (pathname === '/checkout/webhook/payment' || pathname === '/checkout/webhook/door')
+      (pathname === '/checkout/webhook/payment' || pathname === '/checkout/webhook/door' || pathname === '/checkout/webhook/refund')
     ) {
       if (!(await paymentWebhookAuthorized(request, env))) return unauthorized();
       // BC-1a — the SECOND best-effort registration moment: a 200 webhook

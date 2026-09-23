@@ -819,6 +819,12 @@ export const CLIENTE_STYLES = `
   .cl-c7-intro { margin-top: 8px; font-size: 13px; line-height: 1.5; color: #4A3F33; }
   /* Bannière problème — danger, gate-locked (Jamais θ, jamais ghost). */
   .cl-problem { margin-top: 12px; padding: 13px 15px; border-radius: 16px; background: #F8E1DE; color: #7E1A15; font-size: 13px; font-weight: 600; line-height: 1.5; }
+  /* REMBOURSEMENT-1 — her refund on the tracking: the figure first and large, the why beneath. */
+  .cl-rembourse { margin-top: 12px; padding: 14px 15px; border-radius: 18px; border: 1px solid #EDE4D3; background: #FFFFFF; box-shadow: 0 1px 2px rgba(28,22,15,.04); }
+  .cl-rembourse-overline { font-size: 10.5px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: #6F6355; }
+  .cl-rembourse-montant { margin-top: 6px; font-family: var(--cld); font-weight: 800; font-size: 22px; line-height: 1.25; letter-spacing: -.01em; color: var(--vt-deep); font-feature-settings: 'tnum'; }
+  .cl-rembourse-corps { margin-top: 6px; font-size: 13px; line-height: 1.5; color: #4A3F33; }
+  .cl-rembourse-frais { margin-top: 8px; font-size: 12.5px; line-height: 1.45; color: #6F6355; }
   .cl-tl { margin-top: 16px; padding: 17px 17px 5px; border-radius: 20px; border: 1px solid #EDE4D3; background: #FFFFFF; box-shadow: 0 1px 2px rgba(28,22,15,.04); }
   .cl-tl-row { display: flex; gap: 13px; }
   .cl-tl-rail { display: flex; flex-direction: column; align-items: center; width: 22px; flex: none; }

@@ -4,6 +4,7 @@ import {
   OrderSpine,
   WORKED_BASELINE_INPUT,
   issueQuote,
+  partDesFrais,
   type GroupPaymentShares,
 } from '../src/index.js';
 
@@ -97,7 +98,7 @@ function webhook(over: Record<string, unknown> = {}, envelope: Record<string, un
 }
 
 describe('PAYER-TOUT-1 — the grouped checkout collection, judged per order', () => {
-  it('funds each order with ITS OWN share, the provider amount being the exact sum; the fee lands once', () => {
+  it('funds each order with ITS OWN share, the provider amount being the exact sum; the fee is SHARED to the franc', () => {
     const a = spineFor('a');
     const b = spineFor('b', NON_DIVISIBLE_REGRESSION_INPUT);
     const groupe = groupOf(a, b);
@@ -112,9 +113,14 @@ describe('PAYER-TOUT-1 — the grouped checkout collection, judged per order', (
 
     const legA = a.spine.ledger.escrowFor('ord-a')!.paymentLegs[0]!;
     const legB = b.spine.ledger.escrowFor('ord-b')!.paymentLegs[0]!;
-    expect(legA).toMatchObject({ legType: 'checkout', amount: a.quote.amountPaidAtCheckout, collectRef: 'col-grp-1', fee: 150 });
-    expect(legB).toMatchObject({ legType: 'checkout', amount: b.quote.amountPaidAtCheckout, collectRef: 'col-grp-1', fee: 0 });
+    expect(legA).toMatchObject({ legType: 'checkout', amount: a.quote.amountPaidAtCheckout, collectRef: 'col-grp-1' });
+    expect(legB).toMatchObject({ legType: 'checkout', amount: b.quote.amountPaidAtCheckout, collectRef: 'col-grp-1' });
     expect(legA.amount + legB.amount).toBe(total);
+    // FRAIS-PARTAGES-1 — each order carries ITS share of the one fee; the shares add up to it.
+    expect(legA.fee).toBe(partDesFrais(groupe.parts, 150, 'ord-a'));
+    expect(legB.fee).toBe(partDesFrais(groupe.parts, 150, 'ord-b'));
+    expect(legA.fee).toBeGreaterThan(0);
+    expect(legB.fee).toBeGreaterThan(0);
     expect(legA.fee + legB.fee).toBe(150);
 
     // « no confirmed order without funded legs » holds per order.
@@ -218,5 +224,37 @@ describe('PAYER-TOUT-1 — the grouped checkout collection, judged per order', (
     b.spine.confirmOrder({ command_id: 'cf-b', actor: 't', serverTime: T });
     expect(a.spine.doorLegState).toBe('due');
     expect(b.spine.doorLegState).toBe('due');
+  });
+});
+
+describe('FRAIS-PARTAGES-1 — the collection\'s one fee, shared by amount, to the franc', () => {
+  const parts = (...xs: [string, number][]) => xs.map(([orderId, amount]) => ({ orderId, amount }));
+  const partage = (ps: ReturnType<typeof parts>, frais: number) => ps.map((p) => partDesFrais(ps, frais, p.orderId));
+
+  it('in proportion to each order\'s amount when it divides exactly', () => {
+    expect(partage(parts(['ord-a', 10_000], ['ord-b', 20_000]), 150)).toEqual([50, 100]);
+  });
+
+  it('the francs left over go to the largest remainders; a tie goes to the lower order id', () => {
+    // 100 over three equal parts: 33 each, one franc left, three equal remainders → ord-a.
+    expect(partage(parts(['ord-a', 1], ['ord-b', 1], ['ord-c', 1]), 100)).toEqual([34, 33, 33]);
+    // 5 over 3 and 7: floors 1 and 3, remainders 5 and 5 → the tie to ord-a.
+    expect(partage(parts(['ord-a', 3], ['ord-b', 7]), 5)).toEqual([2, 3]);
+    // 10 over 1 and 2: floors 3 and 6, remainders 1 and 2 → the larger (ord-b).
+    expect(partage(parts(['ord-a', 1], ['ord-b', 2]), 10)).toEqual([3, 7]);
+  });
+
+  it('always adds up to the provider\'s fee exactly, and a zero fee is zero everywhere', () => {
+    const cas: [ReturnType<typeof parts>, number][] = [
+      [parts(['ord-1', 12_500], ['ord-2', 26_500], ['ord-3', 9_999]), 777],
+      [parts(['ord-1', 1], ['ord-2', 999_999]), 1],
+      [parts(['ord-1', 7], ['ord-2', 7], ['ord-3', 7], ['ord-4', 7], ['ord-5', 7], ['ord-6', 7], ['ord-7', 7]), 3],
+    ];
+    for (const [ps, frais] of cas) {
+      const shares = partage(ps, frais);
+      expect(shares.reduce((x, y) => x + y, 0)).toBe(frais);
+      expect(shares.every((v) => Number.isSafeInteger(v) && v >= 0)).toBe(true);
+    }
+    expect(partage(parts(['ord-a', 3], ['ord-b', 7]), 0)).toEqual([0, 0]);
   });
 });

@@ -28,8 +28,27 @@ export interface ProviderLegConfirmation {
   status: 'held' | 'captured';
 }
 
+/**
+ * REMBOURSEMENT-1 (founder ruling 2026-09-23) — the provider's confirmation
+ * that money went BACK: one refund of one paid leg, under the refund key the
+ * order minted for it. Provider truth, copied as-is, like a payment's.
+ */
+export interface ProviderRefundConfirmation {
+  orderId: string;
+  legType: 'checkout' | 'door';
+  collectRef: string;
+  refundKey: string;
+  /** Provider-confirmed refunded amount — provider truth, copied as-is. */
+  amount: number;
+  /** Provider-charged refund fee — the platform's, copied as-is; never off her refund. */
+  fee: number;
+}
+
+export type RefundRecord = Omit<ProviderRefundConfirmation, 'orderId'>;
+
 export class LedgerRecords {
   private readonly escrowByOrderId = new Map<string, EscrowTxn>();
+  private readonly refundsByOrderId = new Map<string, RefundRecord[]>();
   private readonly obligationsByOrderId = new Map<string, SettlementObligation[]>();
 
   /**
@@ -139,6 +158,60 @@ export class LedgerRecords {
 
   escrowFor(orderId: string): EscrowTxn | undefined {
     return this.escrowByOrderId.get(orderId);
+  }
+
+  /**
+   * REMBOURSEMENT-1 — a provider-confirmed refund → the order's refund record.
+   * Idempotent on the refund key (the same key and amount replays; the same key
+   * with another amount refuses). It refuses a refund of a leg this order never
+   * had funded, or one that would take back more than that leg collected. The
+   * amounts of the EscrowTxn are never touched: when every leg has been refunded
+   * to the franc, the record's STATUS moves to the canon's `refunded` (and each
+   * such leg's with it) — the money came back, and the record says so.
+   */
+  recordRefundFromProvider(
+    c: ProviderRefundConfirmation,
+  ):
+    | { ok: true; replay: boolean; record: RefundRecord }
+    | { ok: false; reason: 'no_escrow_for_refund' | 'refund_leg_unknown' | 'refund_exceeds_leg' | 'conflicting_refund' } {
+    const escrow = this.escrowByOrderId.get(c.orderId);
+    if (escrow === undefined) return { ok: false, reason: 'no_escrow_for_refund' };
+    const rows = this.refundsByOrderId.get(c.orderId) ?? [];
+    const same = rows.find((r) => r.refundKey === c.refundKey);
+    if (same !== undefined) {
+      return same.amount === c.amount && same.legType === c.legType && same.collectRef === c.collectRef
+        ? { ok: true, replay: true, record: same }
+        : { ok: false, reason: 'conflicting_refund' };
+    }
+    const leg = escrow.paymentLegs.find((l) => l.legType === c.legType && l.collectRef === c.collectRef);
+    if (leg === undefined) return { ok: false, reason: 'refund_leg_unknown' };
+    const dejaRendu = rows.filter((r) => r.legType === c.legType).reduce((s, r) => s + r.amount, 0);
+    if (dejaRendu + c.amount > leg.amount) return { ok: false, reason: 'refund_exceeds_leg' };
+    const record: RefundRecord = {
+      legType: c.legType,
+      collectRef: c.collectRef,
+      refundKey: c.refundKey,
+      amount: c.amount, // provider truth, copied
+      fee: c.fee, // provider truth, copied — the platform's cost
+    };
+    const next = [...rows, record];
+    this.refundsByOrderId.set(c.orderId, next);
+    const rendu = (legType: 'checkout' | 'door'): number =>
+      next.filter((r) => r.legType === legType).reduce((s, r) => s + r.amount, 0);
+    const legs = escrow.paymentLegs.map((l) => (rendu(l.legType) === l.amount ? { ...l, status: 'refunded' as const } : l));
+    this.escrowByOrderId.set(
+      c.orderId,
+      EscrowTxnSchema.parse({
+        ...escrow,
+        paymentLegs: legs,
+        ...(legs.every((l) => l.status === 'refunded') ? { status: 'refunded' } : {}),
+      }),
+    );
+    return { ok: true, replay: false, record };
+  }
+
+  refundsFor(orderId: string): readonly RefundRecord[] {
+    return this.refundsByOrderId.get(orderId) ?? [];
   }
 
   obligationsFor(orderId: string): readonly SettlementObligation[] {

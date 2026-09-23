@@ -9,9 +9,12 @@ import { FLUSHER_TIMEOUT_MS } from '../src/delais.js';
 import {
   decideBuyerRung,
   decideRelatedParty,
+  lireRefusCourse,
   reconcileOrder,
   reservationReconciliationAlert,
   type OrderSpine,
+  type RefusCourse,
+  type RemboursementAttendu,
   type ReservationState,
 } from '@shop-plus/commerce-core';
 import {
@@ -140,6 +143,30 @@ const BOUTIK_DELIVERED_KEY = 'boutik-delivered-outbox';
  * terminal here — the refund saga stays E3's, exactly as journalled.
  */
 const BOUTIK_REFUSED_KEY = 'boutik-refused-outbox';
+/**
+ * REMBOURSEMENT-1 (founder ruling 2026-09-23) — THE TENTH WIRE: HER REFUND.
+ * Opened by the same refused-course fact as the relay above, first-wins. The
+ * vault decides what goes back from this order's own records; each paid leg's
+ * refund carries a key minted ONCE and stored here BEFORE the provider is
+ * asked; the alarm asks, and a timeout is asked again under the SAME key.
+ * `demande` is not refunded — only the provider's refund webhook is, and only
+ * it moves the order to `refunded`.
+ */
+const REFUND_KEY = 'remboursement';
+interface LigneRemboursementStockee extends RemboursementAttendu {
+  etat: 'a_demander' | 'demande' | 'refuse';
+  essais: number;
+  refundRef?: string;
+  motifRefus?: string;
+}
+interface RemboursementStocke {
+  ouvertLe: string;
+  refus: RefusCourse | null;
+  /** `ouvert`: refunds decided (possibly none due); the others: why nothing was decided. */
+  decision: 'ouvert' | 'pas_paye' | 'livraison_acceptee' | 'refus_illisible';
+  retenu: number;
+  lignes: LigneRemboursementStockee[];
+}
 /**
  * LISTE-ENVIES-1 (founder order 2026-08-25) — the SEVENTH wire: TELL THE
  * LISTE ITS WISH WAS GRANTED. When an order that named a `listeRef` at birth
@@ -1245,6 +1272,9 @@ export class OrderDO {
         // B5.1 — the producer's hold-release row, the seam's ledger for the unit.
         holdRelease: (await this.state.storage.get<HoldReleaseRow>(HOLD_RELEASE_KEY)) ?? null,
         stuck: (await this.state.storage.get<{ emittedAt: string }>(STUCK_SAGA_KEY)) ?? null,
+        // REMBOURSEMENT-1 — her refund's row and the provider-confirmed refunds, the seam's ledger.
+        remboursement: (await this.state.storage.get<RemboursementStocke>(REFUND_KEY)) ?? null,
+        refunds: spine.ledger.refundsFor(origin.orderId),
         stuckSupplier: (await this.state.storage.get<{ emittedAt: string }>(STUCK_SUPPLIER_KEY)) ?? null,
         // RAPPROCHEMENT-1 — the durable alert record, the operator's read;
         // `reconAlertsDropped` counts what the cap clipped (never silent).
@@ -1515,12 +1545,16 @@ export class OrderDO {
       }
       const existing = await this.state.storage.get<{ status?: string }>(BOUTIK_REFUSED_KEY);
       if (existing !== undefined) {
+        // REMBOURSEMENT-1 — a redelivery also opens a refund a lost write never opened.
+        await this.ouvrirRemboursement(event);
         if (existing.status === 'pending' && (await this.state.storage.getAlarm()) === null) {
           await this.state.storage.setAlarm(Date.now()).catch(() => undefined);
         }
         return Response.json({ ok: true, status: 'duplicate' });
       }
       await this.state.storage.put(BOUTIK_REFUSED_KEY, { status: 'pending', event, attempts: 0 });
+      // REMBOURSEMENT-1 — the same fact opens her refund.
+      await this.ouvrirRemboursement(event);
       await this.state.storage.setAlarm(Date.now()).catch(() => undefined);
       return Response.json({ ok: true, status: 'recorded' });
     }
@@ -1889,6 +1923,33 @@ export class OrderDO {
       if (!outcome.applied) return Response.json({ ok: false, reason: outcome.reason }, { status: 409 });
       if (!outcome.duplicate) await this.state.storage.put(LOG_KEY, [...log, entree]);
       return Response.json(vueLienProche(spine, origin.orderId));
+    }
+
+    /** REMBOURSEMENT-1 — the provider's refund confirmation, routed here by order id. */
+    if (request.method === 'POST' && pathname === '/entry/refund-webhook') {
+      let body: { event?: unknown };
+      try {
+        body = (await request.json()) as { event?: unknown };
+      } catch {
+        return Response.json({ ok: false, reason: 'malformed' }, { status: 400 });
+      }
+      return this.onRefundEvent(body.event);
+    }
+
+    /**
+     * REMBOURSEMENT-1 — the sandbox stand-in reads the refunds it was ASKED for,
+     * as it reads a leg key: behind the webhook secret, the keys and amounts the
+     * provider was handed and nothing else. A real aggregator knows them because
+     * we asked it; this read retires with the stand-in at the Real-Money Gate.
+     */
+    if (request.method === 'GET' && pathname === '/entry/refund-key') {
+      const r = await this.state.storage.get<RemboursementStocke>(REFUND_KEY);
+      const demandes = (r?.lignes ?? []).filter((l) => l.etat === 'demande');
+      if (demandes.length === 0) return Response.json({ ok: false }, { status: 404 });
+      return Response.json({
+        ok: true,
+        remboursements: demandes.map((l) => ({ legType: l.legType, refundKey: l.refundKey, amount: l.amount, collectRef: l.collectRef })),
+      });
     }
 
     if (request.method === 'POST' && pathname === '/entry/webhook') {
@@ -2788,11 +2849,13 @@ export class OrderDO {
     const releasePending = await this.flushReleaseOutbox();
     // B5.1 adds the NINTH — the producer's hold release — likewise.
     const holdReleasePending = await this.flushHoldReleaseOutbox();
+    // REMBOURSEMENT-1 adds the TENTH — her refund asked of the provider — likewise.
+    const remboursementPending = await this.flushRemboursement();
     const stuckDueAt = await this.watchStuckSaga();
     // RESERVATION-REGLE-2 — the supplier-notification watch, on the first
     // wire's row, after its flush has had this tick's try.
     const supplierDueAt = await this.watchStuckSupplier();
-    const stillPending = Math.max(boutikPending, seraPending, livraisonPending, armPending, doorSignalPending, refusPending, offertPending, releasePending, holdReleasePending);
+    const stillPending = Math.max(boutikPending, seraPending, livraisonPending, armPending, doorSignalPending, refusPending, offertPending, releasePending, holdReleasePending, remboursementPending);
     // ONE alarm, three wants: the outbox backoff and the two watches' due
     // times. The nearest wins; the others are re-derived when the alarm fires
     // (setAlarm overwrites, it never merges).
@@ -4102,7 +4165,134 @@ export class OrderDO {
         ...(transit.arrivedAt !== undefined ? { arrivedAt: transit.arrivedAt } : {}),
         livree: spine.ledger.obligationsFor(origin.orderId).length > 0,
       },
+      ...(await (async () => {
+        // REMBOURSEMENT-1 — her refund, when one is due: its sum (her own paid
+        // legs, as the vault decided), whether the provider confirmed it, and
+        // the delivery fee the vault kept on her own refusal.
+        const r = await this.state.storage.get<RemboursementStocke>(REFUND_KEY);
+        const montant = (r?.lignes ?? []).reduce((somme, l) => somme + l.amount, 0);
+        if (montant === 0) return {};
+        return {
+          remboursement: {
+            etat: spine.journey.state === 'refunded' ? ('fait' as const) : ('en_cours' as const),
+            montant,
+            ...(r !== undefined && r.retenu > 0 ? { fraisGardes: r.retenu } : {}),
+          },
+        };
+      })()),
     });
+  }
+
+  /**
+   * REMBOURSEMENT-1 — OPEN HER REFUND from Séra's refused-course fact, once.
+   * The vault decides what goes back from this order's own records; each line
+   * gets its key here, durably, before anything is asked of the provider. A
+   * fact the vault cannot read, an order not yet paid, or one already accepted
+   * is RECORDED as such (the operator reads it on the audit), never guessed at.
+   */
+  private async ouvrirRemboursement(event: unknown): Promise<void> {
+    if ((await this.state.storage.get(REFUND_KEY)) !== undefined) return;
+    const origin = await this.state.storage.get<StoredOrigin>(ORIGIN_KEY);
+    const quote = origin === undefined ? undefined : parseStoredQuote(origin.quoteBytes);
+    if (origin === undefined || quote === undefined) return;
+    const parsed = PlatformEventSchema.safeParse(event);
+    const refus = parsed.success ? lireRefusCourse(parsed.data.payload) : undefined;
+    const ouvertLe = new Date().toISOString();
+    if (refus === undefined) {
+      await this.state.storage.put(REFUND_KEY, { ouvertLe, refus: null, decision: 'refus_illisible', retenu: 0, lignes: [] } satisfies RemboursementStocke);
+      return;
+    }
+    const log = (await this.state.storage.get<OrderInput[]>(LOG_KEY)) ?? [];
+    const plan = rebuildOrderSpine(quote, origin, log).decideRefund(refus);
+    if (!plan.ok) {
+      await this.state.storage.put(REFUND_KEY, { ouvertLe, refus, decision: plan.reason, retenu: 0, lignes: [] } satisfies RemboursementStocke);
+      return;
+    }
+    const record: RemboursementStocke = {
+      ouvertLe,
+      refus,
+      decision: 'ouvert',
+      retenu: plan.retenu,
+      lignes: plan.lignes.map((l) => ({ ...l, refundKey: mintRefundKey(), etat: 'a_demander', essais: 0 })),
+    };
+    await this.state.storage.put(REFUND_KEY, record);
+  }
+
+  /**
+   * REMBOURSEMENT-1 — ASK THE PROVIDER, once per line, under its stored key.
+   * The attempt count is durable BEFORE the call (the sandbox's timeout budget
+   * reads it, as the charge's does). Accepted is `demande`, not refunded; a
+   * timeout stays to be asked again under the SAME key; a refusal by name is
+   * recorded on the line for the operator. Returns the attempts still pending.
+   */
+  private async flushRemboursement(): Promise<number> {
+    const r = await this.state.storage.get<RemboursementStocke>(REFUND_KEY);
+    if (r === undefined || !r.lignes.some((l) => l.etat === 'a_demander')) return 0;
+    const origin = await this.state.storage.get<StoredOrigin>(ORIGIN_KEY);
+    if (origin === undefined) return 0;
+    let pending = 0;
+    for (const ligne of r.lignes) {
+      if (ligne.etat !== 'a_demander') continue;
+      const dejaDemandes = r.lignes.reduce((somme, l) => somme + l.essais, 0);
+      ligne.essais += 1;
+      await this.state.storage.put(REFUND_KEY, r);
+      const reponse = await sandboxPaymentProvider(readSandboxBehavior(this.env.PAYMENT_SANDBOX_BEHAVIOR), 0, dejaDemandes).initiateRefund({
+        orderId: origin.orderId,
+        refundKey: ligne.refundKey,
+        collectRef: ligne.collectRef,
+        amount: ligne.amount,
+        correlationId: origin.correlationId,
+        requestedAtIso: new Date().toISOString(),
+        legType: ligne.legType,
+      });
+      if (reponse.accepted) {
+        ligne.etat = 'demande';
+        ligne.refundRef = reponse.refundRef;
+      } else if (reponse.reason === 'timeout') {
+        pending = Math.max(pending, ligne.essais);
+      } else {
+        ligne.etat = 'refuse';
+        ligne.motifRefus = reponse.reason;
+      }
+      await this.state.storage.put(REFUND_KEY, r);
+    }
+    return pending;
+  }
+
+  /**
+   * REMBOURSEMENT-1 — THE PROVIDER'S REFUND CONFIRMATION, judged by the vault
+   * against the refunds this order asked for (their keys and amounts ride the
+   * log with the event). A contradiction's alert is sunk before the refusal
+   * is answered; a redelivery is absorbed; only an applied confirmation is
+   * appended.
+   */
+  private async onRefundEvent(event: unknown): Promise<Response> {
+    const origin = await this.state.storage.get<StoredOrigin>(ORIGIN_KEY);
+    if (origin === undefined) return Response.json({ ok: false, reason: 'unknown_order' }, { status: 404 });
+    const quote = parseStoredQuote(origin.quoteBytes);
+    if (quote === undefined) return Response.json({ ok: false, reason: 'stored_quote_unreadable' }, { status: 422 });
+    const probe = PlatformEventSchema.safeParse(event);
+    if (probe.success && probe.data.envelope.command_id.length > 1024) {
+      return Response.json({ ok: false, reason: 'envelope_field_too_long' }, { status: 422 });
+    }
+    const log = (await this.state.storage.get<OrderInput[]>(LOG_KEY)) ?? [];
+    const spine = rebuildOrderSpine(quote, origin, log);
+    const r = await this.state.storage.get<RemboursementStocke>(REFUND_KEY);
+    const attendus: RemboursementAttendu[] = (r?.lignes ?? []).map((l) => ({
+      legType: l.legType,
+      collectRef: l.collectRef,
+      amount: l.amount,
+      refundKey: l.refundKey,
+    }));
+    const input: OrderInput = { kind: 'refund_provider', event, attendus };
+    const outcome = applyOrderInput(spine, input);
+    if (!outcome.applied) {
+      if (outcome.alert !== undefined) await this.sinkReconAlerts([outcome.alert]);
+      return Response.json({ ok: false, reason: outcome.reason }, { status: statusForWebhook(outcome.reason) });
+    }
+    if (outcome.duplicate) return Response.json({ ok: true, status: 'duplicate', state: spine.journey.state });
+    await this.state.storage.put(LOG_KEY, [...log, input]);
+    return Response.json({ ok: true, status: 'applied', state: spine.journey.state });
   }
 }
 
@@ -4125,6 +4315,11 @@ export function mintPaymentAttemptId(): string {
  */
 export function mintProviderLegKey(): string {
   return `pk-${crypto.randomUUID()}`;
+}
+
+/** REMBOURSEMENT-1 — a refund's provider idempotency key, same CSPRNG, its own prefix (`rf-`). */
+export function mintRefundKey(): string {
+  return `rf-${crypto.randomUUID()}`;
 }
 
 /**
@@ -4165,6 +4360,8 @@ function statusForWebhook(reason: string): number {
   // emitter redelivers. A wrong AMOUNT is neither — it is refused, never applied.
   if (reason === 'out_of_order' || reason === 'wrong_correlation') return 409;
   if (reason === 'conflicting_escrow_for_order' || reason === 'door_leg_before_checkout_leg') return 409;
+  // REMBOURSEMENT-1 — a second, different confirmation of a refund already recorded.
+  if (reason === 'conflicting_refund') return 409;
   // GARDE-PAIEMENT-1 — a payload that would crash the canon escrow parse is
   // refused 422 BY NAME (the default here, made explicit): a producer bug to
   // fix, NOT a 5xx the aggregator retries against forever. Amount/leg refusals
@@ -4888,6 +5085,62 @@ export default {
         const res = await orderStub(env, orderId).fetch(
           new Request(`https://do/entry/leg-key?leg=${encodeURIComponent(leg)}`),
         );
+        return new Response(res.body, { status: res.status, headers: { 'Content-Type': 'application/json' } });
+      }
+    }
+
+    /**
+     * REMBOURSEMENT-1 — THE PROVIDER'S REFUND CONFIRMATION, the third webhook
+     * road, behind the SAME secret (checked by the composition root before any
+     * dispatch) and parking poison on the SAME terms as the two payment roads.
+     * It names an ORDER, never a group: a refund is one order's, even out of a
+     * grouped collection. Its amount is judged in the vault against the refund
+     * this order asked for, never trusted from the payload.
+     */
+    if (request.method === 'POST' && pathname === '/checkout/webhook/refund') {
+      const texte = await request.text();
+      let raw: unknown;
+      try {
+        raw = JSON.parse(texte);
+      } catch {
+        await parkPoison(env, texte, { reason: 'not_json', correlationId: 'unrouted' });
+        return badRequest('malformed_event');
+      }
+      const parsed = PlatformEventSchema.safeParse(raw);
+      if (!parsed.success) {
+        await parkPoison(env, texte, { reason: 'not_a_canonical_platform_event', correlationId: 'unrouted' });
+        return badRequest('malformed_event');
+      }
+      const payload = parsed.data.payload as Record<string, unknown>;
+      const orderId = payload['order_id'];
+      if (!bounded(orderId, 191) || !ID_ALPHABET.test(orderId) || isGroupId(orderId)) {
+        await parkPoison(env, texte, { reason: 'bad_order_id', correlationId: parsed.data.envelope.correlation_id });
+        return badRequest('bad_field', 'order_id');
+      }
+      const res = await orderStub(env, orderId).fetch(
+        new Request('https://do/entry/refund-webhook', {
+          method: 'POST',
+          body: JSON.stringify({ event: parsed.data }),
+        }),
+      );
+      const body = (await res.json().catch(() => null)) as { ok?: boolean; reason?: string; status?: string; state?: string } | null;
+      if (body === null) return refuse('unknown_order');
+      if (body.ok !== true) {
+        if (typeof body.reason === 'string' && POISON_REFUSALS.has(body.reason)) {
+          await parkPoison(env, texte, { reason: body.reason, correlationId: parsed.data.envelope.correlation_id });
+        }
+        return Response.json({ error: body.reason ?? 'refused' }, { status: res.status });
+      }
+      return Response.json({ status: body.status, state: body.state }, { status: 200 });
+    }
+
+    /** REMBOURSEMENT-1 — the stand-in's read of the refunds it was asked for (webhook secret, GET only). */
+    {
+      const refundKeyMatch = /^\/checkout\/webhook\/refund-key\/([^/]+)$/.exec(pathname);
+      if (request.method === 'GET' && refundKeyMatch !== null) {
+        const orderId = decodeId(refundKeyMatch[1]!);
+        if (orderId === undefined || !ID_ALPHABET.test(orderId)) return badRequest('bad_field', 'orderId');
+        const res = await orderStub(env, orderId).fetch(new Request('https://do/entry/refund-key'));
         return new Response(res.body, { status: res.status, headers: { 'Content-Type': 'application/json' } });
       }
     }

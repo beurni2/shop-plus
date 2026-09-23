@@ -344,6 +344,9 @@ interface FlowState {
   suiviHorsPortee: boolean;
   /** She tapped « C'est terminé » — the button goes away, the screen stays. */
   termineeVue: boolean;
+  /** REMBOURSEMENT-1 — her refund, as the server last carried it. A ratchet
+   *  like `livree`: a refund that opened does not un-open on a bad read. */
+  remboursement: NonNullable<ServerOrder['remboursement']> | null;
 }
 
 /**
@@ -559,6 +562,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
     suiviRelance: false,
     suiviHorsPortee: false,
     termineeVue: false,
+    remboursement: null,
   };
 
   /**
@@ -1246,7 +1250,8 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
             porte: porteHandle() !== null,
             relance: state.suiviRelance,
             horsPortee: state.suiviHorsPortee,
-            terminee: state.livree && !state.termineeVue,
+            terminee: (state.livree || state.remboursement?.etat === 'fait') && !state.termineeVue,
+            remboursement: state.remboursement ?? undefined,
           });
         }
         return renderC7({ step: state.step, problem: state.problem, demo });
@@ -1377,6 +1382,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
     state.suiviRelance = false;
     state.suiviHorsPortee = false;
     state.termineeVue = false;
+    state.remboursement = null;
     // ═══ IS THIS PHONE'S CLOCK TRUSTWORTHY? (verifier BLOCKER 5) ═══
     // A quote the service JUST issued is alive by construction. If this device
     // reads it as already expired, the wrong clock is the phone's — so the local
@@ -1622,6 +1628,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
       ...(order.arrivedAt !== undefined ? { arrivedAt: order.arrivedAt } : {}),
     };
     if (order.livree === true) state.livree = true;
+    if (order.remboursement !== undefined) state.remboursement = order.remboursement;
   }
 
   /**
@@ -1674,6 +1681,23 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
         // THE ARRIVAL FACT LANDED ⇒ her code exists on the service. Fetch it
         // now, so « Voir mon code » opens on the figure and not on a spinner.
         if (state.marques.arrivedAt !== undefined && state.codeRemise === null) demanderLeCode();
+        if (state.remboursement !== null) {
+          // ═══ REMBOURSEMENT-1 — THE DELIVERY ENDED IN A REFUND ═══
+          //
+          // Her screen is C7's refund card, wherever the watch found her: C9's
+          // code has nothing left to open. A CONFIRMED refund ends the watch as
+          // `livree` does — nothing further can change, so no further read.
+          state.suiviRelance = false;
+          if (state.screen !== 'C7') {
+            jump('C7');
+            demarrerSuivi();
+            return;
+          }
+          if (state.remboursement.etat === 'fait') {
+            render();
+            return;
+          }
+        }
         if (state.livree) {
           // ═══ THE DELIVERY IS PROVEN ⇒ THE SCREEN ENDS (founder 2026-08-12) ══
           //
@@ -1734,7 +1758,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
    *  after its `jump` has already bumped the generation. */
   function demarrerSuivi(): void {
     const id = state.orderId;
-    if (!reel || id === null || state.livree) return;
+    if (!reel || id === null || state.livree || state.remboursement?.etat === 'fait') return;
     state.suiviRelance = false;
     suiviEnAttenteDeRetour = null;
     echecsSuivi = 0;
@@ -1762,7 +1786,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
     const id = state.orderId;
     const etape = suiviEnAttenteDeRetour;
     suiviEnAttenteDeRetour = null;
-    if (!reel || id === null || state.livree) return;
+    if (!reel || id === null || state.livree || state.remboursement?.etat === 'fait') return;
     suivreLaLivraison(id, generation, etape + 1);
   }
 
@@ -2664,6 +2688,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
         state.codeRemise = null;
         state.suiviRelance = false;
         state.suiviHorsPortee = false;
+        state.remboursement = null;
         // `problem` IS THE ONE THAT COULD STRAND HER NEXT ORDER (verifier
         // BLOCKER, 2026-08-12). Nothing else in this module ever clears it. If
         // she reported a problem on THIS order and the delivery completed

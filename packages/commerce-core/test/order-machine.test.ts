@@ -87,10 +87,12 @@ describe('thin order state machine — five states, refuse closed (WO-1.1 c)', (
       const out = advanceOrder(j, cmd(`c-${attempted}`, attempted));
       expect(out, attempted).toMatchObject({ ok: false, reason: 'unknown_state' });
     }
-    // canon members, but unreachable from confirmed: cancel needs the E3
-    // refund saga (honest reason); refunded has no inbound path at E2.
+    // canon members: cancel from confirmed still needs the refund saga (honest
+    // reason). REMBOURSEMENT-1 (founder 2026-09-23) opened confirmed → refunded
+    // in the machine; the spine is what lets ONLY the provider's refund
+    // confirmation take it (remboursement.test.ts « no local command can mark an order refunded »).
     expect(advanceOrder(j, cmd('c-cancel', 'cancelled'))).toMatchObject({ ok: false, reason: 'refund_required_e3' });
-    expect(advanceOrder(j, cmd('c-refund', 'refunded'))).toMatchObject({ ok: false, reason: 'out_of_order' });
+    expect(advanceOrder(j, cmd('c-refund', 'refunded'))).toMatchObject({ ok: true });
     // confirmed is still the happy end: no re-entry.
     expect(advanceOrder(j, cmd('c-again', 'confirmed'))).toMatchObject({ ok: false, reason: 'out_of_order' });
   });

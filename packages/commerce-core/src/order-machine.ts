@@ -13,7 +13,9 @@ import { ORDER_STATUSES, PlatformEventSchema, type PlatformEvent } from '@platfo
  *
  *   paid|confirmed → cancelled REFUSES CLOSED (`refund_required_e3`):
  *   money has moved — un-moving it is the E3 refund/earning-reversal saga.
- *   `refunded` exists in the canon enum but NO transition reaches it at E2.
+ *   refund:  paid | confirmed → refunded   (REMBOURSEMENT-1, founder ruling
+ *            2026-09-23 — reached ONLY by the vault's refund judge, once the
+ *            provider has confirmed every refund due, to the franc)
  *
  * Unknown or out-of-order transitions REFUSE CLOSED. Every accepted
  * transition emits one enveloped PlatformEvent. Chain ids are write-once,
@@ -38,6 +40,8 @@ const FAILURE_NEXT: Readonly<Partial<Record<OrderState, readonly OrderState[]>>>
   reserved: ['cancelled'],
   payment_pending: ['payment_failed', 'cancelled'],
   payment_failed: ['payment_pending', 'cancelled'],
+  paid: ['refunded'],
+  confirmed: ['refunded'],
 };
 
 /** The correlation chain (§2.3 steps 6–8): grows monotonically, never mutates. */
@@ -111,6 +115,7 @@ const STATE_EVENT: Readonly<Partial<Record<OrderState, PlatformEvent['name']>>> 
   confirmed: 'order.confirmed.v1',
   payment_failed: 'order.status_projection_updated.v1',
   cancelled: 'order.status_projection_updated.v1',
+  refunded: 'order.status_projection_updated.v1',
 };
 
 export function advanceOrder(journey: OrderJourney, cmd: TransitionCommand): TransitionOutcome {

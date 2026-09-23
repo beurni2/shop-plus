@@ -265,6 +265,11 @@ const ECRANS = {
   'cl.panier.refus_titre': M('money', S(['{nom}'])), 'cl.panier.refus_phrase': M('money', S()), 'cl.panier.refus_action': M('money', L()),
   'cl.panier.confirme_titre': M('money', L()), 'cl.panier.commandes': M('money', L(['{n}'])), 'cl.panier.suivre': M('money', L()),
   'cl.panier.reentree': M('money', L()),
+  // REMBOURSEMENT-1 — her refund on the tracking: the sum, where it goes, and
+  // why the delivery fee stays paid when she refused a parcel that came.
+  'cl.remboursement.overline': M('money', L()), 'cl.remboursement.en_cours': M('money', C(['{X}'])),
+  'cl.remboursement.en_cours_corps': M('money', S()), 'cl.remboursement.fait': M('money', C(['{X}'])),
+  'cl.remboursement.fait_corps': M('money', S()), 'cl.remboursement.frais_gardes': M('money', C(['{D}'])),
 };
 
 /** Every pinned key, flattened: key → { register, screenClass, fills }. */

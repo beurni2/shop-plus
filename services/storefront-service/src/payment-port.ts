@@ -94,8 +94,34 @@ export type ChargeOutcome =
       readonly chargedAmount: number;
     };
 
+/**
+ * REMBOURSEMENT-1 (founder ruling 2026-09-23) — THE SECOND VERB: money back.
+ * One refund of one paid leg, under a refund key minted ONCE for it and stored
+ * durably BEFORE this call (the charge key's own law): a retry after an
+ * ambiguous timeout reuses the key, so a provider can never refund twice. The
+ * amount is read off the order's own paid leg, never a caller's.
+ */
+export interface RefundCommand {
+  readonly orderId: string;
+  readonly refundKey: string;
+  readonly collectRef: string;
+  readonly amount: number;
+  readonly correlationId: string;
+  readonly requestedAtIso: string;
+  readonly legType: 'checkout' | 'door';
+}
+
+/** Accepted is NOT refunded: the refund webhook is the only truth of it. */
+export type RefundOutcome =
+  | { readonly accepted: true; readonly refundRef: string }
+  | {
+      readonly accepted: false;
+      readonly reason: 'timeout' | 'idempotency_key_amount_mismatch' | 'refund_exceeds_collection';
+    };
+
 export interface PaymentProviderPort {
   initiateCharge(command: ChargeCommand): Promise<ChargeOutcome>;
+  initiateRefund(command: RefundCommand): Promise<RefundOutcome>;
 }
 
 /**
@@ -147,13 +173,31 @@ export function readSandboxBehavior(raw: string | undefined): SandboxBehavior {
 export function sandboxPaymentProvider(
   behavior: SandboxBehavior,
   attemptsAlreadyInitiated: number,
+  /** REMBOURSEMENT-1 — the same durable count, for refunds this order already asked. */
+  refundsAlreadyInitiated = 0,
 ): PaymentProviderPort {
   const budget = behavior.timeoutFirstNInitiates ?? 0;
+  const refundBudget = behavior.timeoutFirstNRefunds ?? 0;
   const mock = new MockPaymentProvider({
     ...behavior,
     timeoutFirstNInitiates: Math.max(0, budget - attemptsAlreadyInitiated),
+    timeoutFirstNRefunds: Math.max(0, refundBudget - refundsAlreadyInitiated),
   });
   return {
+    initiateRefund(command: RefundCommand): Promise<RefundOutcome> {
+      const response = mock.initiateRefund({
+        orderId: command.orderId,
+        refundKey: command.refundKey,
+        collectRef: command.collectRef,
+        amount: command.amount,
+        correlationId: command.correlationId,
+        requestedAtIso: command.requestedAtIso,
+        legType: command.legType,
+      });
+      if (response.outcome === 'accepted') return Promise.resolve({ accepted: true, refundRef: response.refundRef });
+      if (response.outcome === 'timeout') return Promise.resolve({ accepted: false, reason: 'timeout' });
+      return Promise.resolve({ accepted: false, reason: response.reason });
+    },
     initiateCharge(command: ChargeCommand): Promise<ChargeOutcome> {
       const response = mock.initiateCharge({
         orderId: command.orderId,

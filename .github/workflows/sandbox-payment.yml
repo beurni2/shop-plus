@@ -19,6 +19,11 @@ name: sandbox-payment
 #      reaches the Boutik+ board and the Séra funding fact by outbox
 #      (at-least-once, ~a minute).
 #
+# REMBOURSEMENT-1 — tick « remboursement » to play the provider's REFUND
+# confirmation instead, for an order Séra refused home: the run confirms the
+# refunds that order asked for and goes green only once the order reads
+# `refunded`.
+#
 # Dispatching twice for the same order is a provider REDELIVERY — absorbed,
 # never a second payment. NO REAL MONEY exists anywhere in this path.
 #
@@ -34,6 +39,11 @@ on:
         description: "L'identifiant de la commande (ord-…) ou du paiement groupé (grp-…)"
         required: true
         type: string
+      remboursement:
+        description: "Confirmer le remboursement de cette commande (après un refus de livraison)"
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -60,6 +70,7 @@ jobs:
         env:
           STOREFRONT_BASE: https://storefront-service.ilboudobernard2.workers.dev
           ORDER_ID: ${{ inputs.order_id }}
+          REMBOURSEMENT: ${{ inputs.remboursement }}
           PAYMENT_WEBHOOK_SECRET: ${{ secrets.PAYMENT_WEBHOOK_SECRET }}
         run: |
           if [ -z "$PAYMENT_WEBHOOK_SECRET" ]; then
