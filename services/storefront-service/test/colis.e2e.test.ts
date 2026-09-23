@@ -573,8 +573,12 @@ describe('COLIS-FOURNISSEUR-1 — one package and one delivery fee per supplier,
     n: string,
     behavior: Record<string, unknown>,
     extra: Record<string, string> = {},
-    /** Sent at the same moment as her retry (REMBOURSEMENT-PORTE-FERMEE, verifier M1). */
-    pendant?: (groupId: string, total: number) => Promise<unknown>,
+    /**
+     * REMBOURSEMENT-PORTE-FERMEE (verifier M1) — prepared before her retry
+     * (the provider's key read, the event built), then sent at the same moment,
+     * `enTete` first or just after.
+     */
+    pendant?: { readonly preparer: (groupId: string, total: number) => Promise<() => Promise<unknown>>; readonly enTete: boolean },
   ) {
     const dir = mkdtempSync(join(tmpdir(), `colis-lent-${n}-`));
     const lent = makeMf(dir, { PAYMENT_SANDBOX_BEHAVIOR: JSON.stringify({ timeoutFirstNInitiates: 1, ...behavior }), ...extra });
@@ -610,10 +614,14 @@ describe('COLIS-FOURNISSEUR-1 — one package and one delivery fee per supplier,
     );
     expect(refus.status, refus.text).toBe(200);
     // She asks again, for what she keeps.
-    const [encore] = await Promise.all([
-      post(`/checkout/group/${groupId}/porte`, { packageId, orderIds: [oa], holderRef, commandId: `cmd-porte-${n}b` }),
-      pendant?.(groupId, qa.amountDueAtDelivery + qb.amountDueAtDelivery),
-    ]);
+    const envoyer = await pendant?.preparer(groupId, qa.amountDueAtDelivery + qb.amountDueAtDelivery);
+    const relance = () => post(`/checkout/group/${groupId}/porte`, { packageId, orderIds: [oa], holderRef, commandId: `cmd-porte-${n}b` });
+    const encore =
+      envoyer === undefined
+        ? await relance()
+        : pendant!.enTete
+          ? (await Promise.all([envoyer(), relance()]))[1]
+          : (await Promise.all([relance(), envoyer()]))[0];
     const cle = (i: number) => call(`/checkout/webhook/leg-key/${encodeURIComponent(`${groupId}-porte-${i}`)}?leg=door`, { headers: signed });
     const fin = async () => {
       cible = mf;
@@ -805,12 +813,19 @@ describe('COLIS-FOURNISSEUR-1 — one package and one delivery fee per supplier,
   }, 60_000);
 
   it('REMBOURSEMENT-PORTE-FERMEE (verifier M1) — her retry and the late confirmation arrive TOGETHER, then the provider delivers it again: the payment either paid her articles or goes back whole — never both', async () => {
-    for (const n of ['14', '15', '16']) {
+    for (const [n, enTete] of [['14', true], ['15', false], ['16', true], ['17', true]] as const) {
       let ferme = '';
       let total = 0;
-      const w = await porteSansReponse(n, {}, {}, async (groupId, somme) => {
-        [ferme, total] = [`${groupId}-porte-1`, somme];
-        return confirmerPorte(ferme, somme);
+      const w = await porteSansReponse(n, {}, {}, {
+        enTete,
+        preparer: async (groupId, somme) => {
+          [ferme, total] = [`${groupId}-porte-1`, somme];
+          const k = await call(`/checkout/webhook/leg-key/${encodeURIComponent(ferme)}?leg=door`, { headers: signed });
+          const provider = new MockPaymentProvider({});
+          provider.initiateCharge({ orderId: ferme, paymentAttemptId: String(k.json['legKey']), amount: somme, correlationId: `corr-${ferme}`, requestedAtIso: T0, legType: 'door' });
+          const event = provider.webhookDeliveryPlan().find((d) => d.event.name === 'payment.door_leg_confirmed.v1')!.event;
+          return () => post('/checkout/webhook/door', event, signed);
+        },
       });
       try {
         // At least once: the provider delivers it again, whatever happened meanwhile.
