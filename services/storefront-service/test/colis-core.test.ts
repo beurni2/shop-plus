@@ -68,6 +68,9 @@ describe('a package is paid whole or not at all', () => {
     expect(decideColis([art('q1', 'pv-a', s0, colis), art('q2', 'pv-b', s1, colis), art('q9', 'pv-a', D)])).toEqual({ ok: false, reason: 'colis_incomplet' });
     // Two articles of the same package claiming the same product.
     expect(decideColis([art('q1', 'pv-a', s0, colis), art('q2', 'pv-a', s1, colis)])).toEqual({ ok: false, reason: 'colis_incomplet' });
+    // A whole package plus a third quote for one of its products: more
+    // articles than the package holds would ride it without being counted.
+    expect(decideColis([art('q1', 'pv-a', s0, colis), art('q2', 'pv-b', s1, colis), art('q3', 'pv-a', s0, colis)])).toEqual({ ok: false, reason: 'colis_incomplet' });
     // A package that disagrees with its twin about its own products.
     expect(decideColis([art('q1', 'pv-a', s0, colis), art('q2', 'pv-b', s1, { pids: ['pv-a', 'pv-b', 'pv-c'], packageFee: D })])).toEqual({ ok: false, reason: 'colis_incomplet' });
   });
