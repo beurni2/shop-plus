@@ -220,6 +220,8 @@ test('REAL · at the door she gives one article back TO THE RIDER: her screen sh
   w.rendus.add('ord-q-p2-B');
   await expect(articles.nth(1)).toContainText('Rendu au livreur', { timeout: 10_000 });
   await expect(articles.nth(0)).toContainText('À payer');
+  // The operator confirms only once the walk has read the screen it shows her.
+  w.confirmationRetenue = true;
   await page.locator('[data-action="porte-bon"]').click();
 
   // ONE door payment, for exactly the one she keeps, under the panier's holder — no amount on the wire.
@@ -232,7 +234,8 @@ test('REAL · at the door she gives one article back TO THE RIDER: her screen sh
   // The single door is never asked for a package's article.
   expect(w.doorCharges).toHaveLength(0);
   // The operator screen names the SERVICE's one amount.
-  await expect(page.locator('[data-etat="paiement-porte"]')).toContainText('11');
+  await expect(page.locator('[data-etat="paiement-porte"]')).toContainText(/11\s?500/);
+  w.confirmationRetenue = false;
 
   // The watch follows the article she KEEPS; once its door leg reads paid, her code shows.
   await expect(page.locator('[data-screen="C9"]')).toBeVisible({ timeout: 20_000 });
