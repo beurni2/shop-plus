@@ -553,7 +553,7 @@ describe('REMBOURSEMENT-1 — a refused course refunds her; only the provider\'s
     return (await (await ns.get(ns.idFromName(orderId)).fetch('https://do/entry/audit')).json()) as {
       state: string;
       escrow: { status: string; paymentLegs: { legType: string; amount: number; status: string; collectRef: string }[] };
-      remboursement: { decision: string; retenu: number; lignes: { etat: string; amount: number; refundKey: string; essais: number }[] } | null;
+      remboursement: { decision: string; retenu: number; lignes: { etat: string; amount: number; refundKey: string; essais: number; refundRef?: string }[] } | null;
       refunds: { amount: number; refundKey: string; fee: number }[];
       reconAlerts: { payload: Record<string, unknown> }[];
     };
@@ -590,6 +590,8 @@ describe('REMBOURSEMENT-1 — a refused course refunds her; only the provider\'s
     expect(ouvert.remboursement).toMatchObject({ decision: 'ouvert', retenu: 0 });
     expect(ouvert.remboursement!.lignes).toEqual([expect.objectContaining({ etat: 'demande', amount: paye, essais: 1 })]);
     expect(ouvert.remboursement!.lignes[0]!.refundKey).toMatch(/^rf-[0-9a-f-]{36}$/);
+    // The provider was asked under THE STORED key: its reference is minted from the key it received.
+    expect(ouvert.remboursement!.lignes[0]!.refundRef).toBe(`refund-${ouvert.remboursement!.lignes[0]!.refundKey}`);
     // Her screen: her money, on its way back — the amount she paid, nothing else.
     const enCours = await vueDe(orderId);
     expect(enCours['remboursement']).toEqual({ etat: 'en_cours', montant: paye });

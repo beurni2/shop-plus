@@ -228,6 +228,19 @@ describe('REMBOURSEMENT-1 — the provider\'s refund confirmation, judged to the
     expect(c.spine.onProviderRefundEvent(avecFrais, attendus).applied).toBe(true);
     expect(c.spine.ledger.refundsFor(c.orderId)[0]).toMatchObject({ amount: c.quote.amountPaidAtCheckout, fee: 75 });
   });
+
+  it('the ledger never gives back more than the leg collected, whatever reaches it (the backstop under the judge)', () => {
+    const c = commandePayee('j4');
+    const leg = c.spine.ledger.escrowFor(c.orderId)!.paymentLegs[0]!;
+    const rendre = (refundKey: string, amount: number) =>
+      c.spine.ledger.recordRefundFromProvider({ orderId: c.orderId, legType: 'checkout', collectRef: leg.collectRef, refundKey, amount, fee: 0 });
+    expect(rendre('rf-a', leg.amount - 100)).toMatchObject({ ok: true, replay: false });
+    expect(rendre('rf-b', 101)).toEqual({ ok: false, reason: 'refund_exceeds_leg' });
+    expect(c.spine.ledger.escrowFor(c.orderId)!.status).toBe('hold');
+    expect(rendre('rf-c', 100)).toMatchObject({ ok: true, replay: false });
+    expect(c.spine.ledger.escrowFor(c.orderId)!.status).toBe('refunded');
+    expect(c.spine.ledger.refundsFor(c.orderId).map((r) => r.amount)).toEqual([leg.amount - 100, 100]);
+  });
 });
 
 describe('REMBOURSEMENT-1 — the certified mock refunds like a provider would', () => {

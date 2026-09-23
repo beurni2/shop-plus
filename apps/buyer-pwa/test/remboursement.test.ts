@@ -26,7 +26,7 @@ const jsonRes = (body: unknown): Response =>
   ({ ok: true, status: 200, json: async () => body }) as unknown as Response;
 
 const ORDRE = { orderId: 'ord-1', state: 'paid', amountPaidAtCheckout: 12_500, amountDueAtDelivery: 0, doorLeg: 'none' };
-const NNBSP = ' ';
+const NNBSP = '\u202f';
 
 const lire = (body: unknown) =>
   withFetch(
@@ -91,7 +91,8 @@ describe('renderC7 — the refund card', () => {
   it('fait: « Remboursement fait », the done sentence, and the kept fee explained when there is one', () => {
     const html = renderC7({ ...REEL, remboursement: { etat: 'fait', montant: 11_500, fraisGardes: 1_000 } });
     expect(html).toContain('data-etat="fait"');
-    expect(html).toContain(`11${NNBSP}500${NNBSP}FCFA`);
+    expect(html).toContain(`Remboursement fait\u00a0:\u00a011${NNBSP}500${NNBSP}FCFA`);
+    expect(html).not.toContain('vous reviennent');
     expect(html).toContain(t('cl.remboursement.fait_corps'));
     expect(html).toContain('data-role="frais-gardes"');
     expect(html).toContain(`1${NNBSP}000${NNBSP}FCFA`);
