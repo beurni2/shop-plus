@@ -255,7 +255,12 @@ describe('COLIS-FOURNISSEUR-1 — one door payment for a package, judged per art
     };
     const total = a.quote.amountDueAtDelivery + b.quote.amountDueAtDelivery;
     const porte = (over: Record<string, unknown> = {}, envelope: Record<string, unknown> = {}) => ({
-      ...webhook({ payment_attempt_id: PORTE_KEY, collectRef: 'col-porte-1', order_id: 'grp-1-porte-1', amount: total, fee: 99, ...over }, { command_id: 'whk-porte-1', correlation_id: 'corr-grp-1-porte-1', ...envelope }),
+      ...webhook({
+        payment_attempt_id: PORTE_KEY, collectRef: 'col-porte-1', order_id: 'grp-1-porte-1', amount: total, fee: 99,
+        // The provider's echo of what the collection paid for (verifier B1).
+        parts: collecte.parts.map((x) => ({ order_id: x.orderId, amount: x.amount })),
+        ...over,
+      }, { command_id: 'whk-porte-1', correlation_id: 'corr-grp-1-porte-1', ...envelope }),
       name: 'payment.door_leg_confirmed.v1',
     });
     return { a, b, collecte, total, porte };
@@ -289,6 +294,12 @@ describe('COLIS-FOURNISSEUR-1 — one door payment for a package, judged per art
     expect(a.spine.onGroupDoorPaymentEvent(porte({ order_id: 'grp-1-porte-9' }, { command_id: 'w3' }), PORTE_KEY, collecte)).toMatchObject({ applied: false, reason: 'order_mismatch' });
     expect(a.spine.onGroupDoorPaymentEvent(porte({}, { command_id: 'w4', correlation_id: 'corr-ord-a' }), PORTE_KEY, collecte)).toMatchObject({ applied: false, reason: 'wrong_correlation' });
     expect(a.spine.onGroupDoorPaymentEvent({ ...porte({}, { command_id: 'w5' }), name: 'payment.checkout_leg_confirmed.v1' }, PORTE_KEY, collecte)).toMatchObject({ applied: false, reason: 'unexpected_event_name' });
+    // Verifier B1 — the provider's own list must be this collection's, exactly.
+    const sansListe = a.spine.onGroupDoorPaymentEvent(porte({ parts: undefined }, { command_id: 'w6' }), PORTE_KEY, collecte);
+    expect(sansListe).toMatchObject({ applied: false, reason: 'group_share_mismatch' });
+    expect(sansListe.applied === false && sansListe.alert?.payload).toMatchObject({ alert: 'provider_parts_contradict_collection' });
+    const autreListe = collecte.parts.map((x, i) => ({ order_id: i === 1 ? 'ord-ailleurs' : x.orderId, amount: x.amount }));
+    expect(a.spine.onGroupDoorPaymentEvent(porte({ parts: autreListe }, { command_id: 'w7' }), PORTE_KEY, collecte)).toMatchObject({ applied: false, reason: 'group_share_mismatch' });
     expect(a.spine.doorLegState).toBe('due');
   });
 

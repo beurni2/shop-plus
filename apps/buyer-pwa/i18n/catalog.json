@@ -3487,25 +3487,25 @@
  },
  {
   "key": "cl.c8.colis_sous",
-  "fr": "Gardez ce qui vous plaît. Vous payez seulement ce que vous gardez.",
+  "fr": "Dites au livreur ce que vous rendez. Vous payez seulement ce que vous gardez.",
   "register": "money",
   "screenClass": "status"
  },
  {
-  "key": "cl.c8.colis_garde",
-  "fr": "Je le garde",
+  "key": "cl.c8.colis_a_payer",
+  "fr": "À payer",
   "register": "money",
   "screenClass": "label"
  },
  {
-  "key": "cl.c8.colis_rends",
-  "fr": "Je le rends",
+  "key": "cl.c8.colis_rendu",
+  "fr": "Rendu au livreur",
   "register": "money",
   "screenClass": "label"
  },
  {
   "key": "cl.c8.colis_aucun",
-  "fr": "Gardez au moins un article pour payer. Pour tout rendre, touchez « Un problème ».",
+  "fr": "Vous avez tout rendu. Il n’y a rien à payer.",
   "register": "money",
   "screenClass": "status"
  }

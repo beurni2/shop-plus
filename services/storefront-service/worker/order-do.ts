@@ -437,7 +437,7 @@ interface PorteColis {
  * a typo in the environment can shorten the road but never raise the wedge.
  */
 const MAX_DOOR_ATTEMPTS = 25;
-function doorAttemptsMax(env: { readonly DOOR_ATTEMPTS_MAX?: string }): number {
+export function doorAttemptsMax(env: { readonly DOOR_ATTEMPTS_MAX?: string }): number {
   const raw = Number(env.DOOR_ATTEMPTS_MAX);
   if (!Number.isInteger(raw) || raw < 1) return MAX_DOOR_ATTEMPTS;
   return Math.min(raw, MAX_DOOR_ATTEMPTS);

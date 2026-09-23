@@ -22,6 +22,7 @@ import {
   ID_ALPHABET,
   bounded,
   decodeId,
+  doorAttemptsMax,
   mintCodeRemise,
   mintPaymentAttemptId,
   mintProviderLegKey,
@@ -187,6 +188,8 @@ interface CheckAnswer {
 export interface PaymentGroupDOEnv {
   readonly ORDER: DurableObjectNamespace;
   readonly PAYMENT_SANDBOX_BEHAVIOR?: string;
+  /** F-30's test knob, lower-only (see `doorAttemptsMax`). */
+  readonly DOOR_ATTEMPTS_MAX?: string;
   readonly MEDIA?: { fetch(request: Request): Promise<Response> };
   readonly MEDIA_WRITE_KEY?: string;
 }
@@ -257,7 +260,8 @@ export class PaymentGroupDO {
       const portes = (await this.state.storage.get<Record<string, PorteCollecte>>(PORTES_KEY)) ?? {};
       const c = Object.prototype.hasOwnProperty.call(portes, collectId) ? portes[collectId] : undefined;
       if (c === undefined) return Response.json({ ok: false }, { status: 404 });
-      return Response.json({ ok: true, legKey: c.providerKey, groupId: c.collectId });
+      // With what it pays for: a sandbox confirmation echoes exactly what was charged (B1).
+      return Response.json({ ok: true, legKey: c.providerKey, groupId: c.collectId, parts: c.parts });
     }
     /** The sandbox stand-in's key read — reached only behind the webhook secret. */
     if (request.method === 'GET' && pathname === '/entry/leg-key') {
@@ -612,7 +616,22 @@ export class PaymentGroupDO {
 
   /* ─────────────── COLIS-FOURNISSEUR-1 — the package's one door payment ─────────────── */
 
-  private async porte(args: PorteArgs): Promise<Response> {
+  /**
+   * ONE DOOR PAYMENT AT A TIME, per payment (verifier M5): this object awaits
+   * the orders between its read of the collections and its write, and a
+   * second request in that gap would name the same collection with another
+   * provider key — two charges. The chain lives with the object; a restart
+   * loses nothing, for every collection is durable before it is charged.
+   */
+  private porteFile: Promise<unknown> = Promise.resolve();
+
+  private porte(args: PorteArgs): Promise<Response> {
+    const tour = this.porteFile.then(() => this.porteSeule(args));
+    this.porteFile = tour.catch(() => undefined);
+    return tour;
+  }
+
+  private async porteSeule(args: PorteArgs): Promise<Response> {
     const group = await this.state.storage.get<StoredGroup>(GROUP_KEY);
     if (group === undefined) return refusal('unknown_order');
     if (group.holderRef !== args.holderRef) return refusal('reservation_held_by_another');
@@ -627,29 +646,56 @@ export class PaymentGroupDO {
 
     const portes = (await this.state.storage.get<Record<string, PorteCollecte>>(PORTES_KEY)) ?? {};
     const vivantes = Object.values(portes).filter((c) => c.packageId === colis.packageId && c.abandonnee !== true);
-    let collecte = vivantes.find((c) => c.orderIds.length === set.length && c.orderIds.every((id, i) => id === set[i]));
-    if (collecte === undefined) {
-      // A NEW set: none of its articles may already be in a live collection.
-      const prise = set.find((id) => vivantes.some((c) => c.orderIds.includes(id)));
-      if (prise !== undefined) return refusal('porte_deja_choisie', { orderId: prise });
-    } else {
-      const last = collecte.attempts[collecte.attempts.length - 1];
+    const trouver = (ids: readonly string[]) => vivantes.find((c) => c.orderIds.length === ids.length && c.orderIds.every((id, i) => id === ids[i]));
+    const enCours = (c: PorteCollecte): boolean => {
+      const last = c.attempts[c.attempts.length - 1];
       // Asked and not failed: the provider's webhook is what moves it now.
-      if (last !== undefined && (last.outcome === 'accepted' || last.outcome === 'pending')) {
-        return Response.json({ ok: true, view: await this.vueColis(colis), montant: collecte.total });
-      }
+      return last !== undefined && (last.outcome === 'accepted' || last.outcome === 'pending');
+    };
+
+    let collecte = trouver(set);
+    if (collecte !== undefined && enCours(collecte)) return this.porteRepondue(colis, collecte);
+    /**
+     * A COLLECTION THE PROVIDER WAS ALREADY ASKED FOR, and did not accept, is
+     * retried AS IT WAS — the same articles, the same key, the same sum — never
+     * a second one beside it: a timed-out answer may have carried her money
+     * (verifier M3). An article refused at the door since then is refunded
+     * after, like any door payment confirmed after a refusal.
+     */
+    const demandee = vivantes.find((c) => c.charged && c.orderIds.some((id) => set.includes(id)));
+    if (demandee !== undefined) {
+      if (enCours(demandee)) return this.porteRepondue(colis, demandee);
+      collecte = demandee;
     }
 
-    // 1. CHECK every article, nothing written; the first refusal names it.
+    // 1. CHECK every article, nothing written. An article Séra refused at this
+    //    door is no longer hers to pay for (decision c) — it leaves a NEW set;
+    //    any other refusal names its article.
     const parts: { orderId: string; amount: number }[] = [];
-    for (const orderId of set) {
+    for (const orderId of collecte?.orderIds ?? set) {
       const checked = await this.post(orderId, '/entry/porte-check', { holderRef: args.holderRef });
       const c = checked.json as { ok?: boolean; reason?: string; amount?: number } | null;
+      if (c?.ok !== true && c?.reason === 'course_refusee') {
+        const part = collecte?.parts.find((p) => p.orderId === orderId);
+        if (part !== undefined) parts.push(part);
+        continue;
+      }
       if (c === null || c.ok !== true || typeof c.amount !== 'number') return refusal(c?.reason ?? 'paiement_occupe', { orderId });
       parts.push({ orderId, amount: c.amount });
     }
+    if (parts.length === 0) return refusal('course_refusee');
     const total = parts.reduce((t, p) => t + p.amount, 0);
     if (!Number.isSafeInteger(total) || total <= 0) return refusal('montant_illisible');
+    if (collecte === undefined) {
+      const garde = parts.map((p) => p.orderId);
+      collecte = trouver(garde);
+      if (collecte !== undefined && enCours(collecte)) return this.porteRepondue(colis, collecte);
+      if (collecte === undefined) {
+        // A NEW set: none of its articles may already be in a live collection.
+        const prise = garde.find((id) => vivantes.some((c) => c.orderIds.includes(id)));
+        if (prise !== undefined) return refusal('porte_deja_choisie', { orderId: prise });
+      }
+    }
     if (collecte !== undefined && !parts.every((p, i) => p.orderId === collecte!.parts[i]?.orderId && p.amount === collecte!.parts[i]?.amount)) {
       return refusal('group_share_mismatch');
     }
@@ -660,7 +706,7 @@ export class PaymentGroupDO {
       collecte = {
         collectId,
         packageId: colis.packageId,
-        orderIds: set,
+        orderIds: parts.map((p) => p.orderId),
         parts,
         total,
         correlationId: `corr-${collectId}`,
@@ -673,6 +719,10 @@ export class PaymentGroupDO {
     const stored = ((await this.state.storage.get<Record<string, PorteCollecte>>(PORTES_KEY)) ?? {})[collecte.collectId];
     if (stored === undefined) return refusal('paiement_occupe');
     collecte = stored;
+
+    // THE CEILING (F-30), the single door's own: refused by name before
+    // anything more is written; the webhook still confirms what was asked.
+    if (collecte.attempts.length >= doorAttemptsMax(this.env)) return refusal('door_attempts_exhausted');
 
     // 3. ENTER every article: its record first-wins, BEFORE any charge.
     for (const orderId of collecte.orderIds) {
@@ -695,7 +745,8 @@ export class PaymentGroupDO {
     collecte = { ...collecte, charged: true, attempts: [...collecte.attempts, attempt] };
     await this.majPorte(collecte);
 
-    // 5. ONE CHARGE, FOR THE SUM, UNDER THE COLLECTION'S KEY.
+    // 5. ONE CHARGE, FOR THE SUM, UNDER THE COLLECTION'S KEY — naming what it
+    //    pays for, so the provider's confirmation says whose it is (B1).
     const provider = sandboxPaymentProvider(readSandboxBehavior(this.env.PAYMENT_SANDBOX_BEHAVIOR), deja);
     const charge = await provider.initiateCharge({
       orderId: collecte.collectId,
@@ -704,6 +755,7 @@ export class PaymentGroupDO {
       correlationId: collecte.correlationId,
       requestedAtIso: now,
       legType: 'door',
+      parts: collecte.parts,
     });
     const outcome = charge.chargedAmount !== collecte.total ? 'provider_amount_divergence' : charge.accepted ? 'accepted' : charge.reason;
     collecte = {
@@ -715,10 +767,18 @@ export class PaymentGroupDO {
     await this.majPorte(collecte);
     // Not accepted: nothing moved on her side; the same set retries under the same key.
     if (outcome !== 'accepted') return refusal(outcome);
-    // The ONE amount the provider was asked for — the server's sum, never her phone's.
-    const answer = { ok: true, view: await this.vueColis(colis), montant: collecte.total };
+    const answer = await this.porteRepondue(colis, collecte).then((r) => r.json());
     await this.state.storage.put(PORTE_RESULTS_KEY, { ...results, [args.commandId]: answer });
     return Response.json(answer);
+  }
+
+  /**
+   * The ONE amount the provider was asked for — the server's sum, never her
+   * phone's — and the articles it pays for, each as it stands.
+   */
+  private async porteRepondue(colis: ColisDuGroupe, collecte: PorteCollecte): Promise<Response> {
+    const vue = await this.vueColis(colis);
+    return Response.json({ ok: true, view: vue.filter((v) => collecte.orderIds.includes(v.orderId)), montant: collecte.total });
   }
 
   private async majPorte(collecte: PorteCollecte): Promise<void> {

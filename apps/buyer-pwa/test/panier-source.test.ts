@@ -501,4 +501,38 @@ describe('COLIS-FOURNISSEUR-1 — a price kept while its package stays whole', (
     await src([ARTICLES[0]!, P3, { pid: 'p2', nom: 'Sac en cuir' }]).quoteSource('Gounghin');
     for (const a of asks) expect([...(a.panier ?? [])].sort()).toEqual(['p1', 'p2', 'p3']);
   });
+
+  it('verifier M2 — a package priced half in, half alone is let go: fresh quotes at once, and a « Réessayer » after a second miss starts fresh too', async () => {
+    const svc = service({ cleDansId: true });
+    let incomplets = 1;
+    const port: PanierPort = {
+      ...svc.port,
+      async prix(ids) {
+        // The service's own refusal while the quotes disagree about their package.
+        if (incomplets > 0 && ids.every((id) => id.includes('-A-'))) {
+          incomplets -= 1;
+          return { status: 'refused', reason: 'colis_incomplet' };
+        }
+        return svc.port.prix(ids);
+      },
+    };
+    const session = memoire();
+    const src = creerSourcePanier({ port, slug: 'aicha-4821', ville: 'Ouagadougou', resellerId: 'rs-1', articles: ARTICLES, session, garde: memoire(), doorGraceMs: 50 });
+    const r = await src.quoteSource('Gounghin');
+    expect(r.status, JSON.stringify(r)).toBe('ready');
+    const cles = svc.j.requests.filter((x) => x.intent.pid === 'p1' && x.intent.paymentMode === 'FULL_PREPAY').map((x) => x.key);
+    expect(cles, 'the same keys would re-serve the same quotes').toHaveLength(2);
+    expect(cles[0]).not.toBe(cles[1]);
+
+    // Twice in a row: refused by name — and the next ask takes fresh keys again.
+    incomplets = 2;
+    svc.j.requests.length = 0;
+    const deux = await src.quoteSource('Gounghin');
+    expect(deux).toMatchObject({ status: 'refused', reason: 'colis_incomplet' });
+    svc.j.requests.length = 0;
+    const encore = await src.quoteSource('Gounghin');
+    expect(encore.status).toBe('ready');
+    const avant = cles[1];
+    expect(svc.j.requests.filter((x) => x.intent.pid === 'p1' && x.intent.paymentMode === 'FULL_PREPAY').every((x) => x.key !== avant)).toBe(true);
+  });
 });

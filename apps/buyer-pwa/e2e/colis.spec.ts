@@ -12,7 +12,9 @@ import { expect, test, type Page, type Route } from '@playwright/test';
  * name the panier and the package's quotes carry its product ids and ONE fee
  * shared; the price names `livraisons`; the payment names its packages; the
  * package door `POST /checkout/group/{id}/porte` takes ids only and answers
- * each kept article as it stands plus the one amount the operator asks for.
+ * each article it pays for as it stands plus the one amount the operator
+ * asks for; an article the rider re-sealed for home reads, on its own order,
+ * the refund that opened (`remboursement`, order-core BuyerOrderView).
  *
  * The four questions, on the live DOM: the tree survives each tap; the
  * primary action is present, pressable and wired; the act that fires by
@@ -33,10 +35,12 @@ interface Wire {
   portes: { url: string; body: Record<string, unknown> }[];
   doorCharges: string[];
   remises: { url: string; auth: string | null }[];
+  /** The articles the RIDER recorded as given back — each order's read then carries its refund. */
+  rendus: Set<string>;
 }
 
 async function service(page: Page): Promise<Wire> {
-  const w: Wire = { quotes: [], groupes: [], portes: [], doorCharges: [], remises: [] };
+  const w: Wire = { quotes: [], groupes: [], portes: [], doorCharges: [], remises: [], rendus: new Set() };
   const payees = new Set<string>();
   const expiry = (): string => new Date(Date.now() + 15 * 60_000).toISOString();
   await page.route('**/checkout/**', async (route: Route) => {
@@ -78,6 +82,7 @@ async function service(page: Page): Promise<Wire> {
         amountDueAtDelivery: b ? f.produit : 0,
         doorLeg: !b ? 'none' : payees.has(id) ? 'paid' : 'due',
         acceptedAt: t0, readyAt: t0, departedAt: t0, arrivedAt: t0,
+        ...(w.rendus.has(id) ? { remboursement: { etat: 'en_cours', montant: part, motif: 'retour' } } : {}),
       };
     };
     const vue = (state: string, ids: string[]) => {
@@ -176,7 +181,7 @@ test('REAL · one supplier, one package: « 1 livraison », every quote asks wit
   for (const b of [...w.quotes, ...w.groupes]) expect(JSON.stringify(b)).not.toMatch(/amount|total|fcfa|prix/i);
 });
 
-test('REAL · at the door she gives one article back and pays ONCE for the one she keeps; her code follows', async ({ page }) => {
+test('REAL · at the door she gives one article back TO THE RIDER: her screen shows his record, and she pays ONCE for the one she keeps; her code follows', async ({ page }) => {
   const w = await service(page);
   await jusquauPaiement(page, 'B');
   await page.locator('[data-action="continuer-c4"]').click();
@@ -192,21 +197,18 @@ test('REAL · at the door she gives one article back and pays ONCE for the one s
   await page.locator('[data-action="porte"]').click();
   await page.locator('[data-screen="C8"]').waitFor();
 
-  // « Dans ce colis »: both articles, both kept until she says otherwise.
-  const choix = page.locator('[data-role="colis-porte"] [data-action="garder-article"]');
-  await expect(choix).toHaveCount(2);
-  await expect(choix.nth(0)).toHaveText('Je le garde');
-  await expect(choix.nth(1)).toHaveText('Je le garde');
-  // Giving both back leaves nothing to pay here: the primary is not pressable, and she is told her way.
-  await choix.nth(0).click();
-  await choix.nth(1).click();
-  await expect(page.locator('[data-role="colis-aucun"]')).toBeVisible();
-  await expect(page.locator('[data-action="porte-bon"]')).toBeDisabled();
-  await expect(page.locator('[data-action="porte-probleme"]')).toBeEnabled();
-  // She keeps the first, gives back the second — the one she opened.
-  await choix.nth(0).click();
-  await expect(choix.nth(0)).toHaveText('Je le garde');
-  await expect(choix.nth(1)).toHaveText('Je le rends');
+  // « Dans ce colis »: both articles to pay, and no second record on her
+  // phone — she tells the rider (verifier M3/M4).
+  const articles = page.locator('[data-role="colis-porte"] [data-role="colis-article"]');
+  await expect(articles).toHaveCount(2);
+  await expect(articles.nth(0)).toContainText('À payer');
+  await expect(articles.nth(1)).toContainText('À payer');
+  await expect(page.locator('[data-action="garder-article"]')).toHaveCount(0);
+
+  // The rider re-seals the second for home: her screen follows HIS record.
+  w.rendus.add('ord-q-p2-B');
+  await expect(articles.nth(1)).toContainText('Rendu au livreur', { timeout: 10_000 });
+  await expect(articles.nth(0)).toContainText('À payer');
   await page.locator('[data-action="porte-bon"]').click();
 
   // ONE door payment, for exactly the one she keeps, under the panier's holder — no amount on the wire.
@@ -228,4 +230,23 @@ test('REAL · at the door she gives one article back and pays ONCE for the one s
   const lue = w.remises.find((r) => r.url.includes('/order/ord-q-p1-B/remise'));
   expect(lue?.auth).toBe('Bearer ref-secret-0');
   expect(await page.content()).not.toContain('ref-secret');
+});
+
+test('REAL · she gave everything back to the rider: nothing to pay here, and « Un problème » stays her way', async ({ page }) => {
+  const w = await service(page);
+  await jusquauPaiement(page, 'B');
+  await page.locator('[data-action="continuer-c4"]').click();
+  await page.locator('[data-screen="C5"]').waitFor();
+  await page.locator('[data-action="choix-paiement"][data-mode="B"]').click();
+  await page.locator('[data-action="payer"]').click();
+  await expect(page.locator('[data-role="panier-suivi"]')).toBeVisible({ timeout: 20_000 });
+  await page.locator('[data-action="suivre-article"][data-order="ord-q-p1-B"]').click();
+  await page.locator('[data-action="porte"]').click();
+  await page.locator('[data-screen="C8"]').waitFor();
+  w.rendus.add('ord-q-p1-B');
+  w.rendus.add('ord-q-p2-B');
+  await expect(page.locator('[data-role="colis-aucun"]')).toBeVisible({ timeout: 10_000 });
+  await expect(page.locator('[data-action="porte-bon"]')).toBeDisabled();
+  await expect(page.locator('[data-action="porte-probleme"]')).toBeEnabled();
+  expect(w.portes).toHaveLength(0);
 });

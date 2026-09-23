@@ -265,10 +265,10 @@ const ECRANS = {
   'cl.panier.refus_titre': M('money', S(['{nom}'])), 'cl.panier.refus_phrase': M('money', S()), 'cl.panier.refus_action': M('money', L()),
   'cl.panier.confirme_titre': M('money', L()), 'cl.panier.commandes': M('money', L(['{n}'])), 'cl.panier.suivre': M('money', L()),
   'cl.panier.reentree': M('money', L()),
-  // COLIS-FOURNISSEUR-1 — one package per supplier: « 1 livraison », and her keep/give-back at the package's door
+  // COLIS-FOURNISSEUR-1 — one package per supplier: « 1 livraison », and what the rider recorded at the package's door
   'cl.panier.livraison_une': M('money', L()), 'cl.panier.colis_ensemble': M('money', S(['{n}'])),
-  'cl.c8.colis_titre': M('money', L()), 'cl.c8.colis_sous': M('money', S()), 'cl.c8.colis_garde': M('money', L()),
-  'cl.c8.colis_rends': M('money', L()), 'cl.c8.colis_aucun': M('money', S()),
+  'cl.c8.colis_titre': M('money', L()), 'cl.c8.colis_sous': M('money', S()), 'cl.c8.colis_a_payer': M('money', L()),
+  'cl.c8.colis_rendu': M('money', L()), 'cl.c8.colis_aucun': M('money', S()),
   // REMBOURSEMENT-1 — her refund on the tracking: the sum, where it goes, and
   // why the delivery fee stays paid when she refused a parcel that came.
   'cl.remboursement.overline': M('money', L()), 'cl.remboursement.en_cours': M('money', C(['{X}'])),

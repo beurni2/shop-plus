@@ -76,6 +76,13 @@ export interface ChargeCommand {
    * is no branch anywhere that infers a leg from an amount.
    */
   readonly legType: 'checkout' | 'door';
+  /**
+   * COLIS-FOURNISSEUR-1 (verifier B1) — ONE collection for several orders (a
+   * package's door): what it pays for, each order and its amount. The
+   * provider echoes it on its confirmation, which is how custody knows the
+   * one payment is each article's.
+   */
+  readonly parts?: readonly { readonly orderId: string; readonly amount: number }[];
 }
 
 /**
@@ -206,6 +213,7 @@ export function sandboxPaymentProvider(
         correlationId: command.correlationId,
         requestedAtIso: command.requestedAtIso,
         legType: command.legType,
+        ...(command.parts !== undefined ? { parts: command.parts } : {}),
       });
       // `chargedAmount` is the figure THIS CALL carried, echoed from the command
       // itself — never re-derived, so it cannot disagree with what was asked.

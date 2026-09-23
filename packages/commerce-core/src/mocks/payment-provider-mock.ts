@@ -65,6 +65,13 @@ export interface ChargeRequest {
    * (every pre-Option-B caller); 'door' emits payment.door_leg_confirmed.v1.
    */
   legType?: 'checkout' | 'door';
+  /**
+   * COLIS-FOURNISSEUR-1 — what ONE collection pays for, when it pays for
+   * several orders (a package's door): each order and its amount, summing to
+   * `amount`. The provider echoes it on its confirmation, so the payment says
+   * itself whose it is (a real aggregator's metadata echo — ⏳ aggregator).
+   */
+  parts?: readonly { readonly orderId: string; readonly amount: number }[];
 }
 
 export type ChargeResponse =
@@ -257,6 +264,9 @@ export class MockPaymentProvider {
         status: 'held',
         order_id: attempt.request.orderId,
         redelivery: copy,
+        ...(attempt.request.parts !== undefined
+          ? { parts: attempt.request.parts.map((x) => ({ order_id: x.orderId, amount: x.amount })) }
+          : {}),
       },
     });
   }

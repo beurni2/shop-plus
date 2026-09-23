@@ -22,8 +22,11 @@ import { OPS_SECRET, seance } from './seance';
  *    strict `{productVersionIds}` of 2–10 distinct ids or 400, and an answer
  *    that groups the asked ids by supplier in the order asked, an unknown
  *    product alone — never a supplier id.
- *  · CUSTODY (Séra): the arm door and the door-signal door with the bounds
- *    `porte-custody.e2e.test.ts` certifies; here both only record.
+ *  · CUSTODY (Séra): the arm door records; the door-signal door answers as
+ *    sera `custody-spine.ts` consumeDoorPaidSignal decides (verifier B1): a
+ *    signal is this order's only when the provider's event names it — its
+ *    `order_id`, or its echoed `parts` — else 409 `door_signal_not_awaited`,
+ *    the retryable refusal.
  *
  * EVERY OUTCOME IS ASKED OF THE LEDGER — each order's audit and outbox reads,
  * the bytes each wire carried — never of a response alone.
@@ -71,7 +74,8 @@ function grouping(auth: string | null, body: unknown): Response {
   return Response.json({ groups: [...groupes.values(), ...seuls] });
 }
 
-const mf = new Miniflare({
+function makeMf(dir: string, extra: Record<string, string> = {}): Miniflare {
+  return new Miniflare({
   modules: true,
   scriptPath: SCRIPT,
   durableObjects: {
@@ -79,7 +83,7 @@ const mf = new Miniflare({
     ATTRIBUTION_LOCK: 'AttributionLockDO', LADDER: 'BuyerLadderDO', COMPTES: 'ResellerAccountsDO',
     DISPATCH: 'DispatchIndexDO', PAYMENT_GROUP: 'PaymentGroupDO',
   },
-  durableObjectsPersist: persist,
+  durableObjectsPersist: dir,
   bindings: {
     CHECKOUT_OPS_SECRET: OPS_SECRET,
     FULFILLMENT_WRITE_SECRET: 'test-fulfillment-write-secret-colis',
@@ -87,6 +91,7 @@ const mf = new Miniflare({
     SUPPLY_READ_SECRET: SUPPLY_SECRET,
     SHOP_ARM_SECRET: ARM_SECRET,
     PROGRESS_WRITE_SECRET: PROGRESS_SECRET,
+    ...extra,
   },
   serviceBindings: {
     OFFER: async (request: Request) => {
@@ -125,12 +130,22 @@ const mf = new Miniflare({
       }
       if (request.method === 'POST' && path === '/produce-shop/door-signal') {
         doorSignalPosts.push(body);
+        const payload = ((body['event'] as { payload?: Record<string, unknown> } | undefined)?.payload ?? {}) as Record<string, unknown>;
+        const parts = payload['parts'];
+        const sienne =
+          payload['order_id'] === body['orderId'] ||
+          (Array.isArray(parts) && parts.some((x) => (x as Record<string, unknown> | null)?.['order_id'] === body['orderId']));
+        if (!sienne) return Response.json({ ok: false, reason: 'door_signal_not_awaited' }, { status: 409 });
         return Response.json({ ok: true, duplicate: false });
       }
       return Response.json({ status: 'not_found' }, { status: 404 });
     },
   },
-});
+  });
+}
+const mf = makeMf(persist);
+/** The Worker the harness below speaks to — the main one, or a test's own. */
+let cible: Miniflare = mf;
 
 afterAll(async () => {
   await mf.dispose();
@@ -148,7 +163,7 @@ function safeJson(text: string): Record<string, unknown> {
 }
 
 async function call(path: string, init: RequestInit = {}) {
-  const res = await mf.dispatchFetch(`http://c${path}`, init);
+  const res = await cible.dispatchFetch(`http://c${path}`, init);
   const text = await res.text();
   return { status: res.status, text, json: safeJson(text) };
 }
@@ -160,7 +175,7 @@ let seq = 0;
 const rk = (): string => `rk-colis-${String(seq++).padStart(4, '0')}-${'z'.repeat(10)}`;
 
 async function seedShop(n: string): Promise<{ slug: string; resellerId: string }> {
-  const S = await seance(mf, `colis${n}`);
+  const S = await seance(cible, `colis${n}`);
   const shortCode = `COLIS-00${n}`;
   const created = await post(
     '/storefronts',
@@ -197,7 +212,7 @@ async function reserve(quoteId: string, holderRef: string) {
 }
 
 async function audit(orderId: string) {
-  const ns = await mf.getDurableObjectNamespace('ORDER');
+  const ns = await cible.getDurableObjectNamespace('ORDER');
   const res = await ns.get(ns.idFromName(orderId)).fetch('https://do/entry/audit');
   return (await res.json()) as {
     state: string | null;
@@ -208,9 +223,13 @@ async function audit(orderId: string) {
 }
 
 async function outbox(orderId: string) {
-  const ns = await mf.getDurableObjectNamespace('ORDER');
+  const ns = await cible.getDurableObjectNamespace('ORDER');
   const res = await ns.get(ns.idFromName(orderId)).fetch('https://do/entry/outbox');
-  return (await res.json()) as { seraOutbox?: { fact: Record<string, unknown> }; seraAnnulation?: { status: string; fact: Record<string, unknown> } };
+  return (await res.json()) as {
+    seraOutbox?: { fact: Record<string, unknown> };
+    seraAnnulation?: { status: string; fact: Record<string, unknown> };
+    doorSignal?: { status?: string; outcome?: string; reason?: string };
+  };
 }
 
 async function confirmer(groupId: string, amount: number) {
@@ -228,6 +247,7 @@ async function waitFor(pred: () => boolean, timeoutMs = 5_000): Promise<void> {
 
 const PANIER = ['pv-colis-a', 'pv-colis-b', 'pv-colis-c'];
 const D = 1_000; // the sandbox tariff's one Ouagadougou fee
+const CONTACT = { phone: '70 44 55 66', quartier: 'Dassasgho', repere: 'la boutique bleue' };
 
 /* ──────────────────────────────── the walks ──────────────────────────────── */
 
@@ -387,10 +407,12 @@ describe('COLIS-FOURNISSEUR-1 — one package and one delivery fee per supplier,
     expect((porte.json['articles'] as { orderId: string; doorLeg: string }[]).map((a) => a.doorLeg)).toEqual(['due', 'due']);
     // The one amount she is asked for is the server's sum of the two door legs.
     expect(porte.json['montant']).toBe(qa.amountDueAtDelivery + qb.amountDueAtDelivery);
-    // A different set over the same articles is refused: the set is fixed.
+    // A different set over the same articles is the SAME payment: the one in
+    // flight answers, for what it was asked for — never a second collection.
     const autreSet = await post(`/checkout/group/${groupId}/porte`, { packageId, orderIds: [oa], holderRef, commandId: 'cmd-porte-03b' });
-    expect(autreSet.status).toBe(409);
-    expect(autreSet.json['error']).toBe('porte_deja_choisie');
+    expect(autreSet.status, autreSet.text).toBe(200);
+    expect(autreSet.json['montant']).toBe(qa.amountDueAtDelivery + qb.amountDueAtDelivery);
+    expect((await call(`/checkout/webhook/leg-key/${encodeURIComponent(`${groupId}-porte-2`)}?leg=door`, { headers: signed })).status).toBe(404);
 
     // THE PROVIDER'S ONE CONFIRMATION — the certified mock's own door event,
     // under the collection's key, for the collection's total, with a fee.
@@ -398,8 +420,10 @@ describe('COLIS-FOURNISSEUR-1 — one package and one delivery fee per supplier,
     const key = await call(`/checkout/webhook/leg-key/${encodeURIComponent(collectId)}?leg=door`, { headers: signed });
     expect(key.status, key.text).toBe(200);
     const total = qa.amountDueAtDelivery + qb.amountDueAtDelivery;
+    // What the collection was charged for, read beside its key: the provider echoes it (B1).
+    expect(key.json['parts']).toEqual([oa, ob].sort().map((id) => ({ orderId: id, amount: id === oa ? qa.amountDueAtDelivery : qb.amountDueAtDelivery })));
     const provider = new MockPaymentProvider({});
-    provider.initiateCharge({ orderId: collectId, paymentAttemptId: String(key.json['legKey']), amount: total, correlationId: `corr-${collectId}`, requestedAtIso: T0, legType: 'door' });
+    provider.initiateCharge({ orderId: collectId, paymentAttemptId: String(key.json['legKey']), amount: total, correlationId: `corr-${collectId}`, requestedAtIso: T0, legType: 'door', parts: key.json['parts'] as { orderId: string; amount: number }[] });
     const plan = provider.webhookDeliveryPlan().find((d) => d.event.name === 'payment.door_leg_confirmed.v1')!;
     const event = PlatformEventSchema.parse({ ...plan.event, payload: { ...(plan.event.payload as Record<string, unknown>), fee: 101 } });
 
@@ -419,11 +443,128 @@ describe('COLIS-FOURNISSEUR-1 — one package and one delivery fee per supplier,
     expect(porteB.amount).toBe(qb.amountDueAtDelivery);
     expect(porteA.amount + porteB.amount).toBe(total);
     expect(porteA.fee + porteB.fee).toBe(101);
-    // Each article tells custody its own door leg is paid.
+    // Each article tells custody its own door leg is paid — and custody,
+    // reading the provider's own list, takes it as THIS article's (B1).
     await waitFor(() => new Set(doorSignalPosts.map((p) => p['orderId'])).size >= 2);
-    expect(doorSignalPosts.map((p) => p['orderId']).sort()).toEqual([oa, ob].sort());
+    expect([...new Set(doorSignalPosts.map((p) => p['orderId']))].sort()).toEqual([oa, ob].sort());
+    for (const id of [oa, ob]) {
+      let fate = (await outbox(id)).doorSignal;
+      for (let i = 0; i < 40 && fate?.status !== 'delivered'; i += 1) {
+        await new Promise((r) => setTimeout(r, 100));
+        fate = (await outbox(id)).doorSignal;
+      }
+      expect(fate, `${id}: custody never took its door payment`).toMatchObject({ status: 'delivered' });
+    }
     // A redelivery is absorbed by both.
     expect((await post('/checkout/webhook/door', event, signed)).json['status']).toBe('duplicate');
     for (const id of [oa, ob]) expect((await audit(id)).escrow!.paymentLegs.filter((l) => l.legType === 'door')).toHaveLength(1);
+  }, 60_000);
+
+  it('verifier M3 + M5: an article refused before she pays leaves her one payment; two requests at once make ONE collection, confirmed for both', async () => {
+    const DOOR: Mode = 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR';
+    const payer = async (n: string) => {
+      const shop = await seedShop(n);
+      const [qa, qb] = [await quote(shop, 'pv-colis-a', DOOR, PANIER.slice(0, 2)), await quote(shop, 'pv-colis-b', DOOR, PANIER.slice(0, 2))];
+      const holderRef = `holder-colis-${n}`;
+      for (const q of [qa, qb]) await reserve(q.quoteId, holderRef);
+      const paid = await post('/checkout/group', { quoteIds: [qa.quoteId, qb.quoteId], holderRef, commandId: `cmd-colis-${n}`, contact: CONTACT });
+      expect(paid.status, paid.text).toBe(200);
+      const groupId = String(paid.json['groupId']);
+      await confirmer(groupId, D);
+      return { qa, qb, holderRef, groupId, packageId: (paid.json['colis'] as { packageId: string }[])[0]!.packageId, oa: `ord-${qa.quoteId}`, ob: `ord-${qb.quoteId}` };
+    };
+
+    // M3 — the sandals were refused before she paid: asking for both, she pays for the bazin alone.
+    const r = await payer('04');
+    const refus = await post(
+      '/fulfillment/progress',
+      {
+        name: 'fulfillment.rejected.v1',
+        envelope: { command_id: `ful-rejected-${r.ob}`, correlation_id: `corr-${r.ob}`, aggregateVersion: 1, actor: 'offer-service:fulfillment', serverTime: '2026-09-23T10:00:00.000Z', version: 'v1' },
+        payload: { orderId: r.ob, at: '2026-09-23T10:00:00.000Z' },
+      },
+      { 'Content-Type': 'application/json', Authorization: `Bearer ${PROGRESS_SECRET}` },
+    );
+    expect(refus.status, refus.text).toBe(200);
+    const seule = await post(`/checkout/group/${r.groupId}/porte`, { packageId: r.packageId, orderIds: [r.oa, r.ob], holderRef: r.holderRef, commandId: 'cmd-porte-04' });
+    expect(seule.status, seule.text).toBe(200);
+    expect(seule.json['montant']).toBe(r.qa.amountDueAtDelivery);
+    expect((seule.json['articles'] as { orderId: string }[]).map((a) => a.orderId)).toEqual([r.oa]);
+    const cle = await call(`/checkout/webhook/leg-key/${encodeURIComponent(`${r.groupId}-porte-1`)}?leg=door`, { headers: signed });
+    expect(cle.json['parts']).toEqual([{ orderId: r.oa, amount: r.qa.amountDueAtDelivery }]);
+
+    // M5 — two requests at the same moment: ONE collection, its key the one both articles hold.
+    const c = await payer('05');
+    const [un, deux] = await Promise.all(
+      ['cmd-porte-05a', 'cmd-porte-05b'].map((commandId) =>
+        post(`/checkout/group/${c.groupId}/porte`, { packageId: c.packageId, orderIds: [c.oa, c.ob], holderRef: c.holderRef, commandId }),
+      ),
+    );
+    expect(un.status, un.text).toBe(200);
+    expect(deux.status, deux.text).toBe(200);
+    expect((await call(`/checkout/webhook/leg-key/${encodeURIComponent(`${c.groupId}-porte-2`)}?leg=door`, { headers: signed })).status).toBe(404);
+    const collectId = `${c.groupId}-porte-1`;
+    const k = await call(`/checkout/webhook/leg-key/${encodeURIComponent(collectId)}?leg=door`, { headers: signed });
+    const provider = new MockPaymentProvider({});
+    const total = c.qa.amountDueAtDelivery + c.qb.amountDueAtDelivery;
+    provider.initiateCharge({ orderId: collectId, paymentAttemptId: String(k.json['legKey']), amount: total, correlationId: `corr-${collectId}`, requestedAtIso: T0, legType: 'door', parts: k.json['parts'] as { orderId: string; amount: number }[] });
+    const event = provider.webhookDeliveryPlan().find((d) => d.event.name === 'payment.door_leg_confirmed.v1')!.event;
+    const applied = await post('/checkout/webhook/door', event, signed);
+    expect(applied.status, applied.text).toBe(200);
+    for (const id of [c.oa, c.ob]) expect((await audit(id)).doorLeg, `${id}: the key both articles hold`).toBe('paid');
+  }, 60_000);
+
+  it('verifier M3 + m1: a door payment the provider did not answer is retried AS IT WAS (never a second collection), and the door has a ceiling', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'colis-lent-'));
+    const lent = makeMf(dir, { PAYMENT_SANDBOX_BEHAVIOR: JSON.stringify({ timeoutFirstNInitiates: 1 }), DOOR_ATTEMPTS_MAX: '1' });
+    cible = lent;
+    try {
+      const DOOR: Mode = 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR';
+      const shop = await seedShop('06');
+      const [qa, qb] = [await quote(shop, 'pv-colis-a', DOOR, PANIER.slice(0, 2)), await quote(shop, 'pv-colis-b', DOOR, PANIER.slice(0, 2))];
+      const holderRef = 'holder-colis-06';
+      for (const q of [qa, qb]) await reserve(q.quoteId, holderRef);
+      // The delivery fees: the first charge times out, the retry goes through.
+      const first = await post('/checkout/group', { quoteIds: [qa.quoteId, qb.quoteId], holderRef, commandId: 'cmd-colis-06a', contact: CONTACT });
+      expect(first.json['state']).toBe('payment_failed');
+      const groupId = String(first.json['groupId']);
+      for (const q of [qa, qb]) await reserve(q.quoteId, holderRef);
+      const second = await post('/checkout/group', { quoteIds: [qa.quoteId, qb.quoteId], holderRef, commandId: 'cmd-colis-06b', contact: CONTACT });
+      expect(second.status, second.text).toBe(200);
+      const packageId = (second.json['colis'] as { packageId: string }[])[0]!.packageId;
+      await confirmer(groupId, D);
+      const [oa, ob] = [`ord-${qa.quoteId}`, `ord-${qb.quoteId}`];
+
+      // Her door payment for both: the provider does not answer.
+      const perdu = await post(`/checkout/group/${groupId}/porte`, { packageId, orderIds: [oa, ob], holderRef, commandId: 'cmd-porte-06a' });
+      expect(perdu.json['error']).toBe('timeout');
+      // The sandals are refused since; she asks for the bazin alone. The one
+      // collection the provider was asked for is what answers — its attempts
+      // spent, the door says so by name — and no second collection exists.
+      await post(
+        '/fulfillment/progress',
+        {
+          name: 'fulfillment.rejected.v1',
+          envelope: { command_id: `ful-rejected-${ob}`, correlation_id: `corr-${ob}`, aggregateVersion: 1, actor: 'offer-service:fulfillment', serverTime: '2026-09-23T10:00:00.000Z', version: 'v1' },
+          payload: { orderId: ob, at: '2026-09-23T10:00:00.000Z' },
+        },
+        { 'Content-Type': 'application/json', Authorization: `Bearer ${PROGRESS_SECRET}` },
+      );
+      const encore = await post(`/checkout/group/${groupId}/porte`, { packageId, orderIds: [oa], holderRef, commandId: 'cmd-porte-06b' });
+      expect(encore.json['error']).toBe('door_attempts_exhausted');
+      expect((await call(`/checkout/webhook/leg-key/${encodeURIComponent(`${groupId}-porte-2`)}?leg=door`, { headers: signed })).status).toBe(404);
+    } finally {
+      cible = mf;
+      await lent.dispose();
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+
+  it('verifier m2: a panier naming a product this boutique does not sell asks Boutik+ nothing, and the article travels alone', async () => {
+    const shop = await seedShop('07');
+    const avant = groupingAsks.length;
+    const q = await quote(shop, 'pv-colis-a', 'FULL_PREPAY', ['pv-colis-a', 'pv-autre-boutique']);
+    expect(groupingAsks.length, 'a probe reached Boutik+').toBe(avant);
+    expect(q.deliveryFee).toBe(D);
   }, 60_000);
 });

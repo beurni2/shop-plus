@@ -376,6 +376,14 @@ export function creerSourcePanier(args: {
     // 2. THE PANIER'S TOTALS, stated by the service.
     const fullIds = quotes.map((q) => q.quoteId);
     const plein = await port.prix(fullIds);
+    // COLIS-FOURNISSEUR-1 (verifier M2) — a package priced half in, half
+    // alone (Boutik+ answered one article's ask and not the other's): these
+    // quotes can never pay together, so the phone lets them go. Once, at
+    // once; and if the fresh ones disagree too, « Réessayer » starts fresh.
+    if (plein.status === 'refused' && plein.reason === 'colis_incomplet') {
+      oublier();
+      if (renouveler !== true) return quoteSource(quartier, true);
+    }
     if (plein.status === 'refused') return { status: 'refused', reason: plein.reason, ...nomDe(plein.quoteId) };
     if (plein.status !== 'prix') return plein;
     if (!prixPleinCoherent(plein.prix, articles.length)) return { status: 'refused', reason: 'amounts_disagree' };

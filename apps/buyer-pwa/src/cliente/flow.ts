@@ -137,9 +137,11 @@ export interface ClienteInit {
     /**
      * COLIS-FOURNISSEUR-1 — this article travels in a package (decision d:
      * « one payment at the door for the products she keeps »). At the door
-     * she says which of its articles she keeps, and pays them ONCE through
-     * `payer`; the tracking then follows an article she keeps (its code is
-     * the package's). Absent ⇒ the article's own door, as before.
+     * she tells the RIDER what she gives back — his record is the only one
+     * (verifier M3/M4) — and her screen shows it off each article's own
+     * order; she pays ONCE, through `payer`, for the rest. The tracking then
+     * follows an article she keeps (its code is the package's). Absent ⇒ the
+     * article's own door, as before.
      */
     readonly colis?: {
       readonly articles: readonly { readonly orderId: string; readonly nom: string; readonly buyerRef: string }[];
@@ -328,8 +330,10 @@ interface FlowState {
   montants: ModeSplit | null;
   /** Which DOOR-charge attempt this is — +1 per deliberate retry. */
   essaiPorte: number;
-  /** COLIS-FOURNISSEUR-1 — the package's articles she says she keeps (all, until she says otherwise). */
+  /** COLIS-FOURNISSEUR-1 — the package's articles still hers to pay for: all but those the rider recorded as given back. */
   gardes: string[];
+  /** COLIS-FOURNISSEUR-1 — the articles the rider recorded as given back (each order's own refund says so). */
+  rendus: string[];
   /** COLIS-FOURNISSEUR-1 — the one amount the service asked the operator for, once it answered. */
   montantPorte: number | null;
   /* ── VRAI-SUIVI — the delivery's facts, and her code ───────────────────── */
@@ -432,6 +436,14 @@ export const SUIVI_LIVRAISON_MS: readonly number[] = [2_000, 3_000, 5_000, 8_000
  * one request, on her choice. A single read that lands resets the count.
  */
 export const SUIVI_ECHECS_AVANT_PAUSE = 3;
+
+/**
+ * COLIS-FOURNISSEUR-1 — how often, and for how long, the package's door reads
+ * what the rider recorded: every 4 s for 6 minutes — the time she stands at
+ * the door with him — then the screen rests on the last word it read.
+ */
+export const RENDUS_INTERVALLE_MS = 4_000;
+export const RENDUS_LECTURES_MAX = 90;
 
 /** The wait before read `etape`, holding at the last rung instead of running
  *  out. Exported so a test can pin « it never stops » by value. */
@@ -574,6 +586,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
     montants: null,
     essaiPorte: 0,
     gardes: init.suivi?.colis?.articles.map((a) => a.orderId) ?? [],
+    rendus: [],
     montantPorte: null,
     buyerRef: null,
     merci: null,
@@ -743,6 +756,8 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
   /** SP3.3c — the next scheduled read of the order. Cleared by `clearT()` with
    *  the rest, so leaving the screen stops asking. */
   let tSuivi: ReturnType<typeof setTimeout> | null = null;
+  /** COLIS-FOURNISSEUR-1 — the package door's read of what the rider recorded. */
+  let tRendus: ReturnType<typeof setTimeout> | null = null;
   /**
    * Where the delivery watch parked when the page went hidden — `null` when it
    * is not parked. The pocket case: no timer runs, so a screen she is not
@@ -1097,6 +1112,8 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
     if (t1) clearTimeout(t1);
     if (t2) clearTimeout(t2);
     if (tSuivi) clearTimeout(tSuivi);
+    if (tRendus) clearTimeout(tRendus);
+    tRendus = null;
     if (ticker) clearInterval(ticker);
     // DIAPO-C1 — leaving a screen cancels what that screen started, the show included.
     if (diapoT !== null) clearTimeout(diapoT);
@@ -1296,7 +1313,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
             : state.montants?.dueAtDelivery,
           // COLIS-FOURNISSEUR-1 — her package, and what she keeps of it.
           ...(init.suivi?.colis !== undefined
-            ? { colis: { articles: init.suivi.colis.articles, gardes: state.gardes }, montantPorte: state.montantPorte ?? undefined }
+            ? { colis: { articles: init.suivi.colis.articles, rendus: state.rendus }, montantPorte: state.montantPorte ?? undefined }
             : {}),
         });
       case 'C10':
@@ -1609,6 +1626,36 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
    * article she opened is one she gives back, the tracking moves to one she
    * keeps: that is where her code, the package's, will be.
    */
+  /**
+   * WHAT THE RIDER RECORDED, read off each article's own order: an article
+   * he re-sealed for home carries its refund — she gave it back. Read on
+   * arrival at the package's door and every few seconds while she stands
+   * there (bounded, like every watch); leaving the screen ends it.
+   */
+  function lireLesRendus(gen: number, etape: number): void {
+    const colis = init.suivi?.colis;
+    const lire = lireCommande();
+    if (colis === undefined || lire === null) return;
+    void Promise.all(colis.articles.map((a) => lire(a.orderId).then((r) => ({ id: a.orderId, r }), () => ({ id: a.orderId, r: null })))).then((lus) => {
+      if (gen !== generation || state.screen !== 'C8') return;
+      const rendus = lus.filter((x) => x.r?.status === 'order' && x.r.order.remboursement !== undefined).map((x) => x.id);
+      if (rendus.length !== state.rendus.length || rendus.some((id) => !state.rendus.includes(id))) {
+        state.rendus = rendus;
+        state.gardes = colis.articles.map((a) => a.orderId).filter((id) => !rendus.includes(id));
+        render();
+      }
+      if (state.door === 'inspecting' && etape + 1 < RENDUS_LECTURES_MAX) {
+        tRendus = setTimeout(() => lireLesRendus(gen, etape + 1), RENDUS_INTERVALLE_MS);
+      }
+    });
+  }
+
+  /** « Je suis à la porte »: the door, and — for a package — what the rider recorded. */
+  function allerALaPorte(): void {
+    jump('C8', { door: 'inspecting', leg2: 'idle', reason: null });
+    if (init.suivi?.colis !== undefined) lireLesRendus(generation, 0);
+  }
+
   function payerLeColis(gen: number): void {
     const colis = init.suivi?.colis;
     const gardes = [...state.gardes];
@@ -1629,7 +1676,10 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
         return;
       }
       state.montantPorte = r.montant;
-      const cible = state.orderId !== null && gardes.includes(state.orderId) ? state.orderId : gardes[0]!;
+      // What the ONE payment is for, as the service says it (an article given
+      // back since leaves it); the tracking follows one of those.
+      const payes = r.articles.map((a) => a.orderId);
+      const cible = state.orderId !== null && payes.includes(state.orderId) ? state.orderId : payes[0] ?? gardes[0]!;
       const article = colis.articles.find((a) => a.orderId === cible);
       if (article !== undefined && cible !== state.orderId) {
         state.orderId = article.orderId;
@@ -2695,7 +2745,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
         // opens — where she pays and the code reveals on confirmation. Full
         // prepay and an already-paid door keep the direct reveal below.
         if (porteHandle() !== null && state.confirmState === 'confirmed' && state.doorLeg === 'due') {
-          jump('C8', { door: 'inspecting', leg2: 'idle', reason: null });
+          allerALaPorte();
           return;
         }
         // CODE-VISIBLE (2026-08-13): offered for the whole live delivery —
@@ -2788,7 +2838,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
         return;
       }
       case 'porte':
-        jump('C8', { door: 'inspecting', leg2: 'idle', reason: null }); return;
+        allerALaPorte(); return;
       case 'signaler-c7':
         state.problem = true; render(); return;
       // — C8 —
@@ -2855,14 +2905,6 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
         state.essaiPorte += 1;
         payerALaPorte(generation);
         return;
-      // COLIS-FOURNISSEUR-1 — she keeps it, or gives it back.
-      case 'garder-article': {
-        const id = el.getAttribute('data-order') ?? '';
-        if (init.suivi?.colis === undefined || !init.suivi.colis.articles.some((a) => a.orderId === id)) return;
-        state.gardes = state.gardes.includes(id) ? state.gardes.filter((g) => g !== id) : [...state.gardes, id];
-        render();
-        return;
-      }
       case 'porte-probleme':
         state.door = 'report'; state.reason = null; render(); return;
       case 'motif':

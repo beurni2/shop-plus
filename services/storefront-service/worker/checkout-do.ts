@@ -678,7 +678,7 @@ async function readAuthority(
   env: Env,
   slug: string,
   pid: string,
-): Promise<{ entry: ListingEntry | undefined; zoneFrom: string; resellerId?: string }> {
+): Promise<{ entry: ListingEntry | undefined; zoneFrom: string; resellerId?: string; curated?: readonly string[] }> {
   const sfRes = await env.STOREFRONT_DO.fetch(new Request(`https://do/s/${encodeURIComponent(slug)}`)).catch(() => undefined);
   if (sfRes === undefined || sfRes.status !== 200) return { entry: undefined, zoneFrom: '' };
   const sf = (await sfRes.json().catch(() => null)) as
@@ -715,12 +715,20 @@ async function readAuthority(
   if (Array.isArray(sf.curatedItems) && !sf.curatedItems.includes(pid)) {
     return { entry: undefined, zoneFrom: sf.zone };
   }
+  // COLIS-FOURNISSEUR-1 (verifier m2) — what this boutique sells, so a
+  // panier's grouping is only ever asked about her own boutique's products.
+  const curated = Array.isArray(sf.curatedItems) ? sf.curatedItems.filter((x): x is string => typeof x === 'string') : undefined;
   const lstRes = await env.LISTING_DO.fetch(
     new Request(`https://do/listings/by-pid/${encodeURIComponent(sf.id)}/${encodeURIComponent(pid)}/economics`),
   ).catch(() => undefined);
   if (lstRes === undefined || lstRes.status !== 200) return { entry: undefined, zoneFrom: sf.zone };
   const entry = (await lstRes.json().catch(() => null)) as ListingEntry | null;
-  return { entry: entry ?? undefined, zoneFrom: sf.zone, ...(resellerId !== undefined ? { resellerId } : {}) };
+  return {
+    entry: entry ?? undefined,
+    zoneFrom: sf.zone,
+    ...(resellerId !== undefined ? { resellerId } : {}),
+    ...(curated !== undefined ? { curated } : {}),
+  };
 }
 
 /** Read a stored quote through its DO and project it for the buyer. */
@@ -807,7 +815,7 @@ export default {
       }
 
       // 3. THE AUTHORITY READS, then the delivery price — both server-side.
-      const { entry, zoneFrom, resellerId } = await readAuthority(env, req.slug, req.pid);
+      const { entry, zoneFrom, resellerId, curated } = await readAuthority(env, req.slug, req.pid);
       /**
        * ═══ PAUSE-VENTE-1 (founder ruling 2026-09-17) — A PAUSED RESELLER
        * SELLS NOTHING: no quote is minted for her shop. ═══
@@ -914,11 +922,14 @@ export default {
        * to the franc, the leftover on the package's first article, and this
        * quote carries its share as its D. Asked only once the article could
        * be priced at all (resolved listing, serviceable trip), so the ask can
-       * never be aimed at a product nobody sells. No answer ⇒ it travels
+       * never be aimed at a product nobody sells — and only when every product
+       * of the panier is one THIS boutique sells (verifier m2: never a probe of
+       * which products elsewhere share a supplier). No answer ⇒ it travels
        * alone at the full fee: an outage never blocks a sale.
        */
       let colis: { pids: string[]; packageFee: number; share: number } | undefined;
-      if (req.panier !== undefined && entry !== undefined && delivery?.serviceable === true && env.COLIS !== undefined) {
+      const panierDeLaBoutique = req.panier !== undefined && (curated === undefined || req.panier.every((id) => curated.includes(id)));
+      if (req.panier !== undefined && panierDeLaBoutique && entry !== undefined && delivery?.serviceable === true && env.COLIS !== undefined) {
         const groups = await env.COLIS.grouper(req.panier).catch(() => undefined);
         const mine = groups?.find((g) => g.includes(req.pid));
         if (mine !== undefined && mine.length >= PACKAGE_ORDERS_MIN) {

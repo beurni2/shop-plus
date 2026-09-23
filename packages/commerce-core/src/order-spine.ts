@@ -1146,6 +1146,25 @@ export class OrderSpine {
     if (escrowPayloadMalformed(p)) {
       return { applied: false, reason: 'malformed_payload', alert: null };
     }
+    // COLIS-FOURNISSEUR-1 (verifier B1) — the provider's OWN list of what this
+    // collection paid for, echoed from the charge: exactly this collection's
+    // articles and amounts, or it is not this collection's payment. Séra's
+    // custody reads the same list to know the payment is this article's.
+    const echo = p['parts'];
+    if (
+      !Array.isArray(echo) ||
+      echo.length !== collecte.parts.length ||
+      !collecte.parts.every((part, i) => {
+        const e = echo[i] as Record<string, unknown> | null | undefined;
+        return e !== null && typeof e === 'object' && e['order_id'] === part.orderId && e['amount'] === part.amount;
+      })
+    ) {
+      return {
+        applied: false,
+        reason: 'group_share_mismatch',
+        alert: this.reconAlert('provider_parts_contradict_collection', event, { leg: 'door', group_id: collecte.groupId }),
+      };
+    }
 
     const recorded = this.ledger.recordEscrowFromProvider({
       orderId: this.orderId,

@@ -2623,11 +2623,11 @@ export interface C8State {
   readonly duAlaPorte?: number | undefined;
   /**
    * COLIS-FOURNISSEUR-1 — this article travels in a package: its articles,
-   * and the ones she keeps. She pays ONCE, for what she keeps.
+   * and the ones the rider recorded as given back. She pays ONCE, for the rest.
    */
   readonly colis?: {
     readonly articles: readonly { readonly orderId: string; readonly nom: string }[];
-    readonly gardes: readonly string[];
+    readonly rendus: readonly string[];
   } | undefined;
   /** COLIS-FOURNISSEUR-1 — the one amount the service asked the operator for, once it answered. */
   readonly montantPorte?: number | undefined;
@@ -2706,7 +2706,7 @@ export function renderC8(m: ClienteProduit, _q: ClienteQuote | null, s: C8State)
           ? `<div class="cl-owing" data-role="owing"><span>${PORTE.resteAPayer}</span><b>${produitStr}</b></div>`
           : '',
       '<div class="cl-door-paths">',
-      `<button class="cl-door-good" data-action="porte-bon"${s.colis !== undefined && s.colis.gardes.length === 0 ? ' disabled' : ''}>${t('cl.c8.tout_bon')}</button>`,
+      `<button class="cl-door-good" data-action="porte-bon"${s.colis !== undefined && s.colis.articles.every((a) => s.colis!.rendus.includes(a.orderId)) ? ' disabled' : ''}>${t('cl.c8.tout_bon')}</button>`,
       `<button class="cl-door-bad" data-action="porte-probleme">${t('cl.c8.un_probleme')}</button>`,
       '</div>',
       // §6.2's THIRD column, said before she chooses — what a refusal will NOT
@@ -2726,28 +2726,30 @@ export function renderC8(m: ClienteProduit, _q: ClienteQuote | null, s: C8State)
 }
 
 /**
- * COLIS-FOURNISSEUR-1 — « Dans ce colis »: each article, and her one choice
- * for it — she keeps it, or gives it back (decision c). She pays once, for
- * what she keeps (decision d). No franc is added here: the one amount is the
- * service's, said on the operator screen once it answered.
+ * COLIS-FOURNISSEUR-1 — « Dans ce colis »: each article, and what the RIDER
+ * recorded for it — she tells him what she gives back, and his record is the
+ * only one (verifier M3/M4: a second choice on her phone could only disagree
+ * with his). She pays once, for what she keeps (decision d). No franc is added
+ * here: the one amount is the service's, said on the operator screen.
  */
-function renderColisPorte(c: { readonly articles: readonly { readonly orderId: string; readonly nom: string }[]; readonly gardes: readonly string[] }): string {
+function renderColisPorte(c: { readonly articles: readonly { readonly orderId: string; readonly nom: string }[]; readonly rendus: readonly string[] }): string {
+  const tousRendus = c.articles.every((a) => c.rendus.includes(a.orderId));
   return [
     '<div class="cl-panier-colis" data-role="colis-porte">',
     `<div class="cl-door-sub">${t('cl.c8.colis_titre')}</div>`,
     `<div class="cl-panier-suivi-note">${t('cl.c8.colis_sous')}</div>`,
     c.articles
       .map((a) => {
-        const garde = c.gardes.includes(a.orderId);
+        const rendu = c.rendus.includes(a.orderId);
         return [
-          '<div class="cl-panier-ligne" data-role="colis-article">',
+          `<div class="cl-panier-ligne" data-role="colis-article" data-etat="${rendu ? 'rendu' : 'a-payer'}">`,
           `<div class="cl-panier-nom"><v>${esc(a.nom)}</v></div>`,
-          `<button class="cl-reason${garde ? ' cl-reason-on' : ''}" data-action="garder-article" data-order="${esc(a.orderId)}" aria-pressed="${garde ? 'true' : 'false'}">${garde ? t('cl.c8.colis_garde') : t('cl.c8.colis_rends')}</button>`,
+          `<span class="cl-panier-suivi-note">${rendu ? t('cl.c8.colis_rendu') : t('cl.c8.colis_a_payer')}</span>`,
           '</div>',
         ].join('');
       })
       .join(''),
-    c.gardes.length === 0 ? `<div class="cl-panier-suivi-note" data-role="colis-aucun">${t('cl.c8.colis_aucun')}</div>` : '',
+    tousRendus ? `<div class="cl-panier-suivi-note" data-role="colis-aucun">${t('cl.c8.colis_aucun')}</div>` : '',
     '</div>',
   ].join('');
 }
