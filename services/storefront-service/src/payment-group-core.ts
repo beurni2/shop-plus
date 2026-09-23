@@ -1,4 +1,4 @@
-import { splitPackageDeliveryFee } from '@platform/contracts';
+import { PlatformEventSchema, splitPackageDeliveryFee } from '@platform/contracts';
 import type { BuyerOrderView } from './order-core.js';
 
 /**
@@ -275,4 +275,116 @@ export function toBuyerGroupView(args: {
       ? { colis: args.colis.map((c) => ({ packageId: c.packageId, orderIds: [...c.orderIds] })) }
       : {}),
   };
+}
+
+/* ──────── REMBOURSEMENT-PORTE-FERMEE — a closed door payment, confirmed after all ──────── */
+
+/**
+ * REMBOURSEMENT-PORTE-FERMEE (founder, 2026-09-23: « A ») — A PACKAGE'S DOOR
+ * PAYMENT CLOSED ON THE PROVIDER'S « took nothing » (COLIS-2), whose
+ * confirmation arrives after all. That payment pays for NO article: its
+ * articles were freed, and she was asked again for what she keeps. So it is
+ * judged against the collection's own record — its correlation, its key, the
+ * sum to the franc — and all of it goes back to her, under a refund key of its
+ * own. No article's books ever hold it: one door payment per article, the
+ * one she paid after.
+ */
+export interface PorteFermee {
+  readonly collectId: string;
+  readonly correlationId: string;
+  readonly providerKey: string;
+  readonly total: number;
+}
+
+export type JugementPorte =
+  | { readonly ok: true; readonly commandId: string; readonly collectRef: string; readonly fee: number }
+  | { readonly ok: false; readonly reason: string };
+
+/** A fee is the provider's, copied as-is: absent is 0, anything else unreadable is refused. */
+function feeLu(fee: unknown): number | undefined {
+  if (fee === undefined || fee === null) return 0;
+  return typeof fee === 'number' && Number.isSafeInteger(fee) && fee >= 0 ? fee : undefined;
+}
+
+/** The checks of a package's door confirmation (`onGroupDoorPaymentEvent`), aimed at the closed collection. */
+export function jugerPorteFermee(raw: unknown, c: PorteFermee): JugementPorte {
+  const parsed = PlatformEventSchema.safeParse(raw);
+  if (!parsed.success) return { ok: false, reason: 'not_a_platform_event' };
+  const event = parsed.data;
+  if (event.name !== 'payment.door_leg_confirmed.v1') return { ok: false, reason: 'unexpected_event_name' };
+  if (event.envelope.command_id.length > 1024) return { ok: false, reason: 'envelope_field_too_long' };
+  if (event.envelope.correlation_id !== c.correlationId) return { ok: false, reason: 'wrong_correlation' };
+  const p = event.payload as Record<string, unknown>;
+  if (p['payment_attempt_id'] !== c.providerKey) return { ok: false, reason: 'attempt_mismatch' };
+  if (p['order_id'] !== c.collectId) return { ok: false, reason: 'order_mismatch' };
+  if (typeof p['amount'] !== 'number' || p['amount'] !== c.total) return { ok: false, reason: 'amount_mismatch' };
+  if (p['status'] !== 'held' && p['status'] !== 'captured') return { ok: false, reason: 'unfunded_leg_status' };
+  const fee = feeLu(p['fee']);
+  if (p['collectRef'] === '' || p['provider'] === '' || fee === undefined) return { ok: false, reason: 'malformed_payload' };
+  return { ok: true, commandId: event.envelope.command_id, collectRef: String(p['collectRef'] ?? event.envelope.command_id), fee };
+}
+
+/**
+ * The closed payment's money going back: recorded when its confirmation is,
+ * asked of the provider by the payment object's alarm, confirmed only by the
+ * provider's refund webhook.
+ */
+export interface RetourPorte {
+  readonly collectId: string;
+  /** Sorted, as the collection named them; the first is the founder's one row for it. */
+  readonly orderIds: readonly string[];
+  readonly correlationId: string;
+  readonly total: number;
+  readonly collectRef: string;
+  readonly fee: number;
+  /** The confirmation that opened it (its envelope command id) and when it was heard. */
+  readonly confirmation: string;
+  readonly recueLe: string;
+  /** Minted once, stored with the record, before the provider is asked anything. */
+  readonly refundKey: string;
+  readonly etat: 'a_demander' | 'demande' | 'refuse';
+  readonly essais: number;
+  readonly demandeLe?: string;
+  readonly refundRef?: string;
+  readonly motifRefus?: string;
+  /** When the founder's row started saying it is stuck. */
+  readonly alerteLe?: string;
+  readonly rembourse?: { readonly confirmation: string; readonly fee: number; readonly recuLe: string };
+}
+
+/** The checks of a refund confirmation (`onProviderRefundEvent`), aimed at the closed collection's refund. */
+export function jugerRemboursementPorte(
+  raw: unknown,
+  r: Pick<RetourPorte, 'collectId' | 'correlationId' | 'total' | 'refundKey' | 'collectRef'>,
+): { readonly ok: true; readonly commandId: string; readonly fee: number } | { readonly ok: false; readonly reason: string } {
+  const parsed = PlatformEventSchema.safeParse(raw);
+  if (!parsed.success) return { ok: false, reason: 'not_a_platform_event' };
+  const event = parsed.data;
+  if (event.name !== 'payment.refund_confirmed.v1') return { ok: false, reason: 'unexpected_event_name' };
+  if (event.envelope.command_id.length > 1024) return { ok: false, reason: 'envelope_field_too_long' };
+  if (event.envelope.correlation_id !== r.correlationId) return { ok: false, reason: 'wrong_correlation' };
+  const p = event.payload as Record<string, unknown>;
+  if (p['refund_key'] !== r.refundKey) return { ok: false, reason: 'refund_key_unknown' };
+  if (p['order_id'] !== r.collectId) return { ok: false, reason: 'order_mismatch' };
+  if (typeof p['amount'] !== 'number' || p['amount'] !== r.total) return { ok: false, reason: 'amount_mismatch' };
+  if (p['collectRef'] !== r.collectRef) return { ok: false, reason: 'refund_leg_unknown' };
+  if (p['status'] !== 'refunded') return { ok: false, reason: 'unconfirmed_refund_status' };
+  const fee = feeLu(p['fee']);
+  if (fee === undefined) return { ok: false, reason: 'malformed_payload' };
+  return { ok: true, commandId: event.envelope.command_id, fee };
+}
+
+/**
+ * The founder's word on a closed payment's refund, for ONE article's row: only
+ * when it cannot finish by itself (REMBOURSEMENT-2's standard), and only on the
+ * collection's first article — one stuck refund, one row, one count.
+ */
+export function retourBloque(
+  retours: readonly RetourPorte[],
+  orderId: string,
+): { readonly etat: 'bloque'; readonly raison: 'refus_du_prestataire' | 'sans_confirmation' } | null {
+  const siens = retours.filter((r) => r.orderIds[0] === orderId && r.rembourse === undefined);
+  if (siens.some((r) => r.etat === 'refuse')) return { etat: 'bloque', raison: 'refus_du_prestataire' };
+  if (siens.some((r) => r.alerteLe !== undefined)) return { etat: 'bloque', raison: 'sans_confirmation' };
+  return null;
 }

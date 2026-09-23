@@ -9,12 +9,16 @@ import {
   groupIdFor,
   groupStateOf,
   isGroupId,
+  jugerPorteFermee,
+  jugerRemboursementPorte,
+  retourBloque,
   toBuyerGroupView,
   GROUP_MAX,
   GROUP_MIN,
   type ColisEntry,
   type GroupEntry,
   type GroupPart,
+  type RetourPorte,
 } from '../src/payment-group-core.js';
 import { lireEligibilite } from './buyer-ladder-do.js';
 import {
@@ -26,9 +30,12 @@ import {
   mintCodeRemise,
   mintPaymentAttemptId,
   mintProviderLegKey,
+  mintRefundKey,
   readBuyerContactWire,
   statusForRefusal,
+  statusForWebhook,
   televerserNoteVocale,
+  STUCK_SAGA_TTL_MS,
   type BuyerContact,
 } from './order-do.js';
 
@@ -77,6 +84,8 @@ const CODES_COLIS_KEY = 'codes-colis';
 /** COLIS-FOURNISSEUR-1 — the packages' door collections, by collection id. */
 const PORTES_KEY = 'portes';
 const PORTE_RESULTS_KEY = 'porte-command-results';
+/** REMBOURSEMENT-PORTE-FERMEE — the closed door payments confirmed after all, and their refunds, by collection id. */
+const RETOURS_KEY = 'portes-fermees';
 
 /**
  * COLIS-FOURNISSEUR-1 — ONE door payment for the articles she keeps from one
@@ -190,6 +199,8 @@ export interface PaymentGroupDOEnv {
   readonly PAYMENT_SANDBOX_BEHAVIOR?: string;
   /** F-30's test knob, lower-only (see `doorAttemptsMax`). */
   readonly DOOR_ATTEMPTS_MAX?: string;
+  /** REMBOURSEMENT-PORTE-FERMEE — the stuck-refund TTL override, tests only; unset ⇒ the 15-minute default. */
+  readonly STUCK_SAGA_TTL_MS?: string;
   readonly MEDIA?: { fetch(request: Request): Promise<Response> };
   readonly MEDIA_WRITE_KEY?: string;
 }
@@ -253,6 +264,30 @@ export class PaymentGroupDO {
       const body = (await request.json().catch(() => null)) as { event?: unknown } | null;
       if (body === null) return Response.json({ ok: false, reason: 'malformed' }, { status: 400 });
       return this.onPorteEvent(body.event);
+    }
+    /** REMBOURSEMENT-PORTE-FERMEE — the provider's refund confirmation of a closed door payment. */
+    if (request.method === 'POST' && pathname === '/entry/porte-refund-webhook') {
+      const body = (await request.json().catch(() => null)) as { event?: unknown } | null;
+      if (body === null) return Response.json({ ok: false, reason: 'malformed' }, { status: 400 });
+      return this.onRetourEvent(body.event);
+    }
+    /** REMBOURSEMENT-PORTE-FERMEE — the stand-in's read of the refund it was asked for (webhook secret), as an order's. */
+    if (request.method === 'GET' && pathname === '/entry/porte-refund-key') {
+      const collectId = new URL(request.url).searchParams.get('collecte') ?? '';
+      const retours = (await this.state.storage.get<Record<string, RetourPorte>>(RETOURS_KEY)) ?? {};
+      const r = Object.prototype.hasOwnProperty.call(retours, collectId) ? retours[collectId] : undefined;
+      if (r === undefined || r.etat !== 'demande') return Response.json({ ok: false }, { status: 404 });
+      return Response.json({ ok: true, remboursements: [{ legType: 'door', refundKey: r.refundKey, amount: r.total, collectRef: r.collectRef }] });
+    }
+    /** REMBOURSEMENT-PORTE-FERMEE — the founder's word for one article's row (its dispatch projection asks). */
+    if (request.method === 'GET' && pathname === '/entry/porte-retour') {
+      const orderId = new URL(request.url).searchParams.get('commande') ?? '';
+      const retours = (await this.state.storage.get<Record<string, RetourPorte>>(RETOURS_KEY)) ?? {};
+      return Response.json({ ok: true, remboursement: retourBloque(Object.values(retours), orderId) });
+    }
+    /** REMBOURSEMENT-PORTE-FERMEE — the records themselves, INTERNAL only (the seam's ledger), like an order's audit. */
+    if (request.method === 'GET' && pathname === '/entry/retours') {
+      return Response.json({ ok: true, retours: (await this.state.storage.get<Record<string, RetourPorte>>(RETOURS_KEY)) ?? {} });
     }
     /** COLIS-FOURNISSEUR-1 — the stand-in's key read for a door collection (webhook secret). */
     if (request.method === 'GET' && pathname === '/entry/porte-key') {
@@ -552,6 +587,12 @@ export class PaymentGroupDO {
 
   async alarm(): Promise<void> {
     await this.deliverNotice();
+    // The notice re-arms itself; a closed payment's refund keeps the earlier of the two.
+    const prochain = await this.retours();
+    if (prochain !== undefined) {
+      const arme = await this.state.storage.getAlarm();
+      if (arme === null || prochain < arme) await this.state.storage.setAlarm(prochain).catch(() => undefined);
+    }
   }
 
   /* ─────────────────────────── the provider webhook ─────────────────────────── */
@@ -869,6 +910,8 @@ export class PaymentGroupDO {
     const portes = (await this.state.storage.get<Record<string, PorteCollecte>>(PORTES_KEY)) ?? {};
     const collecte = typeof ref === 'string' && Object.prototype.hasOwnProperty.call(portes, ref) ? portes[ref] : undefined;
     if (collecte === undefined || !collecte.charged) return Response.json({ ok: false, reason: 'unknown_order' }, { status: 404 });
+    // REMBOURSEMENT-PORTE-FERMEE — closed on the provider's « took nothing »: it pays for no article.
+    if (collecte.abandonnee === true) return this.surPorteFermee(event, collecte);
     let allDuplicate = true;
     let firstRefusal: Response | undefined;
     for (const orderId of collecte.orderIds) {
@@ -882,6 +925,126 @@ export class PaymentGroupDO {
     }
     if (firstRefusal !== undefined) return firstRefusal;
     return Response.json({ ok: true, status: allDuplicate ? 'duplicate' : 'applied', doorLeg: 'paid' });
+  }
+
+  /* ─────────── REMBOURSEMENT-PORTE-FERMEE — a closed door payment, confirmed after all ─────────── */
+
+  /**
+   * The provider confirms a door payment it had said took nothing (founder,
+   * 2026-09-23: « A »). Its articles were freed and she paid again for what
+   * she keeps, so it is handed to NO article: judged here against the
+   * collection's record, recorded with its refund key in the same write, and
+   * the alarm asks the provider to give all of it back.
+   */
+  private async surPorteFermee(event: unknown, collecte: PorteCollecte): Promise<Response> {
+    const juge = jugerPorteFermee(event, collecte);
+    if (!juge.ok) return Response.json({ ok: false, reason: juge.reason }, { status: statusForWebhook(juge.reason) });
+    const retours = (await this.state.storage.get<Record<string, RetourPorte>>(RETOURS_KEY)) ?? {};
+    const deja = Object.prototype.hasOwnProperty.call(retours, collecte.collectId) ? retours[collecte.collectId] : undefined;
+    if (deja !== undefined) {
+      // One key takes money once: the same collection again is a redelivery; another one under it contradicts it.
+      if (deja.collectRef !== juge.collectRef) return Response.json({ ok: false, reason: 'conflicting_escrow_for_order' }, { status: 409 });
+      if (deja.etat === 'a_demander') await this.state.storage.setAlarm(Date.now()).catch(() => undefined);
+      return Response.json({ ok: true, status: 'duplicate', doorLeg: 'closed' });
+    }
+    const retour: RetourPorte = {
+      collectId: collecte.collectId,
+      orderIds: collecte.orderIds,
+      correlationId: collecte.correlationId,
+      total: collecte.total,
+      collectRef: juge.collectRef,
+      fee: juge.fee,
+      confirmation: juge.commandId,
+      recueLe: new Date().toISOString(),
+      refundKey: mintRefundKey(),
+      etat: 'a_demander',
+      essais: 0,
+    };
+    await this.state.storage.put(RETOURS_KEY, { ...retours, [collecte.collectId]: retour });
+    await this.state.storage.setAlarm(Date.now()).catch(() => undefined);
+    return Response.json({ ok: true, status: 'applied', doorLeg: 'closed' });
+  }
+
+  /** One record rewritten from storage as it stands NOW — a webhook may have landed while the provider was asked. */
+  private async majRetour(collectId: string, f: (r: RetourPorte) => RetourPorte): Promise<RetourPorte | undefined> {
+    const retours = (await this.state.storage.get<Record<string, RetourPorte>>(RETOURS_KEY)) ?? {};
+    const r = retours[collectId];
+    if (r === undefined) return undefined;
+    const next = f(r);
+    await this.state.storage.put(RETOURS_KEY, { ...retours, [collectId]: next });
+    return next;
+  }
+
+  private stuckTtlMs(): number {
+    const raw = Number(this.env.STUCK_SAGA_TTL_MS ?? '');
+    return Number.isSafeInteger(raw) && raw > 0 ? raw : STUCK_SAGA_TTL_MS;
+  }
+
+  /**
+   * ASK THE PROVIDER, under the refund's stored key, as an order's refund is
+   * asked (REMBOURSEMENT-1): the attempt counted before the call, accepted is
+   * `demande` and not refunded, a timeout asked again under the same key, a
+   * refusal by name recorded — then THE STUCK WATCH: asked and never confirmed
+   * past the TTL, the founder's row says so. Returns when the alarm is next owed.
+   */
+  private async retours(): Promise<number | undefined> {
+    const retours = (await this.state.storage.get<Record<string, RetourPorte>>(RETOURS_KEY)) ?? {};
+    let prochain: number | undefined;
+    const plusTot = (t: number) => {
+      prochain = prochain === undefined ? t : Math.min(prochain, t);
+    };
+    for (const collectId of Object.keys(retours).sort()) {
+      let r: RetourPorte | undefined = retours[collectId]!;
+      if (r.etat === 'a_demander' && r.rembourse === undefined) {
+        const tous = (await this.state.storage.get<Record<string, RetourPorte>>(RETOURS_KEY)) ?? {};
+        const dejaDemandes = Object.values(tous).reduce((somme, x) => somme + x.essais, 0);
+        const demandeLe = r.demandeLe ?? new Date().toISOString();
+        r = await this.majRetour(collectId, (x) => ({ ...x, essais: x.essais + 1, demandeLe }));
+        if (r === undefined) continue;
+        const reponse = await sandboxPaymentProvider(readSandboxBehavior(this.env.PAYMENT_SANDBOX_BEHAVIOR), 0, dejaDemandes).initiateRefund({
+          orderId: r.collectId,
+          refundKey: r.refundKey,
+          collectRef: r.collectRef,
+          amount: r.total,
+          correlationId: r.correlationId,
+          requestedAtIso: new Date().toISOString(),
+          legType: 'door',
+        });
+        if (reponse.accepted) {
+          r = await this.majRetour(collectId, (x) => ({ ...x, etat: 'demande', refundRef: reponse.refundRef }));
+        } else if (reponse.reason === 'timeout') {
+          plusTot(Date.now() + Math.min(3_600_000, 60_000 * 2 ** Math.min(r.essais, 6)));
+        } else {
+          r = await this.majRetour(collectId, (x) => ({ ...x, etat: 'refuse', motifRefus: reponse.reason }));
+        }
+        if (r === undefined) continue;
+      }
+      if (r.rembourse === undefined && r.etat !== 'refuse' && r.demandeLe !== undefined && r.alerteLe === undefined) {
+        const du = Date.parse(r.demandeLe) + this.stuckTtlMs() + 1;
+        if (Date.now() >= du) await this.majRetour(collectId, (x) => ({ ...x, alerteLe: new Date().toISOString() }));
+        else plusTot(du);
+      }
+    }
+    return prochain;
+  }
+
+  /**
+   * THE PROVIDER'S REFUND TRUTH for a closed payment, judged against the refund
+   * it was asked for: its key, the collection, the whole sum, a « refunded »
+   * status. Recorded once; a redelivery is absorbed.
+   */
+  private async onRetourEvent(event: unknown): Promise<Response> {
+    const probe = PlatformEventSchema.safeParse(event);
+    if (!probe.success) return Response.json({ ok: false, reason: 'not_a_platform_event' }, { status: 400 });
+    const ref = (probe.data.payload as Record<string, unknown>)['order_id'];
+    const retours = (await this.state.storage.get<Record<string, RetourPorte>>(RETOURS_KEY)) ?? {};
+    const r = typeof ref === 'string' && Object.prototype.hasOwnProperty.call(retours, ref) ? retours[ref] : undefined;
+    if (r === undefined) return Response.json({ ok: false, reason: 'unknown_order' }, { status: 404 });
+    const juge = jugerRemboursementPorte(event, r);
+    if (!juge.ok) return Response.json({ ok: false, reason: juge.reason }, { status: statusForWebhook(juge.reason) });
+    if (r.rembourse !== undefined) return Response.json({ ok: true, status: 'duplicate', state: 'refunded' });
+    await this.majRetour(r.collectId, (x) => ({ ...x, rembourse: { confirmation: juge.commandId, fee: juge.fee, recuLe: new Date().toISOString() } }));
+    return Response.json({ ok: true, status: 'applied', state: 'refunded' });
   }
 
   /* ──────────────────────────────── the read ────────────────────────────────── */

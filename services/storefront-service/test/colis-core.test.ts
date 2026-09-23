@@ -4,7 +4,17 @@ import { decideIssueQuote } from '../src/checkout-core.js';
 import { BoundColisGrouping, AbsentColisGrouping, GROUPING_ROUTE, MemorisedColisGrouping, fusionnerMemoire, grouperDeMemoire, type ColisGroupingPort, type ColisMemoire } from '../src/colis-source.js';
 import { quoteDeliveryFee } from '../src/delivery-source.js';
 import type { ListingEntry } from '../src/listing-core.js';
-import { colisIdFor, decideColis, type ColisEntry } from '../src/payment-group-core.js';
+import { MockPaymentProvider } from '@shop-plus/commerce-core';
+import {
+  colisIdFor,
+  decideColis,
+  jugerPorteFermee,
+  jugerRemboursementPorte,
+  retourBloque,
+  type ColisEntry,
+  type RetourPorte,
+} from '../src/payment-group-core.js';
+import { composeSandboxRefund } from '../../../scripts/sandbox-payment-confirm.mjs';
 
 /**
  * COLIS-FOURNISSEUR-1 (founder rulings 2026-09-23) — the pure halves of the
@@ -173,5 +183,77 @@ describe('COLIS-2 — the shop remembers which of its products leave together, a
     expect(fusionnerMemoire([['pv-a', 'pv-b'], ['pv-x', 'pv-y']], [['pv-b', 'pv-x']])).toEqual([['pv-a', 'pv-b', 'pv-x', 'pv-y']]);
     expect(fusionnerMemoire([], [['pv-b', 'pv-a']])).toEqual([['pv-a', 'pv-b']]);
     expect(grouperDeMemoire(['pv-c', 'pv-a'], [['pv-a', 'pv-b', 'pv-c']])).toEqual([['pv-c', 'pv-a']]);
+  });
+});
+
+/**
+ * REMBOURSEMENT-PORTE-FERMEE (founder, 2026-09-23: « A ») — a door payment
+ * closed on the provider's « took nothing » and confirmed after all pays for
+ * no article: its confirmation is judged against the closed collection's own
+ * record, and its refund confirmation against the refund it was asked for.
+ */
+describe('REMBOURSEMENT-PORTE-FERMEE — a closed door payment confirmed after all, judged to the franc', () => {
+  const collectId = `grp-${'a'.repeat(40)}-porte-1`;
+  const c = { collectId, correlationId: `corr-${collectId}`, providerKey: 'pk-ferme', total: 32_000 };
+  const confirmation = (edit: (e: { envelope: Record<string, unknown>; payload: Record<string, unknown> }) => void = () => undefined) => {
+    const mock = new MockPaymentProvider({});
+    mock.initiateCharge({ orderId: collectId, paymentAttemptId: c.providerKey, amount: c.total, correlationId: c.correlationId, requestedAtIso: T, legType: 'door' });
+    const event = structuredClone(mock.webhookDeliveryPlan().find((d) => d.event.name === 'payment.door_leg_confirmed.v1')!.event) as unknown as {
+      envelope: Record<string, unknown>;
+      payload: Record<string, unknown>;
+    };
+    edit(event);
+    return event;
+  };
+
+  it('the certified provider\'s own confirmation of it is taken — its reference, its fee, the confirmation that opened it', () => {
+    const e = confirmation((x) => { x.payload['fee'] = 250; });
+    expect(jugerPorteFermee(e, c)).toEqual({ ok: true, commandId: e.envelope['command_id'], collectRef: e.payload['collectRef'], fee: 250 });
+  });
+
+  it('anything that is not exactly that payment is refused by name', () => {
+    expect(jugerPorteFermee({ name: 'x' }, c)).toEqual({ ok: false, reason: 'not_a_platform_event' });
+    expect(jugerPorteFermee(confirmation((x) => { x.envelope['correlation_id'] = 'corr-autre'; }), c)).toEqual({ ok: false, reason: 'wrong_correlation' });
+    expect(jugerPorteFermee(confirmation((x) => { x.payload['payment_attempt_id'] = 'pk-autre'; }), c)).toEqual({ ok: false, reason: 'attempt_mismatch' });
+    expect(jugerPorteFermee(confirmation((x) => { x.payload['order_id'] = `grp-${'a'.repeat(40)}-porte-2`; }), c)).toEqual({ ok: false, reason: 'order_mismatch' });
+    expect(jugerPorteFermee(confirmation((x) => { x.payload['amount'] = c.total - 1; }), c)).toEqual({ ok: false, reason: 'amount_mismatch' });
+    expect(jugerPorteFermee(confirmation((x) => { x.payload['amount'] = String(c.total); }), c)).toEqual({ ok: false, reason: 'amount_mismatch' });
+    expect(jugerPorteFermee(confirmation((x) => { x.payload['status'] = 'failed'; }), c)).toEqual({ ok: false, reason: 'unfunded_leg_status' });
+    expect(jugerPorteFermee(confirmation((x) => { x.payload['fee'] = '250'; }), c)).toEqual({ ok: false, reason: 'malformed_payload' });
+    expect(jugerPorteFermee(confirmation((x) => { x.payload['collectRef'] = ''; }), c)).toEqual({ ok: false, reason: 'malformed_payload' });
+    expect(jugerPorteFermee(confirmation((x) => { x.envelope['command_id'] = 'w'.repeat(1025); }), c)).toEqual({ ok: false, reason: 'envelope_field_too_long' });
+  });
+
+  const retour: RetourPorte = {
+    collectId, orderIds: ['ord-a', 'ord-b'], correlationId: c.correlationId, total: c.total, collectRef: 'collect-pk-ferme', fee: 0,
+    confirmation: 'whk-1', recueLe: T, refundKey: 'rf-ferme', etat: 'demande', essais: 1, demandeLe: T,
+  };
+  const remboursement = (edit: (e: { envelope: Record<string, unknown>; payload: Record<string, unknown> }) => void = () => undefined) => {
+    const e = composeSandboxRefund(collectId, { refundKey: retour.refundKey, collectRef: retour.collectRef, amount: retour.total }, T) as {
+      envelope: Record<string, unknown>;
+      payload: Record<string, unknown>;
+    };
+    edit(e);
+    return e;
+  };
+
+  it('its refund is confirmed only for the key asked, the whole sum, from the collection it was taken from', () => {
+    expect(jugerRemboursementPorte(remboursement(), retour)).toEqual({ ok: true, commandId: `whk-sandbox-refund-${retour.refundKey}`, fee: 0 });
+    expect(jugerRemboursementPorte(remboursement((x) => { x.payload['refund_key'] = 'rf-autre'; }), retour)).toEqual({ ok: false, reason: 'refund_key_unknown' });
+    expect(jugerRemboursementPorte(remboursement((x) => { x.payload['amount'] = retour.total - 1; }), retour)).toEqual({ ok: false, reason: 'amount_mismatch' });
+    expect(jugerRemboursementPorte(remboursement((x) => { x.payload['collectRef'] = 'collect-autre'; }), retour)).toEqual({ ok: false, reason: 'refund_leg_unknown' });
+    expect(jugerRemboursementPorte(remboursement((x) => { x.payload['status'] = 'pending'; }), retour)).toEqual({ ok: false, reason: 'unconfirmed_refund_status' });
+    expect(jugerRemboursementPorte(remboursement((x) => { x.envelope['correlation_id'] = 'corr-ord-a'; }), retour)).toEqual({ ok: false, reason: 'wrong_correlation' });
+    expect(jugerRemboursementPorte(remboursement((x) => { x.payload['order_id'] = 'ord-a'; }), retour)).toEqual({ ok: false, reason: 'order_mismatch' });
+    expect(jugerRemboursementPorte(remboursement((x) => { x.payload['fee'] = -1; }), retour)).toEqual({ ok: false, reason: 'malformed_payload' });
+  });
+
+  it('the founder hears of it only when it cannot finish by itself, on ONE row: the collection\'s first article', () => {
+    expect(retourBloque([retour], 'ord-a')).toBeNull();
+    expect(retourBloque([{ ...retour, etat: 'refuse' }], 'ord-a')).toEqual({ etat: 'bloque', raison: 'refus_du_prestataire' });
+    expect(retourBloque([{ ...retour, alerteLe: T }], 'ord-a')).toEqual({ etat: 'bloque', raison: 'sans_confirmation' });
+    expect(retourBloque([{ ...retour, etat: 'refuse' }], 'ord-b')).toBeNull();
+    // Once the provider confirmed it, nothing is left to tell him.
+    expect(retourBloque([{ ...retour, alerteLe: T, rembourse: { confirmation: 'whk-r', fee: 0, recuLe: T } }], 'ord-a')).toBeNull();
   });
 });

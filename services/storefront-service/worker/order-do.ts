@@ -367,7 +367,7 @@ interface HoldReleaseRow {
  */
 const STUCK_SAGA_KEY = 'saga-stuck';
 const STUCK_SAGA_POLICY_VERSION = 'stuck-ttl.v1';
-const STUCK_SAGA_TTL_MS = 15 * 60_000;
+export const STUCK_SAGA_TTL_MS = 15 * 60_000;
 /**
  * RESERVATION-REGLE-2 (E2 « paid-order-no-supplier-decision », AUDIT-SHOP-2
  * F-96) — THE SUPPLIER-NOTIFICATION WATCH. An order never rests in `paid`
@@ -800,6 +800,12 @@ export interface OrderDOEnv {
   readonly SERA_INTAKE_SECRET?: string;
   /** F-30 — the door-attempt ceiling's test knob, lower-only (see `doorAttemptsMax`). */
   readonly DOOR_ATTEMPTS_MAX?: string;
+  /**
+   * REMBOURSEMENT-PORTE-FERMEE — the package's payment object, read by the
+   * founder's row only (a closed door payment's refund that cannot finish).
+   * ABSENT ⇒ the row says what this order knows, as before.
+   */
+  readonly PAYMENT_GROUP?: DurableObjectNamespace;
   /** RF-1a — the reseller feed index (one singleton). Bound on the Worker, so
    *  this object writes her row at the confirm transition without a
    *  composition-root shim, exactly as `OFFER` needs none. ABSENT ⇒ the
@@ -1442,7 +1448,7 @@ export class OrderDO {
         contact: contact ?? null,
         productVersionId: origin.fulfillment?.productVersionId ?? '',
         zoneTo: origin.fulfillment?.zoneTo ?? '',
-        remboursement: await this.remboursementPourOperateur(spine, origin.orderId),
+        remboursement: await this.remboursementAvecPorte(spine, origin.orderId),
       });
     }
 
@@ -3839,6 +3845,33 @@ export class OrderDO {
   }
 
   /**
+   * REMBOURSEMENT-PORTE-FERMEE — the founder's row also says when a closed
+   * door payment of this article's package was confirmed after all and its
+   * refund cannot finish by itself. That money is no article's, so it is kept
+   * by the package's payment object and asked there — only when this article
+   * ever entered one of its door payments.
+   */
+  private async remboursementAvecPorte(
+    spine: ReturnType<typeof rebuildOrderSpine>,
+    orderId: string,
+  ): ReturnType<OrderDO['remboursementPourOperateur']> {
+    const propre = await this.remboursementPourOperateur(spine, orderId);
+    if (propre?.etat === 'bloque' || this.env.PAYMENT_GROUP === undefined) return propre;
+    const portes = (await this.state.storage.get<Record<string, PorteColis>>(PORTES_COLIS_KEY)) ?? {};
+    const groupId = Object.keys(portes).map((id) => PORTE_ID.exec(id)?.[1]).find((g) => g !== undefined);
+    if (groupId === undefined) return propre;
+    const res = await this.env.PAYMENT_GROUP.get(this.env.PAYMENT_GROUP.idFromName(groupId))
+      .fetch(new Request(`https://do/entry/porte-retour?commande=${encodeURIComponent(orderId)}`))
+      .catch(() => null);
+    const body = res === null ? null : ((await res.json().catch(() => null)) as { remboursement?: unknown } | null);
+    const r = body?.remboursement as { etat?: unknown; raison?: unknown } | null | undefined;
+    if (r?.etat === 'bloque' && (r.raison === 'refus_du_prestataire' || r.raison === 'sans_confirmation')) {
+      return { etat: 'bloque', raison: r.raison };
+    }
+    return propre;
+  }
+
+  /**
    * REMBOURSEMENT-2 — THE STUCK-REFUND WATCH: a line the provider accepted and
    * never confirmed past the stuck TTL is told to the operator once; returns
    * the next due time while one is still inside its TTL.
@@ -4844,7 +4877,7 @@ export function mintCodeRemise(): string {
   }
 }
 
-function statusForWebhook(reason: string): number {
+export function statusForWebhook(reason: string): number {
   if (reason === 'not_a_platform_event' || reason === 'unexpected_event_name') return 400;
   if (reason === 'unknown_order') return 404;
   // Out-of-order and correlation mismatches are STATES, not malformed input: the
@@ -5606,6 +5639,9 @@ export default {
      * It names an ORDER, never a group: a refund is one order's, even out of a
      * grouped collection. Its amount is judged in the vault against the refund
      * this order asked for, never trusted from the payload.
+     * REMBOURSEMENT-PORTE-FERMEE — the one exception, a package's door payment
+     * closed on « took nothing » and confirmed after all: that money is no
+     * order's, so its refund is its payment object's, judged there.
      */
     if (request.method === 'POST' && pathname === '/checkout/webhook/refund') {
       const texte = await request.text();
@@ -5623,12 +5659,15 @@ export default {
       }
       const payload = parsed.data.payload as Record<string, unknown>;
       const orderId = payload['order_id'];
-      if (!bounded(orderId, 191) || !ID_ALPHABET.test(orderId) || isGroupId(orderId)) {
+      const porte = typeof orderId === 'string' ? PORTE_ID.exec(orderId) : null;
+      if (!bounded(orderId, 191) || !ID_ALPHABET.test(orderId) || (isGroupId(orderId) && porte === null)) {
         await parkPoison(env, texte, { reason: 'bad_order_id', correlationId: parsed.data.envelope.correlation_id });
         return badRequest('bad_field', 'order_id');
       }
-      const res = await orderStub(env, orderId).fetch(
-        new Request('https://do/entry/refund-webhook', {
+      const stub = porte === null ? orderStub(env, orderId) : env.PAYMENT_GROUP?.get(env.PAYMENT_GROUP.idFromName(porte[1]!));
+      if (stub === undefined) return refuse('unknown_order');
+      const res = await stub.fetch(
+        new Request(porte === null ? 'https://do/entry/refund-webhook' : 'https://do/entry/porte-refund-webhook', {
           method: 'POST',
           body: JSON.stringify({ event: parsed.data }),
         }),
@@ -5649,8 +5688,18 @@ export default {
       const refundKeyMatch = /^\/checkout\/webhook\/refund-key\/([^/]+)$/.exec(pathname);
       if (request.method === 'GET' && refundKeyMatch !== null) {
         const orderId = decodeId(refundKeyMatch[1]!);
-        // A group refunds nothing itself: each of its orders refunds its own part.
-        if (orderId === undefined || !ID_ALPHABET.test(orderId) || isGroupId(orderId)) return badRequest('bad_field', 'orderId');
+        // A group refunds nothing itself: each of its orders refunds its own
+        // part — save a closed door payment confirmed after all, whose refund
+        // is its payment object's (REMBOURSEMENT-PORTE-FERMEE).
+        const porte = orderId === undefined ? null : PORTE_ID.exec(orderId);
+        if (orderId === undefined || !ID_ALPHABET.test(orderId) || (isGroupId(orderId) && porte === null)) return badRequest('bad_field', 'orderId');
+        if (porte !== null) {
+          if (env.PAYMENT_GROUP === undefined) return refuse('unknown_order');
+          const res = await env.PAYMENT_GROUP.get(env.PAYMENT_GROUP.idFromName(porte[1]!)).fetch(
+            new Request(`https://do/entry/porte-refund-key?collecte=${encodeURIComponent(orderId)}`),
+          );
+          return new Response(res.body, { status: res.status, headers: { 'Content-Type': 'application/json' } });
+        }
         const res = await orderStub(env, orderId).fetch(new Request('https://do/entry/refund-key'));
         return new Response(res.body, { status: res.status, headers: { 'Content-Type': 'application/json' } });
       }
