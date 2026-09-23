@@ -4622,8 +4622,13 @@ export class OrderDO {
         const r = await this.state.storage.get<RemboursementStocke>(REFUND_KEY);
         if (r === undefined || r.decision !== 'ouvert') return {};
         // REMBOURSEMENT-2 — WHY, in her words' terms: the parcel came back,
-        // or the article could not be supplied.
-        const motif = r.refus?.nature === 'refus_fournisseur' ? ('indisponible' as const) : ('retour' as const);
+        // or the article could not be supplied. PICKUP-REFUS — a parcel the
+        // rider refused at the supplier's never left, so it did not « come
+        // back »: B6.1 makes that check the supplier's refusal after « prêt ».
+        const motif =
+          r.refus?.nature === 'refus_fournisseur' || r.refus?.nature === 'refus_enlevement'
+            ? ('indisponible' as const)
+            : ('retour' as const);
         const montant = r.lignes.reduce((somme, l) => somme + l.amount, 0);
         if (montant === 0) {
           return r.retenu > 0 ? { remboursement: { etat: 'rien' as const, montant: 0, fraisGardes: r.retenu, motif } } : {};

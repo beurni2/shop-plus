@@ -215,23 +215,28 @@ export interface GroupPaymentShares {
 
 /**
  * REMBOURSEMENT-1 (founder ruling 2026-09-23) — what Séra's refused-course
- * fact (`delivery.refused.v1`) says, read off the three payloads its custody
+ * fact (`delivery.refused.v1`) says, read off the four payloads its custody
  * spine emits: a justified refusal at the door, a buyer's own refusal (with
  * Séra's word on whether the delivery fee is kept), a delivery check the
- * server rejected. Anything else is unreadable, and no refund is decided on it.
+ * server rejected, and — PICKUP-REFUS — the rider refusing the parcel at the
+ * supplier's (Séra §6.1: « buyer refunded (never fund-gated) »). Anything
+ * else is unreadable, and no refund is decided on it.
  */
 export type RefusCourse =
   | { readonly nature: 'refus_justifie'; readonly faultClass: string }
   | { readonly nature: 'refus_acheteur'; readonly faultClass: string; readonly fraisRetenus: boolean }
   | { readonly nature: 'livraison_rejetee' }
   /** REMBOURSEMENT-2 — the supplier refused a paid order (seller fault, B6.1). */
-  | { readonly nature: 'refus_fournisseur' };
+  | { readonly nature: 'refus_fournisseur' }
+  /** PICKUP-REFUS — the rider refused the parcel at pickup: wrong item or damaged. */
+  | { readonly nature: 'refus_enlevement'; readonly faultClass: string };
 
 export function lireRefusCourse(payload: unknown): RefusCourse | undefined {
   if (payload === null || typeof payload !== 'object' || Array.isArray(payload)) return undefined;
   const p = payload as Record<string, unknown>;
   const faute = typeof p['fault_class'] === 'string' && p['fault_class'] !== '' ? p['fault_class'] : undefined;
   if (p['rejection'] === 'valid_rejection' && faute !== undefined) return { nature: 'refus_justifie', faultClass: faute };
+  if (p['rejection'] === 'pickup_refusal' && faute !== undefined) return { nature: 'refus_enlevement', faultClass: faute };
   if (typeof p['family'] === 'string' && faute !== undefined && typeof p['fee_retained'] === 'boolean') {
     return { nature: 'refus_acheteur', faultClass: faute, fraisRetenus: p['fee_retained'] };
   }

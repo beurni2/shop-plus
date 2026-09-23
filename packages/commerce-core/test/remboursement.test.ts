@@ -137,6 +137,35 @@ describe('REMBOURSEMENT-1 — what goes back, decided from the order\'s own reco
     }
   });
 
+  /**
+   * PICKUP-REFUS (founder, 2026-09-23) — Séra §6.1: the rider refused the
+   * parcel at the supplier's → « buyer refunded (never fund-gated) », seller
+   * fault. Every franc she paid goes back, delivery fee included (the parcel
+   * never left), in both modes; the refund is confirmed like any other.
+   */
+  it('PICKUP-REFUS: a parcel the rider refused at pickup refunds every franc she paid, in both modes — the delivery fee too', () => {
+    const REFUS_ENLEVEMENT: RefusCourse = { nature: 'refus_enlevement', faultClass: 'seller' };
+    const a = commandePayee('r-enl-a');
+    expect(a.spine.decideRefund(REFUS_ENLEVEMENT)).toEqual({
+      ok: true,
+      retenu: 0,
+      lignes: [{ legType: 'checkout', collectRef: expect.any(String), amount: a.quote.amountPaidAtCheckout }],
+    });
+    expect(a.quote.amountPaidAtCheckout).toBe(a.quote.productSubtotal + a.quote.deliveryFee);
+    const attendus = demander(a, REFUS_ENLEVEMENT);
+    expect(a.spine.onProviderRefundEvent(refundEvents(a.provider)[0], attendus)).toEqual({ applied: true, duplicate: false });
+    expect(a.spine.journey.state).toBe('refunded');
+    expect(a.spine.ledger.escrowFor(a.orderId)!.status).toBe('refunded');
+
+    // Option B: at pickup only the delivery fee was paid — it all comes back.
+    const b = commandePayee('r-enl-b', 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR');
+    expect(b.spine.decideRefund(REFUS_ENLEVEMENT)).toEqual({
+      ok: true,
+      retenu: 0,
+      lignes: [{ legType: 'checkout', collectRef: expect.any(String), amount: b.quote.deliveryFee }],
+    });
+  });
+
   it('Option B: a buyer refusal with the fee kept owes nothing back when the door was not paid; a justified refusal after the door was paid refunds BOTH legs', () => {
     const b = commandePayee('r4', 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR');
     expect(b.spine.decideRefund({ nature: 'refus_acheteur', faultClass: 'buyer', fraisRetenus: true })).toEqual({ ok: true, retenu: b.quote.deliveryFee, lignes: [] });
@@ -360,8 +389,11 @@ function commandePayeeEnGroupe(seed: string, _provider: MockPaymentProvider) {
 }
 
 describe('REMBOURSEMENT-1 — Séra\'s refused-course fact, read', () => {
-  it('reads the three payloads the custody spine emits, and nothing else', () => {
+  it('reads the four payloads the custody spine emits, and nothing else', () => {
     expect(lireRefusCourse({ order_id: 'o', task_id: 't', rejection: 'valid_rejection', fault_class: 'seller' })).toEqual({ nature: 'refus_justifie', faultClass: 'seller' });
+    // PICKUP-REFUS — the exact payload Séra's spine emits on a refused pickup.
+    expect(lireRefusCourse({ order_id: 'o', task_id: 't', rejection: 'pickup_refusal', fault_class: 'seller', failed_checks: ['emballage_intact'] })).toEqual({ nature: 'refus_enlevement', faultClass: 'seller' });
+    expect(lireRefusCourse({ order_id: 'o', task_id: 't', rejection: 'pickup_refusal' })).toBeUndefined();
     expect(lireRefusCourse({ order_id: 'o', task_id: 't', family: 'return', reason_code: 'change_of_mind', fault_class: 'buyer', fee_retained: true })).toEqual({ nature: 'refus_acheteur', faultClass: 'buyer', fraisRetenus: true });
     expect(lireRefusCourse({ order_id: 'o', task_id: 't', family: 'return', reason_code: 'honest_absence', fault_class: 'buyer', fee_retained: false })).toEqual({ nature: 'refus_acheteur', faultClass: 'buyer', fraisRetenus: false });
     expect(lireRefusCourse({ order_id: 'o', task_id: 't', result: 'rejected', reasons: ['evidence'] })).toEqual({ nature: 'livraison_rejetee' });

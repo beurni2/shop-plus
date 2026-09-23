@@ -651,6 +651,44 @@ describe('REMBOURSEMENT-1 — a refused course refunds her; only the provider\'s
     expect(fini.escrow.status).toBe('hold');
   }, 60_000);
 
+  /**
+   * PICKUP-REFUS (founder « 1 », 2026-09-23) — the rider refused the parcel
+   * at the supplier's (Séra §6.1: « buyer refunded (never fund-gated) »). The
+   * bytes are EXACTLY what Séra's custody Worker puts on the wire (its
+   * `porte-custody.e2e` « PICKUP-REFUS » test pins the same payload with
+   * toEqual), driven into the real Worker until the provider confirms.
+   */
+  it('PICKUP-REFUS — the rider refused the parcel at pickup: every franc she paid goes back, delivery fee included; her screen says the article is not available; the ledger says refunded', async () => {
+    const orderId = await realOrder('0104');
+    const { amountPaidAtCheckout: paye, deliveryFee } = devis.get(orderId)!;
+    expect(deliveryFee).toBeGreaterThan(0);
+    const refusEnlevement = {
+      name: 'delivery.refused.v1',
+      envelope: {
+        command_id: `pickup-refusal-${orderId}`, correlation_id: `corr-${orderId}`,
+        aggregateVersion: 3, actor: 'custody-service:e1', serverTime: '2026-09-23T10:00:00.000Z', version: '1',
+      },
+      payload: { order_id: orderId, task_id: `task-${orderId}`, rejection: 'pickup_refusal', fault_class: 'seller', failed_checks: ['emballage_intact'] },
+    };
+    expect((await progress(refusEnlevement)).status).toBe(200);
+    await jusquADemande(orderId);
+    const ouvert = (await auditDe(orderId)) as Awaited<ReturnType<typeof auditDe>> & { remboursement: { refus: { nature: string } | null } | null };
+    expect(ouvert.remboursement).toMatchObject({ decision: 'ouvert', retenu: 0, refus: { nature: 'refus_enlevement', faultClass: 'seller' } });
+    expect(ouvert.remboursement!.lignes).toEqual([expect.objectContaining({ etat: 'demande', amount: paye })]);
+    expect(ouvert.reconAlerts.map((x) => x.payload['alert'])).not.toContain('refusal_fact_unreadable');
+    // The parcel never left: she reads « not available », never « it is coming back ».
+    expect((await vueDe(orderId))['remboursement']).toEqual({ etat: 'en_cours', montant: paye, motif: 'indisponible' });
+
+    const [r] = (await demandesDe(orderId)).json.remboursements!;
+    expect(r).toMatchObject({ legType: 'checkout', amount: paye });
+    expect((await confirmer(orderId, r!)).status).toBe(200);
+    const fini = await auditDe(orderId);
+    expect(fini.state).toBe('refunded');
+    expect(fini.escrow.status).toBe('refunded');
+    expect(fini.refunds).toEqual([expect.objectContaining({ amount: paye, refundKey: r!.refundKey })]);
+    expect((await vueDe(orderId))['remboursement']).toEqual({ etat: 'fait', montant: paye, motif: 'indisponible' });
+  }, 60_000);
+
   it('a redelivered refusal re-arms the alarm for a refund still to ask even when the relay is done; a late door leg re-arms it too (call-site pins, the standing standard)', () => {
     // The crash window between the relay row and the refund record cannot be
     // driven on a live Worker; the recovery is pinned where it lives.
