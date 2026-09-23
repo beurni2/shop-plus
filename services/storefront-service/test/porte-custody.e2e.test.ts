@@ -748,13 +748,16 @@ describe('PORTE-CUSTODY — crash-window recovery, held to the standing call-sit
   });
 
   it('the alarm flushes the fifth wire and re-arms on its pending count', () => {
-    anchored('const doorSignalPending = await this.flushDoorSignalOutbox();');
+    // COLIS-2 — the fifth wire now waits while a package's door reference
+    // has not reached custody yet (its own backoff rung meanwhile), and the
+    // reference wire joins the shared re-arm.
+    anchored('const doorSignalPending = referencePending > 0 ? await this.doorSignalEnAttente() : await this.flushDoorSignalOutbox();');
     // STOCK-VENDU-1b widened the shared re-arm to the SIXTH wire (the
     // refused-course relay), LISTE-ENVIES-1 to the SEVENTH (the offert
     // marker), RESERVATION-REGLE-1 to the EIGHTH (the reservation release);
     // the pin follows each widening so the fifth wire's count is still
     // provably inside it.
-    anchored('Math.max(boutikPending, seraPending, annulationPending, livraisonPending, armPending, doorSignalPending, refusPending, offertPending, releasePending, holdReleasePending, remboursementPending)');
+    anchored('Math.max(boutikPending, seraPending, annulationPending, livraisonPending, armPending, referencePending, doorSignalPending, refusPending, offertPending, releasePending, holdReleasePending, remboursementPending)');
   });
 });
 

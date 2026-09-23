@@ -561,10 +561,11 @@ describe('VRAI-SUIVI — the stranded arm is recovered, never abandoned (call-si
     // PORTE-CUSTODY part B widened the shared re-arm to the fifth wire,
     // STOCK-VENDU-1b to the sixth (the refused-course relay), LISTE-ENVIES-1
     // to the seventh (the offert marker) and RESERVATION-REGLE-1 to the eighth
-    // (the reservation release); the pin follows each widening so the fourth
-    // wire's count is still provably inside it.
+    // (the reservation release), COLIS-2 to the door reference; the pin
+    // follows each widening so the fourth wire's count is still provably
+    // inside it.
     expect(src).toContain(
-      'Math.max(boutikPending, seraPending, annulationPending, livraisonPending, armPending, doorSignalPending, refusPending, offertPending, releasePending, holdReleasePending, remboursementPending)',
+      'Math.max(boutikPending, seraPending, annulationPending, livraisonPending, armPending, referencePending, doorSignalPending, refusPending, offertPending, releasePending, holdReleasePending, remboursementPending)',
     );
   });
 

@@ -658,8 +658,10 @@ describe('COLIS-FOURNISSEUR-1 — one package and one delivery fee per supplier,
     }
   }, 60_000);
 
-  it('COLIS-2 — the provider says the lost payment TOOK THE MONEY: it stands as asked, never a second charge beside it — and the sandals are refunded when its confirmation lands', async () => {
-    const w = await porteSansReponse('08', { timeoutCollects: true });
+  it('COLIS-2 — the provider says the lost payment TOOK THE MONEY: it stands as asked, never a second charge beside it — even with the door’s attempts spent — and the sandals are refunded when its confirmation lands', async () => {
+    // The door's ceiling is ONE attempt, already spent: only the provider's own
+    // word that it took the money can answer her as paid — a retry could not.
+    const w = await porteSansReponse('08', { timeoutCollects: true }, { DOOR_ATTEMPTS_MAX: '1' });
     try {
       expect(w.encore.status, w.encore.text).toBe(200);
       // What was taken is what she is told: both articles, the one sum.
