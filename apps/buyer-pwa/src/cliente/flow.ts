@@ -49,6 +49,7 @@ function fmtSecondes(sec: number): string {
 }
 import { prixExpire, type OrderFetch, type QuoteFetch, type RemiseFetch, type ReserveFetch } from './quote-model';
 import { garderCommande, localStorageOrUndefined, oublierCommande, type ServerOrder } from './quote-port';
+import type { PorteOutcome } from './panier-port';
 import { garderReprise, lireReprise, oublierReprise, type Reprise } from './reprise';
 import { DEMO_ADRESSE } from './seed';
 import { creerEnregistreurNote, type EnregistreurNote, type NoteEnregistree } from './voice-note';
@@ -133,6 +134,17 @@ export interface ClienteInit {
      * exactly as before.
      */
     readonly payerALaPorte?: ((orderId: string, essai: number) => Promise<OrderFetch>) | undefined;
+    /**
+     * COLIS-FOURNISSEUR-1 — this article travels in a package (decision d:
+     * « one payment at the door for the products she keeps »). At the door
+     * she says which of its articles she keeps, and pays them ONCE through
+     * `payer`; the tracking then follows an article she keeps (its code is
+     * the package's). Absent ⇒ the article's own door, as before.
+     */
+    readonly colis?: {
+      readonly articles: readonly { readonly orderId: string; readonly nom: string; readonly buyerRef: string }[];
+      readonly payer: (gardes: readonly string[], essai: number) => Promise<PorteOutcome>;
+    } | undefined;
     /** PAYER-TOUT-1 — what « C'est terminé » forgets on the phone: a panier
      *  article's own line, never the single order's slot. Absent ⇒ the single
      *  slot, as before. */
@@ -155,6 +167,10 @@ export interface ClienteInit {
     readonly lignes: () => readonly { readonly nom: string; readonly produitFcfa: number }[];
     readonly payes: () => readonly { readonly orderId: string; readonly buyerRef: string; readonly nom: string }[];
     readonly onSuivre: (orderId: string, buyerRef: string, nom: string) => void;
+    /** COLIS-FOURNISSEUR-1 — the deliveries the service counted, once it priced the panier. */
+    readonly livraisons?: (() => number | undefined) | undefined;
+    /** COLIS-FOURNISSEUR-1 — which of her orders travel together, once paid. */
+    readonly colis?: (() => readonly { readonly orderIds: readonly string[] }[]) | undefined;
   } | undefined;
   /** VRAI-SUIVI — after « C'est terminé » clears the stored order, the host
    *  decides where she lands (main.ts reloads onto the shell). */
@@ -312,6 +328,10 @@ interface FlowState {
   montants: ModeSplit | null;
   /** Which DOOR-charge attempt this is — +1 per deliberate retry. */
   essaiPorte: number;
+  /** COLIS-FOURNISSEUR-1 — the package's articles she says she keeps (all, until she says otherwise). */
+  gardes: string[];
+  /** COLIS-FOURNISSEUR-1 — the one amount the service asked the operator for, once it answered. */
+  montantPorte: number | null;
   /* ── VRAI-SUIVI — the delivery's facts, and her code ───────────────────── */
   /** Her bearer ref for the remise route — the CREATE's own byte, or the
    *  stored one on a re-entry. null = this session never learned one. */
@@ -553,6 +573,8 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
     doorLeg: null,
     montants: null,
     essaiPorte: 0,
+    gardes: init.suivi?.colis?.articles.map((a) => a.orderId) ?? [],
+    montantPorte: null,
     buyerRef: null,
     merci: null,
     merciDemande: false,
@@ -1185,7 +1207,9 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
           // the one true sentence; the fallbacks above become unreachable
           // fiction on this road and must never paint.
           ...(init.livraisonListe !== undefined ? { livreChez: init.livraisonListe.nom } : {}),
-          ...(init.panier !== undefined ? { panier: { lignes: init.panier.lignes() } } : {}),
+          ...(init.panier !== undefined
+            ? { panier: { lignes: init.panier.lignes(), ...(init.panier.livraisons?.() !== undefined ? { livraisons: init.panier.livraisons()! } : {}) } }
+            : {}),
         });
       case 'C5':
         return q === null ? renderRefus('') : renderC5(m, q, {
@@ -1218,7 +1242,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
           // LISTE-MERCI — the creator's prénom alone; the number stays in
           // state and never enters the DOM.
           merci: state.merci !== null ? { nom: state.merci.nom } : undefined,
-          panier: init.panier !== undefined ? { articles: init.panier.payes() } : undefined,
+          panier: init.panier !== undefined ? { articles: init.panier.payes(), colis: init.panier.colis?.() ?? [] } : undefined,
         });
       case 'C7': {
         if (reel) {
@@ -1270,6 +1294,10 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
           duAlaPorte: state.pay !== null && q !== null
             ? splitFor(q, state.delivery ?? 'today', state.pay)?.dueAtDelivery
             : state.montants?.dueAtDelivery,
+          // COLIS-FOURNISSEUR-1 — her package, and what she keeps of it.
+          ...(init.suivi?.colis !== undefined
+            ? { colis: { articles: init.suivi.colis.articles, gardes: state.gardes }, montantPorte: state.montantPorte ?? undefined }
+            : {}),
         });
       case 'C10':
         // The end of the road. It takes no state: everything it says is true of
@@ -1568,6 +1596,49 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
       // `due` by the service's own design; the webhook is what moves it.
       state.doorLeg = r.order.doorLeg ?? null;
       suivreLaPorte(id, gen, 0);
+    });
+  }
+
+  /**
+   * ═══ COLIS-FOURNISSEUR-1 — ONE PAYMENT AT THE DOOR FOR WHAT SHE KEEPS ═══
+   *
+   * The package's articles she keeps, paid in ONE collection (decision d). The
+   * same honesty as the single door: a 200 is not a payment — the service
+   * answers what the operator will ask her for, and the tracking then WATCHES
+   * an article she keeps until its own door leg reads `paid`. When the
+   * article she opened is one she gives back, the tracking moves to one she
+   * keeps: that is where her code, the package's, will be.
+   */
+  function payerLeColis(gen: number): void {
+    const colis = init.suivi?.colis;
+    const gardes = [...state.gardes];
+    if (colis === undefined || gardes.length === 0) return;
+    state.door = 'accepted';
+    state.montantPorte = null;
+    render();
+    void colis.payer(gardes, state.essaiPorte).then((r) => {
+      if (gen !== generation) return;
+      if (r.status === 'refused' && r.reason === 'course_refusee') {
+        jump('C7');
+        demarrerSuivi();
+        return;
+      }
+      if (r.status !== 'porte') {
+        state.door = 'echec';
+        render();
+        return;
+      }
+      state.montantPorte = r.montant;
+      const cible = state.orderId !== null && gardes.includes(state.orderId) ? state.orderId : gardes[0]!;
+      const article = colis.articles.find((a) => a.orderId === cible);
+      if (article !== undefined && cible !== state.orderId) {
+        state.orderId = article.orderId;
+        state.buyerRef = article.buyerRef;
+        state.codeRemise = null;
+      }
+      state.doorLeg = r.articles.find((a) => a.orderId === cible)?.doorLeg ?? state.doorLeg;
+      render();
+      suivreLaPorte(cible, gen, 0);
     });
   }
 
@@ -2743,6 +2814,11 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
         // happens at all. Then: money owed ⇒ COLLECT IT; nothing owed ⇒ the
         // reveal, still behind `revelationPermise`.
         if (porteHandle() !== null && state.confirmState !== 'confirmed') return;
+        // COLIS-FOURNISSEUR-1 — a package's door is paid ONCE, for what she keeps.
+        if (init.suivi?.colis !== undefined && state.doorLeg === 'due') {
+          payerLeColis(generation);
+          return;
+        }
         if (porteHandle() !== null && state.doorLeg === 'due') {
           payerALaPorte(generation);
           return;
@@ -2768,11 +2844,25 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
       // retry works. The provider key belongs to the LEG and is reused, so a
       // retry cannot collect twice.
       case 'reessayer-porte':
+        if (init.suivi?.colis !== undefined) {
+          clearT();
+          state.essaiPorte += 1;
+          payerLeColis(generation);
+          return;
+        }
         if (porteHandle() === null || state.orderId === null) return;
         clearT();
         state.essaiPorte += 1;
         payerALaPorte(generation);
         return;
+      // COLIS-FOURNISSEUR-1 — she keeps it, or gives it back.
+      case 'garder-article': {
+        const id = el.getAttribute('data-order') ?? '';
+        if (init.suivi?.colis === undefined || !init.suivi.colis.articles.some((a) => a.orderId === id)) return;
+        state.gardes = state.gardes.includes(id) ? state.gardes.filter((g) => g !== id) : [...state.gardes, id];
+        render();
+        return;
+      }
       case 'porte-probleme':
         state.door = 'report'; state.reason = null; render(); return;
       case 'motif':

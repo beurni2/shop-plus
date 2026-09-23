@@ -3403,7 +3403,7 @@
  },
  {
   "key": "cl.panier.colis_a_part",
-  "fr": "Chaque article a son colis, vérifié et scellé par Séra.",
+  "fr": "Les articles qui partent du même endroit arrivent ensemble, dans un colis scellé par Séra.",
   "register": "money",
   "screenClass": "status"
  },
@@ -3466,5 +3466,47 @@
   "fr": "Payer les {n} articles ensemble",
   "register": "selling",
   "screenClass": "label"
+ },
+ {
+  "key": "cl.panier.livraison_une",
+  "fr": "1 livraison par Séra",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.panier.colis_ensemble",
+  "fr": "Ces {n} articles arrivent ensemble, dans un seul colis.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.c8.colis_titre",
+  "fr": "Dans ce colis",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.c8.colis_sous",
+  "fr": "Gardez ce qui vous plaît. Vous payez seulement ce que vous gardez.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.c8.colis_garde",
+  "fr": "Je le garde",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.c8.colis_rends",
+  "fr": "Je le rends",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.c8.colis_aucun",
+  "fr": "Gardez au moins un article pour payer. Pour tout rendre, touchez « Un problème ».",
+  "register": "money",
+  "screenClass": "status"
  }
 ]

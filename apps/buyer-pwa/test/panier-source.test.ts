@@ -122,6 +122,9 @@ function service(over: {
     async etat() {
       return { status: 'refused', reason: 'unknown_order' };
     },
+    async porte() {
+      return { status: 'refused', reason: 'mode_indisponible' };
+    },
   };
   return { port, j };
 }
@@ -431,5 +434,71 @@ describe('PAYER-TOUT-1 — the port: what crosses the wire, and what the phone k
     expect(panierPaye(garde)?.articles.map((a) => a.orderId)).toEqual(['o2']);
     retirerArticlePaye('o2', garde);
     expect(panierPaye(garde)).toBeUndefined();
+  });
+});
+
+/**
+ * COLIS-FOURNISSEUR-1 (founder rulings 2026-09-23) — the panier's quotes name
+ * the panier, so the service can price a package's ONE delivery; and an
+ * article keeps its price (same ask, same key, same quote, same hold) while
+ * nothing was added and its package is still whole.
+ */
+describe('COLIS-FOURNISSEUR-1 — a price kept while its package stays whole', () => {
+  /** p1 and p2 leave from the same supplier; p3 alone. The fake answers like the service: the package's ids on the quote. */
+  function colisService() {
+    const asks: { pid: string; panier: readonly string[] | undefined; key: string }[] = [];
+    const svc = service({ cleDansId: true });
+    const port: PanierPort = {
+      ...svc.port,
+      async request(intent, key) {
+        asks.push({ pid: intent.pid, panier: intent.panier, key });
+        const r = await svc.port.request(intent, key);
+        const membres = ['p1', 'p2'].filter((p) => intent.panier?.includes(p));
+        return r.status === 'quote' && membres.length === 2 && membres.includes(intent.pid) ? { status: 'quote', quote: { ...r.quote, colis: membres } } : r;
+      },
+    };
+    return { port, asks };
+  }
+  const P3 = { pid: 'p3', nom: 'Pagne tissé' };
+  const full = (asks: ReturnType<typeof colisService>['asks'], pid: string) => asks.filter((a) => a.pid === pid);
+
+  it('every ask names the whole panier', async () => {
+    const { port, asks } = colisService();
+    const r = await creerSourcePanier({ port, slug: 'aicha-4821', ville: 'Ouagadougou', resellerId: 'rs-1', articles: [...ARTICLES, P3], session: memoire(), garde: memoire(), doorGraceMs: 50 }).quoteSource('Gounghin');
+    expect(r.status).toBe('ready');
+    for (const a of asks) expect([...(a.panier ?? [])].sort()).toEqual(['p1', 'p2', 'p3']);
+  });
+
+  it('an article outside the package leaves: the package keeps its asks (same panier, same keys)', async () => {
+    const { port, asks } = colisService();
+    const session = memoire();
+    const src = (articles: readonly { pid: string; nom: string }[]) =>
+      creerSourcePanier({ port, slug: 'aicha-4821', ville: 'Ouagadougou', resellerId: 'rs-1', articles, session, garde: memoire(), doorGraceMs: 50 });
+    await src([...ARTICLES, P3]).quoteSource('Gounghin');
+    const avant = full(asks, 'p1');
+    asks.length = 0;
+    await src(ARTICLES).quoteSource('Gounghin');
+    const apres = full(asks, 'p1');
+    expect(apres.map((a) => a.key)).toEqual(avant.map((a) => a.key));
+    expect([...(apres[0]!.panier ?? [])].sort()).toEqual(['p1', 'p2', 'p3']);
+  });
+
+  it('a package-mate leaves, or an article is added: the article is priced afresh, in the panier she has now', async () => {
+    const { port, asks } = colisService();
+    const session = memoire();
+    const src = (articles: readonly { pid: string; nom: string }[]) =>
+      creerSourcePanier({ port, slug: 'aicha-4821', ville: 'Ouagadougou', resellerId: 'rs-1', articles, session, garde: memoire(), doorGraceMs: 50 });
+    await src([...ARTICLES, P3]).quoteSource('Gounghin');
+    const avant = full(asks, 'p1').map((a) => a.key);
+    // p2 — its package-mate — leaves: p1's share is no longer true.
+    asks.length = 0;
+    await src([ARTICLES[0]!, P3]).quoteSource('Gounghin');
+    const sansP2 = full(asks, 'p1');
+    expect(sansP2.map((a) => a.key)).not.toEqual(avant);
+    expect([...(sansP2[0]!.panier ?? [])].sort()).toEqual(['p1', 'p3']);
+    // An article is added: it may join a package, so everything is priced afresh.
+    asks.length = 0;
+    await src([ARTICLES[0]!, P3, { pid: 'p2', nom: 'Sac en cuir' }]).quoteSource('Gounghin');
+    for (const a of asks) expect([...(a.panier ?? [])].sort()).toEqual(['p1', 'p2', 'p3']);
   });
 });

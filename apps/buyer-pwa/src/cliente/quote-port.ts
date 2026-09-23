@@ -56,6 +56,12 @@ export interface ServerQuote {
   readonly amountPaidAtCheckout: number;
   readonly amountDueAtDelivery: number;
   readonly expiry: string;
+  /**
+   * COLIS-FOURNISSEUR-1 — the products of her panier this article travels
+   * with (itself included), when the service priced it in a package. Ids
+   * only; her phone keeps this price while that package stays whole.
+   */
+  readonly colis?: readonly string[];
 }
 
 export type QuoteOutcome =
@@ -96,6 +102,12 @@ export interface QuoteIntent {
    *  OFF the wire (the router refuses the pair by name). Present only when
    *  the liste's public boolean said an address exists. */
   readonly listeRef?: string;
+  /**
+   * COLIS-FOURNISSEUR-1 — a panier's quote names its panier (its products'
+   * ids), so the service can price the articles that leave together as ONE
+   * delivery. Present only on a panier's quotes; never an amount.
+   */
+  readonly panier?: readonly string[];
 }
 
 export type ReserveOutcome =
@@ -355,6 +367,12 @@ const nonEmpty = (v: unknown): v is string => typeof v === 'string' && v.length 
  * lying about the fifth. The caller turns a `false` here into `unreadable` —
  * the reply arrived, we could not read it — never into « no connection ».
  */
+/** COLIS-FOURNISSEUR-1 — the package's product ids on a quote answer, or nothing. */
+function colisDuDevis(body: unknown): { colis: readonly string[] } | Record<string, never> {
+  const c = body !== null && typeof body === 'object' ? (body as Record<string, unknown>)['colis'] : undefined;
+  return Array.isArray(c) && c.length >= 2 && c.every((x) => typeof x === 'string' && x !== '') ? { colis: [...(c as string[])] } : {};
+}
+
 export function looksLikeServerQuote(v: unknown): v is ServerQuote {
   if (v === null || typeof v !== 'object') return false;
   const q = v as Record<string, unknown>;
@@ -461,6 +479,7 @@ export function httpQuotePort(baseUrl: string): QuotePort {
           ...(intent.listeRef !== undefined ? { listeRef: intent.listeRef } : { zoneTo: intent.zoneTo }),
           attributionResellerId: intent.attributionResellerId,
           requestKey,
+          ...(intent.panier !== undefined ? { panier: [...intent.panier] } : {}),
         });
       } catch {
         return { status: 'unreadable' };
@@ -504,6 +523,8 @@ export function httpQuotePort(baseUrl: string): QuotePort {
           amountPaidAtCheckout: body.amountPaidAtCheckout,
           amountDueAtDelivery: body.amountDueAtDelivery,
           expiry: body.expiry,
+          // COLIS-FOURNISSEUR-1 — ids only, read strictly; anything else is no package.
+          ...colisDuDevis(body),
         },
       };
     },
@@ -1081,7 +1102,11 @@ function intentFingerprint(intent: QuoteIntent, portee?: string): string {
   // composition is the scope): the same article bought alone and bought in
   // this panier are two quotes, so two orders, and never one order asked to
   // join a payment it was not born into. Absent ⇒ byte-identical to before.
-  return (portee !== undefined ? [...avecListe, `panier:${portee}`] : avecListe).join('|');
+  // COLIS-FOURNISSEUR-1 — and its composition, when it names one: the same
+  // article in another panier carries another share of its delivery, so it
+  // is another quote (the service refuses a key reused for another intent).
+  const avecColis = intent.panier !== undefined ? [...avecListe, `colis:${[...intent.panier].sort().join(',')}`] : avecListe;
+  return (portee !== undefined ? [...avecColis, `panier:${portee}`] : avecColis).join('|');
 }
 
 /**

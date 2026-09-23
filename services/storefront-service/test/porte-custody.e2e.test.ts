@@ -754,7 +754,7 @@ describe('PORTE-CUSTODY — crash-window recovery, held to the standing call-sit
     // marker), RESERVATION-REGLE-1 to the EIGHTH (the reservation release);
     // the pin follows each widening so the fifth wire's count is still
     // provably inside it.
-    anchored('Math.max(boutikPending, seraPending, livraisonPending, armPending, doorSignalPending, refusPending, offertPending, releasePending, holdReleasePending, remboursementPending)');
+    anchored('Math.max(boutikPending, seraPending, annulationPending, livraisonPending, armPending, doorSignalPending, refusPending, offertPending, releasePending, holdReleasePending, remboursementPending)');
   });
 });
 

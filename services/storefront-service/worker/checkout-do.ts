@@ -13,6 +13,8 @@ import {
   toBuyerQuoteView,
   type QuoteRequest,
 } from '../src/checkout-core.js';
+import { PACKAGE_ORDERS_MAX, PACKAGE_ORDERS_MIN, splitPackageDeliveryFee } from '@platform/contracts';
+import type { ColisGroupingPort } from '../src/colis-source.js';
 import { quoteDeliveryFee } from '../src/delivery-source.js';
 import type { ListingEntry } from '../src/listing-core.js';
 import { orderIdForQuote } from '../src/order-core.js';
@@ -71,6 +73,13 @@ const QUOTE_FULFILLMENT_KEY = 'quote-fulfillment-facts';
  *  round 3): the one object that owns the quote also owns the question it was
  *  issued for, so the two can never be judged in separate, interleavable acts. */
 const QUOTE_INTENT_KEY = 'quote-intent-fingerprint';
+/**
+ * COLIS-FOURNISSEUR-1 — the package this quote was priced in: its products,
+ * in the package's own order, and the ONE delivery fee Séra stated for it
+ * (this quote carries its share). Written in the same act as the bytes;
+ * absent when the article travels alone.
+ */
+const QUOTE_COLIS_KEY = 'quote-colis';
 const RESERVATION_KEY = 'reservation-state';
 const KEY_POINTER_KEY = 'request-key-pointer';
 
@@ -146,6 +155,11 @@ interface IssueArgs {
   supply?: ProductDescription | null;
   /** The INTENT this quote answers — stored beside the bytes, same act. */
   fingerprint?: string;
+  /**
+   * COLIS-FOURNISSEUR-1 — the package the router found this article in, and
+   * its share of the package's one fee. Internal wire only, like `supply`.
+   */
+  colis?: { pids: string[]; packageFee: number; share: number } | null;
 }
 
 export class CheckoutDO {
@@ -193,6 +207,7 @@ export class CheckoutDO {
           entry: args.entry ?? undefined,
           delivery: args.delivery ?? undefined,
           supply: args.supply ?? undefined,
+          ...(args.colis != null ? { packageFeeShare: args.colis.share } : {}),
         },
       );
       if (!outcome.ok) {
@@ -231,6 +246,9 @@ export class CheckoutDO {
           offerVersion: args.entry.listing.offerVersion,
         };
       }
+      if (args.colis != null) {
+        batch[QUOTE_COLIS_KEY] = { pids: args.colis.pids, packageFee: args.colis.packageFee };
+      }
       await this.state.storage.put(batch);
       return Response.json({ ok: true, quote: outcome.quote });
     }
@@ -250,6 +268,7 @@ export class CheckoutDO {
         );
       }
       const fulfillment = await this.state.storage.get<Record<string, string>>(QUOTE_FULFILLMENT_KEY);
+      const colis = await this.state.storage.get<{ pids: string[]; packageFee: number }>(QUOTE_COLIS_KEY);
       // The stored BYTES ride along so the caller can prove byte-stability
       // without re-serializing (internal wire only — never the buyer's).
       return Response.json({
@@ -258,6 +277,7 @@ export class CheckoutDO {
         canonicalBytes: bytes,
         intent,
         ...(fulfillment !== undefined ? { fulfillment } : {}),
+        ...(colis !== undefined ? { colis } : {}),
       });
     }
 
@@ -476,6 +496,12 @@ interface Env {
    * asked (an unconfigured Worker reserves as it always has).
    */
   HOLD?: ProducerHoldPort;
+  /**
+   * COLIS-FOURNISSEUR-1 — which of her panier's products leave from the same
+   * supplier (Boutik+'s grouping door). Absent, or silent, ⇒ every article is
+   * priced alone, as before.
+   */
+  COLIS?: ColisGroupingPort;
 }
 
 const quoteStub = (env: Env, quoteId: string): DurableObjectStub =>
@@ -499,7 +525,7 @@ const keyStub = (env: Env, requestKey: string): DurableObjectStub =>
  * server silently disagreed with. The deployed buyer PWA never sent it, so
  * nothing in production breaks — but the next client to try learns immediately.
  */
-const REQUEST_FIELDS = ['slug', 'pid', 'paymentMode', 'zoneTo', 'attributionResellerId', 'requestKey'];
+const REQUEST_FIELDS = ['slug', 'pid', 'paymentMode', 'zoneTo', 'attributionResellerId', 'requestKey', 'panier'];
 
 /**
  * The one payment mode whose quote consults §6.1 — and therefore the only mode
@@ -604,6 +630,28 @@ function validateQuoteRequest(body: unknown): Validated {
      It parsed one field, `eligibility`, which the server now decides for itself;
      `payAtDoorContext` is absent from REQUEST_FIELDS, so a body still carrying it
      is refused `unknown_field` by the loop above — one rule, one place. */
+  /**
+   * COLIS-FOURNISSEUR-1 — the panier this article is priced in: product ids
+   * only, 2 to 10, each once, this `pid` among them, each on the id alphabet
+   * (they travel to Boutik+'s grouping door). Kept SORTED, so the package's
+   * order — and which article carries a leftover franc — never depends on
+   * the order her phone listed them in.
+   */
+  let panier: string[] | undefined;
+  if (raw['panier'] !== undefined) {
+    const p = raw['panier'];
+    if (
+      !Array.isArray(p) ||
+      p.length < PACKAGE_ORDERS_MIN ||
+      p.length > PACKAGE_ORDERS_MAX ||
+      !p.every((id) => typeof id === 'string' && ID_ALPHABET.test(id)) ||
+      new Set(p).size !== p.length ||
+      !p.includes(raw['pid'])
+    ) {
+      return { ok: false, response: badRequest('bad_field', 'panier') };
+    }
+    panier = [...(p as string[])].sort();
+  }
   return {
     ok: true,
     request: {
@@ -613,6 +661,7 @@ function validateQuoteRequest(body: unknown): Validated {
       zoneTo: raw['zoneTo'] as string,
       attributionResellerId: typeof attribution === 'string' ? attribution : '',
       requestKey: raw['requestKey'],
+      ...(panier !== undefined ? { panier } : {}),
     },
   };
 }
@@ -677,11 +726,21 @@ async function readAuthority(
 /** Read a stored quote through its DO and project it for the buyer. */
 async function readAndProject(env: Env, quoteId: string): Promise<Response> {
   const res = await quoteStub(env, quoteId).fetch(new Request('https://do/entry'));
-  const body = (await res.json().catch(() => null)) as { ok?: boolean; quote?: unknown; reason?: string } | null;
+  const body = (await res.json().catch(() => null)) as { ok?: boolean; quote?: unknown; reason?: string; colis?: { pids?: unknown } } | null;
   if (body === null) return refuse('not_found');
   if (body.ok !== true || body.quote === undefined) return refuse(body.reason ?? 'not_found');
-  // THE BOUNDARY. Only this projection ever reaches a buyer.
-  return Response.json(toBuyerQuoteView(body.quote as Parameters<typeof toBuyerQuoteView>[0]), { status: 200 });
+  // THE BOUNDARY. Only this projection ever reaches a buyer — and, when the
+  // article was priced in a package (COLIS-FOURNISSEUR-1), the products of HER
+  // OWN panier it travels with: ids she sent, never who prepares them. Her
+  // phone keeps this price while that package stays whole.
+  const pids = body.colis?.pids;
+  return Response.json(
+    {
+      ...toBuyerQuoteView(body.quote as Parameters<typeof toBuyerQuoteView>[0]),
+      ...(Array.isArray(pids) && pids.every((x) => typeof x === 'string') ? { colis: [...(pids as string[])] } : {}),
+    },
+    { status: 200 },
+  );
 }
 
 /**
@@ -708,7 +767,12 @@ export default {
       // five values that decide an amount — shop, product, mode, destination,
       // payee. A retry of the SAME intent matches and is idempotent; a
       // different intent under a reused key is refused by name.
-      const fingerprint = [req.slug, req.pid, req.paymentMode, req.zoneTo, req.attributionResellerId].join('\u0000');
+      // COLIS-FOURNISSEUR-1 — a panier's quote names its panier too: the same
+      // key asked for another panier is another intent (its share differs).
+      const fingerprint = [
+        req.slug, req.pid, req.paymentMode, req.zoneTo, req.attributionResellerId,
+        ...(req.panier !== undefined ? [req.panier.join(',')] : []),
+      ].join('\u0000');
       const claimRes = await keyStub(env, req.requestKey).fetch(
         new Request('https://do/key/claim', { method: 'POST', body: JSON.stringify({ candidateQuoteId }) }),
       );
@@ -841,6 +905,28 @@ export default {
         if (seen.kind === 'present') supply = seen.description;
       }
 
+      /**
+       * ═══ COLIS-FOURNISSEUR-1 — ONE DELIVERY PER SUPPLIER (founder rulings
+       *     2026-09-23, decisions a–b) ═══
+       * A panier's article asks Boutik+ which of the panier's products leave
+       * from its supplier. When it leaves with others, the package's ONE fee
+       * — Séra's figure for this very trip, `delivery.fee` — is split evenly
+       * to the franc, the leftover on the package's first article, and this
+       * quote carries its share as its D. Asked only once the article could
+       * be priced at all (resolved listing, serviceable trip), so the ask can
+       * never be aimed at a product nobody sells. No answer ⇒ it travels
+       * alone at the full fee: an outage never blocks a sale.
+       */
+      let colis: { pids: string[]; packageFee: number; share: number } | undefined;
+      if (req.panier !== undefined && entry !== undefined && delivery?.serviceable === true && env.COLIS !== undefined) {
+        const groups = await env.COLIS.grouper(req.panier).catch(() => undefined);
+        const mine = groups?.find((g) => g.includes(req.pid));
+        if (mine !== undefined && mine.length >= PACKAGE_ORDERS_MIN) {
+          const shares = splitPackageDeliveryFee(delivery.fee, mine.length);
+          colis = { pids: [...mine], packageFee: delivery.fee, share: shares[mine.indexOf(req.pid)]! };
+        }
+      }
+
       // 4. ISSUE INSIDE THE OBJECT, so the immutable put is serialized with it.
       const issueRes = await quoteStub(env, quoteId).fetch(
         new Request('https://do/entry/issue', {
@@ -852,6 +938,7 @@ export default {
             delivery: delivery ?? null,
             supply: supply ?? null,
             fingerprint,
+            colis: colis ?? null,
           }),
         }),
       );

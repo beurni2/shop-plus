@@ -1009,7 +1009,17 @@ export interface C4State {
    * price (read off ITS quote), and the delivery line counts the parcels —
    * one per article — at the service's summed fee.
    */
-  readonly panier?: { readonly lignes: readonly { readonly nom: string; readonly produitFcfa: number }[] } | undefined;
+  readonly panier?: {
+    readonly lignes: readonly { readonly nom: string; readonly produitFcfa: number }[];
+    /** COLIS-FOURNISSEUR-1 — the deliveries the SERVICE counted (one per package). Absent ⇒ one per article. */
+    readonly livraisons?: number | undefined;
+  } | undefined;
+}
+
+/** COLIS-FOURNISSEUR-1 — « 1 livraison » or « N livraisons », counted by the service. */
+function livraisonsPanier(p: { readonly lignes: readonly unknown[]; readonly livraisons?: number | undefined }): string {
+  const n = p.livraisons ?? p.lignes.length;
+  return n === 1 ? t('cl.panier.livraison_une') : tf('cl.panier.livraisons', { n: String(n) });
 }
 
 export function renderC4(q: ClienteQuote, s: C4State): string {
@@ -1029,7 +1039,7 @@ export function renderC4(q: ClienteQuote, s: C4State): string {
     '<div class="cl-opt cl-course" data-role="livraison-unique">',
     '<div class="cl-course-fil"></div>',
     '<div class="cl-course-corps">',
-    `<div class="cl-opt-row"><span class="cl-course-ic">${iconScooter(20, 1.8)}</span><span class="cl-course-col"><span class="cl-opt-title">${s.panier !== undefined ? tf('cl.panier.livraisons', { n: String(s.panier.lignes.length) }) : t('cl.c4.livraison_par_sera')}</span><span class="cl-opt-fee">${fmtFCFA(q.feeToday)}</span></span></div>`,
+    `<div class="cl-opt-row"><span class="cl-course-ic">${iconScooter(20, 1.8)}</span><span class="cl-course-col"><span class="cl-opt-title">${s.panier !== undefined ? livraisonsPanier(s.panier) : t('cl.c4.livraison_par_sera')}</span><span class="cl-opt-fee">${fmtFCFA(q.feeToday)}</span></span></div>`,
     `<div class="cl-opt-sub">${t('cl.c4.verifie_scelle')}</div>`,
     `<div class="cl-course-preuves"><span class="cl-preuve">${iconCheck(12, 3)}${t('cl.c4.preuve_verifie')}</span><span class="cl-preuve">${iconCheck(12, 3)}${t('cl.c4.preuve_scelle')}</span><span class="cl-preuve">${iconCheck(12, 3)}${t('cl.c4.preuve_livre')}</span></div>`,
     '</div>',
@@ -2166,7 +2176,11 @@ export function renderC6(
      * PAYER-TOUT-1 — the panier paid at once: each article is its own order,
      * so the confirmation lists them, each with its own « Suivre ».
      */
-    panier?: { articles: readonly { readonly orderId: string; readonly nom: string }[] } | undefined;
+    panier?: {
+      articles: readonly { readonly orderId: string; readonly nom: string }[];
+      /** COLIS-FOURNISSEUR-1 — which of them travel together. */
+      colis?: readonly { readonly orderIds: readonly string[] }[] | undefined;
+    } | undefined;
   },
 ): string {
   let body: string;
@@ -2177,7 +2191,7 @@ export function renderC6(
       `<div class="cl-conf-title">${t('cl.panier.confirme_titre')}</div>`,
       `<div class="cl-conf-body">${o.paid === undefined ? t('cl.c6.paiement_confirme') : tf('cl.c6.paiement_confirme_montant', { X: `<b>${fmtFCFA(o.paid.paidNow)}</b>` })}</div>`,
       '</div>',
-      renderSuiviPanier(o.panier.articles),
+      renderSuiviPanier(o.panier.articles, o.panier.colis),
     ].join('');
   } else if (o.confirmState === 'confirmed') {
     // ONE BYTE, ONE SENTENCE. The amount clause exists only when the server
@@ -2380,20 +2394,36 @@ function renderLignesPanier(lignes: readonly { readonly nom: string; readonly pr
  * confirmation and on « Mes articles » after a reload: one list, two places.
  * Only the order id rides the button; her read token stays in memory.
  */
-export function renderSuiviPanier(articles: readonly { readonly orderId: string; readonly nom: string }[]): string {
+export function renderSuiviPanier(
+  articles: readonly { readonly orderId: string; readonly nom: string }[],
+  /** COLIS-FOURNISSEUR-1 — the articles that travel together are listed together, under one line. */
+  colis: readonly { readonly orderIds: readonly string[] }[] = [],
+): string {
+  const ligne = (a: { readonly orderId: string; readonly nom: string }): string =>
+    [
+      '<div class="cl-panier-ligne" data-role="panier-commande">',
+      `<div class="cl-panier-nom"><v>${esc(a.nom)}</v></div>`,
+      `<button class="cl-panier-suivre" data-action="suivre-article" data-order="${esc(a.orderId)}">${t('cl.panier.suivre')}</button>`,
+      '</div>',
+    ].join('');
+  const dansUnColis = new Set(colis.flatMap((c) => c.orderIds));
+  const blocs = colis.flatMap((c) => {
+    const membres = articles.filter((a) => c.orderIds.includes(a.orderId));
+    if (membres.length === 0) return [];
+    return [
+      [
+        '<div class="cl-panier-colis" data-role="panier-colis">',
+        `<div class="cl-panier-suivi-note">${tf('cl.panier.colis_ensemble', { n: String(membres.length) })}</div>`,
+        membres.map(ligne).join(''),
+        '</div>',
+      ].join(''),
+    ];
+  });
   return [
     '<div class="cl-panier-suivi" data-role="panier-suivi">',
     `<div class="cl-panier-suivi-titre">${tf('cl.panier.commandes', { n: String(articles.length) })}</div>`,
-    articles
-      .map((a) =>
-        [
-          '<div class="cl-panier-ligne" data-role="panier-commande">',
-          `<div class="cl-panier-nom"><v>${esc(a.nom)}</v></div>`,
-          `<button class="cl-panier-suivre" data-action="suivre-article" data-order="${esc(a.orderId)}">${t('cl.panier.suivre')}</button>`,
-          '</div>',
-        ].join(''),
-      )
-      .join(''),
+    ...blocs,
+    articles.filter((a) => !dansUnColis.has(a.orderId)).map(ligne).join(''),
     `<div class="cl-panier-suivi-note">${t('cl.panier.colis_a_part')}</div>`,
     '</div>',
   ].join('');
@@ -2403,11 +2433,14 @@ export function renderSuiviPanier(articles: readonly { readonly orderId: string;
  * « MES ARTICLES PAYÉS ENSEMBLE » — the way back to each article's tracking
  * after the tab died: the same list the confirmation shows, nothing more.
  */
-export function renderMesArticles(articles: readonly { readonly orderId: string; readonly nom: string }[]): string {
+export function renderMesArticles(
+  articles: readonly { readonly orderId: string; readonly nom: string }[],
+  colis: readonly { readonly orderIds: readonly string[] }[] = [],
+): string {
   return [
     '<div class="cl-screen" data-screen="MES-ARTICLES">',
     `<div class="cl-stephead"><div class="cl-steptitle">${t('cl.panier.reentree')}</div></div>`,
-    renderSuiviPanier(articles),
+    renderSuiviPanier(articles, colis),
     `<div class="cl-footnote">${t('cl.chrome.numero_prive')}</div>`,
     '</div>',
   ].join('');
@@ -2588,6 +2621,16 @@ export interface C8State {
    * rather than a guessed one (SP3.3b1's rule, third screen to obey it).
    */
   readonly duAlaPorte?: number | undefined;
+  /**
+   * COLIS-FOURNISSEUR-1 — this article travels in a package: its articles,
+   * and the ones she keeps. She pays ONCE, for what she keeps.
+   */
+  readonly colis?: {
+    readonly articles: readonly { readonly orderId: string; readonly nom: string }[];
+    readonly gardes: readonly string[];
+  } | undefined;
+  /** COLIS-FOURNISSEUR-1 — the one amount the service asked the operator for, once it answered. */
+  readonly montantPorte?: number | undefined;
 }
 
 export function renderC8(m: ClienteProduit, _q: ClienteQuote | null, s: C8State): string {
@@ -2595,13 +2638,16 @@ export function renderC8(m: ClienteProduit, _q: ClienteQuote | null, s: C8State)
   // re-read as if the two were the same thing. They are equal by §5.5 today;
   // the day a mode splits differently, this screen must follow the split.
   const produitStr = s.duAlaPorte === undefined ? '' : fmtFCFA(s.duAlaPorte);
+  // COLIS-FOURNISSEUR-1 — a package's payment is its own figure, stated by the
+  // service once it answered; before that, no figure at all (never one article's).
+  const montantStr = s.colis !== undefined ? (s.montantPorte === undefined ? '' : fmtFCFA(s.montantPorte)) : produitStr;
   let body: string;
   if (s.door === 'accepted') {
     body = [
       '<div class="cl-door-pay" data-etat="paiement-porte">',
       `<div class="cl-prov-phone">${iconPhone(30)}</div>`,
       `<div class="cl-prov-title">${OPERATEUR.porteTitre}</div>`,
-      `<div class="cl-prov-body">${phraseOperateur(produitStr)}</div>`,
+      s.colis !== undefined && montantStr === '' ? '' : `<div class="cl-prov-body">${phraseOperateur(montantStr)}</div>`,
       `<div class="cl-prov-wait"><span class="cl-prov-dots"><span class="cl-prov-dot"></span><span class="cl-prov-dot"></span><span class="cl-prov-dot"></span></span><span>${OPERATEUR.attente}</span></div>`,
       `<div class="cl-prov-law">${OPERATEUR.porteLoi}</div>`,
       '</div>',
@@ -2654,11 +2700,13 @@ export function renderC8(m: ClienteProduit, _q: ClienteQuote | null, s: C8State)
       '<div class="cl-checklist">',
       checklist.map((c) => `<div class="cl-check-row">${iconCheckSquare(17)}<span>${c}</span></div>`).join(''),
       '</div>',
-      s.pay !== 'A' && s.duAlaPorte !== undefined
-        ? `<div class="cl-owing" data-role="owing"><span>${PORTE.resteAPayer}</span><b>${produitStr}</b></div>`
-        : '',
+      s.colis !== undefined
+        ? renderColisPorte(s.colis)
+        : s.pay !== 'A' && s.duAlaPorte !== undefined
+          ? `<div class="cl-owing" data-role="owing"><span>${PORTE.resteAPayer}</span><b>${produitStr}</b></div>`
+          : '',
       '<div class="cl-door-paths">',
-      `<button class="cl-door-good" data-action="porte-bon">${t('cl.c8.tout_bon')}</button>`,
+      `<button class="cl-door-good" data-action="porte-bon"${s.colis !== undefined && s.colis.gardes.length === 0 ? ' disabled' : ''}>${t('cl.c8.tout_bon')}</button>`,
       `<button class="cl-door-bad" data-action="porte-probleme">${t('cl.c8.un_probleme')}</button>`,
       '</div>',
       // §6.2's THIRD column, said before she chooses — what a refusal will NOT
@@ -2673,6 +2721,33 @@ export function renderC8(m: ClienteProduit, _q: ClienteQuote | null, s: C8State)
     '<div class="cl-screen" data-screen="C8">',
     stepHead('retour-c7', t('cl.c8.titre')),
     body,
+    '</div>',
+  ].join('');
+}
+
+/**
+ * COLIS-FOURNISSEUR-1 — « Dans ce colis »: each article, and her one choice
+ * for it — she keeps it, or gives it back (decision c). She pays once, for
+ * what she keeps (decision d). No franc is added here: the one amount is the
+ * service's, said on the operator screen once it answered.
+ */
+function renderColisPorte(c: { readonly articles: readonly { readonly orderId: string; readonly nom: string }[]; readonly gardes: readonly string[] }): string {
+  return [
+    '<div class="cl-panier-colis" data-role="colis-porte">',
+    `<div class="cl-door-sub">${t('cl.c8.colis_titre')}</div>`,
+    `<div class="cl-panier-suivi-note">${t('cl.c8.colis_sous')}</div>`,
+    c.articles
+      .map((a) => {
+        const garde = c.gardes.includes(a.orderId);
+        return [
+          '<div class="cl-panier-ligne" data-role="colis-article">',
+          `<div class="cl-panier-nom"><v>${esc(a.nom)}</v></div>`,
+          `<button class="cl-reason${garde ? ' cl-reason-on' : ''}" data-action="garder-article" data-order="${esc(a.orderId)}" aria-pressed="${garde ? 'true' : 'false'}">${garde ? t('cl.c8.colis_garde') : t('cl.c8.colis_rends')}</button>`,
+          '</div>',
+        ].join('');
+      })
+      .join(''),
+    c.gardes.length === 0 ? `<div class="cl-panier-suivi-note" data-role="colis-aucun">${t('cl.c8.colis_aucun')}</div>` : '',
     '</div>',
   ].join('');
 }

@@ -130,6 +130,14 @@ export interface QuoteRequest {
   readonly attributionResellerId: string;
   /** The buyer's own idempotency token: one key ⇒ at most one quote, forever. */
   readonly requestKey: string;
+  /**
+   * COLIS-FOURNISSEUR-1 — the products of the panier this article is priced
+   * in, sorted (2 to 10, this `pid` among them). Present only on a panier's
+   * quote: it lets the server ask which articles leave together and price
+   * their one delivery once. A product id is not an amount; nothing here can
+   * name a price.
+   */
+  readonly panier?: readonly string[];
   /* OPTION-B-REACHABLE-1 — there is NO `payAtDoorContext` here any more. Every
      §6.1 input is now a server truth (see the block above), so the door mode is
      requested by `paymentMode` alone and answered entirely from facts the buyer
@@ -166,6 +174,13 @@ export interface IssueQuoteInput {
    * because from a buyer's side those are one situation, and neither is a fee.
    */
   readonly delivery: DeliveryFeeQuote | undefined;
+  /**
+   * COLIS-FOURNISSEUR-1 — this article's share of its package's ONE delivery
+   * fee (`splitPackageDeliveryFee` over `delivery.fee`), computed by the
+   * router from Séra's own figure. Absent when the article travels alone:
+   * then D is the whole of `delivery.fee`, exactly as before.
+   */
+  readonly packageFeeShare?: number;
 }
 
 /**
@@ -325,7 +340,12 @@ export function decideIssueQuote(deps: CheckoutDeps, input: IssueQuoteInput): Is
   const resellerMarkup = entry.listing.markup; // M — frozen
   const sellerFundedCommission = entry.resellerCommission; // C — frozen
   const sellerBasePrice = entry.customerPriceFcfa - resellerMarkup; // B — by subtraction
-  const deliveryFee = delivery.fee; // D — from Séra's stand-in, never a caller
+  // D — from Séra's stand-in, never a caller. In a package, this article's
+  // share of that one figure; a share larger than the fee it splits is no share.
+  if (input.packageFeeShare !== undefined && !(usableFcfa(input.packageFeeShare) && input.packageFeeShare <= delivery.fee)) {
+    return { ok: false, reason: 'stored_amounts_incoherent' };
+  }
+  const deliveryFee = input.packageFeeShare ?? delivery.fee;
 
   if (
     !usableFcfa(sellerBasePrice) ||

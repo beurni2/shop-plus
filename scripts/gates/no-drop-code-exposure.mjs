@@ -42,6 +42,12 @@ runScanGate({
         'VRAI-SUIVI — the minting site and the buyer\'s ONE door (/entry/remise, buyer-token-gated, arrival-gated): the code is born here and read back only to her; every reseller and ops read is pinned code-free by vrai-suivi.e2e and livraison-boutik.e2e',
     },
     {
+      file: 'services/storefront-service/worker/payment-group-do.ts',
+      pattern: CODE_REMISE,
+      ruling:
+        'COLIS-FOURNISSEUR-1 — the package\'s ONE code is minted by the payment its articles were paid in, kept in that payment\'s own storage and handed only to each article\'s order on the internal confirmation wire; no read of the payment returns it and nothing Boutik+ hears carries it (pinned by colis.e2e); she still reads it only at her order\'s door',
+    },
+    {
       file: 'services/storefront-service/test/vrai-suivi.e2e.test.ts',
       pattern: CODE_REMISE,
       ruling: 'the e2e that pins the code to the buyer\'s door — it spells the identifier only to assert its ABSENCE on every reseller and ops read',

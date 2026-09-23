@@ -1,3 +1,4 @@
+import { splitPackageDeliveryFee } from '@platform/contracts';
 import type { BuyerOrderView } from './order-core.js';
 
 /**
@@ -137,6 +138,90 @@ export function decideGroupParts(entries: readonly GroupEntry[]): GroupDecision 
   return { ok: true, paymentMode: first.paymentMode, parts, total, dueTotal, deliveryTotal, productTotal };
 }
 
+/* ─────────────────── COLIS-FOURNISSEUR-1 — the packages ───────────────────── */
+
+/**
+ * What each article of the payment says about its package, read off its own
+ * quote's record: the product it sells, the D its quote carries, and — when
+ * it was priced inside a package — that package's products and ONE fee.
+ */
+export interface ColisEntry {
+  readonly quoteId: string;
+  readonly orderId: string;
+  /** `undefined` when the quote carries no fulfillment record. */
+  readonly pid: string | undefined;
+  readonly deliveryFee: number;
+  readonly colis: { readonly pids: readonly string[]; readonly packageFee: number } | undefined;
+}
+
+export interface ColisDecide {
+  /** The package's products, in its own order (the one its fee was split in). */
+  readonly pids: readonly string[];
+  readonly quoteIds: readonly string[];
+  /** Its orders, in that same order — the package the wires carry. */
+  readonly orderIds: readonly string[];
+}
+
+export type ColisDecision =
+  | { readonly ok: true; readonly colis: readonly ColisDecide[]; readonly livraisons: number }
+  | { readonly ok: false; readonly reason: 'colis_incomplet' };
+
+/**
+ * ═══ A PACKAGE IS PAID WHOLE OR NOT AT ALL (founder rulings 2026-09-23) ═══
+ *
+ * Each of its articles was priced with a SHARE of one fee; paying some of them
+ * without the others would leave a delivery nobody paid in full. So a payment
+ * that carries one article of a package must carry every one, each priced in
+ * that same package, each carrying exactly its share of the one fee
+ * (`splitPackageDeliveryFee` — re-derived here, never trusted from a sum), and
+ * no article may be priced alone for a product its package includes. Anything
+ * else is ONE refusal, `colis_incomplet`: the phone takes fresh prices.
+ *
+ * `livraisons` is the truth she reads before paying: one per package, one per
+ * article travelling alone.
+ */
+export function decideColis(entries: readonly ColisEntry[]): ColisDecision {
+  const refus = { ok: false, reason: 'colis_incomplet' } as const;
+  const cle = (c: { readonly pids: readonly string[]; readonly packageFee: number }): string => `${c.pids.join('\n')}#${c.packageFee}`;
+  const packages = new Map<string, ColisEntry[]>();
+  for (const e of entries) {
+    if (e.colis === undefined) continue;
+    const k = cle(e.colis);
+    packages.set(k, [...(packages.get(k) ?? []), e]);
+  }
+  const enColis = new Set<string>();
+  const decides: ColisDecide[] = [];
+  for (const membres of packages.values()) {
+    const { pids, packageFee } = membres[0]!.colis!;
+    if (pids.length < 2 || new Set(pids).size !== pids.length || membres.length !== pids.length) return refus;
+    if (!Number.isSafeInteger(packageFee) || packageFee < 0) return refus;
+    const parts = splitPackageDeliveryFee(packageFee, pids.length);
+    const ordonnes: ColisEntry[] = [];
+    for (const [i, pid] of pids.entries()) {
+      if (enColis.has(pid)) return refus;
+      enColis.add(pid);
+      const m = membres.find((x) => x.pid === pid);
+      if (m === undefined || m.deliveryFee !== parts[i]) return refus;
+      ordonnes.push(m);
+    }
+    decides.push({ pids: [...pids], quoteIds: ordonnes.map((m) => m.quoteId), orderIds: ordonnes.map((m) => m.orderId) });
+  }
+  // An article priced alone for a product one of these packages carries.
+  for (const e of entries) {
+    if (e.colis === undefined && e.pid !== undefined && enColis.has(e.pid)) return refus;
+  }
+  const seuls = entries.filter((e) => e.colis === undefined).length;
+  return { ok: true, colis: decides, livraisons: decides.length + seuls };
+}
+
+/** THE SAME ARTICLES ARE THE SAME PACKAGE, ALWAYS — derived like the group's id. */
+export async function colisIdFor(quoteIds: readonly string[]): Promise<string> {
+  const canon = [...new Set(quoteIds)].sort().join('\n');
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(canon));
+  const hex = [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
+  return `colis-${hex.slice(0, 40)}`;
+}
+
 /* ─────────────────────────── the buyer's view ─────────────────────────────── */
 
 /**
@@ -162,6 +247,11 @@ export interface BuyerGroupView {
   readonly deliveryTotal: number;
   /** Each article is its own order and keeps its own view. */
   readonly articles: readonly BuyerOrderView[];
+  /**
+   * COLIS-FOURNISSEUR-1 — which of her articles travel together: each
+   * package's id and its orders. Ids only — never who prepares them.
+   */
+  readonly colis?: readonly { readonly packageId: string; readonly orderIds: readonly string[] }[];
 }
 
 export function toBuyerGroupView(args: {
@@ -171,6 +261,7 @@ export function toBuyerGroupView(args: {
   readonly dueTotal: number;
   readonly deliveryTotal: number;
   readonly articles: readonly BuyerOrderView[];
+  readonly colis?: readonly { readonly packageId: string; readonly orderIds: readonly string[] }[];
 }): BuyerGroupView {
   return {
     groupId: args.groupId,
@@ -180,5 +271,8 @@ export function toBuyerGroupView(args: {
     amountDueAtDelivery: args.dueTotal,
     deliveryTotal: args.deliveryTotal,
     articles: args.articles,
+    ...(args.colis !== undefined && args.colis.length > 0
+      ? { colis: args.colis.map((c) => ({ packageId: c.packageId, orderIds: [...c.orderIds] })) }
+      : {}),
   };
 }

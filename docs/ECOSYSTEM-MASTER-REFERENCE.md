@@ -435,6 +435,8 @@ Riders are **employees**: wages and fuel are a **workforce cost, never a slice o
 **SE-I04:** every package has **exactly one current custodian** — and **task status is never custody truth**. (A task can say "delivered" while custody says otherwise; custody wins, and the discrepancy is an incident.)
 *(Operational batching is deliberately deferred to a later era — dispatch stays single-job until density justifies it.)*
 
+*One package, several orders (founder ruling 2026-09-23):* a package may hold the orders of ONE supplier, for ONE buyer, to ONE address, paid together; it is still one job — one pickup, one drop, one current stop — and each order keeps its own custody file, its own inspection at the door and its own drop. Carrying several packages at once stays off until E6. Its one delivery fee is split evenly across its orders, to the franc.
+
 ## SE4 — Landmark-first navigation & masked relay
 Navigation is built for a city without addresses: pin + zone + **landmark** + voice directions. Contact with the buyer runs through a **masked relay** — the rider never sees a raw number, the buyer never sees his.
 

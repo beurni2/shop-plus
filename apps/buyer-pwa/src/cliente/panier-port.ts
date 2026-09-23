@@ -42,6 +42,12 @@ export interface PrixPanier {
   readonly deliveryTotal: number;
   /** Σ (B + M) — the articles themselves. */
   readonly productTotal: number;
+  /**
+   * COLIS-FOURNISSEUR-1 — how many deliveries she pays for, as the service
+   * counted them: one per package (the articles leaving together), one per
+   * article alone. Absent from an older service ⇒ one per article, as before.
+   */
+  readonly livraisons?: number;
 }
 
 export type PrixOutcome =
@@ -60,7 +66,22 @@ export interface PaiementGroupe {
   /** Create-only: her read token per order (the single road's `buyerRef`, one per article). */
   readonly commandes?: readonly { readonly orderId: string; readonly buyerRef: string }[];
   readonly noteVocale?: 'gardee' | 'perdue';
+  /** COLIS-FOURNISSEUR-1 — which of her orders travel together, as the service says. */
+  readonly colis?: readonly ColisPaye[];
 }
+
+/** COLIS-FOURNISSEUR-1 — one package: its id and its orders. Ids only, never who prepares it. */
+export interface ColisPaye {
+  readonly packageId: string;
+  readonly orderIds: readonly string[];
+}
+
+/** COLIS-FOURNISSEUR-1 — the package's one door payment, as the service answered it. */
+export type PorteOutcome =
+  | { readonly status: 'porte'; readonly articles: readonly ServerOrder[]; readonly montant: number }
+  | { readonly status: 'refused'; readonly reason: string }
+  | { readonly status: 'unreachable' }
+  | { readonly status: 'unreadable' };
 
 export type GroupeOutcome =
   | { readonly status: 'groupe'; readonly groupe: PaiementGroupe }
@@ -74,6 +95,12 @@ export interface PanierPort {
   prix(quoteIds: readonly string[]): Promise<PrixOutcome>;
   payer(quoteIds: readonly string[], commandId: string, holderRef: string, contact?: ContactLivraison): Promise<GroupeOutcome>;
   etat(groupId: string): Promise<GroupeOutcome>;
+  /**
+   * COLIS-FOURNISSEUR-1 — ONE payment at the door for the articles she keeps
+   * from one package: ids only, no amount; the service answers each kept
+   * article as it stands and the one amount the operator will ask for.
+   */
+  porte(groupId: string, packageId: string, orderIds: readonly string[], commandId: string, holderRef: string): Promise<PorteOutcome>;
 }
 
 /* ─────────────────────────────── the shape check ─────────────────────────── */
@@ -101,7 +128,22 @@ function lirePrix(body: unknown): PrixPanier | undefined {
     amountDueAtDelivery: b['amountDueAtDelivery'],
     deliveryTotal: b['deliveryTotal'],
     productTotal: b['productTotal'],
+    ...(franc(b['livraisons']) && b['livraisons'] > 0 ? { livraisons: b['livraisons'] } : {}),
   };
+}
+
+/** COLIS-FOURNISSEUR-1 — the packages, read strictly: ids only, two or more orders each. */
+function lireColis(v: unknown): readonly ColisPaye[] | null {
+  if (v === undefined) return [];
+  if (!Array.isArray(v)) return null;
+  const colis: ColisPaye[] = [];
+  for (const c of v as unknown[]) {
+    const o = c !== null && typeof c === 'object' ? (c as Record<string, unknown>) : {};
+    const ids = o['orderIds'];
+    if (!nonVide(o['packageId']) || !Array.isArray(ids) || ids.length < 2 || !ids.every(nonVide)) return null;
+    colis.push({ packageId: o['packageId'], orderIds: [...(ids as string[])] });
+  }
+  return colis;
 }
 
 function lireGroupe(body: unknown): PaiementGroupe | undefined {
@@ -137,6 +179,8 @@ function lireGroupe(body: unknown): PaiementGroupe | undefined {
       commandes.push({ orderId: o['orderId'], buyerRef: o['buyerRef'] });
     }
   }
+  const colis = lireColis(b['colis']);
+  if (colis === null) return undefined;
   return {
     groupId: b['groupId'],
     state: b['state'],
@@ -144,6 +188,7 @@ function lireGroupe(body: unknown): PaiementGroupe | undefined {
     amountDueAtDelivery: b['amountDueAtDelivery'],
     articles,
     ...(commandes !== undefined ? { commandes } : {}),
+    ...(colis.length > 0 ? { colis } : {}),
     ...(b['noteVocale'] === 'gardee' || b['noteVocale'] === 'perdue' ? { noteVocale: b['noteVocale'] } : {}),
   };
 }
@@ -224,6 +269,38 @@ export function httpPanierPort(baseUrl: string): PanierPort {
       }
       const groupe = lireGroupe(lu.body);
       return groupe === undefined ? { status: 'unreadable' } : { status: 'groupe', groupe };
+    },
+
+    async porte(groupId, packageId, orderIds, commandId, holderRef): Promise<PorteOutcome> {
+      let chemin: string;
+      let corps: string;
+      try {
+        chemin = `/checkout/group/${encodeURIComponent(groupId)}/porte`;
+        // The allowlist, as one literal: ids, her command, her holder — no amount.
+        corps = JSON.stringify({ packageId, orderIds: [...orderIds], holderRef, commandId });
+      } catch {
+        return { status: 'unreadable' };
+      }
+      const lu = await poster(chemin, corps);
+      if (lu === 'unreachable') return { status: 'unreachable' };
+      if (!lu.res.ok) {
+        const r = refus(lu.body);
+        return r === undefined ? { status: 'unreadable' } : { status: 'refused', reason: r.reason };
+      }
+      const b = lu.body !== null && typeof lu.body === 'object' ? (lu.body as Record<string, unknown>) : {};
+      if (!Array.isArray(b['articles']) || !franc(b['montant']) || b['montant'] === 0) return { status: 'unreadable' };
+      const articles: ServerOrder[] = [];
+      for (const a of b['articles'] as unknown[]) {
+        if (!looksLikeServerOrder(a)) return { status: 'unreadable' };
+        articles.push({
+          orderId: a.orderId,
+          state: a.state,
+          amountPaidAtCheckout: a.amountPaidAtCheckout,
+          amountDueAtDelivery: a.amountDueAtDelivery,
+          doorLeg: a.doorLeg,
+        });
+      }
+      return { status: 'porte', articles, montant: b['montant'] };
     },
 
     async etat(groupId): Promise<GroupeOutcome> {
@@ -365,6 +442,10 @@ export function demoPanierPort(prixParPid: ReadonlyMap<string, number>, attentes
       lus.set(groupId, n);
       return { status: 'groupe', groupe: vue(groupId, ids, n > attentes ? 'confirmed' : 'payment_pending') };
     },
+    // The demo prices every article alone: it has no package, so no package door.
+    async porte(): Promise<PorteOutcome> {
+      return { status: 'refused', reason: 'mode_indisponible' };
+    },
   };
 }
 
@@ -455,6 +536,8 @@ export interface PanierPaye {
   readonly at: string;
   readonly slug?: string;
   readonly articles: readonly ArticlePaye[];
+  /** COLIS-FOURNISSEUR-1 — the packages, so a reopened tracking pays its door as one. */
+  readonly colis?: readonly ColisPaye[];
 }
 
 export function garderPanierPaye(p: PanierPaye, storage?: Storage): void {
@@ -473,6 +556,9 @@ export function garderPanierPaye(p: PanierPaye, storage?: Storage): void {
           nom: a.nom,
           ...(a.pid !== undefined ? { pid: a.pid } : {}),
         })),
+        ...(p.colis !== undefined && p.colis.length > 0
+          ? { colis: p.colis.map((c) => ({ packageId: c.packageId, orderIds: [...c.orderIds] })) }
+          : {}),
       }),
     );
   } catch {
@@ -494,7 +580,16 @@ export function panierPaye(storage?: Storage): PanierPaye | undefined {
       articles.push({ orderId: o['orderId'], buyerRef: o['buyerRef'], nom: o['nom'], ...(nonVide(o['pid']) ? { pid: o['pid'] } : {}) });
     }
     if (articles.length === 0) return undefined;
-    return { groupId: v['groupId'], holderRef: v['holderRef'], at: v['at'], ...(nonVide(v['slug']) ? { slug: v['slug'] } : {}), articles };
+    // A record whose packages cannot be read keeps its articles, without packages.
+    const colis = lireColis(v['colis']) ?? [];
+    return {
+      groupId: v['groupId'],
+      holderRef: v['holderRef'],
+      at: v['at'],
+      ...(nonVide(v['slug']) ? { slug: v['slug'] } : {}),
+      articles,
+      ...(colis.length > 0 ? { colis } : {}),
+    };
   } catch {
     return undefined;
   }
@@ -513,6 +608,7 @@ export function retirerArticlePaye(orderId: string, storage?: Storage): void {
   if (p === undefined) return;
   const reste = p.articles.filter((a) => a.orderId !== orderId);
   if (reste.length === 0) oublierPanierPaye(storage);
+  // Its package stays named: the others still travel, and are paid, as one.
   else garderPanierPaye({ ...p, articles: reste }, storage);
 }
 

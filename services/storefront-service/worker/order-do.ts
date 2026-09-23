@@ -1,6 +1,8 @@
 import {
+  OrderPackageSchema,
   PlatformEventSchema,
   assertQuoteReconciles,
+  type OrderPackage,
   type PlatformEvent,
   type Quote,
   type RelatedPartyDecision,
@@ -117,6 +119,14 @@ const OUTBOX_KEY = 'order-confirmed-outbox';
  * task and never an amount: no franc figure crosses this wire.
  */
 const SERA_OUTBOX_KEY = 'sera-funding-outbox';
+/**
+ * COLIS-FOURNISSEUR-1 — the SECOND funding fact Séra can hear about an order:
+ * `cancelled`, when its supplier refused it (REMBOURSEMENT-2). Its own row, so
+ * the confirmed `funded` fact and this one keep their own fates; Séra applies
+ * the later one (its `asOf` is the refusal's instant). Inside a package it is
+ * what lets the other articles travel without this one.
+ */
+const SERA_ANNULATION_KEY = 'sera-funding-cancel-outbox';
 /**
  * BOUTIK-SUIVI (founder, 2026-08-09: « when the delivery is completed … the
  * product leaves en route to that screen ») — a THIRD destination, its own
@@ -388,6 +398,20 @@ const DOOR_ATTEMPTS_KEY = 'door-payment-attempts';
  */
 const GROUP_ATTEMPT_KEY = 'group-attempt';
 const DOOR_RESULTS_KEY = 'door-command-results';
+/**
+ * COLIS-FOURNISSEUR-1 — the package door collections this order ENTERED, by
+ * collection id: each one's correlation, provider key and shares, exactly as
+ * its group froze them. First-wins per collection; a door confirmation naming
+ * a collection is judged against ITS record here, never against the payload.
+ */
+const PORTES_COLIS_KEY = 'portes-colis';
+
+/** COLIS-FOURNISSEUR-1 — one package door collection, as an order keeps it. */
+interface PorteColis {
+  readonly correlationId: string;
+  readonly providerKey: string;
+  readonly parts: readonly { readonly orderId: string; readonly amount: number }[];
+}
 
 /**
  * DURCISSEMENT-SERVICE-2 (AUDIT-SHOP-2 F-30) — THE DOOR ROAD HAS A CEILING.
@@ -690,6 +714,24 @@ export function readOrderGroupe(value: unknown): OrderGroupe | null {
     lus.push({ orderId, amount });
   }
   return { groupId, correlationId, providerKey, parts: lus };
+}
+
+/** COLIS-FOURNISSEUR-1 — a package door collection as its group hands it, read strictly. */
+function lirePorteColis(value: unknown): PorteColis | null {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return null;
+  const { correlationId, providerKey, parts } = value as Record<string, unknown>;
+  if (typeof correlationId !== 'string' || correlationId === '') return null;
+  if (typeof providerKey !== 'string' || providerKey === '') return null;
+  if (!Array.isArray(parts) || parts.length === 0) return null;
+  const lus: { orderId: string; amount: number }[] = [];
+  for (const part of parts as unknown[]) {
+    if (part === null || typeof part !== 'object') return null;
+    const { orderId, amount } = part as Record<string, unknown>;
+    if (typeof orderId !== 'string' || orderId === '') return null;
+    if (typeof amount !== 'number' || !Number.isSafeInteger(amount) || amount <= 0) return null;
+    lus.push({ orderId, amount });
+  }
+  return { correlationId, providerKey, parts: lus };
 }
 
 export interface OrderDOEnv {
@@ -1036,13 +1078,23 @@ export class OrderDO {
     }
 
     if (request.method === 'POST' && pathname === '/entry/group-create') {
-      let args: CreateArgs & { groupe?: OrderGroupe; groupAttemptId?: unknown };
+      let args: CreateArgs & { groupe?: OrderGroupe; groupAttemptId?: unknown; colis?: unknown };
       try {
-        args = (await request.json()) as CreateArgs & { groupe?: OrderGroupe; groupAttemptId?: unknown };
+        args = (await request.json()) as CreateArgs & { groupe?: OrderGroupe; groupAttemptId?: unknown; colis?: unknown };
       } catch {
         return Response.json({ ok: false, reason: 'malformed' }, { status: 400 });
       }
       const groupe = readOrderGroupe(args.groupe);
+      // COLIS-FOURNISSEUR-1 — read strictly, like the group: it becomes an
+      // origin fact for ever, and it must list THIS order.
+      let colis: OrderPackage | undefined;
+      if (args.colis !== undefined) {
+        const lu = OrderPackageSchema.safeParse(args.colis);
+        if (!lu.success || typeof args.quoteId !== 'string' || !lu.data.orderIds.includes(orderIdForQuote(args.quoteId))) {
+          return Response.json({ ok: false, reason: 'malformed' }, { status: 400 });
+        }
+        colis = lu.data;
+      }
       if (
         typeof args.quoteId !== 'string' || args.quoteId === '' ||
         typeof args.holderRef !== 'string' || args.holderRef === '' ||
@@ -1068,7 +1120,7 @@ export class OrderDO {
         contact,
         null,
         undefined,
-        { groupe, groupAttemptId: args.groupAttemptId },
+        { groupe, groupAttemptId: args.groupAttemptId, ...(colis !== undefined ? { colis } : {}) },
       );
     }
 
@@ -1102,6 +1154,7 @@ export class OrderDO {
       // folded into it — « boutik delivered, Séra still pending » is a real
       // state an operator must be able to see.
       const sera = await this.state.storage.get(SERA_OUTBOX_KEY);
+      const annulation = await this.state.storage.get(SERA_ANNULATION_KEY);
       // BOUTIK-SUIVI — and the delivery wire beside both, for the same reason.
       const livraison = await this.state.storage.get(BOUTIK_DELIVERED_KEY);
       // VRAI-SUIVI — the custody-arm wire's fate, STATUS ONLY and built field
@@ -1143,6 +1196,8 @@ export class OrderDO {
         ok: true,
         outbox,
         ...(sera !== undefined ? { seraOutbox: sera } : {}),
+        // COLIS-FOURNISSEUR-1 — the cancel fact's fate, beside the funded one.
+        ...(annulation !== undefined ? { seraAnnulation: annulation } : {}),
         ...(livraison !== undefined ? { livraisonOutbox: livraison } : {}),
         ...(armement !== undefined
           ? {
@@ -1580,9 +1635,35 @@ export class OrderDO {
       const origin = await this.state.storage.get<StoredOrigin>(ORIGIN_KEY);
       if (origin === undefined) return Response.json({ ok: false, reason: 'unknown_order' }, { status: 404 });
       const deja = await this.state.storage.get(FOURNISSEUR_REFUS_KEY);
-      if (deja === undefined) await this.state.storage.put(FOURNISSEUR_REFUS_KEY, { at: body.at });
+      /**
+       * COLIS-FOURNISSEUR-1 — Séra hears it too: the order is `cancelled` for
+       * delivery, in the same act as the refusal is recorded. Inside a package
+       * that is what lets the other articles travel without this one; alone,
+       * it is simply true. Only for an order Séra was told was funded — its
+       * mode off the frozen quote, its package off its origin.
+       */
+      const quote = parseStoredQuote(origin.quoteBytes);
+      const annule =
+        deja === undefined && quote !== undefined && (await this.state.storage.get(SERA_OUTBOX_KEY)) !== undefined
+          ? {
+              [SERA_ANNULATION_KEY]: {
+                status: 'pending' as const,
+                fact: {
+                  orderId: origin.orderId,
+                  status: 'cancelled' as const,
+                  paymentMode: quote.paymentMode,
+                  asOf: new Date().toISOString(),
+                  ...(origin.colis !== undefined ? { package: origin.colis } : {}),
+                },
+                attempts: 0,
+              },
+            }
+          : {};
+      if (deja === undefined) await this.state.storage.put({ [FOURNISSEUR_REFUS_KEY]: { at: body.at }, ...annule });
       await this.ouvrirRemboursementAvec({ nature: 'refus_fournisseur' }, null);
-      if (await this.remboursementADemander()) await this.state.storage.setAlarm(Date.now()).catch(() => undefined);
+      if ((await this.remboursementADemander()) || Object.keys(annule).length > 0) {
+        await this.state.storage.setAlarm(Date.now()).catch(() => undefined);
+      }
       return Response.json({ ok: true, status: deja === undefined ? 'recorded' : 'duplicate' });
     }
 
@@ -1980,13 +2061,16 @@ export class OrderDO {
     }
 
     if (request.method === 'POST' && pathname === '/entry/webhook') {
-      let body: { event?: unknown };
+      let body: { event?: unknown; codeColis?: unknown };
       try {
-        body = (await request.json()) as { event?: unknown };
+        body = (await request.json()) as { event?: unknown; codeColis?: unknown };
       } catch {
         return Response.json({ ok: false, reason: 'malformed' }, { status: 400 });
       }
-      return this.onProviderEvent(body.event);
+      // COLIS-FOURNISSEUR-1 — the package's one code, from the group that
+      // minted it; anything that is not six digits is no code.
+      const codeColis = typeof body.codeColis === 'string' && /^[0-9]{6}$/.test(body.codeColis) ? body.codeColis : undefined;
+      return this.onProviderEvent(body.event, codeColis);
     }
 
     /**
@@ -2000,6 +2084,58 @@ export class OrderDO {
      * she has opened the package. The route above CONFIRMS a door payment; this
      * one STARTS it, and until it existed the Option-B loop had no closing half.
      */
+    /**
+     * ═══ COLIS-FOURNISSEUR-1 — THE PACKAGE'S ONE DOOR PAYMENT, per article ═══
+     * (decision d, founder ruling 2026-09-23). Internal only, called by the
+     * group object alone:
+     *   · porte-check   — may this holder pay this article's door leg now,
+     *                     inside its package's one payment? NOTHING written.
+     *   · porte-enter   — this article joins a door collection: its shares
+     *                     and key are stored first-wins, BEFORE any charge.
+     *   · porte-webhook — the provider's confirmation of that collection,
+     *                     judged against the record this article stored.
+     */
+    if (request.method === 'POST' && pathname === '/entry/porte-check') {
+      const args = (await request.json().catch(() => null)) as { holderRef?: unknown } | null;
+      if (args === null || typeof args.holderRef !== 'string' || args.holderRef === '') {
+        return Response.json({ ok: false, reason: 'malformed' }, { status: 400 });
+      }
+      return this.porteCheck(args.holderRef);
+    }
+
+    if (request.method === 'POST' && pathname === '/entry/porte-enter') {
+      const args = (await request.json().catch(() => null)) as { holderRef?: unknown; collectId?: unknown; collecte?: unknown } | null;
+      const collecte = lirePorteColis(args?.collecte);
+      if (
+        args === null ||
+        typeof args.holderRef !== 'string' || args.holderRef === '' ||
+        typeof args.collectId !== 'string' || !isGroupId(args.collectId) ||
+        collecte === null || collecte.correlationId !== `corr-${args.collectId}`
+      ) {
+        return Response.json({ ok: false, reason: 'malformed' }, { status: 400 });
+      }
+      const portes = (await this.state.storage.get<Record<string, PorteColis>>(PORTES_COLIS_KEY)) ?? {};
+      // First-wins: an entered collection answers again, whatever it says now.
+      if (Object.prototype.hasOwnProperty.call(portes, args.collectId)) return Response.json({ ok: true, status: 'duplicate' });
+      const checked = await this.porteCheck(args.holderRef);
+      const c = (await checked.clone().json().catch(() => null)) as { ok?: boolean; orderId?: string; amount?: number } | null;
+      if (c?.ok !== true) return checked;
+      // Its own share, as its own quote says it — or it does not join.
+      const own = collecte.parts.find((x) => x.orderId === c.orderId);
+      if (own === undefined || own.amount !== c.amount) return Response.json({ ok: false, reason: 'group_share_mismatch' }, { status: 422 });
+      await this.state.storage.put(PORTES_COLIS_KEY, { ...portes, [args.collectId]: collecte });
+      return Response.json({ ok: true, status: 'entered' });
+    }
+
+    if (request.method === 'POST' && pathname === '/entry/porte-webhook') {
+      const body = (await request.json().catch(() => null)) as { event?: unknown; collectId?: unknown } | null;
+      if (body === null || typeof body.collectId !== 'string') return Response.json({ ok: false, reason: 'malformed' }, { status: 400 });
+      const portes = (await this.state.storage.get<Record<string, PorteColis>>(PORTES_COLIS_KEY)) ?? {};
+      const collecte = Object.prototype.hasOwnProperty.call(portes, body.collectId) ? portes[body.collectId] : undefined;
+      if (collecte === undefined) return Response.json({ ok: false, reason: 'unknown_order' }, { status: 404 });
+      return this.onDoorProviderEvent(body.event, { groupId: body.collectId, ...collecte });
+    }
+
     if (request.method === 'POST' && pathname === '/entry/door-charge') {
       let args: { holderRef?: string; commandId?: string };
       try {
@@ -2118,7 +2254,7 @@ export class OrderDO {
      * a grouped payment: the group's shares and key, and the group attempt
      * this create belongs to. The group charges; this object never does.
      */
-    grouped: { groupe: OrderGroupe; groupAttemptId: string } | undefined = undefined,
+    grouped: { groupe: OrderGroupe; groupAttemptId: string; colis?: OrderPackage } | undefined = undefined,
   ): Promise<Response> {
     const origin = await this.state.storage.get<StoredOrigin>(ORIGIN_KEY);
     const receipt = await this.state.storage.get<ReservationReceipt>(RECEIPT_KEY);
@@ -2326,6 +2462,8 @@ export class OrderDO {
         ...(listeRef !== null ? { listeRef } : {}),
         // PAYER-TOUT-1 — born into its group, for ever.
         ...(grouped !== undefined ? { groupe: grouped.groupe } : {}),
+        // COLIS-FOURNISSEUR-1 — and into its package, for ever.
+        ...(grouped?.colis !== undefined ? { colis: grouped.colis } : {}),
       };
       attemptId = mintPaymentAttemptId();
       log = [
@@ -2866,6 +3004,8 @@ export class OrderDO {
     // LISTE-ENVIES-1 adds the SEVENTH — the offert marker — likewise.
     const boutikPending = await this.flushBoutikOutbox();
     const seraPending = await this.flushSeraOutbox();
+    // COLIS-FOURNISSEUR-1 — the cancel fact rides the same wire, its own row.
+    const annulationPending = await this.flushSeraOutbox(SERA_ANNULATION_KEY);
     const livraisonPending = await this.flushBoutikDeliveredOutbox();
     const armPending = await this.flushCustodyArmOutbox();
     const doorSignalPending = await this.flushDoorSignalOutbox();
@@ -2884,7 +3024,7 @@ export class OrderDO {
     const supplierDueAt = await this.watchStuckSupplier();
     // REMBOURSEMENT-2 — the stuck-refund watch, after this tick's asks.
     const refundDueAt = await this.watchStuckRefund();
-    const stillPending = Math.max(boutikPending, seraPending, livraisonPending, armPending, doorSignalPending, refusPending, offertPending, releasePending, holdReleasePending, remboursementPending);
+    const stillPending = Math.max(boutikPending, seraPending, annulationPending, livraisonPending, armPending, doorSignalPending, refusPending, offertPending, releasePending, holdReleasePending, remboursementPending);
     // ONE alarm, three wants: the outbox backoff and the two watches' due
     // times. The nearest wins; the others are re-derived when the alarm fires
     // (setAlarm overwrites, it never merges).
@@ -2949,13 +3089,13 @@ export class OrderDO {
    * With the base or the secret unset nothing is even attempted — the fact
    * stays pending and drains when configuration arrives.
    */
-  private async flushSeraOutbox(): Promise<number> {
+  private async flushSeraOutbox(key: string = SERA_OUTBOX_KEY): Promise<number> {
     const outbox = await this.state.storage.get<{
       status: 'pending' | 'delivered';
-      fact?: { orderId: string; status: string; paymentMode: string; asOf: string };
+      fact?: { orderId: string; status: string; paymentMode: string; asOf: string; package?: OrderPackage };
       attempts: number;
       deliveredAt?: string;
-    }>(SERA_OUTBOX_KEY);
+    }>(key);
     if (outbox === undefined || outbox.status !== 'pending' || outbox.fact === undefined) return 0;
 
     const base = (this.env.SERA_INTAKE_BASE ?? '').replace(/\/+$/, '');
@@ -2971,7 +3111,7 @@ export class OrderDO {
     }
 
     if (delivered) {
-      await this.state.storage.put(SERA_OUTBOX_KEY, {
+      await this.state.storage.put(key, {
         ...outbox,
         status: 'delivered',
         attempts: outbox.attempts + 1,
@@ -2980,7 +3120,7 @@ export class OrderDO {
       return 0;
     }
     const attempts = outbox.attempts + 1;
-    await this.state.storage.put(SERA_OUTBOX_KEY, { ...outbox, attempts });
+    await this.state.storage.put(key, { ...outbox, attempts });
     return attempts;
   }
 
@@ -3656,7 +3796,7 @@ export class OrderDO {
     }
   }
 
-  private async onProviderEvent(event: unknown): Promise<Response> {
+  private async onProviderEvent(event: unknown, codeColis?: string): Promise<Response> {
     const origin = await this.state.storage.get<StoredOrigin>(ORIGIN_KEY);
     /**
      * ⚠ CARRIED, NOT CLOSED (verifier note, round 2 — for the provider decision):
@@ -3808,6 +3948,9 @@ export class OrderDO {
           status: 'funded' as const,
           paymentMode: quote.paymentMode,
           asOf: confirm.serverTime,
+          // COLIS-FOURNISSEUR-1 — the package it travels in: Séra admits,
+          // carries and settles it as one course (write-once there too).
+          ...(origin.colis !== undefined ? { package: origin.colis } : {}),
         },
         attempts: 0,
       };
@@ -3821,8 +3964,13 @@ export class OrderDO {
        * confirmed », « her code exists » and « custody will be armed with it »
        * become true together or not at all.
        */
+      // COLIS-FOURNISSEUR-1 — ONE code for the package (founder ruling
+      // 2026-09-23): its group minted it once, at this same confirmation, and
+      // hands every article the same six digits; custody is armed with it
+      // for each of them. An order alone mints its own, as always.
       const codeRemise =
-        (await this.state.storage.get<string>(CODE_REMISE_KEY)) ?? mintCodeRemise();
+        (await this.state.storage.get<string>(CODE_REMISE_KEY)) ??
+        (origin.colis !== undefined && codeColis !== undefined ? codeColis : mintCodeRemise());
       const custodyArm = {
         status: 'pending' as const,
         /**
@@ -4007,9 +4155,43 @@ export class OrderDO {
    * a doorstep, where the money may already have moved, a second key would be a
    * second collection no provider could dedupe.
    */
+  /**
+   * COLIS-FOURNISSEUR-1 — may this holder pay this article's door leg now,
+   * inside its package's one payment? The single door's own gate
+   * (`decideDoorCharge`), and the same « nothing more at a door it is
+   * leaving » rule. Answers the leg's amount off the immutable Quote.
+   */
+  private async porteCheck(holderRef: string): Promise<Response> {
+    const origin = await this.state.storage.get<StoredOrigin>(ORIGIN_KEY);
+    if (origin === undefined) return Response.json({ ok: false, reason: 'unknown_order' }, { status: 404 });
+    if (origin.colis === undefined) return Response.json({ ok: false, reason: 'door_leg_not_expected' }, { status: 422 });
+    const quote = parseStoredQuote(origin.quoteBytes);
+    const receipt = await this.state.storage.get<ReservationReceipt>(RECEIPT_KEY);
+    const log = (await this.state.storage.get<OrderInput[]>(LOG_KEY)) ?? [];
+    const spine = quote === undefined ? undefined : rebuildOrderSpine(quote, origin, log);
+    const decision = decideDoorCharge({
+      quote,
+      holderRef,
+      receipt,
+      orderState: spine?.journey.state ?? '',
+      doorLegState: spine?.doorLegState ?? 'none',
+    });
+    if (!decision.ok) return Response.json({ ok: false, reason: decision.reason }, { status: 422 });
+    if (
+      (await this.state.storage.get(BOUTIK_REFUSED_KEY)) !== undefined ||
+      (await this.state.storage.get(REFUND_KEY)) !== undefined
+    ) {
+      return Response.json({ ok: false, reason: 'course_refusee' }, { status: 422 });
+    }
+    return Response.json({ ok: true, orderId: origin.orderId, amount: decision.leg.amount });
+  }
+
   private async startDoorCharge(holderRef: string, commandId: string): Promise<Response> {
     const origin = await this.state.storage.get<StoredOrigin>(ORIGIN_KEY);
     if (origin === undefined) return Response.json({ ok: false, reason: 'unknown_order' }, { status: 404 });
+    // COLIS-FOURNISSEUR-1 — a package's articles are paid at the door in ONE
+    // payment, through the package (decision d); never one by one here.
+    if (origin.colis !== undefined) return Response.json({ ok: false, reason: 'porte_du_colis' }, { status: 409 });
     const quote = parseStoredQuote(origin.quoteBytes);
     const receipt = await this.state.storage.get<ReservationReceipt>(RECEIPT_KEY);
     const log = (await this.state.storage.get<OrderInput[]>(LOG_KEY)) ?? [];
@@ -4138,7 +4320,11 @@ export class OrderDO {
    * process death by REPLAY rather than by a second stored flag that could
    * disagree with the spine.
    */
-  private async onDoorProviderEvent(event: unknown): Promise<Response> {
+  private async onDoorProviderEvent(
+    event: unknown,
+    /** COLIS-FOURNISSEUR-1 — the package door collection this order entered, when the confirmation is its. */
+    collecte?: PorteColis & { readonly groupId: string },
+  ): Promise<Response> {
     const origin = await this.state.storage.get<StoredOrigin>(ORIGIN_KEY);
     // Same ⚠ as the checkout webhook, carried not closed: a door confirmation
     // arriving before the order exists answers 404, and whether a provider
@@ -4172,7 +4358,15 @@ export class OrderDO {
     const doorLegKey: string | null = Object.prototype.hasOwnProperty.call(doorLegKeys, 'door')
       ? (doorLegKeys['door'] as string)
       : null;
-    const input: OrderInput = { kind: 'door_provider', event, expectedProviderKey: doorLegKey };
+    const input: OrderInput =
+      collecte !== undefined
+        ? {
+            kind: 'door_group_provider',
+            event,
+            expectedProviderKey: collecte.providerKey,
+            collecte: { groupId: collecte.groupId, correlationId: collecte.correlationId, parts: collecte.parts },
+          }
+        : { kind: 'door_provider', event, expectedProviderKey: doorLegKey };
     const outcome = applyOrderInput(spine, input);
     if (!outcome.applied) {
       // RAPPROCHEMENT-1 (audit B4): the door path's §6 alert — including the
@@ -4532,7 +4726,7 @@ function mintBuyerRef(): string {
  * so every code from 000000 to 999999 is exactly as likely. NEVER
  * `Math.random` — this is the secret custody releases the package on.
  */
-function mintCodeRemise(): string {
+export function mintCodeRemise(): string {
   const buf = new Uint32Array(1);
   const limit = 4_294_000_000; // 4294 × 10⁶ — the largest multiple of 10⁶ ≤ 2³²
   for (;;) {
@@ -4709,6 +4903,9 @@ export function decodeId(raw: string): string | undefined {
   }
 }
 
+/** COLIS-FOURNISSEUR-1 — a package door collection's id: `<groupId>-porte-<n>`. */
+const PORTE_ID = /^(grp-[0-9a-f]{40})-porte-[1-9][0-9]{0,3}$/;
+
 export function statusForRefusal(reason: string): number {
   if (reason === 'quote_unknown' || reason === 'unknown_order' || reason === 'not_found') return 404;
   // Someone else holds this quote: a STATE, spoken plainly, with no money on it.
@@ -4716,6 +4913,9 @@ export function statusForRefusal(reason: string): number {
   // PAYER-TOUT-1 — an order already bound to one payment road, and a group
   // still finishing its last attempt: states, spoken plainly, never money.
   if (reason === 'order_in_group' || reason === 'order_in_other_payment') return 409;
+  // COLIS-FOURNISSEUR-1 — a package's article on the single road, an article
+  // already in another door payment of its package: states, never money.
+  if (reason === 'colis_paye_ensemble' || reason === 'porte_du_colis' || reason === 'porte_deja_choisie') return 409;
   if (reason === 'paiement_occupe') return 503;
   return 422;
 }
@@ -4815,9 +5015,13 @@ export default {
         new Request('https://do/entry'),
       );
       const quoteBody = (await quoteRes.json().catch(() => null)) as
-        | { ok?: boolean; reason?: string; canonicalBytes?: string; fulfillment?: unknown; quote?: { paymentMode?: unknown } }
+        | { ok?: boolean; reason?: string; canonicalBytes?: string; fulfillment?: unknown; quote?: { paymentMode?: unknown }; colis?: unknown }
         | null;
       if (quoteBody === null) return refuse('quote_unknown');
+      // COLIS-FOURNISSEUR-1 — an article priced inside a package carries only
+      // its share of the package's one fee: it is paid with its package, in
+      // the panier's one payment, never alone (founder rulings 2026-09-23).
+      if (quoteBody.colis !== undefined) return refuse('colis_paye_ensemble');
       /**
        * ═══ COMMANDE-REJOUER-1 — AN EXPIRED QUOTE STILL REACHES THE OBJECT ═══
        *
@@ -5265,7 +5469,16 @@ export default {
         if (orderId === undefined || !ID_ALPHABET.test(orderId)) return badRequest('bad_field', 'orderId');
         const leg = new URL(request.url).searchParams.get('leg') ?? 'checkout';
         if (isGroupId(orderId)) {
-          if (env.PAYMENT_GROUP === undefined || leg !== 'checkout') return refuse('unknown_order');
+          if (env.PAYMENT_GROUP === undefined) return refuse('unknown_order');
+          // COLIS-FOURNISSEUR-1 — a package's door collection lives in its group.
+          const porte = PORTE_ID.exec(orderId);
+          if (porte !== null && leg === 'door') {
+            const res = await env.PAYMENT_GROUP.get(env.PAYMENT_GROUP.idFromName(porte[1]!)).fetch(
+              new Request(`https://do/entry/porte-key?collecte=${encodeURIComponent(orderId)}`),
+            );
+            return new Response(res.body, { status: res.status, headers: { 'Content-Type': 'application/json' } });
+          }
+          if (leg !== 'checkout' || porte !== null) return refuse('unknown_order');
           const res = await env.PAYMENT_GROUP.get(env.PAYMENT_GROUP.idFromName(orderId)).fetch(
             new Request('https://do/entry/leg-key'),
           );
@@ -5359,8 +5572,18 @@ export default {
         return badRequest('bad_field', 'order_id');
       }
 
-      const res = await orderStub(env, orderId).fetch(
-        new Request('https://do/entry/door-webhook', {
+      // COLIS-FOURNISSEUR-1 — a package's door collection is its group's to
+      // hand to each kept article; any other group id names nothing here.
+      let stub: DurableObjectStub | undefined = orderStub(env, orderId);
+      let chemin = 'https://do/entry/door-webhook';
+      if (isGroupId(orderId)) {
+        const porte = PORTE_ID.exec(orderId);
+        stub = porte === null ? undefined : env.PAYMENT_GROUP?.get(env.PAYMENT_GROUP.idFromName(porte[1]!));
+        chemin = 'https://do/entry/porte-webhook';
+      }
+      if (stub === undefined) return refuse('unknown_order');
+      const res = await stub.fetch(
+        new Request(chemin, {
           method: 'POST',
           body: JSON.stringify({ event: parsed.data }),
         }),

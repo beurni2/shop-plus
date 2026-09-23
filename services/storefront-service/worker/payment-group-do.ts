@@ -3,6 +3,8 @@ import { decideBuyerRung } from '@shop-plus/commerce-core';
 import { orderIdForQuote, type BuyerOrderView } from '../src/order-core.js';
 import { readSandboxBehavior, sandboxPaymentProvider } from '../src/payment-port.js';
 import {
+  colisIdFor,
+  decideColis,
   decideGroupParts,
   groupIdFor,
   groupStateOf,
@@ -10,6 +12,7 @@ import {
   toBuyerGroupView,
   GROUP_MAX,
   GROUP_MIN,
+  type ColisEntry,
   type GroupEntry,
   type GroupPart,
 } from '../src/payment-group-core.js';
@@ -19,6 +22,7 @@ import {
   ID_ALPHABET,
   bounded,
   decodeId,
+  mintCodeRemise,
   mintPaymentAttemptId,
   mintProviderLegKey,
   readBuyerContactWire,
@@ -67,6 +71,42 @@ const KEY_KEY = 'provider-key';
 const ATTEMPTS_KEY = 'attempts';
 const RESULTS_KEY = 'command-results';
 const NOTICE_KEY = 'failure-notice';
+/** COLIS-FOURNISSEUR-1 — each package's one remise code, by packageId. */
+const CODES_COLIS_KEY = 'codes-colis';
+/** COLIS-FOURNISSEUR-1 — the packages' door collections, by collection id. */
+const PORTES_KEY = 'portes';
+const PORTE_RESULTS_KEY = 'porte-command-results';
+
+/**
+ * COLIS-FOURNISSEUR-1 — ONE door payment for the articles she keeps from one
+ * package (decision d). Its SET IS FIXED at its birth: a charge can end only
+ * as accepted or unknown (a timeout may have moved money), so an article
+ * charged once inside a collection never joins another — a retry of the same
+ * set reuses the same key and amount, which the provider absorbs. A
+ * collection whose charge was never asked frees its articles.
+ */
+interface PorteCollecte {
+  readonly collectId: string;
+  readonly packageId: string;
+  /** Sorted — the set is what names the collection. */
+  readonly orderIds: readonly string[];
+  readonly parts: readonly { readonly orderId: string; readonly amount: number }[];
+  readonly total: number;
+  readonly correlationId: string;
+  readonly providerKey: string;
+  /** True from the moment the provider may have been called — never false again. */
+  charged: boolean;
+  /** An uncharged collection that could not be completed: its articles are free. */
+  abandonnee?: true;
+  attempts: { attemptId: string; requestedAt: string; outcome: string; collectRef?: string }[];
+}
+
+interface PorteArgs {
+  readonly packageId: string;
+  readonly orderIds: readonly string[];
+  readonly holderRef: string;
+  readonly commandId: string;
+}
 
 interface StoredGroup {
   readonly groupId: string;
@@ -80,6 +120,17 @@ interface StoredGroup {
   readonly dueTotal: number;
   readonly deliveryTotal: number;
   readonly createdAt: string;
+  /**
+   * COLIS-FOURNISSEUR-1 — the packages inside this payment, frozen at its
+   * birth like its parts: each package's id and its orders, in its order.
+   */
+  readonly colis?: readonly ColisDuGroupe[];
+}
+
+/** COLIS-FOURNISSEUR-1 — one package of the payment, as its orders will carry it. */
+interface ColisDuGroupe {
+  readonly packageId: string;
+  readonly orderIds: readonly string[];
 }
 
 type NoticeOutcome = 'timeout' | 'idempotency_key_amount_mismatch' | 'group_incomplete' | 'provider_amount_divergence';
@@ -111,6 +162,8 @@ interface QuoteRead {
 interface PayArgs {
   readonly groupId: string;
   readonly quotes: readonly QuoteRead[];
+  /** COLIS-FOURNISSEUR-1 — decided by the router off the quotes' own records. */
+  readonly colis?: readonly ColisDuGroupe[];
   readonly holderRef: string;
   readonly commandId: string;
   readonly contact: BuyerContact | null;
@@ -185,6 +238,26 @@ export class PaymentGroupDO {
       const body = (await request.json().catch(() => null)) as { event?: unknown } | null;
       if (body === null) return Response.json({ ok: false, reason: 'malformed' }, { status: 400 });
       return this.onProviderEvent(body.event);
+    }
+    if (request.method === 'POST' && pathname === '/entry/porte') {
+      const args = (await request.json().catch(() => null)) as PorteArgs | null;
+      if (args === null || typeof args.packageId !== 'string' || !Array.isArray(args.orderIds)) {
+        return Response.json({ ok: false, reason: 'malformed' }, { status: 400 });
+      }
+      return this.porte(args);
+    }
+    if (request.method === 'POST' && pathname === '/entry/porte-webhook') {
+      const body = (await request.json().catch(() => null)) as { event?: unknown } | null;
+      if (body === null) return Response.json({ ok: false, reason: 'malformed' }, { status: 400 });
+      return this.onPorteEvent(body.event);
+    }
+    /** COLIS-FOURNISSEUR-1 — the stand-in's key read for a door collection (webhook secret). */
+    if (request.method === 'GET' && pathname === '/entry/porte-key') {
+      const collectId = new URL(request.url).searchParams.get('collecte') ?? '';
+      const portes = (await this.state.storage.get<Record<string, PorteCollecte>>(PORTES_KEY)) ?? {};
+      const c = Object.prototype.hasOwnProperty.call(portes, collectId) ? portes[collectId] : undefined;
+      if (c === undefined) return Response.json({ ok: false }, { status: 404 });
+      return Response.json({ ok: true, legKey: c.providerKey, groupId: c.collectId });
     }
     /** The sandbox stand-in's key read — reached only behind the webhook secret. */
     if (request.method === 'GET' && pathname === '/entry/leg-key') {
@@ -268,6 +341,7 @@ export class PaymentGroupDO {
         dueTotal: decided.dueTotal,
         deliveryTotal: decided.deliveryTotal,
         createdAt: now,
+        ...(args.colis !== undefined && args.colis.length > 0 ? { colis: args.colis } : {}),
       };
     }
     const attempt: GroupAttempt = resume && last !== undefined
@@ -307,6 +381,7 @@ export class PaymentGroupDO {
     const commandes: { orderId: string; view: BuyerOrderView; buyerRef: string }[] = [];
     for (const part of group.parts) {
       const q = args.quotes.find((x) => x.quoteId === part.quoteId);
+      const colis = colisDe(group, part.orderId);
       const created = await this.post(part.orderId, '/entry/group-create', {
         quoteId: part.quoteId,
         holderRef: args.holderRef,
@@ -319,6 +394,7 @@ export class PaymentGroupDO {
         contact,
         groupe,
         groupAttemptId: attempt.attemptId,
+        ...(colis !== undefined ? { colis } : {}),
       });
       const c = created.json as
         | { ok?: boolean; reason?: string; view?: BuyerOrderView; buyerRef?: string; groupAttemptId?: string }
@@ -497,11 +573,28 @@ export class PaymentGroupDO {
     if (probe.data.envelope.command_id.length > 1024) {
       return Response.json({ ok: false, reason: 'envelope_field_too_long' }, { status: 422 });
     }
+    /**
+     * COLIS-FOURNISSEUR-1 — ONE code per package (founder ruling 2026-09-23):
+     * minted here, at the payment's confirmation, once — durable BEFORE any
+     * article hears it, so a redelivery hands every article the same six
+     * digits. It lives only in these objects; each article keeps it as its
+     * own remise code at its own confirmation, and custody is armed with it
+     * for each of them. An article alone never receives one.
+     */
+    let codes = (await this.state.storage.get<Record<string, string>>(CODES_COLIS_KEY)) ?? {};
+    if ((group.colis ?? []).some((c) => codes[c.packageId] === undefined)) {
+      codes = { ...codes };
+      for (const c of group.colis ?? []) codes[c.packageId] ??= mintCodeRemise();
+      await this.state.storage.put(CODES_COLIS_KEY, codes);
+      codes = (await this.state.storage.get<Record<string, string>>(CODES_COLIS_KEY)) ?? {};
+    }
     const states: string[] = [];
     let allDuplicate = true;
     let firstRefusal: Response | undefined;
     for (const part of group.parts) {
-      const res = await this.post(part.orderId, '/entry/webhook', { event });
+      const colis = colisDe(group, part.orderId);
+      const codeColis = colis === undefined ? undefined : codes[colis.packageId];
+      const res = await this.post(part.orderId, '/entry/webhook', { event, ...(codeColis !== undefined ? { codeColis } : {}) });
       const body = res.json as { ok?: boolean; reason?: string; status?: string; state?: string } | null;
       if (body === null || body.ok !== true) {
         firstRefusal ??= Response.json(
@@ -517,6 +610,161 @@ export class PaymentGroupDO {
     return Response.json({ ok: true, status: allDuplicate ? 'duplicate' : 'applied', state: groupStateOf(states) });
   }
 
+  /* ─────────────── COLIS-FOURNISSEUR-1 — the package's one door payment ─────────────── */
+
+  private async porte(args: PorteArgs): Promise<Response> {
+    const group = await this.state.storage.get<StoredGroup>(GROUP_KEY);
+    if (group === undefined) return refusal('unknown_order');
+    if (group.holderRef !== args.holderRef) return refusal('reservation_held_by_another');
+    const colis = group.colis?.find((c) => c.packageId === args.packageId);
+    if (colis === undefined) return refusal('unknown_order');
+    const set = [...new Set(args.orderIds)].sort();
+    if (set.length === 0 || set.length !== args.orderIds.length || !set.every((id) => colis.orderIds.includes(id))) {
+      return refusal('malformed');
+    }
+    const results = (await this.state.storage.get<Record<string, unknown>>(PORTE_RESULTS_KEY)) ?? {};
+    if (Object.prototype.hasOwnProperty.call(results, args.commandId)) return Response.json(results[args.commandId]);
+
+    const portes = (await this.state.storage.get<Record<string, PorteCollecte>>(PORTES_KEY)) ?? {};
+    const vivantes = Object.values(portes).filter((c) => c.packageId === colis.packageId && c.abandonnee !== true);
+    let collecte = vivantes.find((c) => c.orderIds.length === set.length && c.orderIds.every((id, i) => id === set[i]));
+    if (collecte === undefined) {
+      // A NEW set: none of its articles may already be in a live collection.
+      const prise = set.find((id) => vivantes.some((c) => c.orderIds.includes(id)));
+      if (prise !== undefined) return refusal('porte_deja_choisie', { orderId: prise });
+    } else {
+      const last = collecte.attempts[collecte.attempts.length - 1];
+      // Asked and not failed: the provider's webhook is what moves it now.
+      if (last !== undefined && (last.outcome === 'accepted' || last.outcome === 'pending')) {
+        return Response.json({ ok: true, view: await this.vueColis(colis), montant: collecte.total });
+      }
+    }
+
+    // 1. CHECK every article, nothing written; the first refusal names it.
+    const parts: { orderId: string; amount: number }[] = [];
+    for (const orderId of set) {
+      const checked = await this.post(orderId, '/entry/porte-check', { holderRef: args.holderRef });
+      const c = checked.json as { ok?: boolean; reason?: string; amount?: number } | null;
+      if (c === null || c.ok !== true || typeof c.amount !== 'number') return refusal(c?.reason ?? 'paiement_occupe', { orderId });
+      parts.push({ orderId, amount: c.amount });
+    }
+    const total = parts.reduce((t, p) => t + p.amount, 0);
+    if (!Number.isSafeInteger(total) || total <= 0) return refusal('montant_illisible');
+    if (collecte !== undefined && !parts.every((p, i) => p.orderId === collecte!.parts[i]?.orderId && p.amount === collecte!.parts[i]?.amount)) {
+      return refusal('group_share_mismatch');
+    }
+
+    // 2. THE COLLECTION AND ITS KEY ARE DURABLE BEFORE ANY ARTICLE ENTERS IT.
+    if (collecte === undefined) {
+      const collectId = `${group.groupId}-porte-${Object.keys(portes).length + 1}`;
+      collecte = {
+        collectId,
+        packageId: colis.packageId,
+        orderIds: set,
+        parts,
+        total,
+        correlationId: `corr-${collectId}`,
+        providerKey: mintProviderLegKey(),
+        charged: false,
+        attempts: [],
+      };
+      await this.state.storage.put(PORTES_KEY, { ...portes, [collectId]: collecte });
+    }
+    const stored = ((await this.state.storage.get<Record<string, PorteCollecte>>(PORTES_KEY)) ?? {})[collecte.collectId];
+    if (stored === undefined) return refusal('paiement_occupe');
+    collecte = stored;
+
+    // 3. ENTER every article: its record first-wins, BEFORE any charge.
+    for (const orderId of collecte.orderIds) {
+      const entered = await this.post(orderId, '/entry/porte-enter', {
+        holderRef: args.holderRef,
+        collectId: collecte.collectId,
+        collecte: { correlationId: collecte.correlationId, providerKey: collecte.providerKey, parts: collecte.parts },
+      });
+      if (entered.json?.['ok'] !== true) {
+        // Never charged ⇒ nothing can have moved: its articles are free again.
+        if (!collecte.charged) await this.majPorte({ ...collecte, abandonnee: true });
+        return refusal(typeof entered.json?.['reason'] === 'string' ? entered.json['reason'] : 'paiement_occupe', { orderId });
+      }
+    }
+
+    // 4. DURABLE AS CHARGED BEFORE THE PROVIDER IS CALLED.
+    const now = new Date().toISOString();
+    const deja = collecte.attempts.length;
+    const attempt = { attemptId: mintPaymentAttemptId(), requestedAt: now, outcome: 'pending' };
+    collecte = { ...collecte, charged: true, attempts: [...collecte.attempts, attempt] };
+    await this.majPorte(collecte);
+
+    // 5. ONE CHARGE, FOR THE SUM, UNDER THE COLLECTION'S KEY.
+    const provider = sandboxPaymentProvider(readSandboxBehavior(this.env.PAYMENT_SANDBOX_BEHAVIOR), deja);
+    const charge = await provider.initiateCharge({
+      orderId: collecte.collectId,
+      paymentAttemptId: collecte.providerKey,
+      amount: collecte.total,
+      correlationId: collecte.correlationId,
+      requestedAtIso: now,
+      legType: 'door',
+    });
+    const outcome = charge.chargedAmount !== collecte.total ? 'provider_amount_divergence' : charge.accepted ? 'accepted' : charge.reason;
+    collecte = {
+      ...collecte,
+      attempts: collecte.attempts.map((a) =>
+        a.attemptId === attempt.attemptId ? { ...a, outcome, ...(charge.accepted ? { collectRef: charge.collectRef } : {}) } : a,
+      ),
+    };
+    await this.majPorte(collecte);
+    // Not accepted: nothing moved on her side; the same set retries under the same key.
+    if (outcome !== 'accepted') return refusal(outcome);
+    // The ONE amount the provider was asked for — the server's sum, never her phone's.
+    const answer = { ok: true, view: await this.vueColis(colis), montant: collecte.total };
+    await this.state.storage.put(PORTE_RESULTS_KEY, { ...results, [args.commandId]: answer });
+    return Response.json(answer);
+  }
+
+  private async majPorte(collecte: PorteCollecte): Promise<void> {
+    const portes = (await this.state.storage.get<Record<string, PorteCollecte>>(PORTES_KEY)) ?? {};
+    await this.state.storage.put(PORTES_KEY, { ...portes, [collecte.collectId]: collecte });
+  }
+
+  /** The package's articles as they stand — each order's own projection. */
+  private async vueColis(colis: ColisDuGroupe): Promise<BuyerOrderView[]> {
+    const vues: BuyerOrderView[] = [];
+    for (const orderId of colis.orderIds) {
+      const res = await this.order(orderId).fetch(new Request('https://do/entry')).catch(() => null);
+      const body = res === null ? null : ((await res.json().catch(() => null)) as { ok?: boolean; view?: BuyerOrderView } | null);
+      if (body?.ok === true && body.view !== undefined) vues.push(body.view);
+    }
+    return vues;
+  }
+
+  /**
+   * ONE DOOR CONFIRMATION, EVERY ARTICLE OF ITS COLLECTION — handed verbatim;
+   * each judges it in the vault against the record it stored when it entered
+   * (`onGroupDoorPaymentEvent`). The provider hears `applied` only when every
+   * article applied (or had already), else the first refusal by its own name.
+   */
+  private async onPorteEvent(event: unknown): Promise<Response> {
+    const probe = PlatformEventSchema.safeParse(event);
+    if (!probe.success) return Response.json({ ok: false, reason: 'not_a_platform_event' }, { status: 422 });
+    const ref = (probe.data.payload as Record<string, unknown>)['order_id'];
+    const portes = (await this.state.storage.get<Record<string, PorteCollecte>>(PORTES_KEY)) ?? {};
+    const collecte = typeof ref === 'string' && Object.prototype.hasOwnProperty.call(portes, ref) ? portes[ref] : undefined;
+    if (collecte === undefined || !collecte.charged) return Response.json({ ok: false, reason: 'unknown_order' }, { status: 404 });
+    let allDuplicate = true;
+    let firstRefusal: Response | undefined;
+    for (const orderId of collecte.orderIds) {
+      const res = await this.post(orderId, '/entry/porte-webhook', { event, collectId: collecte.collectId });
+      const body = res.json as { ok?: boolean; reason?: string; status?: string } | null;
+      if (body === null || body.ok !== true) {
+        firstRefusal ??= Response.json({ ok: false, reason: body?.reason ?? 'unknown_order' }, { status: body === null ? 503 : res.status });
+        continue;
+      }
+      if (body.status !== 'duplicate') allDuplicate = false;
+    }
+    if (firstRefusal !== undefined) return firstRefusal;
+    return Response.json({ ok: true, status: allDuplicate ? 'duplicate' : 'applied', doorLeg: 'paid' });
+  }
+
   /* ──────────────────────────────── the read ────────────────────────────────── */
 
   private vueDe(group: StoredGroup, articles: readonly BuyerOrderView[]) {
@@ -527,6 +775,7 @@ export class PaymentGroupDO {
       dueTotal: group.dueTotal,
       deliveryTotal: group.deliveryTotal,
       articles,
+      ...(group.colis !== undefined ? { colis: group.colis } : {}),
     });
   }
 
@@ -554,6 +803,8 @@ function memesParts(a: readonly GroupPart[], b: readonly GroupPart[]): boolean {
 /** The wire vocabulary of a grouped payment. No amount field, and no liste: a gift is paid on its own. */
 const GROUP_FIELDS = ['quoteIds', 'holderRef', 'commandId', 'contact'];
 const PRICE_FIELDS = ['quoteIds'];
+/** COLIS-FOURNISSEUR-1 — the package door's vocabulary: which package, which articles she keeps. No amount. */
+const PORTE_FIELDS = ['packageId', 'orderIds', 'holderRef', 'commandId'];
 
 interface RouterEnv {
   readonly CHECKOUT: DurableObjectNamespace;
@@ -581,8 +832,43 @@ interface QuoteBody {
   ok?: boolean;
   reason?: string;
   canonicalBytes?: string;
-  fulfillment?: { zoneTo?: unknown } | null;
-  quote?: { paymentMode?: unknown };
+  fulfillment?: { zoneTo?: unknown; productVersionId?: unknown } | null;
+  quote?: { paymentMode?: unknown; deliveryFee?: unknown };
+  /** COLIS-FOURNISSEUR-1 — the package the quote was priced in, when it was. */
+  colis?: { pids?: unknown; packageFee?: unknown };
+}
+
+/** COLIS-FOURNISSEUR-1 — what one article's record says about its package, read strictly. */
+function colisEntryDe(quoteId: string, lu: QuoteBody, deliveryFee: number): ColisEntry {
+  const pid = lu.fulfillment?.productVersionId;
+  const c = lu.colis;
+  const lisible =
+    c !== undefined &&
+    Array.isArray(c.pids) &&
+    c.pids.every((x) => typeof x === 'string' && x !== '') &&
+    typeof c.packageFee === 'number';
+  return {
+    quoteId,
+    orderId: orderIdForQuote(quoteId),
+    pid: typeof pid === 'string' && pid !== '' ? pid : undefined,
+    deliveryFee,
+    // A record that is there but unreadable is a package nobody can check:
+    // it is kept as one (so it can only refuse), never read as « alone ».
+    colis: c === undefined ? undefined : lisible ? { pids: c.pids as string[], packageFee: c.packageFee as number } : { pids: [], packageFee: -1 },
+  };
+}
+
+/** The packages of a payment, with their derived ids — or the one refusal. */
+async function colisDuPanier(entries: readonly ColisEntry[]): Promise<{ colis: ColisDuGroupe[]; livraisons: number } | null> {
+  const decided = decideColis(entries);
+  if (!decided.ok) return null;
+  const colis: ColisDuGroupe[] = [];
+  for (const c of decided.colis) colis.push({ packageId: await colisIdFor(c.quoteIds), orderIds: [...c.orderIds] });
+  return { colis, livraisons: decided.livraisons };
+}
+
+function colisDe(group: StoredGroup, orderId: string): ColisDuGroupe | undefined {
+  return group.colis?.find((c) => c.orderIds.includes(orderId));
 }
 
 async function lireQuote(env: RouterEnv, quoteId: string): Promise<QuoteBody | null> {
@@ -610,6 +896,7 @@ export const groupRouter = {
       const ids = readQuoteIds(body['quoteIds']);
       if (ids instanceof Response) return ids;
       const entries: GroupEntry[] = [];
+      const colisEntries: ColisEntry[] = [];
       for (const quoteId of ids) {
         const lu = await lireQuote(env, quoteId);
         if (lu === null || lu.ok !== true || typeof lu.canonicalBytes !== 'string') {
@@ -630,13 +917,19 @@ export const groupRouter = {
           deliveryFee: q.deliveryFee,
           productSubtotal: q.productSubtotal,
         });
+        colisEntries.push(colisEntryDe(quoteId, lu, q.deliveryFee));
       }
       const decided = decideGroupParts(entries);
       if (!decided.ok) return refuse(decided.reason);
+      const colis = await colisDuPanier(colisEntries);
+      if (colis === null) return refuse('colis_incomplet');
       return Response.json(
         {
           paymentMode: decided.paymentMode,
           articles: decided.parts.length,
+          // COLIS-FOURNISSEUR-1 — how many deliveries she pays for: one per
+          // package, one per article travelling alone.
+          livraisons: colis.livraisons,
           amountPaidAtCheckout: decided.total,
           amountDueAtDelivery: decided.dueTotal,
           deliveryTotal: decided.deliveryTotal,
@@ -666,7 +959,9 @@ export const groupRouter = {
       // Each quote's OWN bytes, server-side. An expired quote travels without
       // bytes: only the replay road can succeed on it (COMMANDE-REJOUER-1).
       const quotes: QuoteRead[] = [];
+      const colisEntries: ColisEntry[] = [];
       let doorMode = false;
+      let uneExpiree = false;
       for (const quoteId of ids) {
         const lu = await lireQuote(env, quoteId);
         if (lu === null) return refuse('quote_unknown', quoteId);
@@ -675,6 +970,8 @@ export const groupRouter = {
           return refuse(lu.reason === 'not_found' ? 'quote_unknown' : (lu.reason ?? 'quote_unknown'), quoteId);
         }
         if (lu.quote?.paymentMode === DOOR_MODE) doorMode = true;
+        if (expiree) uneExpiree = true;
+        colisEntries.push(colisEntryDe(quoteId, lu, typeof lu.quote?.deliveryFee === 'number' ? lu.quote.deliveryFee : -1));
         quotes.push({
           quoteId,
           ...(expiree ? {} : { quoteBytes: lu.canonicalBytes as string }),
@@ -690,6 +987,14 @@ export const groupRouter = {
         if (!decideBuyerRung(eligibility, new Date().toISOString()).allowed) return refuse('pay_at_door_not_eligible');
       }
 
+      // COLIS-FOURNISSEUR-1 — a package is paid whole or not at all. Judged
+      // on live quotes only: an expired one carries no record to judge, and
+      // only the replay road can succeed on it — over a group whose packages
+      // were frozen at its birth (a new group on an expired quote is refused
+      // by the order's own check).
+      const colis = uneExpiree ? { colis: [] as ColisDuGroupe[], livraisons: 0 } : await colisDuPanier(colisEntries);
+      if (colis === null) return refuse('colis_incomplet');
+
       const groupId = await groupIdFor(ids);
       const res = await env.PAYMENT_GROUP.get(env.PAYMENT_GROUP.idFromName(groupId)).fetch(
         new Request('https://do/entry/pay', {
@@ -701,6 +1006,7 @@ export const groupRouter = {
             commandId: body['commandId'],
             contact,
             ...(contact !== null && audioB64 !== undefined ? { audioB64 } : {}),
+            ...(colis.colis.length > 0 ? { colis: colis.colis } : {}),
           }),
         }),
       );
@@ -721,6 +1027,50 @@ export const groupRouter = {
         },
         { status: 200 },
       );
+    }
+
+    /**
+     * COLIS-FOURNISSEUR-1 — ONE payment at the door for the articles she
+     * keeps from one package (decision d). Public on the single door's exact
+     * terms: no amount can arrive (an allowlist of ids), none can leave but
+     * each article's own projection, and it cannot declare money received —
+     * it asks the provider once; only the secret-gated door webhook confirms.
+     */
+    const porte = /^\/checkout\/group\/([^/]+)\/porte$/.exec(pathname);
+    if (porte && request.method === 'POST') {
+      const groupId = decodeId(porte[1]!);
+      if (groupId === undefined || !ID_ALPHABET.test(groupId) || !isGroupId(groupId)) return badRequest('bad_field', 'groupId');
+      const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
+      if (body === null || typeof body !== 'object' || Array.isArray(body)) return badRequest('malformed');
+      for (const key of Object.keys(body)) if (!PORTE_FIELDS.includes(key)) return badRequest('unknown_field', key);
+      if (!bounded(body['packageId'], 191) || !ID_ALPHABET.test(body['packageId'])) return badRequest('bad_field', 'packageId');
+      const ids = body['orderIds'];
+      if (
+        !Array.isArray(ids) || ids.length === 0 || ids.length > GROUP_MAX ||
+        !ids.every((id) => bounded(id, 191) && ID_ALPHABET.test(id)) || new Set(ids).size !== ids.length
+      ) {
+        return badRequest('bad_field', 'orderIds');
+      }
+      if (!bounded(body['holderRef'], 128)) return badRequest('bad_field', 'holderRef');
+      if (!bounded(body['commandId'], 128) || !ID_ALPHABET.test(body['commandId'])) return badRequest('bad_field', 'commandId');
+      const res = await env.PAYMENT_GROUP.get(env.PAYMENT_GROUP.idFromName(groupId)).fetch(
+        new Request('https://do/entry/porte', {
+          method: 'POST',
+          body: JSON.stringify({ packageId: body['packageId'], orderIds: ids, holderRef: body['holderRef'], commandId: body['commandId'] }),
+        }),
+      );
+      const decided = (await res.json().catch(() => null)) as { ok?: boolean; reason?: string; orderId?: unknown; view?: unknown; montant?: unknown } | null;
+      if (decided === null) return refuse('paiement_occupe');
+      if (decided.ok !== true || !Array.isArray(decided.view)) {
+        const reason = decided.reason ?? 'refused';
+        return Response.json(
+          typeof decided.orderId === 'string' ? { error: reason, orderId: decided.orderId } : { error: reason },
+          { status: statusForRefusal(reason) },
+        );
+      }
+      // Each kept article's own projection, as it stands (« accepted is not
+      // paid »), and the one amount the operator will ask her for.
+      return Response.json({ articles: decided.view, montant: decided.montant }, { status: 200 });
     }
 
     const byId = /^\/checkout\/group\/([^/]+)$/.exec(pathname);

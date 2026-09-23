@@ -29,6 +29,7 @@ import { SUPPLY_COLLECTION_ROUTE, SUPPLY_DIAGNOSTIC_ROUTE } from '../src/supply-
 import { signPrice } from '../src/publish-price.js';
 import { resolveSupplySource } from '../src/supply-source.js';
 import { resolveProducerHold } from '../src/producer-hold.js';
+import { resolveColisGrouping } from '../src/colis-source.js';
 import { orderIdForQuote } from '../src/order-core.js';
 import type { R2BucketLike } from '../src/media/media-store.js';
 import { IMAGE_MAX_BYTES } from '../src/media/service.js';
@@ -488,6 +489,9 @@ export default {
         // confirmed-order wire's own binding and credential: `OFFER` bound ⇒
         // the real client, absent ⇒ `AbsentProducerHold` (holds nothing).
         HOLD: resolveProducerHold(env),
+        // COLIS-FOURNISSEUR-1 — Boutik+'s grouping door, over the supply
+        // read's own binding and credential: absent ⇒ every article alone.
+        COLIS: resolveColisGrouping(env),
         // PAUSE-VENTE-1 — the access port (the accounts book's `/state-of`),
         // handed in only when the book is bound: a paused owner's shop mints
         // no quote. Same explicit-grant law as its neighbours; absent, the
@@ -556,11 +560,14 @@ export default {
     const isGroupPay = pathname === '/checkout/group';
     const isGroupPrice = pathname === '/checkout/group/price';
     const isGroupById = /^\/checkout\/group\/[^/]+$/.test(pathname) && !isGroupPrice;
-    if (request.method === 'OPTIONS' && (isGroupPay || isGroupPrice || isGroupById)) {
+    // COLIS-FOURNISSEUR-1 — the package's one door payment, on the single
+    // door's terms (public, an allowlist of ids, no amount in or out).
+    const isGroupPorte = /^\/checkout\/group\/[^/]+\/porte$/.test(pathname);
+    if (request.method === 'OPTIONS' && (isGroupPay || isGroupPrice || isGroupById || isGroupPorte)) {
       return checkoutPreflight();
     }
     if (
-      (request.method === 'POST' && (isGroupPay || isGroupPrice)) ||
+      (request.method === 'POST' && (isGroupPay || isGroupPrice || isGroupPorte)) ||
       (request.method === 'GET' && isGroupById)
     ) {
       if (env.PAYMENT_GROUP === undefined) {

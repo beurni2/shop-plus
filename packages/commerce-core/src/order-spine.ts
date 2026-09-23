@@ -1054,6 +1054,160 @@ export class OrderSpine {
   }
 
   /**
+   * COLIS-FOURNISSEUR-1 — the provider's confirmation of a PACKAGE's door
+   * collection (decision d, founder ruling 2026-09-23: « one payment at the
+   * door for the products she keeps »): ONE charge, under the collection's own
+   * correlation and provider key, covering the door leg of every order in
+   * `collecte.parts`. The same webhook is handed to each of those orders; each
+   * judges it here against its OWN records and funds its OWN door leg only.
+   *
+   * The checks are the single-order twin's (`onProviderDoorPaymentEvent`),
+   * re-aimed at the collection exactly as `onGroupProviderPaymentEvent`
+   * re-aims the checkout's: canon envelope, event name, the COLLECTION's
+   * correlation, idempotency on command_id, `doorLeg === 'due'`, the
+   * collection's provider key, a payload `order_id` that may only name the
+   * collection, the provider amount equal TO THE FRANC to the sum of the
+   * parts, this order among the parts with a share equal to its own Quote's
+   * `amountDueAtDelivery`, a funded status. The escrow records this order's
+   * share — copied from the immutable Quote, proven one term of a total the
+   * provider itself stated — and its share of the one fee (`partDesFrais`).
+   * The door-paid signal it emits is this order's own, as the twin's is.
+   */
+  onGroupDoorPaymentEvent(
+    raw: unknown,
+    expectedProviderKey: string | null,
+    collecte: GroupPaymentShares,
+  ): DoorPaymentOutcome {
+    const parsed = PlatformEventSchema.safeParse(raw);
+    if (!parsed.success) return { applied: false, reason: 'not_a_platform_event', alert: null };
+    const event = parsed.data;
+    if (event.name !== 'payment.door_leg_confirmed.v1') {
+      return { applied: false, reason: 'unexpected_event_name', alert: null };
+    }
+    if (event.envelope.correlation_id !== collecte.correlationId) {
+      return { applied: false, reason: 'wrong_correlation', alert: null };
+    }
+    if (this.processedCommandIds.has(event.envelope.command_id)) {
+      return { applied: true, duplicate: true, signal: this.doorSignal ?? null };
+    }
+    if (this.doorLeg !== 'due' || this.orderId === undefined) {
+      return {
+        applied: false,
+        reason: 'door_leg_not_expected',
+        alert: this.doorMismatchAlert(event),
+      };
+    }
+
+    const p = event.payload as Record<string, unknown>;
+    const idCheck = this.checkGroupWebhookIds(p, expectedProviderKey, collecte);
+    if (idCheck !== null) {
+      return {
+        applied: false,
+        reason: idCheck,
+        alert: this.reconAlert('webhook_names_foreign_charge', event, {
+          leg: 'door',
+          group_id: collecte.groupId,
+          refusal: idCheck,
+          payload_attempt_id: typeof p['payment_attempt_id'] === 'string' ? p['payment_attempt_id'] : null,
+          payload_order_id: typeof p['order_id'] === 'string' ? p['order_id'] : null,
+        }),
+      };
+    }
+    const own = collecte.parts.find((part) => part.orderId === this.orderId);
+    if (own === undefined || own.amount !== this.quote.amountDueAtDelivery) {
+      return { applied: false, reason: 'group_share_mismatch', alert: null };
+    }
+    let total = 0;
+    for (const part of collecte.parts) {
+      if (!Number.isSafeInteger(part.amount) || part.amount <= 0) {
+        return { applied: false, reason: 'group_share_mismatch', alert: null };
+      }
+      total += part.amount;
+    }
+    if (!Number.isSafeInteger(total)) return { applied: false, reason: 'group_share_mismatch', alert: null };
+
+    const amount = p['amount'];
+    const status = p['status'];
+    if (typeof amount !== 'number' || amount !== total) {
+      return {
+        applied: false,
+        reason: 'amount_mismatch',
+        alert: this.reconAlert('provider_amount_contradicts_quote', event, {
+          leg: 'door',
+          group_id: collecte.groupId,
+          provider_amount: typeof amount === 'number' ? amount : null,
+          expected_amount: total,
+        }),
+      };
+    }
+    if (status !== 'held' && status !== 'captured') {
+      return { applied: false, reason: 'unfunded_leg_status', alert: null };
+    }
+    if (escrowPayloadMalformed(p)) {
+      return { applied: false, reason: 'malformed_payload', alert: null };
+    }
+
+    const recorded = this.ledger.recordEscrowFromProvider({
+      orderId: this.orderId,
+      provider: String(p['provider'] ?? 'sandbox-provider'),
+      paymentAttemptId: String(p['payment_attempt_id'] ?? ''),
+      legType: 'door',
+      collectRef: String(p['collectRef'] ?? event.envelope.command_id),
+      // This order's share, copied from its immutable Quote — proven above to
+      // be its own part of the total the provider stated to the franc.
+      amount: this.quote.amountDueAtDelivery,
+      fee: typeof p['fee'] === 'number' ? partDesFrais(collecte.parts, p['fee'], this.orderId) : 0,
+      status,
+    });
+    if (!recorded.ok) {
+      return {
+        applied: false,
+        reason: recorded.reason,
+        alert: this.reconAlert('conflicting_provider_confirmation', event, {
+          leg: 'door',
+          group_id: collecte.groupId,
+          refusal: recorded.reason,
+        }),
+      };
+    }
+    // REMBOURSEMENT-2 — the twin's law: a door payment confirmed on an order
+    // already `refunded` is money held again, so the label goes back to `paid`.
+    if (this.journeyState.state === 'refunded') {
+      const retour = this.avancer({
+        command_id: `${event.envelope.command_id}:porte-apres-remboursement`,
+        actor: event.envelope.actor,
+        serverTime: event.envelope.serverTime,
+        to: 'paid',
+      });
+      if (!retour.ok) return { applied: false, reason: 'out_of_order', alert: null };
+    }
+
+    this.doorLeg = 'paid';
+    this.processedCommandIds.add(event.envelope.command_id);
+    this.doorSignal = PlatformEventSchema.parse({
+      name: 'order.status_projection_updated.v1',
+      envelope: {
+        command_id: `door-signal-${this.orderId}`,
+        correlation_id: this.journeyState.correlationId,
+        aggregateVersion: this.journeyState.aggregateVersion,
+        actor: 'commerce-core:door',
+        serverTime: event.envelope.serverTime,
+        version: '1',
+      },
+      payload: {
+        ...this.journeyState.chain,
+        status: this.journeyState.state,
+        door_leg: 'paid',
+        door_collect_ref: String(p['collectRef'] ?? event.envelope.command_id),
+        // Copied from the immutable Quote (already proven one term of the provider's total).
+        amount_due_at_delivery_confirmed: this.quote.amountDueAtDelivery,
+        provider: String(p['provider'] ?? 'sandbox-provider'),
+      },
+    });
+    return { applied: true, duplicate: false, signal: this.doorSignal };
+  }
+
+  /**
    * NB-3 (E2) — the shared id cross-check both webhook consumers run before a
    * single franc is recorded. Returns the refusal, or null when the ids hold.
    */

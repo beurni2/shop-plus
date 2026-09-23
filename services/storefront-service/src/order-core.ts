@@ -2,6 +2,7 @@ import {
   OrderConfirmedEventSchema,
   QuoteSchema,
   type OrderConfirmedEvent,
+  type OrderPackage,
   type PlatformEvent,
   type Quote,
   type RelatedPartyDecision,
@@ -526,6 +527,20 @@ export type OrderInput =
       readonly expectedProviderKey?: string | null;
     }
   /**
+   * COLIS-FOURNISSEUR-1 — the provider's confirmation of her PACKAGE's door
+   * collection (one payment for the articles she keeps). A separate kind for
+   * the reason `group_provider` is one: which judgement applies is decided by
+   * the collection this order ENTERED (its own durable record), never by the
+   * payload. The collection's shares ride the log so a replay re-judges with
+   * exactly what the original judgement saw.
+   */
+  | {
+      readonly kind: 'door_group_provider';
+      readonly event: unknown;
+      readonly expectedProviderKey: string | null;
+      readonly collecte: GroupPaymentShares;
+    }
+  /**
    * SE-LIVE-5b — Séra's settlement-eligibility signal (`delivery.validated.v1`),
    * carried into the log EXACTLY as it arrived. The spine does every check that
    * matters (canon envelope, event name, the order's own correlation,
@@ -606,6 +621,14 @@ export interface OrderOrigin {
    * every order paid on its own.
    */
   readonly groupe?: OrderGroupe;
+  /**
+   * COLIS-FOURNISSEUR-1 — the package this order travels in (canon
+   * `OrderPackage`: the package's id and every order in it, this one among
+   * them), when its group paid several articles of one supplier. An ORIGIN
+   * fact: decided when she pays, never moved after — Séra and Boutik+ both
+   * hold it write-once. Absent when the order travels alone.
+   */
+  readonly colis?: OrderPackage;
 }
 
 /** PAYER-TOUT-1 — what an order keeps of its group: the shares the vault judges against. */
@@ -749,6 +772,16 @@ export function applyOrderInput(spine: OrderSpine, input: OrderInput): ApplyOutc
     }
     case 'door_provider': {
       const outcome = spine.onProviderDoorPaymentEvent(input.event, input.expectedProviderKey);
+      return outcome.applied
+        ? { applied: true, duplicate: outcome.duplicate === true }
+        : {
+            applied: false,
+            reason: outcome.reason,
+            ...(outcome.alert !== null ? { alert: outcome.alert } : {}),
+          };
+    }
+    case 'door_group_provider': {
+      const outcome = spine.onGroupDoorPaymentEvent(input.event, input.expectedProviderKey, input.collecte);
       return outcome.applied
         ? { applied: true, duplicate: outcome.duplicate === true }
         : {
@@ -972,6 +1005,8 @@ export function composeOrderConfirmedEvent(
       zoneTo: origin.fulfillment.zoneTo,
       // B, verbatim off the frozen quote. Never recomputed.
       sellerBasePrice: quote.sellerBasePrice,
+      // COLIS-FOURNISSEUR-1 — order ids only: the supplier prepares them as one.
+      ...(origin.colis !== undefined ? { package: origin.colis } : {}),
     },
   };
   const parsed = OrderConfirmedEventSchema.safeParse(candidate);

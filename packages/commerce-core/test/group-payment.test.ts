@@ -227,6 +227,98 @@ describe('PAYER-TOUT-1 — the grouped checkout collection, judged per order', (
   });
 });
 
+/**
+ * COLIS-FOURNISSEUR-1 (decision d, founder ruling 2026-09-23) — ONE door
+ * payment for the articles she keeps from one package. The same webhook is
+ * judged by each article against its OWN records: its door leg must be due,
+ * the key and reference the collection's, the provider's amount the exact sum
+ * of the parts, its own part its own Quote's `amountDueAtDelivery`.
+ */
+describe('COLIS-FOURNISSEUR-1 — one door payment for a package, judged per article', () => {
+  const PORTE_KEY = 'pk-porte-1';
+  function colisConfirme() {
+    const a = spineFor('a', WORKED_BASELINE_INPUT, 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR');
+    const b = spineFor('b', NON_DIVISIBLE_REGRESSION_INPUT, 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR');
+    const groupe = groupOf(a, b);
+    const event = webhook({ amount: a.quote.deliveryFee + b.quote.deliveryFee });
+    a.spine.onGroupProviderPaymentEvent(event, KEY, groupe);
+    b.spine.onGroupProviderPaymentEvent(event, KEY, groupe);
+    a.spine.confirmOrder({ command_id: 'cf-a', actor: 't', serverTime: T });
+    b.spine.confirmOrder({ command_id: 'cf-b', actor: 't', serverTime: T });
+    const collecte: GroupPaymentShares = {
+      groupId: 'grp-1-porte-1',
+      correlationId: 'corr-grp-1-porte-1',
+      parts: [
+        { orderId: 'ord-a', amount: a.quote.amountDueAtDelivery },
+        { orderId: 'ord-b', amount: b.quote.amountDueAtDelivery },
+      ],
+    };
+    const total = a.quote.amountDueAtDelivery + b.quote.amountDueAtDelivery;
+    const porte = (over: Record<string, unknown> = {}, envelope: Record<string, unknown> = {}) => ({
+      ...webhook({ payment_attempt_id: PORTE_KEY, collectRef: 'col-porte-1', order_id: 'grp-1-porte-1', amount: total, fee: 99, ...over }, { command_id: 'whk-porte-1', correlation_id: 'corr-grp-1-porte-1', ...envelope }),
+      name: 'payment.door_leg_confirmed.v1',
+    });
+    return { a, b, collecte, total, porte };
+  }
+
+  it('funds EACH article\'s own door leg with its own amount; the fee is shared; each emits its own door signal', () => {
+    const { a, b, collecte, total, porte } = colisConfirme();
+    const ra = a.spine.onGroupDoorPaymentEvent(porte(), PORTE_KEY, collecte);
+    const rb = b.spine.onGroupDoorPaymentEvent(porte(), PORTE_KEY, collecte);
+    expect(ra.applied && rb.applied).toBe(true);
+    expect(a.spine.doorLegState).toBe('paid');
+    expect(b.spine.doorLegState).toBe('paid');
+    const la = a.spine.ledger.escrowFor('ord-a')!.paymentLegs.find((l) => l.legType === 'door')!;
+    const lb = b.spine.ledger.escrowFor('ord-b')!.paymentLegs.find((l) => l.legType === 'door')!;
+    expect(la.amount).toBe(a.quote.amountDueAtDelivery);
+    expect(lb.amount).toBe(b.quote.amountDueAtDelivery);
+    expect(la.amount + lb.amount).toBe(total);
+    expect(la.fee + lb.fee).toBe(99);
+    expect(ra.applied && ra.signal?.payload).toMatchObject({ door_leg: 'paid', amount_due_at_delivery_confirmed: a.quote.amountDueAtDelivery });
+    // A redelivery is absorbed, nothing recorded twice.
+    expect(a.spine.onGroupDoorPaymentEvent(porte(), PORTE_KEY, collecte)).toMatchObject({ applied: true, duplicate: true });
+    expect(a.spine.ledger.escrowFor('ord-a')!.paymentLegs.filter((l) => l.legType === 'door')).toHaveLength(1);
+  });
+
+  it('refuses a franc off the sum (alerted), a foreign key or reference, the ORDER\'s correlation, and a checkout event', () => {
+    const { a, collecte, total, porte } = colisConfirme();
+    const court = a.spine.onGroupDoorPaymentEvent(porte({ amount: total - 1 }), PORTE_KEY, collecte);
+    expect(court).toMatchObject({ applied: false, reason: 'amount_mismatch' });
+    expect(court.applied === false && court.alert?.payload).toMatchObject({ alert: 'provider_amount_contradicts_quote' });
+    expect(a.spine.onGroupDoorPaymentEvent(porte({}, { command_id: 'w2' }), 'pk-autre', collecte)).toMatchObject({ applied: false, reason: 'attempt_mismatch' });
+    expect(a.spine.onGroupDoorPaymentEvent(porte({ order_id: 'grp-1-porte-9' }, { command_id: 'w3' }), PORTE_KEY, collecte)).toMatchObject({ applied: false, reason: 'order_mismatch' });
+    expect(a.spine.onGroupDoorPaymentEvent(porte({}, { command_id: 'w4', correlation_id: 'corr-ord-a' }), PORTE_KEY, collecte)).toMatchObject({ applied: false, reason: 'wrong_correlation' });
+    expect(a.spine.onGroupDoorPaymentEvent({ ...porte({}, { command_id: 'w5' }), name: 'payment.checkout_leg_confirmed.v1' }, PORTE_KEY, collecte)).toMatchObject({ applied: false, reason: 'unexpected_event_name' });
+    expect(a.spine.doorLegState).toBe('due');
+  });
+
+  it('refuses when this article is not a part, or its part is not its own door leg', () => {
+    const { a, collecte, porte } = colisConfirme();
+    const sansMoi = { ...collecte, parts: collecte.parts.filter((p) => p.orderId !== 'ord-a') };
+    expect(a.spine.onGroupDoorPaymentEvent(porte({ amount: sansMoi.parts[0]!.amount }), PORTE_KEY, sansMoi)).toMatchObject({ applied: false, reason: 'group_share_mismatch' });
+    const faux = { ...collecte, parts: collecte.parts.map((p) => (p.orderId === 'ord-a' ? { ...p, amount: p.amount + 1 } : p)) };
+    const total = faux.parts.reduce((t, p) => t + p.amount, 0);
+    expect(a.spine.onGroupDoorPaymentEvent(porte({ amount: total }), PORTE_KEY, faux)).toMatchObject({ applied: false, reason: 'group_share_mismatch' });
+    expect(a.spine.doorLegState).toBe('due');
+  });
+
+  it('refuses on an article that owes nothing at the door (prepaid), with the door-mismatch alert', () => {
+    const a = spineFor('a');
+    const b = spineFor('b', NON_DIVISIBLE_REGRESSION_INPUT);
+    const groupe = groupOf(a, b);
+    a.spine.onGroupProviderPaymentEvent(webhook({ amount: a.quote.amountPaidAtCheckout + b.quote.amountPaidAtCheckout }), KEY, groupe);
+    a.spine.confirmOrder({ command_id: 'cf-a', actor: 't', serverTime: T });
+    const collecte = { groupId: 'grp-1-porte-1', correlationId: 'corr-grp-1-porte-1', parts: [{ orderId: 'ord-a', amount: 1_000 }] };
+    const r = a.spine.onGroupDoorPaymentEvent(
+      { ...webhook({ payment_attempt_id: 'pk-porte-1', order_id: 'grp-1-porte-1', amount: 1_000 }, { command_id: 'wp', correlation_id: 'corr-grp-1-porte-1' }), name: 'payment.door_leg_confirmed.v1' },
+      'pk-porte-1',
+      collecte,
+    );
+    expect(r).toMatchObject({ applied: false, reason: 'door_leg_not_expected' });
+    expect(r.applied === false && r.alert).not.toBeNull();
+  });
+});
+
 describe('FRAIS-PARTAGES-1 — the collection\'s one fee, shared by amount, to the franc', () => {
   const parts = (...xs: [string, number][]) => xs.map(([orderId, amount]) => ({ orderId, amount }));
   const partage = (ps: ReturnType<typeof parts>, frais: number) => ps.map((p) => partDesFrais(ps, frais, p.orderId));

@@ -23,6 +23,7 @@ import {
   resolveSuiviArticle,
   retirerArticlePaye,
   type ArticlePaye,
+  type ColisPaye,
   type PanierPaye,
 } from './panier-port';
 import { orderCommandIdFor, villeDe } from './quote-port';
@@ -70,10 +71,25 @@ export function monterSuiviArticle(
     readonly session: Storage | undefined;
     readonly garde: Storage | undefined;
     readonly onTerminee: () => void;
+    /**
+     * COLIS-FOURNISSEUR-1 — the payment this article was born in, its
+     * packages, and its sibling articles (names and read tokens): a package's
+     * door is ONE payment for what she keeps, through the payment.
+     */
+    readonly paiement?: {
+      readonly groupId: string;
+      readonly colis: readonly ColisPaye[];
+      readonly articles: readonly ArticlePaye[];
+    } | undefined;
   },
 ): void {
   const port = resolveSuiviArticle();
   const { article, titulaire } = args;
+  const colis = args.paiement?.colis.find((c) => c.orderIds.includes(article.orderId));
+  const membres = colis === undefined ? [] : colis.orderIds.flatMap((id) => {
+    const a = args.paiement!.articles.find((x) => x.orderId === id);
+    return a === undefined ? [] : [{ orderId: a.orderId, nom: a.nom, buyerRef: a.buyerRef }];
+  });
   args.monter(remplacer(host), {
     produit: stub(args.boutique, article.nom),
     theme: 'indigo',
@@ -100,6 +116,22 @@ export function monterSuiviArticle(
               return cmd === undefined
                 ? Promise.resolve({ status: 'refused' as const, reason: 'no_secure_random' })
                 : port.doorCharge(id, cmd, titulaire);
+            },
+          }
+        : {}),
+      // COLIS-FOURNISSEUR-1 — ONE door payment for what she keeps of the
+      // package, under the panier's holder, through its payment. Withheld
+      // like the single door when the holder or a sibling was lost.
+      ...(colis !== undefined && titulaire !== null && membres.length === colis.orderIds.length
+        ? {
+            colis: {
+              articles: membres,
+              payer: (gardes: readonly string[], essai: number) => {
+                const cmd = orderCommandIdFor(`${colis.packageId}#porte#${[...gardes].sort().join(',')}`, essai, args.session);
+                return cmd === undefined
+                  ? Promise.resolve({ status: 'refused' as const, reason: 'no_secure_random' })
+                  : resolvePanierPort(new Map()).porte(args.paiement!.groupId, colis.packageId, gardes, cmd, titulaire);
+              },
             },
           }
         : {}),
@@ -140,8 +172,11 @@ export function monterPanier(
       articles: args.articles.map((a) => ({ nom: a.nom, prixFcfa: a.prixFcfa, ...(a.photo !== undefined ? { photo: a.photo } : {}) })),
       lignes: source.lignes,
       payes: source.payes,
+      livraisons: source.livraisons,
+      colis: source.colis,
       onSuivre: (orderId, buyerRef, nom) => {
         const pid = source.payes().find((a) => a.orderId === orderId)?.pid;
+        const groupId = source.groupId();
         monterSuiviArticle(host, {
           monter: args.monter,
           article: { orderId, buyerRef, nom, ...(pid !== undefined ? { pid } : {}) },
@@ -150,6 +185,7 @@ export function monterPanier(
           session: args.session,
           garde: args.garde,
           onTerminee: args.onTerminee,
+          ...(groupId !== null ? { paiement: { groupId, colis: source.colis(), articles: source.payes() } } : {}),
         });
       },
     },
@@ -170,7 +206,7 @@ export function monterMesArticles(
 ): void {
   applyTheme(host, 'indigo');
   host.classList.add('cl-root');
-  host.innerHTML = `<div class="cl-stage">${renderMesArticles(args.paye.articles)}</div>`;
+  host.innerHTML = `<div class="cl-stage">${renderMesArticles(args.paye.articles, args.paye.colis ?? [])}</div>`;
   host.addEventListener('click', (ev) => {
     const el = (ev.target as HTMLElement).closest('[data-action="suivre-article"]');
     if (!(el instanceof HTMLElement)) return;
@@ -188,6 +224,7 @@ export function monterMesArticles(
       session: args.session,
       garde: args.garde,
       onTerminee: args.onTerminee,
+      paiement: { groupId: paye.groupId, colis: paye.colis ?? [], articles: paye.articles },
     });
   });
 }

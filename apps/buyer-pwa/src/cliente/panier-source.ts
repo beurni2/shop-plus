@@ -46,6 +46,7 @@ import {
   panierPaye,
   titulairePanier,
   type ArticlePaye,
+  type ColisPaye,
   type GroupeOutcome,
   type PanierPort,
   type PrixPanier,
@@ -70,6 +71,12 @@ export interface SourcePanier {
   payes(): readonly ArticlePaye[];
   /** The holder the panier was held and paid under — each article's door is paid under it. */
   titulaire(): string | null;
+  /** COLIS-FOURNISSEUR-1 — how many deliveries the service counted, once it priced the panier. */
+  livraisons(): number | undefined;
+  /** COLIS-FOURNISSEUR-1 — which of her orders travel together, once the payment exists. */
+  colis(): readonly ColisPaye[];
+  /** The payment's id, once it exists — a package's door is paid through it. */
+  groupId(): string | null;
 }
 
 const FULL: PaymentModeWire = 'FULL_PREPAY';
@@ -99,6 +106,45 @@ function ecrireLie(slug: string, ids: readonly string[] | undefined, storage: St
     else storage?.setItem(LIE_PREFIX + slug, JSON.stringify([...ids].sort()));
   } catch {
     /* best-effort — the service refuses an order in another payment by name */
+  }
+}
+
+/**
+ * COLIS-FOURNISSEUR-1 — THE PANIER EACH ARTICLE WAS LAST PRICED IN, and the
+ * articles its quote travels with (the service's answer). An article keeps
+ * that price — the same ask, so the same key, quote and hold — while nothing
+ * was ADDED since (an added article may join its package) and every article
+ * of its package is still there. Otherwise its delivery share may differ, and
+ * it is priced afresh. This is what keeps « take the gone article off and pay
+ * the rest » replaying HER OWN holds (verifier MAJOR 1) when the gone article
+ * did not travel with them.
+ */
+const PRIX_PREFIX = 'sp-panier-prix:';
+
+interface PrixDe {
+  readonly panier: readonly string[];
+  readonly colis: readonly string[] | null;
+}
+
+function lirePrixDe(cle: string, storage: Storage | undefined): PrixDe | undefined {
+  try {
+    const raw = storage?.getItem(PRIX_PREFIX + cle);
+    if (raw === null || raw === undefined || raw === '') return undefined;
+    const v = JSON.parse(raw) as { panier?: unknown; colis?: unknown };
+    const ids = (x: unknown): x is string[] => Array.isArray(x) && x.every((y) => typeof y === 'string');
+    if (!ids(v.panier) || (v.colis !== null && !ids(v.colis))) return undefined;
+    return { panier: v.panier, colis: v.colis };
+  } catch {
+    return undefined;
+  }
+}
+
+function ecrirePrixDe(cle: string, p: PrixDe | undefined, storage: Storage | undefined): void {
+  try {
+    if (p === undefined) storage?.removeItem(PRIX_PREFIX + cle);
+    else storage?.setItem(PRIX_PREFIX + cle, JSON.stringify(p));
+  } catch {
+    /* best-effort — without it the article is simply priced afresh */
   }
 }
 
@@ -159,6 +205,9 @@ export function creerSourcePanier(args: {
   let lignes: readonly LignePanier[] = [];
   let payes: readonly ArticlePaye[] = [];
   let titulaireCourant: string | null = null;
+  let livraisons: number | undefined;
+  let colis: readonly ColisPaye[] = [];
+  let groupIdCourant: string | null = null;
   /** quoteId → the article's name, so a refusal and a paid order can name it. */
   const noms = new Map<string, string>();
   /** quoteId → the article's product, so the paid record can name it. */
@@ -166,13 +215,28 @@ export function creerSourcePanier(args: {
   /** Forgets the current articles' quote keys — set by each pricing, for the day they are paid. */
   let oublierCles = (): void => {};
 
-  const intent = (a: ArticlePanier, quartier: string, paymentMode: PaymentModeWire): QuoteIntent => ({
-    slug: args.slug,
-    pid: a.pid,
-    zoneTo: quartier === '' ? args.ville : `${quartier}, ${args.ville}`,
-    attributionResellerId: args.resellerId,
-    paymentMode,
-  });
+  const zoneDe = (quartier: string): string => (quartier === '' ? args.ville : `${quartier}, ${args.ville}`);
+  const clePrix = (a: ArticlePanier, quartier: string, paymentMode: PaymentModeWire): string =>
+    [args.slug, a.pid, zoneDe(quartier), paymentMode].join('|');
+  const intent = (a: ArticlePanier, quartier: string, paymentMode: PaymentModeWire): QuoteIntent => {
+    // COLIS-FOURNISSEUR-1 — her panier, so the articles that leave together
+    // are priced as ONE delivery; the panier it was last priced in when that
+    // price still holds (see `PrixDe`).
+    const courant = articles.map((x) => x.pid);
+    const avant = lirePrixDe(clePrix(a, quartier, paymentMode), args.session);
+    const garde =
+      avant !== undefined &&
+      courant.every((id) => avant.panier.includes(id)) &&
+      (avant.colis === null || avant.colis.every((id) => courant.includes(id)));
+    return {
+      slug: args.slug,
+      pid: a.pid,
+      zoneTo: zoneDe(quartier),
+      attributionResellerId: args.resellerId,
+      paymentMode,
+      ...(articles.length >= 2 ? { panier: garde ? avant.panier : courant } : {}),
+    };
+  };
 
   const nomDe = (quoteId: string | undefined): { article?: string } => {
     const nom = quoteId === undefined ? undefined : noms.get(quoteId);
@@ -184,6 +248,8 @@ export function creerSourcePanier(args: {
     if (r.status === 'refused') return { status: 'refused', reason: r.reason, ...nomDe(r.quoteId) };
     if (r.status !== 'groupe') return r;
     const g = r.groupe;
+    groupIdCourant = g.groupId;
+    if (g.colis !== undefined) colis = g.colis;
     if (g.commandes !== undefined) {
       payes = g.commandes.map((c) => {
         const quoteId = [...noms.keys()].find((q) => c.orderId.endsWith(q));
@@ -201,7 +267,10 @@ export function creerSourcePanier(args: {
     if (g.state === 'payment_failed') {
       if (panierPaye(args.garde)?.groupId === g.groupId) oublierPanierPaye(args.garde);
     } else if (g.commandes !== undefined) {
-      garderPanierPaye({ groupId: g.groupId, holderRef: titulaire, at: new Date().toISOString(), slug: args.slug, articles: payes }, args.garde);
+      garderPanierPaye(
+        { groupId: g.groupId, holderRef: titulaire, at: new Date().toISOString(), slug: args.slug, articles: payes, ...(colis.length > 0 ? { colis } : {}) },
+        args.garde,
+      );
     }
     // Paid AND confirmed: these articles leave her boutique's panier, and
     // their quotes with them — the next panier with one of them is a new sale.
@@ -224,20 +293,44 @@ export function creerSourcePanier(args: {
 
   const quoteSource = async (quartier: string, renouveler?: boolean): Promise<QuoteFetch> => {
     const oublier = (): void => {
-      for (const a of articles) for (const m of [FULL, DOOR]) forgetRequestKey(intent(a, quartier, m), args.session, perimetre);
+      for (const a of articles) {
+        for (const m of [FULL, DOOR]) {
+          forgetRequestKey(intent(a, quartier, m), args.session, perimetre);
+          ecrirePrixDe(clePrix(a, quartier, m), undefined, args.session);
+        }
+      }
     };
     if (renouveler === true) oublier();
     oublierCles = oublier;
-    const cles = articles.map((a) => ({
-      full: requestKeyFor(intent(a, quartier, FULL), args.session, perimetre),
-      door: requestKeyFor(intent(a, quartier, DOOR), args.session, perimetre),
+    // Each ask decided ONCE per pricing, so the key and the record agree.
+    const asks = articles.map((a) => ({ full: intent(a, quartier, FULL), door: intent(a, quartier, DOOR) }));
+    const cles = asks.map((x) => ({
+      full: requestKeyFor(x.full, args.session, perimetre),
+      door: requestKeyFor(x.door, args.session, perimetre),
     }));
+    const noter = (i: number, m: PaymentModeWire, r: QuoteOutcome): void => {
+      const ask = m === FULL ? asks[i]!.full : asks[i]!.door;
+      if (r.status === 'quote' && ask.panier !== undefined) {
+        ecrirePrixDe(clePrix(articles[i]!, quartier, m), { panier: ask.panier, colis: r.quote.colis ?? null }, args.session);
+      }
+    };
     if (cles.some((c) => c.full === undefined || c.door === undefined)) return { status: 'refused', reason: 'no_secure_random' };
 
     // 1. EACH ARTICLE'S OWN PRICE — full asks decide; door asks only offer mode B.
-    const fullAsks = articles.map((a, i) => port.request(intent(a, quartier, FULL), cles[i]!.full!));
-    const doorAsks = articles.map((a, i) =>
-      port.request(intent(a, quartier, DOOR), cles[i]!.door!).catch((): QuoteOutcome => ({ status: 'unreadable' })),
+    const fullAsks = articles.map((_, i) =>
+      port.request(asks[i]!.full, cles[i]!.full!).then((r) => {
+        noter(i, FULL, r);
+        return r;
+      }),
+    );
+    const doorAsks = articles.map((_, i) =>
+      port.request(asks[i]!.door, cles[i]!.door!).then(
+        (r) => {
+          noter(i, DOOR, r);
+          return r;
+        },
+        (): QuoteOutcome => ({ status: 'unreadable' }),
+      ),
     );
     const fulls = await Promise.all(fullAsks);
     const quotes: ServerQuote[] = [];
@@ -286,6 +379,7 @@ export function creerSourcePanier(args: {
     if (plein.status === 'refused') return { status: 'refused', reason: plein.reason, ...nomDe(plein.quoteId) };
     if (plein.status !== 'prix') return plein;
     if (!prixPleinCoherent(plein.prix, articles.length)) return { status: 'refused', reason: 'amounts_disagree' };
+    livraisons = plein.prix.livraisons;
     let porte: PrixPanier | undefined;
     if (!bIndisponible) {
       const p = await port.prix(doorQuotes.map((q) => q.quoteId));
@@ -363,5 +457,8 @@ export function creerSourcePanier(args: {
     lignes: () => lignes,
     payes: () => payes,
     titulaire: () => titulaireCourant,
+    livraisons: () => livraisons,
+    colis: () => colis,
+    groupId: () => groupIdCourant,
   };
 }

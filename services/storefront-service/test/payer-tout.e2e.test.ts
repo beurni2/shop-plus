@@ -302,6 +302,8 @@ describe('PAYER-TOUT-1 — one payment for the panier, one order per article, on
     expect(price.json).toEqual({
       paymentMode: 'FULL_PREPAY',
       articles: 2,
+      // COLIS-FOURNISSEUR-1 — no grouping here: each article is its own delivery.
+      livraisons: 2,
       amountPaidAtCheckout: q1.amountPaidAtCheckout + q2.amountPaidAtCheckout,
       amountDueAtDelivery: 0,
       deliveryTotal: q1.deliveryFee + q2.deliveryFee,
