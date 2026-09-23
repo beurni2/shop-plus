@@ -755,8 +755,17 @@ describe('COLIS-FOURNISSEUR-1 — one package and one delivery fee per supplier,
       expect((await lignesRendues(w.ob)).filter(([leg]) => leg === 'door')).toEqual([]);
       // Custody never hears a door payment under it.
       expect(doorSignalPosts.some((p) => (p['event'] as { payload?: Record<string, unknown> } | undefined)?.payload?.['order_id'] === ferme)).toBe(false);
-      // A redelivery is absorbed.
+      // A redelivery is absorbed; another payment under the same key contradicts it and is refused.
       expect((await confirmerPorte(ferme, total)).json['status']).toBe('duplicate');
+      const k = await w.cle(1);
+      const autre = PlatformEventSchema.parse({
+        name: 'payment.door_leg_confirmed.v1',
+        envelope: { command_id: 'whk-porte-fermee-autre', correlation_id: `corr-${ferme}`, aggregateVersion: 1, actor: 'payment-provider:sandbox', serverTime: T0, version: '1' },
+        payload: { provider: 'sandbox-provider', payment_attempt_id: k.json['legKey'], collectRef: 'collect-autre', amount: total, fee: 0, status: 'held', order_id: ferme, redelivery: false },
+      });
+      const contredit = await post('/checkout/webhook/door', autre, signed);
+      expect(contredit.status, contredit.text).toBe(409);
+      expect(contredit.json['error']).toBe('conflicting_escrow_for_order');
 
       // ALL of it is asked back of the provider, under a key of its own, from the collection it was taken from.
       const r = (await attendre(() => retours(w.groupId), (x) => x[ferme]?.etat === 'demande'))[ferme]!;
