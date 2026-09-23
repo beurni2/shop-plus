@@ -1308,12 +1308,27 @@ test('REMBOURSEMENT-1 · paying at the door when the refusal lands: the door wat
   await page.locator('[data-action="suivre"]').click();
   await page.locator('[data-screen="C7"]').waitFor();
   await page.locator('[data-action="porte"]').click();
+  // Every screen she passes through from here, in order — so a code screen
+  // shown for an instant and then left still counts (the end state alone hid it).
+  await page.evaluate(() => {
+    const w = window as unknown as { __ecrans: string[] };
+    w.__ecrans = [];
+    const noter = (): void => {
+      const e = document.querySelector('.cl-stage [data-screen]')?.getAttribute('data-screen');
+      if (e && w.__ecrans[w.__ecrans.length - 1] !== e) w.__ecrans.push(e);
+    };
+    noter();
+    new MutationObserver(noter).observe(document.body, { subtree: true, childList: true, attributes: true });
+  });
   await page.locator('[data-action="porte-bon"]').click();
   await page.locator('[data-etat="paiement-porte"]').waitFor({ timeout: 10_000 });
 
   const carte = page.locator('[data-role="remboursement"]');
   await carte.waitFor({ timeout: 15_000 });
   expect(await screenOf(page)).toBe('C7');
+  const parcours = await page.evaluate(() => (window as unknown as { __ecrans: string[] }).__ecrans);
+  expect(parcours, 'she was carried through her code screen').not.toContain('C9');
+  expect(parcours).toEqual(['C8', 'C7']);
   await expect(carte).toHaveAttribute('data-etat', 'en-cours');
   expect((await carte.innerText()).replace(/\s+/g, ' ')).toContain('12 500 FCFA vous reviennent');
   // Never the code screen: the door leg read « paid » on the same read the
