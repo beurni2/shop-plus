@@ -306,8 +306,12 @@ function feeLu(fee: unknown): number | undefined {
   return typeof fee === 'number' && Number.isSafeInteger(fee) && fee >= 0 ? fee : undefined;
 }
 
-/** The checks of a package's door confirmation (`onGroupDoorPaymentEvent`), aimed at the closed collection. */
-export function jugerPorteFermee(raw: unknown, c: PorteFermee): JugementPorte {
+/**
+ * The checks of a package's door confirmation (`onGroupDoorPaymentEvent`),
+ * aimed at the collection itself: the closed one's, and the live one's before
+ * its articles hear it (verifier M1).
+ */
+export function jugerConfirmationPorte(raw: unknown, c: PorteFermee): JugementPorte {
   const parsed = PlatformEventSchema.safeParse(raw);
   if (!parsed.success) return { ok: false, reason: 'not_a_platform_event' };
   const event = parsed.data;
@@ -331,8 +335,13 @@ export function jugerPorteFermee(raw: unknown, c: PorteFermee): JugementPorte {
  */
 export interface RetourPorte {
   readonly collectId: string;
-  /** Sorted, as the collection named them; the first is the founder's one row for it. */
+  /** Sorted, as the collection named them. */
   readonly orderIds: readonly string[];
+  /**
+   * The founder's one row for it: the article she gave back when it was
+   * closed — never one she keeps, whose row must stay in its queue (verifier M2).
+   */
+  readonly ligne: string;
   readonly correlationId: string;
   readonly total: number;
   readonly collectRef: string;
@@ -377,13 +386,14 @@ export function jugerRemboursementPorte(
 /**
  * The founder's word on a closed payment's refund, for ONE article's row: only
  * when it cannot finish by itself (REMBOURSEMENT-2's standard), and only on the
- * collection's first article — one stuck refund, one row, one count.
+ * article she gave back — one stuck refund, one row, one count, and never on
+ * an article still travelling to her.
  */
 export function retourBloque(
   retours: readonly RetourPorte[],
   orderId: string,
 ): { readonly etat: 'bloque'; readonly raison: 'refus_du_prestataire' | 'sans_confirmation' } | null {
-  const siens = retours.filter((r) => r.orderIds[0] === orderId && r.rembourse === undefined);
+  const siens = retours.filter((r) => r.ligne === orderId && r.rembourse === undefined);
   if (siens.some((r) => r.etat === 'refuse')) return { etat: 'bloque', raison: 'refus_du_prestataire' };
   if (siens.some((r) => r.alerteLe !== undefined)) return { etat: 'bloque', raison: 'sans_confirmation' };
   return null;

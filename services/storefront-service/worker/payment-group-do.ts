@@ -9,7 +9,7 @@ import {
   groupIdFor,
   groupStateOf,
   isGroupId,
-  jugerPorteFermee,
+  jugerConfirmationPorte,
   jugerRemboursementPorte,
   retourBloque,
   toBuyerGroupView,
@@ -106,8 +106,16 @@ interface PorteCollecte {
   readonly providerKey: string;
   /** True from the moment the provider may have been called — never false again. */
   charged: boolean;
-  /** An uncharged collection that could not be completed: its articles are free. */
+  /** An uncharged collection that could not be completed, or one the provider said took nothing: its articles are free. */
   abandonnee?: true;
+  /**
+   * REMBOURSEMENT-PORTE-FERMEE (verifier M1) — the provider's confirmation,
+   * written here BEFORE any article hears it: from then on the collection is
+   * the articles' payment and can never be closed.
+   */
+  confirmee?: { readonly commandId: string; readonly collectRef: string };
+  /** The article she gave back when it was closed — the founder's one row for its refund. */
+  renduPar?: string;
   attempts: { attemptId: string; requestedAt: string; outcome: string; collectRef?: string }[];
 }
 
@@ -287,7 +295,11 @@ export class PaymentGroupDO {
     }
     /** REMBOURSEMENT-PORTE-FERMEE — the records themselves, INTERNAL only (the seam's ledger), like an order's audit. */
     if (request.method === 'GET' && pathname === '/entry/retours') {
-      return Response.json({ ok: true, retours: (await this.state.storage.get<Record<string, RetourPorte>>(RETOURS_KEY)) ?? {} });
+      return Response.json({
+        ok: true,
+        retours: (await this.state.storage.get<Record<string, RetourPorte>>(RETOURS_KEY)) ?? {},
+        portes: (await this.state.storage.get<Record<string, PorteCollecte>>(PORTES_KEY)) ?? {},
+      });
     }
     /** COLIS-FOURNISSEUR-1 — the stand-in's key read for a door collection (webhook secret). */
     if (request.method === 'GET' && pathname === '/entry/porte-key') {
@@ -545,7 +557,7 @@ export class PaymentGroupDO {
     await this.state.storage.put({ [ATTEMPTS_KEY]: attempts, [NOTICE_KEY]: notice });
     // The alarm is the net: armed before the first delivery, so a death
     // mid-delivery still reaches every order.
-    await this.state.storage.setAlarm(Date.now() + 60_000).catch(() => undefined);
+    await this.armer(Date.now() + 60_000);
     const delivered = await this.deliverNotice();
     // Each order answers the notice with its own view as it left it.
     return views.map((v) => delivered.views.get(v.orderId) ?? v);
@@ -579,20 +591,21 @@ export class PaymentGroupDO {
     }
     const attempts = notice.attempts + 1;
     await this.state.storage.put(NOTICE_KEY, { ...notice, remaining: still, attempts });
-    await this.state.storage
-      .setAlarm(Date.now() + Math.min(3_600_000, 60_000 * 2 ** Math.min(attempts, 6)))
-      .catch(() => undefined);
+    await this.armer(Date.now() + Math.min(3_600_000, 60_000 * 2 ** Math.min(attempts, 6)));
     return { heard: false, views };
+  }
+
+  /** The alarm at the EARLIER of what it holds and `t`: the notice and a door payment's refund share it (verifier m4). */
+  private async armer(t: number): Promise<void> {
+    const arme = await this.state.storage.getAlarm().catch(() => null);
+    if (arme === null || t < arme) await this.state.storage.setAlarm(t).catch(() => undefined);
   }
 
   async alarm(): Promise<void> {
     await this.deliverNotice();
     // The notice re-arms itself; a closed payment's refund keeps the earlier of the two.
     const prochain = await this.retours();
-    if (prochain !== undefined) {
-      const arme = await this.state.storage.getAlarm();
-      if (arme === null || prochain < arme) await this.state.storage.setAlarm(prochain).catch(() => undefined);
-    }
+    if (prochain !== undefined) await this.armer(prochain);
   }
 
   /* ─────────────────────────── the provider webhook ─────────────────────────── */
@@ -713,14 +726,14 @@ export class PaymentGroupDO {
     //    door is no longer hers to pay for (decision c) — it leaves a NEW set;
     //    any other refusal names its article.
     const parts: { orderId: string; amount: number }[] = [];
-    let rendu = false;
+    const rendus: string[] = [];
     for (const orderId of collecte?.orderIds ?? set) {
       const checked = await this.post(orderId, '/entry/porte-check', { holderRef: args.holderRef });
       const c = checked.json as { ok?: boolean; reason?: string; amount?: number } | null;
       if (c?.ok !== true && c?.reason === 'course_refusee') {
         const part = collecte?.parts.find((p) => p.orderId === orderId);
         if (part !== undefined) parts.push(part);
-        rendu = true;
+        rendus.push(orderId);
         continue;
       }
       if (c === null || c.ok !== true || typeof c.amount !== 'number') return refusal(c?.reason ?? 'paiement_occupe', { orderId });
@@ -739,26 +752,30 @@ export class PaymentGroupDO {
      *     and she is asked for what she keeps, in a new payment;
      *   · it cannot say → retried as it was, the rule above.
      */
-    if (collecte !== undefined && collecte === demandee && rendu) {
+    if (collecte !== undefined && collecte === demandee && rendus.length > 0) {
       const statut = await this.fournisseurPorte(portes).chargeStatus({
         orderId: collecte.collectId,
         paymentAttemptId: collecte.providerKey,
         legType: 'door',
       });
-      if (statut.status === 'collected') {
+      let prisePar = statut.status === 'collected' ? statut.collectRef : undefined;
+      if (statut.status === 'not_collected') {
+        // Closed — unless its confirmation reached its articles while the
+        // provider was asked (verifier M1): then it took the money after all.
+        const restee = await this.fermerPorte(collecte, rendus[0]);
+        if (restee?.confirmee === undefined) return this.porteSeule(args);
+        prisePar = restee.confirmee.collectRef;
+      }
+      if (prisePar !== undefined) {
         const derniere = collecte.attempts[collecte.attempts.length - 1]!;
         const prise = {
           ...collecte,
-          attempts: collecte.attempts.map((a) => (a === derniere ? { ...a, outcome: 'accepted', collectRef: statut.collectRef } : a)),
+          attempts: collecte.attempts.map((a) => (a === derniere ? { ...a, outcome: 'accepted', collectRef: prisePar } : a)),
         };
         await this.majPorte(prise);
         const answer = await this.porteRepondue(colis, prise).then((r) => r.json());
         await this.state.storage.put(PORTE_RESULTS_KEY, { ...results, [args.commandId]: answer });
         return Response.json(answer);
-      }
-      if (statut.status === 'not_collected') {
-        await this.majPorte({ ...collecte, abandonnee: true });
-        return this.porteSeule(args);
       }
     }
     if (parts.length === 0) return refusal('course_refusee');
@@ -811,7 +828,7 @@ export class PaymentGroupDO {
       });
       if (entered.json?.['ok'] !== true) {
         // Never charged ⇒ nothing can have moved: its articles are free again.
-        if (!collecte.charged) await this.majPorte({ ...collecte, abandonnee: true });
+        if (!collecte.charged) await this.fermerPorte(collecte);
         return refusal(typeof entered.json?.['reason'] === 'string' ? entered.json['reason'] : 'paiement_occupe', { orderId });
       }
     }
@@ -883,7 +900,26 @@ export class PaymentGroupDO {
 
   private async majPorte(collecte: PorteCollecte): Promise<void> {
     const portes = (await this.state.storage.get<Record<string, PorteCollecte>>(PORTES_KEY)) ?? {};
-    await this.state.storage.put(PORTES_KEY, { ...portes, [collecte.collectId]: collecte });
+    // A confirmation handed to the articles is never unwritten by a stale copy (verifier M1).
+    const confirmee = portes[collecte.collectId]?.confirmee;
+    await this.state.storage.put(PORTES_KEY, { ...portes, [collecte.collectId]: confirmee !== undefined ? { ...collecte, confirmee } : collecte });
+  }
+
+  /**
+   * CLOSE a collection, its articles free — read and written with nothing
+   * between, so a confirmation cannot slip in. A collection whose
+   * confirmation already reached its articles is theirs and stays open
+   * (verifier M1): it is answered as it stands.
+   */
+  private async fermerPorte(collecte: PorteCollecte, renduPar?: string): Promise<PorteCollecte | undefined> {
+    const portes = (await this.state.storage.get<Record<string, PorteCollecte>>(PORTES_KEY)) ?? {};
+    const vue = portes[collecte.collectId];
+    if (vue?.confirmee !== undefined) return vue;
+    await this.state.storage.put(PORTES_KEY, {
+      ...portes,
+      [collecte.collectId]: { ...collecte, abandonnee: true, ...(renduPar !== undefined ? { renduPar } : {}) },
+    });
+    return undefined;
   }
 
   /** The package's articles as they stand — each order's own projection. */
@@ -912,6 +948,15 @@ export class PaymentGroupDO {
     if (collecte === undefined || !collecte.charged) return Response.json({ ok: false, reason: 'unknown_order' }, { status: 404 });
     // REMBOURSEMENT-PORTE-FERMEE — closed on the provider's « took nothing »: it pays for no article.
     if (collecte.abandonnee === true) return this.surPorteFermee(event, collecte);
+    // verifier M1 — a genuine confirmation is written on the collection before
+    // any article hears it (same read, nothing between): it can never be closed after.
+    const juge = jugerConfirmationPorte(event, collecte);
+    if (juge.ok && collecte.confirmee === undefined) {
+      await this.state.storage.put(PORTES_KEY, {
+        ...portes,
+        [collecte.collectId]: { ...collecte, confirmee: { commandId: juge.commandId, collectRef: juge.collectRef } },
+      });
+    }
     let allDuplicate = true;
     let firstRefusal: Response | undefined;
     for (const orderId of collecte.orderIds) {
@@ -937,19 +982,20 @@ export class PaymentGroupDO {
    * the alarm asks the provider to give all of it back.
    */
   private async surPorteFermee(event: unknown, collecte: PorteCollecte): Promise<Response> {
-    const juge = jugerPorteFermee(event, collecte);
+    const juge = jugerConfirmationPorte(event, collecte);
     if (!juge.ok) return Response.json({ ok: false, reason: juge.reason }, { status: statusForWebhook(juge.reason) });
     const retours = (await this.state.storage.get<Record<string, RetourPorte>>(RETOURS_KEY)) ?? {};
     const deja = Object.prototype.hasOwnProperty.call(retours, collecte.collectId) ? retours[collecte.collectId] : undefined;
     if (deja !== undefined) {
       // One key takes money once: the same collection again is a redelivery; another one under it contradicts it.
       if (deja.collectRef !== juge.collectRef) return Response.json({ ok: false, reason: 'conflicting_escrow_for_order' }, { status: 409 });
-      if (deja.etat === 'a_demander') await this.state.storage.setAlarm(Date.now()).catch(() => undefined);
+      if (deja.etat === 'a_demander') await this.armer(Date.now());
       return Response.json({ ok: true, status: 'duplicate', doorLeg: 'closed' });
     }
     const retour: RetourPorte = {
       collectId: collecte.collectId,
       orderIds: collecte.orderIds,
+      ligne: collecte.renduPar ?? collecte.orderIds[0]!,
       correlationId: collecte.correlationId,
       total: collecte.total,
       collectRef: juge.collectRef,
@@ -961,7 +1007,7 @@ export class PaymentGroupDO {
       essais: 0,
     };
     await this.state.storage.put(RETOURS_KEY, { ...retours, [collecte.collectId]: retour });
-    await this.state.storage.setAlarm(Date.now()).catch(() => undefined);
+    await this.armer(Date.now());
     return Response.json({ ok: true, status: 'applied', doorLeg: 'closed' });
   }
 

@@ -8,7 +8,7 @@ import { MockPaymentProvider } from '@shop-plus/commerce-core';
 import {
   colisIdFor,
   decideColis,
-  jugerPorteFermee,
+  jugerConfirmationPorte,
   jugerRemboursementPorte,
   retourBloque,
   type ColisEntry,
@@ -208,24 +208,24 @@ describe('REMBOURSEMENT-PORTE-FERMEE — a closed door payment confirmed after a
 
   it('the certified provider\'s own confirmation of it is taken — its reference, its fee, the confirmation that opened it', () => {
     const e = confirmation((x) => { x.payload['fee'] = 250; });
-    expect(jugerPorteFermee(e, c)).toEqual({ ok: true, commandId: e.envelope['command_id'], collectRef: e.payload['collectRef'], fee: 250 });
+    expect(jugerConfirmationPorte(e, c)).toEqual({ ok: true, commandId: e.envelope['command_id'], collectRef: e.payload['collectRef'], fee: 250 });
   });
 
   it('anything that is not exactly that payment is refused by name', () => {
-    expect(jugerPorteFermee({ name: 'x' }, c)).toEqual({ ok: false, reason: 'not_a_platform_event' });
-    expect(jugerPorteFermee(confirmation((x) => { x.envelope['correlation_id'] = 'corr-autre'; }), c)).toEqual({ ok: false, reason: 'wrong_correlation' });
-    expect(jugerPorteFermee(confirmation((x) => { x.payload['payment_attempt_id'] = 'pk-autre'; }), c)).toEqual({ ok: false, reason: 'attempt_mismatch' });
-    expect(jugerPorteFermee(confirmation((x) => { x.payload['order_id'] = `grp-${'a'.repeat(40)}-porte-2`; }), c)).toEqual({ ok: false, reason: 'order_mismatch' });
-    expect(jugerPorteFermee(confirmation((x) => { x.payload['amount'] = c.total - 1; }), c)).toEqual({ ok: false, reason: 'amount_mismatch' });
-    expect(jugerPorteFermee(confirmation((x) => { x.payload['amount'] = String(c.total); }), c)).toEqual({ ok: false, reason: 'amount_mismatch' });
-    expect(jugerPorteFermee(confirmation((x) => { x.payload['status'] = 'failed'; }), c)).toEqual({ ok: false, reason: 'unfunded_leg_status' });
-    expect(jugerPorteFermee(confirmation((x) => { x.payload['fee'] = '250'; }), c)).toEqual({ ok: false, reason: 'malformed_payload' });
-    expect(jugerPorteFermee(confirmation((x) => { x.payload['collectRef'] = ''; }), c)).toEqual({ ok: false, reason: 'malformed_payload' });
-    expect(jugerPorteFermee(confirmation((x) => { x.envelope['command_id'] = 'w'.repeat(1025); }), c)).toEqual({ ok: false, reason: 'envelope_field_too_long' });
+    expect(jugerConfirmationPorte({ name: 'x' }, c)).toEqual({ ok: false, reason: 'not_a_platform_event' });
+    expect(jugerConfirmationPorte(confirmation((x) => { x.envelope['correlation_id'] = 'corr-autre'; }), c)).toEqual({ ok: false, reason: 'wrong_correlation' });
+    expect(jugerConfirmationPorte(confirmation((x) => { x.payload['payment_attempt_id'] = 'pk-autre'; }), c)).toEqual({ ok: false, reason: 'attempt_mismatch' });
+    expect(jugerConfirmationPorte(confirmation((x) => { x.payload['order_id'] = `grp-${'a'.repeat(40)}-porte-2`; }), c)).toEqual({ ok: false, reason: 'order_mismatch' });
+    expect(jugerConfirmationPorte(confirmation((x) => { x.payload['amount'] = c.total - 1; }), c)).toEqual({ ok: false, reason: 'amount_mismatch' });
+    expect(jugerConfirmationPorte(confirmation((x) => { x.payload['amount'] = String(c.total); }), c)).toEqual({ ok: false, reason: 'amount_mismatch' });
+    expect(jugerConfirmationPorte(confirmation((x) => { x.payload['status'] = 'failed'; }), c)).toEqual({ ok: false, reason: 'unfunded_leg_status' });
+    expect(jugerConfirmationPorte(confirmation((x) => { x.payload['fee'] = '250'; }), c)).toEqual({ ok: false, reason: 'malformed_payload' });
+    expect(jugerConfirmationPorte(confirmation((x) => { x.payload['collectRef'] = ''; }), c)).toEqual({ ok: false, reason: 'malformed_payload' });
+    expect(jugerConfirmationPorte(confirmation((x) => { x.envelope['command_id'] = 'w'.repeat(1025); }), c)).toEqual({ ok: false, reason: 'envelope_field_too_long' });
   });
 
   const retour: RetourPorte = {
-    collectId, orderIds: ['ord-a', 'ord-b'], correlationId: c.correlationId, total: c.total, collectRef: 'collect-pk-ferme', fee: 0,
+    collectId, orderIds: ['ord-a', 'ord-b'], ligne: 'ord-b', correlationId: c.correlationId, total: c.total, collectRef: 'collect-pk-ferme', fee: 0,
     confirmation: 'whk-1', recueLe: T, refundKey: 'rf-ferme', etat: 'demande', essais: 1, demandeLe: T,
   };
   const remboursement = (edit: (e: { envelope: Record<string, unknown>; payload: Record<string, unknown> }) => void = () => undefined) => {
@@ -248,12 +248,12 @@ describe('REMBOURSEMENT-PORTE-FERMEE — a closed door payment confirmed after a
     expect(jugerRemboursementPorte(remboursement((x) => { x.payload['fee'] = -1; }), retour)).toEqual({ ok: false, reason: 'malformed_payload' });
   });
 
-  it('the founder hears of it only when it cannot finish by itself, on ONE row: the collection\'s first article', () => {
-    expect(retourBloque([retour], 'ord-a')).toBeNull();
-    expect(retourBloque([{ ...retour, etat: 'refuse' }], 'ord-a')).toEqual({ etat: 'bloque', raison: 'refus_du_prestataire' });
-    expect(retourBloque([{ ...retour, alerteLe: T }], 'ord-a')).toEqual({ etat: 'bloque', raison: 'sans_confirmation' });
-    expect(retourBloque([{ ...retour, etat: 'refuse' }], 'ord-b')).toBeNull();
+  it('the founder hears of it only when it cannot finish by itself, on ONE row: the article she gave back, never one she keeps', () => {
+    expect(retourBloque([retour], 'ord-b')).toBeNull();
+    expect(retourBloque([{ ...retour, etat: 'refuse' }], 'ord-b')).toEqual({ etat: 'bloque', raison: 'refus_du_prestataire' });
+    expect(retourBloque([{ ...retour, alerteLe: T }], 'ord-b')).toEqual({ etat: 'bloque', raison: 'sans_confirmation' });
+    expect(retourBloque([{ ...retour, etat: 'refuse' }], 'ord-a')).toBeNull();
     // Once the provider confirmed it, nothing is left to tell him.
-    expect(retourBloque([{ ...retour, alerteLe: T, rembourse: { confirmation: 'whk-r', fee: 0, recuLe: T } }], 'ord-a')).toBeNull();
+    expect(retourBloque([{ ...retour, alerteLe: T, rembourse: { confirmation: 'whk-r', fee: 0, recuLe: T } }], 'ord-b')).toBeNull();
   });
 });

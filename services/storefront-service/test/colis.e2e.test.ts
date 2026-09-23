@@ -569,15 +569,19 @@ describe('COLIS-FOURNISSEUR-1 — one package and one delivery fee per supplier,
    * provider is asked what became of the first payment, under its own key —
    * the three answers a provider can give, one walk each.
    */
-  async function porteSansReponse(n: string, behavior: Record<string, unknown>, extra: Record<string, string> = {}, opts: { gardePremier?: boolean } = {}) {
+  async function porteSansReponse(
+    n: string,
+    behavior: Record<string, unknown>,
+    extra: Record<string, string> = {},
+    /** Sent at the same moment as her retry (REMBOURSEMENT-PORTE-FERMEE, verifier M1). */
+    pendant?: (groupId: string, total: number) => Promise<unknown>,
+  ) {
     const dir = mkdtempSync(join(tmpdir(), `colis-lent-${n}-`));
     const lent = makeMf(dir, { PAYMENT_SANDBOX_BEHAVIOR: JSON.stringify({ timeoutFirstNInitiates: 1, ...behavior }), ...extra });
     cible = lent;
     const DOOR: Mode = 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR';
     const shop = await seedShop(n);
-    let [qa, qb] = [await quote(shop, 'pv-colis-a', DOOR, PANIER.slice(0, 2)), await quote(shop, 'pv-colis-b', DOOR, PANIER.slice(0, 2))];
-    // REMBOURSEMENT-PORTE-FERMEE — the article she keeps may be made the payment's first, by order id.
-    if (opts.gardePremier === true && `ord-${qb.quoteId}` < `ord-${qa.quoteId}`) [qa, qb] = [qb, qa];
+    const [qa, qb] = [await quote(shop, 'pv-colis-a', DOOR, PANIER.slice(0, 2)), await quote(shop, 'pv-colis-b', DOOR, PANIER.slice(0, 2))];
     const holderRef = `holder-colis-${n}`;
     for (const q of [qa, qb]) await reserve(q.quoteId, holderRef);
     // The delivery fees: the first charge times out, the retry goes through.
@@ -606,7 +610,10 @@ describe('COLIS-FOURNISSEUR-1 — one package and one delivery fee per supplier,
     );
     expect(refus.status, refus.text).toBe(200);
     // She asks again, for what she keeps.
-    const encore = await post(`/checkout/group/${groupId}/porte`, { packageId, orderIds: [oa], holderRef, commandId: `cmd-porte-${n}b` });
+    const [encore] = await Promise.all([
+      post(`/checkout/group/${groupId}/porte`, { packageId, orderIds: [oa], holderRef, commandId: `cmd-porte-${n}b` }),
+      pendant?.(groupId, qa.amountDueAtDelivery + qb.amountDueAtDelivery),
+    ]);
     const cle = (i: number) => call(`/checkout/webhook/leg-key/${encodeURIComponent(`${groupId}-porte-${i}`)}?leg=door`, { headers: signed });
     const fin = async () => {
       cible = mf;
@@ -704,15 +711,16 @@ describe('COLIS-FOURNISSEUR-1 — one package and one delivery fee per supplier,
 
   interface Retour {
     collectId: string; orderIds: string[]; total: number; collectRef: string; refundKey: string;
-    etat: string; motifRefus?: string; alerteLe?: string; rembourse?: { confirmation: string };
+    etat: string; motifRefus?: string; alerteLe?: string; ligne?: string; rembourse?: { confirmation: string };
   }
 
   /** The payment object's own record of it — the ledger, never a response. */
-  async function retours(groupId: string): Promise<Record<string, Retour>> {
+  async function registre(groupId: string) {
     const ns = await cible.getDurableObjectNamespace('PAYMENT_GROUP');
     const res = await ns.get(ns.idFromName(groupId)).fetch('https://do/entry/retours');
-    return ((await res.json()) as { retours: Record<string, Retour> }).retours;
+    return (await res.json()) as { retours: Record<string, Retour>; portes: Record<string, { abandonnee?: true; confirmee?: { collectRef: string } }> };
   }
+  const retours = async (groupId: string) => (await registre(groupId)).retours;
 
   async function attendre<T>(lire: () => Promise<T>, ok: (v: T) => boolean, timeoutMs = 8_000): Promise<T> {
     const deadline = Date.now() + timeoutMs;
@@ -796,30 +804,57 @@ describe('COLIS-FOURNISSEUR-1 — one package and one delivery fee per supplier,
     }
   }, 60_000);
 
-  it('REMBOURSEMENT-PORTE-FERMEE — the provider REFUSES to give it back: the founder\'s row says so, by its reason', async () => {
-    const w = await porteSansReponse('12', { refuseRefunds: true }, {}, { gardePremier: true });
+  it('REMBOURSEMENT-PORTE-FERMEE (verifier M1) — her retry and the late confirmation arrive TOGETHER, then the provider delivers it again: the payment either paid her articles or goes back whole — never both', async () => {
+    for (const n of ['14', '15', '16']) {
+      let ferme = '';
+      let total = 0;
+      const w = await porteSansReponse(n, {}, {}, async (groupId, somme) => {
+        [ferme, total] = [`${groupId}-porte-1`, somme];
+        return confirmerPorte(ferme, somme);
+      });
+      try {
+        // At least once: the provider delivers it again, whatever happened meanwhile.
+        expect((await confirmerPorte(ferme, total)).status).toBeLessThan(500);
+        await new Promise((r) => setTimeout(r, 300));
+        const ref = `collect-${String((await w.cle(1)).json['legKey'])}`;
+        const [aa, ab] = [await audit(w.oa), await audit(w.ob)];
+        const payeLesArticles = [aa, ab].some((a) => a.escrow?.paymentLegs.some((l) => l.legType === 'door' && l.collectRef === ref) === true);
+        const reg = await registre(w.groupId);
+        const rendueEntiere = reg.retours[ferme] !== undefined;
+        expect(payeLesArticles !== rendueEntiere, `run ${n}: paid her articles=${payeLesArticles}, refunded whole=${rendueEntiere}`).toBe(true);
+        // A payment its articles took is never closed.
+        if (payeLesArticles) expect(reg.portes[ferme]?.abandonnee, `run ${n}`).toBeUndefined();
+      } finally {
+        await w.fin();
+      }
+    }
+  }, 120_000);
+
+  it('REMBOURSEMENT-PORTE-FERMEE — the provider REFUSES to give it back: the founder\'s row says so, by its reason — on the article she gave back, never the one still travelling to her', async () => {
+    const w = await porteSansReponse('12', { refuseRefunds: true });
     try {
       const ferme = `${w.groupId}-porte-1`;
       expect((await confirmerPorte(ferme, w.qa.amountDueAtDelivery + w.qb.amountDueAtDelivery)).status).toBe(200);
       const r = (await attendre(() => retours(w.groupId), (x) => x[ferme]?.etat === 'refuse'))[ferme]!;
-      expect(r).toMatchObject({ etat: 'refuse', motifRefus: 'refund_declined' });
-      // The bazin — the payment's first article — has no refund of its own: its row says it for the payment.
-      expect([w.oa, w.ob].sort()[0]).toBe(w.oa);
-      expect((await rangs()).get(w.oa)?.remboursement).toEqual({ etat: 'bloque', raison: 'refus_du_prestataire' });
+      expect(r).toMatchObject({ etat: 'refuse', motifRefus: 'refund_declined', ligne: w.ob });
+      const vus = await rangs();
+      expect(vus.get(w.ob)?.remboursement).toEqual({ etat: 'bloque', raison: 'refus_du_prestataire' });
+      // The bazin she keeps stays in its queue: no refund state on its row.
+      expect(vus.get(w.oa)?.remboursement ?? null).toBeNull();
     } finally {
       await w.fin();
     }
   }, 60_000);
 
   it('REMBOURSEMENT-PORTE-FERMEE — the provider never confirms it: past the stuck time the founder\'s row says so, on ONE row, and it clears when the provider confirms', async () => {
-    const w = await porteSansReponse('13', {}, { STUCK_SAGA_TTL_MS: '1' }, { gardePremier: true });
+    const w = await porteSansReponse('13', {}, { STUCK_SAGA_TTL_MS: '1' });
     try {
       const ferme = `${w.groupId}-porte-1`;
       const total = w.qa.amountDueAtDelivery + w.qb.amountDueAtDelivery;
       expect((await confirmerPorte(ferme, total)).status).toBe(200);
       const r = (await attendre(() => retours(w.groupId), (x) => x[ferme]?.alerteLe !== undefined))[ferme]!;
       expect(r.etat).toBe('demande');
-      // The sandals' own refund is confirmed, so their row speaks only for themselves.
+      // The sandals' own refund is confirmed, so their row can speak for the payment.
       const propres = await attendre(
         () => call(`/checkout/webhook/refund-key/${encodeURIComponent(w.ob)}`, { headers: signed }),
         (x) => x.status === 200,
@@ -828,12 +863,13 @@ describe('COLIS-FOURNISSEUR-1 — one package and one delivery fee per supplier,
         expect((await post('/checkout/webhook/refund', composeSandboxRefund(w.ob, l, new Date().toISOString()), signed)).status).toBe(200);
       }
       let vus = await rangs();
-      expect(vus.get(w.oa)?.remboursement).toEqual({ etat: 'bloque', raison: 'sans_confirmation' });
-      expect(vus.get(w.ob)?.remboursement?.etat).toBe('fait');
-      // The provider confirms it after all: nothing is blocked any more.
+      expect(vus.get(w.ob)?.remboursement).toEqual({ etat: 'bloque', raison: 'sans_confirmation' });
+      expect(vus.get(w.oa)?.remboursement ?? null).toBeNull();
+      // The provider confirms it after all: nothing is blocked any more — the sandals read their own refund, done.
       const ligne = { refundKey: r.refundKey, collectRef: r.collectRef, amount: total };
       expect((await post('/checkout/webhook/refund', composeSandboxRefund(ferme, ligne, new Date().toISOString()), signed)).status).toBe(200);
       vus = await rangs();
+      expect(vus.get(w.ob)?.remboursement?.etat).toBe('fait');
       expect(vus.get(w.oa)?.remboursement ?? null).toBeNull();
     } finally {
       await w.fin();
