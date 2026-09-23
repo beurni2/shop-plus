@@ -1545,9 +1545,10 @@ export class OrderDO {
       }
       const existing = await this.state.storage.get<{ status?: string }>(BOUTIK_REFUSED_KEY);
       if (existing !== undefined) {
-        // REMBOURSEMENT-1 — a redelivery also opens a refund a lost write never opened.
+        // REMBOURSEMENT-1 — a redelivery also opens a refund a lost write never
+        // opened, and the alarm must then run for IT even when the relay is done.
         await this.ouvrirRemboursement(event);
-        if (existing.status === 'pending' && (await this.state.storage.getAlarm()) === null) {
+        if ((existing.status === 'pending' || (await this.remboursementADemander())) && (await this.state.storage.getAlarm()) === null) {
           await this.state.storage.setAlarm(Date.now()).catch(() => undefined);
         }
         return Response.json({ ok: true, status: 'duplicate' });
@@ -3928,6 +3929,11 @@ export class OrderDO {
     if (!decision.ok) {
       return Response.json({ ok: false, reason: decision.reason }, { status: 422 });
     }
+    // REMBOURSEMENT-1 — Séra refused the parcel: nothing more is collected at
+    // a door it is leaving (her refund is already decided from what she paid).
+    if ((await this.state.storage.get(BOUTIK_REFUSED_KEY)) !== undefined) {
+      return Response.json({ ok: false, reason: 'course_refusee' }, { status: 422 });
+    }
 
     // AUTHORIZED. Only now may a replayed command replay its answer — the same
     // ordering `create()` uses, and for the same reason: a refusal must be
@@ -4089,7 +4095,9 @@ export class OrderDO {
       // at-least-once redelivery is a legitimate « try again now ». Harmless
       // when early: the flush replays the same command_id and custody absorbs.
       const strandedPorte = await this.state.storage.get<{ status?: string }>(DOOR_SIGNAL_KEY);
-      if (strandedPorte?.status === 'pending') {
+      // REMBOURSEMENT-1 — and for a late door leg's refund a lost write never added.
+      await this.etendreRemboursement();
+      if (strandedPorte?.status === 'pending' || (await this.remboursementADemander())) {
         await this.state.storage.setAlarm(Date.now()).catch(() => undefined);
       }
       return Response.json({ ok: true, status: 'duplicate', doorLeg: spine.doorLegState });
@@ -4125,6 +4133,9 @@ export class OrderDO {
           }
         : {}),
     });
+    // REMBOURSEMENT-1 — a door leg confirmed after Séra's refusal is refunded
+    // too (its key stored here, asked by the alarm below).
+    await this.etendreRemboursement();
     // A scheduling throw must never 500 a door confirmation already durably
     // stored — the duplicate-redelivery hook above is the recovery for a row
     // left pending without an alarm (the confirm branch's own discipline).
@@ -4169,14 +4180,22 @@ export class OrderDO {
         // REMBOURSEMENT-1 — her refund, when one is due: its sum (her own paid
         // legs, as the vault decided), whether the provider confirmed it, and
         // the delivery fee the vault kept on her own refusal.
+        // `fait` once the provider confirmed EVERY line (a late door leg's
+        // line can follow an order already `refunded`); `rien` when her
+        // refusal left nothing to give back but the fee it kept — her screen
+        // still has to learn the delivery ended.
         const r = await this.state.storage.get<RemboursementStocke>(REFUND_KEY);
-        const montant = (r?.lignes ?? []).reduce((somme, l) => somme + l.amount, 0);
-        if (montant === 0) return {};
+        if (r === undefined || r.decision !== 'ouvert') return {};
+        const montant = r.lignes.reduce((somme, l) => somme + l.amount, 0);
+        if (montant === 0) {
+          return r.retenu > 0 ? { remboursement: { etat: 'rien' as const, montant: 0, fraisGardes: r.retenu } } : {};
+        }
+        const confirmes = new Set(spine.ledger.refundsFor(origin.orderId).map((x) => x.refundKey));
         return {
           remboursement: {
-            etat: spine.journey.state === 'refunded' ? ('fait' as const) : ('en_cours' as const),
+            etat: r.lignes.every((l) => confirmes.has(l.refundKey)) ? ('fait' as const) : ('en_cours' as const),
             montant,
-            ...(r !== undefined && r.retenu > 0 ? { fraisGardes: r.retenu } : {}),
+            ...(r.retenu > 0 ? { fraisGardes: r.retenu } : {}),
           },
         };
       })()),
@@ -4216,6 +4235,36 @@ export class OrderDO {
       lignes: plan.lignes.map((l) => ({ ...l, refundKey: mintRefundKey(), etat: 'a_demander', essais: 0 })),
     };
     await this.state.storage.put(REFUND_KEY, record);
+  }
+
+  /**
+   * REMBOURSEMENT-1 — A DOOR LEG CONFIRMED AFTER SÉRA'S REFUSAL (the charge
+   * was in flight at the door) is refunded too: the vault re-decides from the
+   * order's records as they now stand, and each paid leg the open refund
+   * lacks joins it under its own key, stored before anything is asked.
+   * Idempotent: a redelivered door webhook adds nothing.
+   */
+  private async etendreRemboursement(): Promise<void> {
+    const r = await this.state.storage.get<RemboursementStocke>(REFUND_KEY);
+    if (r === undefined || r.refus === null || r.decision !== 'ouvert') return;
+    const origin = await this.state.storage.get<StoredOrigin>(ORIGIN_KEY);
+    const quote = origin === undefined ? undefined : parseStoredQuote(origin.quoteBytes);
+    if (origin === undefined || quote === undefined) return;
+    const log = (await this.state.storage.get<OrderInput[]>(LOG_KEY)) ?? [];
+    const plan = rebuildOrderSpine(quote, origin, log).decideRefund(r.refus);
+    if (!plan.ok) return;
+    const manquantes = plan.lignes.filter((l) => !r.lignes.some((x) => x.legType === l.legType));
+    if (manquantes.length === 0) return;
+    await this.state.storage.put(REFUND_KEY, {
+      ...r,
+      lignes: [...r.lignes, ...manquantes.map((l) => ({ ...l, refundKey: mintRefundKey(), etat: 'a_demander' as const, essais: 0 }))],
+    } satisfies RemboursementStocke);
+  }
+
+  /** REMBOURSEMENT-1 — is a refund line still to be asked of the provider? */
+  private async remboursementADemander(): Promise<boolean> {
+    const r = await this.state.storage.get<RemboursementStocke>(REFUND_KEY);
+    return r !== undefined && r.lignes.some((l) => l.etat === 'a_demander');
   }
 
   /**
@@ -5139,7 +5188,8 @@ export default {
       const refundKeyMatch = /^\/checkout\/webhook\/refund-key\/([^/]+)$/.exec(pathname);
       if (request.method === 'GET' && refundKeyMatch !== null) {
         const orderId = decodeId(refundKeyMatch[1]!);
-        if (orderId === undefined || !ID_ALPHABET.test(orderId)) return badRequest('bad_field', 'orderId');
+        // A group refunds nothing itself: each of its orders refunds its own part.
+        if (orderId === undefined || !ID_ALPHABET.test(orderId) || isGroupId(orderId)) return badRequest('bad_field', 'orderId');
         const res = await orderStub(env, orderId).fetch(new Request('https://do/entry/refund-key'));
         return new Response(res.body, { status: res.status, headers: { 'Content-Type': 'application/json' } });
       }

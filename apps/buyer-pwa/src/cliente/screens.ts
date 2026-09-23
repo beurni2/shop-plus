@@ -2452,13 +2452,16 @@ export interface C7State {
    * code roads close (there is no parcel left to pay for or to open).
    */
   readonly remboursement?:
-    | { readonly etat: 'en_cours' | 'fait'; readonly montant: number; readonly fraisGardes?: number | undefined }
+    | { readonly etat: 'en_cours' | 'fait' | 'rien'; readonly montant: number; readonly fraisGardes?: number | undefined }
     | undefined;
 }
 
 /** REMBOURSEMENT-1 — the refund card's copy (money register, §10.5). */
 const REMBOURSEMENT = {
   overline: t('cl.remboursement.overline'),
+  rienOverline: t('cl.remboursement.rien_overline'),
+  rien: t('cl.remboursement.rien'),
+  rienCorps: t('cl.remboursement.rien_corps'),
   enCours: t('cl.remboursement.en_cours'),
   enCoursCorps: t('cl.remboursement.en_cours_corps'),
   fait: t('cl.remboursement.fait'),
@@ -2472,11 +2475,14 @@ const REMBOURSEMENT = {
  */
 function renderRemboursement(r: NonNullable<C7State['remboursement']>): string {
   const fait = r.etat === 'fait';
+  // `rien` — her refusal left nothing to give back: the card says the parcel
+  // is going back and that she owes nothing more; the kept fee says why.
+  const rien = r.etat === 'rien';
   return [
-    `<div class="cl-rembourse" data-role="remboursement" data-etat="${fait ? 'fait' : 'en-cours'}">`,
-    `<div class="cl-rembourse-overline">${REMBOURSEMENT.overline}</div>`,
-    `<div class="cl-rembourse-montant">${fillMontants(fait ? REMBOURSEMENT.fait : REMBOURSEMENT.enCours, { X: r.montant })}</div>`,
-    `<div class="cl-rembourse-corps">${fait ? REMBOURSEMENT.faitCorps : REMBOURSEMENT.enCoursCorps}</div>`,
+    `<div class="cl-rembourse" data-role="remboursement" data-etat="${rien ? 'rien' : fait ? 'fait' : 'en-cours'}">`,
+    `<div class="cl-rembourse-overline">${rien ? REMBOURSEMENT.rienOverline : REMBOURSEMENT.overline}</div>`,
+    `<div class="cl-rembourse-montant">${rien ? REMBOURSEMENT.rien : fillMontants(fait ? REMBOURSEMENT.fait : REMBOURSEMENT.enCours, { X: r.montant })}</div>`,
+    `<div class="cl-rembourse-corps">${rien ? REMBOURSEMENT.rienCorps : fait ? REMBOURSEMENT.faitCorps : REMBOURSEMENT.enCoursCorps}</div>`,
     r.fraisGardes !== undefined
       ? `<div class="cl-rembourse-frais" data-role="frais-gardes">${fillMontants(REMBOURSEMENT.fraisGardes, { D: r.fraisGardes })}</div>`
       : '',

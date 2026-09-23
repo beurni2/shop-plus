@@ -1250,7 +1250,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
             porte: porteHandle() !== null,
             relance: state.suiviRelance,
             horsPortee: state.suiviHorsPortee,
-            terminee: (state.livree || state.remboursement?.etat === 'fait') && !state.termineeVue,
+            terminee: (state.livree || state.remboursement?.etat === 'fait' || state.remboursement?.etat === 'rien') && !state.termineeVue,
             remboursement: state.remboursement ?? undefined,
           });
         }
@@ -1550,6 +1550,13 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
     render();
     void payer(id, state.essaiPorte).then((r) => {
       if (gen !== generation) return;
+      if (r.status === 'refused' && r.reason === 'course_refusee') {
+        // REMBOURSEMENT-1 — Séra refused the parcel: there is nothing left to
+        // pay at this door. Her tracking says what comes back (or that nothing does).
+        jump('C7');
+        demarrerSuivi();
+        return;
+      }
       if (r.status !== 'order') {
         // The service refused to start the collection, or we could not read the
         // answer. NOTHING was paid — the charge lives past this point.
@@ -1580,6 +1587,13 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
       if (r.status === 'order') {
         state.doorLeg = r.order.doorLeg ?? null;
         absorberMarques(r.order); // VRAI-SUIVI — the door watch reads orders too
+        if (state.remboursement !== null) {
+          // REMBOURSEMENT-1 — the parcel was refused while she paid: no code
+          // to open; her tracking's card carries what comes back.
+          jump('C7');
+          demarrerSuivi();
+          return;
+        }
         if (state.doorLeg === 'paid') {
           // PROVIDER-CONFIRMED. Only now, and §6.3 is satisfied. On the real
           // path C9 shows the REMISE ROUTE'S code (or its honest wait) — the

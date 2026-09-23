@@ -847,9 +847,10 @@ export interface BuyerOrderView {
    * nothing else — no key, no collection reference, no provider fee.
    * `fraisGardes` is her delivery fee the vault KEPT on a buyer refusal (the
    * rider came), present only when > 0, so her screen can say why the refund
-   * is smaller than what she paid.
+   * is smaller than what she paid. `rien` (montant 0): the refusal left
+   * nothing to give back but that fee — the delivery still ended.
    */
-  readonly remboursement?: { readonly etat: 'en_cours' | 'fait'; readonly montant: number; readonly fraisGardes?: number };
+  readonly remboursement?: { readonly etat: 'en_cours' | 'fait' | 'rien'; readonly montant: number; readonly fraisGardes?: number };
 }
 
 export function toBuyerOrderView(args: {
@@ -867,7 +868,7 @@ export function toBuyerOrderView(args: {
     readonly arrivedAt?: string;
     readonly livree?: boolean;
   };
-  readonly remboursement?: { readonly etat: 'en_cours' | 'fait'; readonly montant: number; readonly fraisGardes?: number };
+  readonly remboursement?: { readonly etat: 'en_cours' | 'fait' | 'rien'; readonly montant: number; readonly fraisGardes?: number };
 }): BuyerOrderView {
   const suivi = args.suivi ?? {};
   return {

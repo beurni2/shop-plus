@@ -78,8 +78,11 @@ export class LedgerRecords {
         return { ok: false, reason: 'conflicting_escrow_for_order' };
       }
       // The one modeled append: an Option-B door leg joining its checkout leg.
+      // REMBOURSEMENT-1 — a door leg landing after the checkout leg was fully
+      // refunded (a charge in flight when Séra refused) is money held again.
       const record = EscrowTxnSchema.parse({
         ...existing,
+        ...(existing.status === 'refunded' ? { status: 'hold' } : {}),
         paymentLegs: [
           ...existing.paymentLegs,
           {

@@ -663,11 +663,11 @@ export class OrderSpine {
    * order's share — copied from the immutable Quote, which is proven to be
    * one term of a total the provider itself stated.
    *
-   * THE FEE (⏳ aggregator Decision, Build Spec §12 — safest default, flagged):
-   * the provider states ONE fee for the one collection. It is copied whole
-   * onto the first part (by orderId) and 0 onto the others, so the group's
-   * records carry exactly the provider's figure once — never N times, never
-   * a split this vault would have to invent.
+   * THE FEE (FRAIS-PARTAGES-1, founder ruling 2026-09-23): the provider
+   * states ONE fee for the one collection; each order records its share of
+   * it in proportion to its part, to the franc (`partDesFrais` — largest
+   * remainder, a tie to the lower order id), so the group's records sum to
+   * exactly the provider's figure — never N times, never a franc lost.
    */
   onGroupProviderPaymentEvent(
     raw: unknown,
@@ -1007,11 +1007,14 @@ export class OrderSpine {
    * Séra kept leaves D on the checkout leg (Option B: that leg IS D, so only a
    * paid door leg goes back). Nothing is refunded before the money moved, and
    * nothing after acceptance: an order with settlement obligations was
-   * delivered and accepted (§6.3 finality).
+   * delivered and accepted (§6.3 finality). Asked again once `refunded`, it
+   * answers for a door leg the provider confirmed AFTER the refusal (a charge
+   * already in flight at the door) — the caller refunds the legs it lacks.
    */
   decideRefund(refus: RefusCourse): PlanRemboursement {
     const escrow = this.orderId === undefined ? undefined : this.ledger.escrowFor(this.orderId);
-    if (escrow === undefined || (this.journeyState.state !== 'paid' && this.journeyState.state !== 'confirmed')) {
+    const etat = this.journeyState.state;
+    if (escrow === undefined || (etat !== 'paid' && etat !== 'confirmed' && etat !== 'refunded')) {
       return { ok: false, reason: 'pas_paye' };
     }
     if (this.ledger.obligationsFor(this.orderId!).length > 0) return { ok: false, reason: 'livraison_acceptee' };

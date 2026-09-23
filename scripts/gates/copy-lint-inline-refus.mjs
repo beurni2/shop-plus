@@ -270,6 +270,8 @@ const ECRANS = {
   'cl.remboursement.overline': M('money', L()), 'cl.remboursement.en_cours': M('money', C(['{X}'])),
   'cl.remboursement.en_cours_corps': M('money', S()), 'cl.remboursement.fait': M('money', C(['{X}'])),
   'cl.remboursement.fait_corps': M('money', S()), 'cl.remboursement.frais_gardes': M('money', C(['{D}'])),
+  'cl.remboursement.rien_overline': M('money', L()), 'cl.remboursement.rien': M('money', L()),
+  'cl.remboursement.rien_corps': M('money', S()),
 };
 
 /** Every pinned key, flattened: key → { register, screenClass, fills }. */

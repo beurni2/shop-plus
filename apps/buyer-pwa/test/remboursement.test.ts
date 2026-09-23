@@ -40,6 +40,9 @@ describe('readOrder — her refund crosses the wire as the server said it, or no
     expect(enCours.status === 'order' && enCours.order.remboursement).toEqual({ etat: 'en_cours', montant: 12_500 });
     const fait = await lire({ ...ORDRE, state: 'refunded', remboursement: { etat: 'fait', montant: 11_500, fraisGardes: 1_000 } });
     expect(fait.status === 'order' && fait.order.remboursement).toEqual({ etat: 'fait', montant: 11_500, fraisGardes: 1_000 });
+    // `rien`: her refusal left nothing to give back but the fee it kept.
+    const rien = await lire({ ...ORDRE, remboursement: { etat: 'rien', montant: 0, fraisGardes: 1_000 } });
+    expect(rien.status === 'order' && rien.order.remboursement).toEqual({ etat: 'rien', montant: 0, fraisGardes: 1_000 });
   });
 
   it('a malformed refund is dropped WHOLE — and only the refund: the order read survives', async () => {
@@ -51,6 +54,9 @@ describe('readOrder — her refund crosses the wire as the server said it, or no
       { etat: 'fait', montant: '12500' },
       { etat: 'en_cours', montant: 11_500, fraisGardes: 0 },
       { etat: 'en_cours', montant: 11_500, fraisGardes: '1000' },
+      { etat: 'rien', montant: 0 },
+      { etat: 'rien', montant: 500, fraisGardes: 1_000 },
+      { etat: 'en_cours', montant: 0, fraisGardes: 1_000 },
       'fait',
       null,
     ];
@@ -97,6 +103,19 @@ describe('renderC7 — the refund card', () => {
     expect(html).toContain('data-role="frais-gardes"');
     expect(html).toContain(`1${NNBSP}000${NNBSP}FCFA`);
     expect(html).not.toContain(t('cl.remboursement.en_cours_corps'));
+  });
+
+  it('rien: « Rien de plus à payer », the parcel going back, the kept fee — and no door or code left to open', () => {
+    const html = renderC7({ ...REEL, remboursement: { etat: 'rien', montant: 0, fraisGardes: 1_000 } });
+    expect(html).toContain('data-etat="rien"');
+    expect(html).toContain(t('cl.remboursement.rien_overline'));
+    expect(html).toContain(t('cl.remboursement.rien'));
+    expect(html).toContain(t('cl.remboursement.rien_corps'));
+    expect(html).toContain(`1${NNBSP}000${NNBSP}FCFA`);
+    expect(html).not.toContain('vous reviennent');
+    expect(html).not.toContain('Remboursement fait');
+    expect(html).not.toContain('data-action="voir-code"');
+    expect(html).not.toContain('data-action="porte"');
   });
 
   it('without a refund the screen is unchanged — the door and code roads stay where they were', () => {

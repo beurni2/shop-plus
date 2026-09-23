@@ -711,6 +711,8 @@ describe('PAYER-TOUT-1 — one payment for the panier, one order per article, on
     // A refund confirmation can never name the group.
     const auGroupe = await post(mf, '/checkout/webhook/refund', composeSandboxRefund(groupId, r!, new Date().toISOString()), signed);
     expect(auGroupe.status).toBe(400);
+    // …nor can the refunds asked be read under the group's id: each order refunds its own part.
+    expect((await call(mf, `/checkout/webhook/refund-key/${encodeURIComponent(groupId)}`, { headers: signed })).status).toBe(400);
   });
 
   it('the group doors are closed without the binding, and a group webhook without the secret never routes', async () => {

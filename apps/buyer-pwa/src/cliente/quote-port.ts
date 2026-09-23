@@ -190,7 +190,7 @@ export interface ServerOrder {
    * one we do not announce.
    */
   readonly remboursement?:
-    | { readonly etat: 'en_cours' | 'fait'; readonly montant: number; readonly fraisGardes?: number | undefined }
+    | { readonly etat: 'en_cours' | 'fait' | 'rien'; readonly montant: number; readonly fraisGardes?: number | undefined }
     | undefined;
 }
 
@@ -788,9 +788,12 @@ async function readOrder(res: Response): Promise<OrderOutcome> {
 }
 
 /**
- * REMBOURSEMENT-1 — HER REFUND, OR NOTHING. One of the service's two words, a
- * positive franc sum, and the kept fee only as a positive franc sum; anything
- * else drops the refund whole (and only the refund — the order read survives).
+ * REMBOURSEMENT-1 — HER REFUND, OR NOTHING. One of the service's three words:
+ * `en_cours`/`fait` with a positive franc sum, or `rien` (her refusal left
+ * nothing to give back) with a sum of 0 and the kept fee REQUIRED — the fee is
+ * the only thing `rien` has to say. The kept fee, when present, is a positive
+ * franc sum. Anything else drops the refund whole (and only the refund — the
+ * order read survives).
  */
 function lireRemboursement(v: unknown): ServerOrder['remboursement'] {
   if (v === null || typeof v !== 'object') return undefined;
@@ -798,8 +801,8 @@ function lireRemboursement(v: unknown): ServerOrder['remboursement'] {
   const etat = r['etat'];
   const montant = r['montant'];
   const frais = r['fraisGardes'];
-  if (etat !== 'en_cours' && etat !== 'fait') return undefined;
-  if (!Number.isSafeInteger(montant) || (montant as number) <= 0) return undefined;
+  if (etat !== 'en_cours' && etat !== 'fait' && etat !== 'rien') return undefined;
+  if (etat === 'rien' ? montant !== 0 || frais === undefined : !Number.isSafeInteger(montant) || (montant as number) <= 0) return undefined;
   if (frais !== undefined && (!Number.isSafeInteger(frais) || (frais as number) <= 0)) return undefined;
   return {
     etat,

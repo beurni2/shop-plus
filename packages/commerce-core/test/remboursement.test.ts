@@ -157,6 +157,32 @@ describe('REMBOURSEMENT-1 — what goes back, decided from the order\'s own reco
     expect(d.spine.ledger.escrowFor(d.orderId)!.status).toBe('refunded');
   });
 
+  it('Option B: a door payment the provider confirms AFTER the refusal (in flight at the door) is refunded too — even once the order read refunded', () => {
+    const d = commandePayee('r9', 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR');
+    const premiers = demander(d, JUSTIFIE);
+    expect(premiers.map((a) => [a.legType, a.amount])).toEqual([['checkout', d.quote.amountPaidAtCheckout]]);
+    expect(d.spine.onProviderRefundEvent(refundEvents(d.provider)[0], premiers).applied).toBe(true);
+    expect(d.spine.journey.state).toBe('refunded');
+    expect(d.spine.ledger.escrowFor(d.orderId)!.status).toBe('refunded');
+
+    payerLaPorte(d);
+    // Money held again: the record no longer claims every franc went back.
+    expect(d.spine.ledger.escrowFor(d.orderId)!.status).toBe('hold');
+    const plan = d.spine.decideRefund(JUSTIFIE);
+    if (!plan.ok) throw new Error(plan.reason);
+    const porte = plan.lignes.find((l) => l.legType === 'door')!;
+    expect(porte.amount).toBe(d.quote.amountDueAtDelivery);
+    const attendus = [...premiers, { ...porte, refundKey: 'rf-door-r9' }];
+    expect(d.provider.initiateRefund({ orderId: d.orderId, refundKey: 'rf-door-r9', collectRef: porte.collectRef, amount: porte.amount, correlationId: d.correlationId, requestedAtIso: T, legType: 'door' }).outcome).toBe('accepted');
+    const evenement = refundEvents(d.provider).find((e) => e.payload['refund_key'] === 'rf-door-r9')!;
+    expect(d.spine.onProviderRefundEvent(evenement, attendus)).toEqual({ applied: true, duplicate: false });
+    expect(d.spine.ledger.escrowFor(d.orderId)!.status).toBe('refunded');
+    expect(d.spine.ledger.refundsFor(d.orderId).map((r) => [r.legType, r.amount])).toEqual([
+      ['checkout', d.quote.amountPaidAtCheckout],
+      ['door', d.quote.amountDueAtDelivery],
+    ]);
+  });
+
   it('nothing before the money moved, nothing after acceptance', () => {
     const issued = commandePayee('r6');
     issued.spine.ledger.recordObligationsOnEligibility(issued.orderId, issued.quote, 'sup-1');

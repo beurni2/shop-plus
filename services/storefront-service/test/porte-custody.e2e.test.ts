@@ -6,6 +6,7 @@ import { MockPaymentProvider } from '@shop-plus/commerce-core';
 import { Miniflare } from 'miniflare';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { OPS_SECRET, seance } from './seance';
+import { composeSandboxRefund } from '../../../scripts/sandbox-payment-confirm.mjs';
 
 /**
  * ═══ PORTE-CUSTODY part B — the door leg's provider truth reaches custody ═══
@@ -871,4 +872,104 @@ describe('F-30 — the door-attempt ceiling, on the real Worker', () => {
     expect(paid.status, paid.text).toBe(200);
     expect((await vue(o.orderId))['doorLeg']).toBe('paid');
   });
+});
+
+/**
+ * ═══ REMBOURSEMENT-1 — PAY AT THE DOOR, ONCE SÉRA HAS REFUSED THE PARCEL ═══
+ *
+ * The verifier's two blockers, on the real Worker: (1) a door payment that
+ * lands AFTER the refusal (the charge was in flight at the door) is refunded
+ * too, and no new door charge can start once the parcel was refused; (2) a
+ * refusal that leaves nothing to give back still tells her screen the
+ * delivery ended, with the fee it kept. The outcome is read off the LEDGER.
+ */
+describe('REMBOURSEMENT-1 — pay at the door, once Séra has refused the parcel', () => {
+  const refus = (orderId: string, payload: Record<string, unknown>) =>
+    mf.dispatchFetch('http://c/fulfillment/progress', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${PROGRESS_SECRET}` },
+      body: JSON.stringify({
+        name: 'delivery.refused.v1',
+        envelope: {
+          command_id: `refus-${orderId}`, correlation_id: `corr-${orderId}`,
+          aggregateVersion: 9, actor: 'custody-service:e1', serverTime: '2026-09-23T10:00:00.000Z', version: '1',
+        },
+        payload: { order_id: orderId, task_id: `task-${orderId}`, ...payload },
+      }),
+    });
+  const auditDe = async (orderId: string) => {
+    const ns = await mf.getDurableObjectNamespace('ORDER');
+    return (await (await ns.get(ns.idFromName(orderId)).fetch('https://do/entry/audit')).json()) as {
+      state: string;
+      escrow: { status: string; paymentLegs: { legType: string; amount: number; status: string }[] };
+      remboursement: { decision: string; retenu: number; lignes: { legType: string; etat: string; amount: number }[] } | null;
+      refunds: { legType: string; amount: number }[];
+    };
+  };
+  async function jusquADemande(orderId: string, n: number, timeoutMs = 8_000): Promise<void> {
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      const r = (await auditDe(orderId)).remboursement;
+      if (r !== null && r.lignes.length === n && r.lignes.every((l) => l.etat === 'demande')) return;
+      await new Promise((ok) => setTimeout(ok, 50));
+    }
+    throw new Error(`the ${n} refund line(s) of ${orderId} were never asked`);
+  }
+  /** The founder's sandbox tool confirms every refund the order asked that the ledger lacks. */
+  async function confirmerTout(orderId: string): Promise<void> {
+    const res = await mf.dispatchFetch(`http://c/checkout/webhook/refund-key/${encodeURIComponent(orderId)}`, { headers: signed });
+    const { remboursements } = safeJson(await res.text()) as { remboursements: { legType: string; refundKey: string; amount: number; collectRef: string }[] };
+    const deja = new Set((await auditDe(orderId)).refunds.map((r) => r.legType));
+    for (const r of remboursements.filter((x) => !deja.has(x.legType))) {
+      const ok = await postWebhook('/checkout/webhook/refund', composeSandboxRefund(orderId, r, new Date().toISOString()));
+      expect(ok.status, ok.text).toBe(200);
+    }
+  }
+
+  it('her refusal with the fee kept, door not paid: nothing comes back, her view SAYS the delivery ended — and no door charge can start any more', async () => {
+    const o = await confirmedDoorOrder('0901');
+    const res = await refus(o.orderId, { family: 'return', reason_code: 'change_of_mind', fault_class: 'buyer', fee_retained: true });
+    expect(res.status).toBe(200);
+    expect((await vue(o.orderId))['remboursement']).toEqual({ etat: 'rien', montant: 0, fraisGardes: 1_000 });
+    const charge = await mf.dispatchFetch(`http://c/checkout/order/${encodeURIComponent(o.orderId)}/door-charge`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ holderRef: 'holder-0901', commandId: 'cmd-door-0901' }),
+    });
+    expect(charge.status).toBe(422);
+    expect(await charge.json()).toEqual({ error: 'course_refusee' });
+    const a = await auditDe(o.orderId);
+    expect(a.escrow.paymentLegs.map((l) => l.legType)).toEqual(['checkout']);
+    expect(a.remboursement).toMatchObject({ decision: 'ouvert', retenu: 1_000, lignes: [] });
+  }, 60_000);
+
+  it('a door charge in flight when Séra refuses: the door payment that lands after the order read refunded is refunded too, to the franc', async () => {
+    const o = await confirmedDoorOrder('0902');
+    await porteDemandee(o.orderId, '0902');
+    expect((await refus(o.orderId, { rejection: 'valid_rejection', fault_class: 'seller' })).status).toBe(200);
+    await jusquADemande(o.orderId, 1);
+    await confirmerTout(o.orderId);
+    expect((await auditDe(o.orderId)).state).toBe('refunded');
+    expect((await vue(o.orderId))['remboursement']).toEqual({ etat: 'fait', montant: 1_000 });
+
+    // The provider's door confirmation lands now — provider truth, recorded.
+    const porte = await postWebhook('/checkout/webhook/door', await trueDoorEvent(o.orderId));
+    expect(porte.status, porte.text).toBe(200);
+    const apres = await auditDe(o.orderId);
+    expect(apres.escrow.status, 'money is held again — the record must not claim it all went back').toBe('hold');
+    await jusquADemande(o.orderId, 2);
+    expect((await auditDe(o.orderId)).remboursement!.lignes.map((l) => [l.legType, l.amount])).toEqual([
+      ['checkout', 1_000],
+      ['door', 11_500],
+    ]);
+    expect((await vue(o.orderId))['remboursement']).toEqual({ etat: 'en_cours', montant: 12_500 });
+    // A redelivered door webhook adds nothing.
+    expect((await postWebhook('/checkout/webhook/door', await trueDoorEvent(o.orderId))).status).toBe(200);
+    expect((await auditDe(o.orderId)).remboursement!.lignes).toHaveLength(2);
+
+    await confirmerTout(o.orderId);
+    const fin = await auditDe(o.orderId);
+    expect(fin.refunds.map((r) => [r.legType, r.amount])).toEqual([['checkout', 1_000], ['door', 11_500]]);
+    expect(fin.escrow.status).toBe('refunded');
+    expect((await vue(o.orderId))['remboursement']).toEqual({ etat: 'fait', montant: 12_500 });
+  }, 60_000);
 });

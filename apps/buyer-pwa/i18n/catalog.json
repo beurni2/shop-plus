@@ -1296,6 +1296,24 @@
   "screenClass": "status"
  },
  {
+  "key": "cl.remboursement.rien_overline",
+  "fr": "Colis retourné",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.remboursement.rien",
+  "fr": "Rien de plus à payer",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.remboursement.rien_corps",
+  "fr": "Le colis retourne chez la vendeuse.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
   "key": "cl.remboursement.frais_gardes",
   "fr": "La livraison ({D}\u202fFCFA) reste payée\u00a0: le livreur est bien venu jusqu’à vous.",
   "register": "money",

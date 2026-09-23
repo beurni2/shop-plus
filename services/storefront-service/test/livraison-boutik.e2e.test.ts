@@ -650,6 +650,17 @@ describe('REMBOURSEMENT-1 — a refused course refunds her; only the provider\'s
     expect(fini.escrow.status).toBe('hold');
   }, 60_000);
 
+  it('a redelivered refusal re-arms the alarm for a refund still to ask even when the relay is done; a late door leg re-arms it too (call-site pins, the standing standard)', () => {
+    // The crash window between the relay row and the refund record cannot be
+    // driven on a live Worker; the recovery is pinned where it lives.
+    const src = readFileSync('worker/order-do.ts', 'utf8');
+    expect(src).toContain(
+      "if ((existing.status === 'pending' || (await this.remboursementADemander())) && (await this.state.storage.getAlarm()) === null) {",
+    );
+    expect(src).toContain("if (strandedPorte?.status === 'pending' || (await this.remboursementADemander())) {");
+    expect(src.match(/await this\.etendreRemboursement\(\);/g)).toHaveLength(2);
+  });
+
   it('the provider\'s word is judged to the franc: another amount, a key never asked, and no secret are all refused — nothing moves', async () => {
     const orderId = await realOrder('0103');
     expect((await progress(refusedEvent(orderId))).status).toBe(200);

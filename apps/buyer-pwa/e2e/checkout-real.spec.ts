@@ -1239,6 +1239,93 @@ test('REMBOURSEMENT-1 · a refused parcel: from her code screen to the refund ca
 });
 
 /**
+ * REMBOURSEMENT-1 (verifier BLOCKER 2) — PAY AT THE DOOR, PARCEL ALREADY
+ * REFUSED. She refused it and Séra kept the delivery fee, so nothing comes
+ * back. She taps « Je suis à la porte », then « Tout est bon ». The service
+ * refuses the charge by name (`course_refusee`), and her screen does NOT
+ * become a payment failure with a retry that can never succeed: it takes her
+ * to the tracking, where the card says she owes nothing more, the parcel goes
+ * back, and why the fee stays paid — and « C'est terminé » takes her home.
+ */
+test('REMBOURSEMENT-1 · pay at the door after the parcel was refused: no failed payment, the « rien de plus à payer » card, then home', async ({ page }) => {
+  test.setTimeout(120_000);
+  const RIEN = { ...MARQUES_ARRIVEE, remboursement: { etat: 'rien', montant: 0, fraisGardes: 1_000 } };
+  const wire = await scriptService(page, {
+    doorAvailable: true,
+    orderStates: ['confirmed'],
+    doorLegs: ['due'],
+    doorChargeRefusal: 'course_refusee',
+    marques: [MARQUES_ARRIVEE, MARQUES_ARRIVEE, MARQUES_ARRIVEE, RIEN],
+  });
+  await askForPrice(page);
+  await toPayer(page, 'B');
+  await page.locator('[data-action="payer"]').click();
+  await page.locator('[data-etat="confirmee"]').waitFor({ timeout: 15_000 });
+  await page.locator('[data-action="suivre"]').click();
+  await page.locator('[data-screen="C7"]').waitFor();
+  await page.locator('[data-action="porte"]').click();
+  await page.locator('[data-action="porte-bon"]').click();
+  await expect.poll(() => wire.doorCharges.length, { timeout: 10_000 }).toBe(1);
+
+  const carte = page.locator('[data-role="remboursement"]');
+  await carte.waitFor({ timeout: 15_000 });
+  expect(await screenOf(page)).toBe('C7');
+  await expect(page.locator('[data-etat="porte-echec"]')).toHaveCount(0);
+  await expect(carte).toHaveAttribute('data-etat', 'rien');
+  const texte = (await carte.innerText()).replace(/\s+/g, ' ');
+  expect(texte).toContain('Rien de plus à payer');
+  expect(texte).toContain('Le colis retourne chez la vendeuse.');
+  expect(texte).toContain('1 000 FCFA');
+  await expect(page.locator('[data-action="voir-code"]')).toHaveCount(0);
+  await expect(page.locator('[data-action="porte"]')).toHaveCount(0);
+
+  await page.locator('[data-action="suivi-terminer"]').click();
+  await page.locator('[data-screen="C1"]').waitFor({ timeout: 10_000 });
+  expect(await page.evaluate(() => localStorage.getItem('sp-commande:v1'))).toBeNull();
+});
+
+/**
+ * REMBOURSEMENT-1 (verifier BLOCKER 1, her side) — SHE WAS PAYING AT THE DOOR
+ * WHEN SÉRA REFUSED. The charge went out; while the door watch waits on the
+ * operator, the order starts carrying her refund. The watch must not carry her
+ * to a drop code: it yields to the tracking, whose card says what comes back.
+ */
+test('REMBOURSEMENT-1 · paying at the door when the refusal lands: the door watch yields to the refund card, never to a code', async ({ page }) => {
+  test.setTimeout(120_000);
+  const REFUS = { ...MARQUES_ARRIVEE, remboursement: { etat: 'en_cours', montant: 12_500 } };
+  const wire = await scriptService(page, {
+    doorAvailable: true,
+    orderStates: ['confirmed'],
+    doorLegs: ['due'],
+    doorLegsApresCharge: ['due', 'paid'],
+    marques: [MARQUES_ARRIVEE, MARQUES_ARRIVEE, MARQUES_ARRIVEE, REFUS],
+    codeRemise: '135790',
+  });
+  await askForPrice(page);
+  await toPayer(page, 'B');
+  await page.locator('[data-action="payer"]').click();
+  await page.locator('[data-etat="confirmee"]').waitFor({ timeout: 15_000 });
+  await page.locator('[data-action="suivre"]').click();
+  await page.locator('[data-screen="C7"]').waitFor();
+  await page.locator('[data-action="porte"]').click();
+  await page.locator('[data-action="porte-bon"]').click();
+  await page.locator('[data-etat="paiement-porte"]').waitFor({ timeout: 10_000 });
+
+  const carte = page.locator('[data-role="remboursement"]');
+  await carte.waitFor({ timeout: 15_000 });
+  expect(await screenOf(page)).toBe('C7');
+  await expect(carte).toHaveAttribute('data-etat', 'en-cours');
+  expect((await carte.innerText()).replace(/\s+/g, ' ')).toContain('12 500 FCFA vous reviennent');
+  // Never the code screen: the door leg read « paid » on the same read the
+  // refund arrived on, and the refund won. (One remise read did go out — the
+  // tracking's own prefetch when the arrival fact landed, before any refusal.)
+  expect(wire.doorCharges.length).toBe(1);
+  expect(await stage(page)).not.toContain('135 790');
+  await expect(page.locator('[data-role="code-revele"]')).toHaveCount(0);
+  await expect(page.locator('[data-action="voir-code"]')).toHaveCount(0);
+});
+
+/**
  * ═══ SUIVI-VIVANT, THE TWO THINGS ITS OWN TESTS COULD NOT SEE ═══
  *
  * The slice that made the delivery watch hold instead of expiring was proven by
