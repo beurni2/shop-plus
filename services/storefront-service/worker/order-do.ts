@@ -3597,7 +3597,11 @@ export class OrderDO {
    */
   private async watchStuckRefund(): Promise<number | undefined> {
     const r = await this.state.storage.get<RemboursementStocke>(REFUND_KEY);
-    const enAttente = (r?.lignes ?? []).filter((l) => l.etat === 'demande' && l.demandeLe !== undefined && l.alerteLe === undefined);
+    // An ask the provider accepted and never confirmed, or one it only ever
+    // timed out on (verifier MAJOR): both are refunds asked and not done.
+    const enAttente = (r?.lignes ?? []).filter(
+      (l) => (l.etat === 'demande' || l.etat === 'a_demander') && l.demandeLe !== undefined && l.alerteLe === undefined,
+    );
     if (r === undefined || enAttente.length === 0) return undefined;
     const origin = await this.state.storage.get<StoredOrigin>(ORIGIN_KEY);
     const quote = origin === undefined ? undefined : parseStoredQuote(origin.quoteBytes);
@@ -4330,13 +4334,15 @@ export class OrderDO {
     const ouvertLe = new Date().toISOString();
     const log = (await this.state.storage.get<OrderInput[]>(LOG_KEY)) ?? [];
     if (refus === undefined) {
-      await this.state.storage.put(REFUND_KEY, { ouvertLe, refus: null, decision: 'refus_illisible', retenu: 0, lignes: [] } satisfies RemboursementStocke);
-      // REMBOURSEMENT-2 — no refund could be decided: the operator is told now.
+      // REMBOURSEMENT-2 — no refund could be decided: the operator is told
+      // first (idempotent by id — a crash before the record re-tells on the
+      // redelivered fact, never loses the alert).
       await this.sinkReconAlerts([
         rebuildOrderSpine(quote, origin, log).alerteRemboursement('refusal_fact_unreadable', origin.orderId, ouvertLe, {
           refusal_command_id: source,
         }),
       ]);
+      await this.state.storage.put(REFUND_KEY, { ouvertLe, refus: null, decision: 'refus_illisible', retenu: 0, lignes: [] } satisfies RemboursementStocke);
       return;
     }
     const plan = rebuildOrderSpine(quote, origin, log).decideRefund(refus);
@@ -4401,6 +4407,9 @@ export class OrderDO {
       if (ligne.etat !== 'a_demander') continue;
       const dejaDemandes = r.lignes.reduce((somme, l) => somme + l.essais, 0);
       ligne.essais += 1;
+      // REMBOURSEMENT-2 (verifier MAJOR) — the stuck clock starts at the FIRST
+      // ask, answered or not: an ask that only ever times out is stuck too.
+      ligne.demandeLe ??= new Date().toISOString();
       await this.state.storage.put(REFUND_KEY, r);
       const reponse = await sandboxPaymentProvider(readSandboxBehavior(this.env.PAYMENT_SANDBOX_BEHAVIOR), 0, dejaDemandes).initiateRefund({
         orderId: origin.orderId,
@@ -4414,17 +4423,12 @@ export class OrderDO {
       if (reponse.accepted) {
         ligne.etat = 'demande';
         ligne.refundRef = reponse.refundRef;
-        ligne.demandeLe = new Date().toISOString();
       } else if (reponse.reason === 'timeout') {
         pending = Math.max(pending, ligne.essais);
       } else {
-        ligne.etat = 'refuse';
-        ligne.motifRefus = reponse.reason;
-      }
-      await this.state.storage.put(REFUND_KEY, r);
-      if (ligne.etat === 'refuse') {
         // REMBOURSEMENT-2 — a refusal by name is final for this line: the
-        // operator is told now (the line's etat changes once, so once).
+        // operator is told BEFORE the line records it (the sink is idempotent
+        // by the alert's id, so a crash between the two re-tells, never loses).
         const quote = parseStoredQuote(origin.quoteBytes);
         if (quote !== undefined) {
           const log = (await this.state.storage.get<OrderInput[]>(LOG_KEY)) ?? [];
@@ -4432,11 +4436,14 @@ export class OrderDO {
             rebuildOrderSpine(quote, origin, log).alerteRemboursement('provider_refused_refund', ligne.refundKey, new Date().toISOString(), {
               leg: ligne.legType,
               refund_key: ligne.refundKey,
-              provider_reason: ligne.motifRefus ?? null,
+              provider_reason: reponse.reason,
             }),
           ]);
         }
+        ligne.etat = 'refuse';
+        ligne.motifRefus = reponse.reason;
       }
+      await this.state.storage.put(REFUND_KEY, r);
     }
     return pending;
   }

@@ -859,4 +859,36 @@ describe('REMBOURSEMENT-2 — a refund that cannot finish by itself is told to t
       expect((await auditDe(orderId)).reconAlerts.filter((y) => y.name === 'saga.stuck.v1' && y.payload['stuck_in'] === 'refund')).toHaveLength(1);
     }, 60_000);
   });
+
+  describe('the provider times out on every refund ask (verifier MAJOR)', () => {
+    let principal: Miniflare;
+    const dir = mkdtempSync(join(tmpdir(), 'rembourse-muet-'));
+    beforeAll(() => {
+      principal = mf;
+      mf = makeMf(dir, { STUCK_SAGA_TTL_MS: '800', PAYMENT_SANDBOX_BEHAVIOR: JSON.stringify({ timeoutFirstNRefunds: 1_000 }) });
+    });
+    afterAll(async () => {
+      await mf.dispose();
+      mf = principal;
+      rmSync(dir, { recursive: true, force: true });
+    });
+
+    it('an ask that never gets an answer is stuck too: the founder is told ONCE, and his row says blocked', async () => {
+      const orderId = await realOrder('0204');
+      expect((await progress(refusedEvent(orderId))).status).toBe(200);
+      const tente = await jusqua(() => auditDe(orderId), (x) => (x.remboursement?.lignes[0]?.essais ?? 0) >= 1);
+      expect(tente.remboursement!.lignes[0]!.etat, 'the provider answered, so this proves nothing').toBe('a_demander');
+      const cle = tente.remboursement!.lignes[0]!.refundKey;
+      const bloque = await jusqua(
+        () => auditDe(orderId),
+        (x) => x.reconAlerts.some((y) => y.name === 'saga.stuck.v1' && y.payload['stuck_in'] === 'refund'),
+      );
+      const stuck = bloque.reconAlerts.filter((y) => y.name === 'saga.stuck.v1' && y.payload['stuck_in'] === 'refund');
+      expect(stuck).toHaveLength(1);
+      expect(stuck[0]!.payload).toMatchObject({ refund_key: cle, leg: 'checkout' });
+      expect((await rangeeDe(orderId)).remboursement).toEqual({ etat: 'bloque', raison: 'sans_confirmation' });
+      await new Promise((r) => setTimeout(r, 1_200));
+      expect((await auditDe(orderId)).reconAlerts.filter((y) => y.name === 'saga.stuck.v1' && y.payload['stuck_in'] === 'refund')).toHaveLength(1);
+    }, 60_000);
+  });
 });

@@ -1248,8 +1248,10 @@ test('REMBOURSEMENT-1 · a refused parcel: from her code screen to the refund ca
  */
 test('REMBOURSEMENT-2 · an article not available: the tracking says so, the refund is followed to done, then home', async ({ page }) => {
   test.setTimeout(120_000);
-  const INDISPO = { remboursement: { etat: 'en_cours', montant: 12_500, motif: 'indisponible' } };
-  const FAIT = { remboursement: { etat: 'fait', montant: 12_500, motif: 'indisponible' } };
+  // Accepted first, then refused (verifier MAJOR): the road had begun.
+  const ACCEPTEE = { acceptedAt: '2026-09-23T07:10:00.000Z' };
+  const INDISPO = { ...ACCEPTEE, remboursement: { etat: 'en_cours', montant: 12_500, motif: 'indisponible' } };
+  const FAIT = { ...ACCEPTEE, remboursement: { etat: 'fait', montant: 12_500, motif: 'indisponible' } };
   const wire = await scriptService(page, {
     orderStates: ['confirmed', 'confirmed', 'confirmed', 'refunded'],
     // Read 0 is C6's; the refusal is already on the first tracking read; 3 confirms it.
@@ -1269,6 +1271,9 @@ test('REMBOURSEMENT-2 · an article not available: the tracking says so, the ref
   expect(enCours).toContain('12 500 FCFA vous reviennent');
   expect(enCours).toContain('Cet article n’est plus disponible');
   expect(enCours, 'no parcel ever left — it cannot be « going back »').not.toContain('Le colis retourne');
+  // No step of the road is « now » under the card — not « la vendeuse prépare ».
+  await expect(page.locator('.cl-tl-t-now')).toHaveCount(0);
+  await expect(page.locator('.cl-now-badge')).toHaveCount(0);
   await expect(page.locator('[data-action="voir-code"]')).toHaveCount(0);
   await expect(page.locator('[data-action="porte"]')).toHaveCount(0);
 

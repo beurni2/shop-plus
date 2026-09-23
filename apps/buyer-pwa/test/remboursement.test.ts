@@ -138,6 +138,11 @@ describe('renderC7 — the refund card', () => {
     const fait = renderC7({ ...REEL, remboursement: { etat: 'fait', montant: 12_500, motif: 'indisponible' } });
     // The whole sentence is the card's body — the « retour » one is a tail of it.
     expect(fait).toContain(`<div class="cl-rembourse-corps">${t('cl.remboursement.indisponible_fait_corps')}</div>`);
+    // Accepted, then refused: no step of the road is « now » under the card.
+    const accepte = renderC7({ ...REEL, step: 2, remboursement: { etat: 'en_cours', montant: 12_500, motif: 'indisponible' } });
+    expect(accepte).not.toContain('cl-now-badge');
+    expect(accepte).not.toContain('cl-tl-t-now');
+    expect(accepte).toContain('cl-tl-t-done');
     // `retour` keeps REMBOURSEMENT-1's words exactly.
     const retour = renderC7({ ...REEL, remboursement: { etat: 'en_cours', montant: 12_500, motif: 'retour' } });
     expect(retour).toContain(t('cl.remboursement.en_cours_corps'));
@@ -146,6 +151,7 @@ describe('renderC7 — the refund card', () => {
 
   it('without a refund the screen is unchanged — the door and code roads stay where they were', () => {
     const html = renderC7(REEL);
+    expect(html).toContain('cl-now-badge');
     expect(html).not.toContain('data-role="remboursement"');
     expect(html).toContain('data-action="voir-code"');
     expect(html).toContain('data-action="porte"');

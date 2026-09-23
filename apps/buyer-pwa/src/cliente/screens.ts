@@ -2529,7 +2529,9 @@ export function renderC7(s: C7State): string {
     SUIVI_STEPS.map((st, i) => {
       const n = i + 1;
       const done = n < s.step;
-      const current = n === s.step;
+      // REMBOURSEMENT-2 (verifier MAJOR) — over a refund the delivery is over:
+      // the steps it truly passed stay ticked, and none is « maintenant ».
+      const current = n === s.step && !rembourse;
       const dot = done
         ? `<div class="cl-tl-dot cl-tl-dot-done">${iconCheck(11, 3.4)}</div>`
         : current
