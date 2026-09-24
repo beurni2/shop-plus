@@ -193,8 +193,12 @@ describe('the screens', () => {
     for (const a of ['compte-vers-inscription', 'compte-vers-connexion', 'compte-invitee']) expect(html).toContain(`data-action="${a}"`);
     // A <button>, full width (.porte-invitee), never a link or a small print.
     expect(html).toMatch(/<button class="porte-invitee" type="button" data-action="compte-invitee">Continuer sans compte<\/button>/);
-    // Its order: the one primary, then « Me connecter », then « ou », then the guest road.
-    const ordre = ['compte-vers-inscription', 'compte-vers-connexion', 'porte-ou', 'compte-invitee'].map((m) => html.indexOf(m));
+    // Its order: ALL THREE doors before anything else she might scroll past
+    // (verifier BLOCKER: a guest road below the fold is an account wall) —
+    // the one primary, « Me connecter », « ou », the guest road — then the
+    // reasons, then the privacy line that holds for every road.
+    const ordre = ['compte-vers-inscription', 'compte-vers-connexion', 'porte-ou', 'compte-invitee', 'porte-atouts', 'compte-prive'].map((m) => html.indexOf(m));
+    expect(ordre.every((i) => i >= 0)).toBe(true);
     expect([...ordre].sort((a, b) => a - b)).toEqual(ordre);
   });
 
@@ -208,7 +212,12 @@ describe('the screens', () => {
     }
     expect(html).toContain('Vos commandes, toujours avec vous');
     expect(html).toContain('Votre numéro est déjà rempli pour vous.');
-    expect(html).toContain('La vendeuse ne les voit pas.');
+    expect(html).toContain('Votre nom et votre numéro, en sécurité.');
+    // « La vendeuse ne les voit pas » is true on EVERY road, so it is never
+    // sold as an account benefit (verifier MAJOR 2): it stands outside the card.
+    const carte = html.slice(html.indexOf('data-role="porte-atouts"'), html.indexOf('data-role="compte-prive"'));
+    expect(carte).not.toContain('La vendeuse ne les voit pas');
+    expect(html).toContain('data-role="compte-prive">Vos infos restent privées. La vendeuse ne les voit pas.</p>');
   });
 
   it('PORTE-BELLE — the head in its three states: waiting, her boutique, plain Shop+', () => {
@@ -219,14 +228,20 @@ describe('the screens', () => {
     const shop = renderPorteTete();
     expect(shop).toContain('data-etat="shop"');
     expect(shop).toContain('>Bienvenue sur Shop+</h2>');
+    expect(shop.match(/Shop\+/g)).toHaveLength(1);
     const elle = renderPorteTete({ nom: 'Chez Aïcha Mode', lieu: 'Gounghin, Ouagadougou', theme: 'foret' });
     expect(elle).toContain('data-etat="boutique"');
     expect(elle).toContain('>Bienvenue chez Aïcha Mode</h2>');
-    expect(elle).toContain('Vendeuse vérifiée · Gounghin, Ouagadougou');
+    expect(elle).toContain('>Vendeuse vérifiée · Gounghin, Ouagadougou</p>');
+    // ONE vérifiée tick, riding her monogram — never a second one beside it.
+    expect(elle.match(/porte-bulle-glyphe/g)).toHaveLength(1);
+    expect(elle.match(/<svg/g)).toHaveLength(1);
     // Her monogram is the first letter of the name she is greeted by.
     expect(elle).toMatch(/<span class="porte-avatar" data-role="porte-avatar" aria-hidden="true">A</);
-    const portrait = renderPorteTete({ nom: 'Awa', lieu: '', theme: 'indigo', portrait: 'https://media.example/a.jpg' });
+    const portrait = renderPorteTete({ nom: 'Awa', lieu: '', theme: 'indigo', portrait: 'https://media.example/a.jpg', cadrage: '40% 20%' });
     expect(portrait).toContain('<img class="porte-avatar-img" src="https://media.example/a.jpg"');
+    // Her portrait keeps the framing her boutique gives it.
+    expect(portrait).toContain('style="object-position:40% 20%"');
     // No city, no « Vendeuse vérifiée · » dangling on nothing.
     expect(portrait).not.toContain('porte-verifiee');
   });

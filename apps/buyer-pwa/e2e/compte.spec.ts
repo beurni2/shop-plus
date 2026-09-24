@@ -811,6 +811,19 @@ test('PORTE-BELLE — no boutique behind the doors: the plain Shop+ welcome, and
   expect(erreurs).toEqual([]);
 });
 
+test('PORTE-BELLE — a boutique read that FAILS (no network): the plain Shop+ welcome, and « Continuer sans compte » still answers', async ({ page }) => {
+  const livre = new Livre();
+  const erreurs = await ouvrir(page, livre, '/?/v/aicha-4821', async () => {
+    await page.route('**/api/s/**', (route) => route.abort('internetdisconnected'));
+  });
+  const tete = page.locator('[data-role="porte-tete"]');
+  await expect(tete).toHaveAttribute('data-etat', 'shop');
+  await expect(page.locator('[data-role="compte-porte-titre"]')).toHaveText('Bienvenue sur Shop+');
+  await action(page, 'compte-invitee').click();
+  await expect(page.locator('[data-screen="compte-porte"]')).toHaveCount(0);
+  expect(erreurs).toEqual([]);
+});
+
 test('PORTE-BELLE — « Ma commande » says « Suivre », never the order\'s code, and still opens its tracking', async ({ page }) => {
   const livre = new Livre();
   await page.addInitScript(() => {

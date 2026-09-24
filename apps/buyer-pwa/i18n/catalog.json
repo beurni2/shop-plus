@@ -3552,12 +3552,6 @@
   "screenClass": "selling_surface"
  },
  {
-  "key": "compte.porte.marque",
-  "fr": "Shop+",
-  "register": "neutral",
-  "screenClass": "label"
- },
- {
   "key": "compte.porte.atouts_titre",
   "fr": "Avec votre compte",
   "register": "neutral",
@@ -3589,13 +3583,13 @@
  },
  {
   "key": "compte.porte.atout3_titre",
-  "fr": "Vos infos restent privées",
+  "fr": "Vos infos gardées pour vous",
   "register": "neutral",
   "screenClass": "label"
  },
  {
   "key": "compte.porte.atout3_texte",
-  "fr": "La vendeuse ne les voit pas.",
+  "fr": "Votre nom et votre numéro, en sécurité.",
   "register": "neutral",
   "screenClass": "status"
  },

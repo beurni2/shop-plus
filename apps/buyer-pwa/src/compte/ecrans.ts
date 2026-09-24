@@ -4,7 +4,7 @@ import { caretApresChiffres, telEnPaires } from '../cliente/telephone';
 import type { CommandeCompte, ComptePort, Echec, ProfilCliente } from './port';
 import { garderSession, marquerInvitee, oublierSessions, rafraichirSession, sessionActive } from './garde';
 import { icon } from '../icons';
-import { applyTheme, VITRINE_THEMES, type VitrineThemeKey } from '../vitrine/themes';
+import { applyTheme, type VitrineThemeKey } from '../vitrine/themes';
 
 /**
  * ═══ COMPTE-CLIENTE — HER ACCOUNT SCREENS (founder order 2026-09-24) ═══
@@ -79,6 +79,8 @@ export interface BoutiquePorte {
   readonly lieu: string;
   readonly theme: VitrineThemeKey;
   readonly portrait?: string;
+  /** Her portrait's own framing (« x% y% »), as her boutique crops it. */
+  readonly cadrage?: string;
 }
 
 /** The service's own phone rule (`cleAcheteur`), mirrored so she hears about
@@ -173,8 +175,7 @@ export function renderPorteTete(b?: BoutiquePorte | 'attente'): string {
   if (b === 'attente') {
     return [
       '<div class="porte-tete" data-role="porte-tete" data-etat="attente" aria-busy="true">',
-      '<span class="porte-avatar porte-avatar-attente" aria-hidden="true"></span>',
-      '<span class="skeleton-line porte-ligne-attente" aria-hidden="true"></span>',
+      '<div class="porte-identite" aria-hidden="true"><span class="porte-avatar porte-avatar-attente"></span><span class="skeleton-line porte-ligne-attente"></span></div>',
       `<h2 class="porte-titre" data-role="compte-porte-titre">${t('compte.porte.titre_court')}</h2>`,
       sous,
       '</div>',
@@ -183,23 +184,25 @@ export function renderPorteTete(b?: BoutiquePorte | 'attente'): string {
   if (b === undefined) {
     return [
       '<div class="porte-tete" data-role="porte-tete" data-etat="shop">',
-      `<p class="porte-marque">${t('compte.porte.marque')}</p>`,
       `<h2 class="porte-titre" data-role="compte-porte-titre">${t('compte.porte.titre')}</h2>`,
       sous,
       '</div>',
     ].join('');
   }
   const nom = nomAccueil(b.nom);
+  // ONE vérifiée mark, as her boutique draws it: the tick riding her portrait
+  // or monogram, in her own accent — never a second tick beside it.
   const bulle = `<span class="porte-avatar-bulle">${icon('coche', 'porte-bulle-glyphe')}</span>`;
+  const cadrage = b.cadrage !== undefined ? ` style="object-position:${esc(b.cadrage)}"` : '';
   const avatar = b.portrait !== undefined
-    ? `<span class="porte-avatar porte-avatar-photo" data-role="porte-avatar"><img class="porte-avatar-img" src="${esc(b.portrait)}" alt="${t('vit.avatar_alt')}" decoding="async">${bulle}</span>`
+    ? `<span class="porte-avatar porte-avatar-photo" data-role="porte-avatar"><img class="porte-avatar-img" src="${esc(b.portrait)}" alt="${t('vit.avatar_alt')}" decoding="async"${cadrage}>${bulle}</span>`
     : `<span class="porte-avatar" data-role="porte-avatar" aria-hidden="true">${esc(nom.charAt(0).toUpperCase())}${bulle}</span>`;
   return [
     '<div class="porte-tete" data-role="porte-tete" data-etat="boutique">',
+    '<div class="porte-identite">',
     avatar,
-    b.lieu !== ''
-      ? `<p class="porte-verifiee" data-role="porte-verifiee">${icon('coche', 'porte-verifiee-glyphe')}<span>${t('vit.verifiee')} ${esc(b.lieu)}</span></p>`
-      : '',
+    b.lieu !== '' ? `<p class="porte-verifiee" data-role="porte-verifiee">${t('vit.verifiee')} ${esc(b.lieu)}</p>` : '',
+    '</div>',
     `<h2 class="porte-titre" data-role="compte-porte-titre">${tf('compte.porte.titre_boutique', { boutique: esc(nom) })}</h2>`,
     sous,
     '</div>',
@@ -210,10 +213,25 @@ const atout = (glyphe: string, titre: string, texte: string): string =>
   `<li class="porte-atout"><span class="porte-atout-icone">${icon(glyphe, 'porte-atout-glyphe')}</span>` +
   `<span class="porte-atout-mots"><strong class="porte-atout-titre">${t(titre)}</strong><span class="porte-atout-texte">${t(texte)}</span></span></li>`;
 
+/**
+ * The three doors come FIRST, all of them on the first screen of a small
+ * phone (verifier BLOCKER: a guest road below the fold is an account wall).
+ * The reasons follow, for the one who wants them; the privacy line closes the
+ * screen for EVERY road — it is as true without an account as with one.
+ */
 export function renderPorte(b?: BoutiquePorte | 'attente'): string {
   return [
     '<section class="compte porte" data-screen="compte-porte">',
     renderPorteTete(b),
+    '<div class="porte-actions">',
+    `<button class="primary-action" type="button" data-action="compte-vers-inscription">${t('compte.porte.creer')}</button>`,
+    `<button class="secondary-action" type="button" data-action="compte-vers-connexion">${t('compte.porte.connecter')}</button>`,
+    `<p class="porte-ou" data-role="porte-ou" aria-hidden="true"><span>${t('compte.porte.ou')}</span></p>`,
+    // Continuing without an account is a FULL road, never a whisper (canon):
+    // a full-width button, quieter in colour only.
+    `<button class="porte-invitee" type="button" data-action="compte-invitee">${t('compte.porte.invitee')}</button>`,
+    `<p class="porte-invitee-note">${t('compte.porte.invitee_note')}</p>`,
+    '</div>',
     '<div class="porte-atouts" data-role="porte-atouts">',
     `<p class="porte-atouts-titre">${t('compte.porte.atouts_titre')}</p>`,
     '<ul class="porte-atouts-liste">',
@@ -222,24 +240,16 @@ export function renderPorte(b?: BoutiquePorte | 'attente'): string {
     atout('cadenas', 'compte.porte.atout3_titre', 'compte.porte.atout3_texte'),
     '</ul>',
     '</div>',
-    '<div class="porte-actions">',
-    `<button class="primary-action" type="button" data-action="compte-vers-inscription">${t('compte.porte.creer')}</button>`,
-    `<button class="secondary-action" type="button" data-action="compte-vers-connexion">${t('compte.porte.connecter')}</button>`,
-    `<p class="porte-ou" aria-hidden="true"><span>${t('compte.porte.ou')}</span></p>`,
-    // Continuing without an account is a FULL road, never a whisper (canon):
-    // a full-width button, quieter in colour only.
-    `<button class="porte-invitee" type="button" data-action="compte-invitee">${t('compte.porte.invitee')}</button>`,
-    `<p class="porte-invitee-note">${t('compte.porte.invitee_note')}</p>`,
-    '</div>',
+    prive(),
     '</section>',
   ].join('');
 }
 
 /** Her boutique's habillage on the doors — the same `--vt-*` variables the
- *  boutique itself wears; a key outside the closed set paints nothing. */
+ *  boutique itself wears (the theme is already one of the closed set: the
+ *  storefront read validates it at the wire). */
 function peindrePorte(section: Element | null, b: BoutiquePorte | 'attente' | undefined): void {
   if (!(section instanceof HTMLElement) || b === undefined || b === 'attente') return;
-  if (VITRINE_THEMES[b.theme] === undefined) return;
   applyTheme(section, b.theme);
 }
 
