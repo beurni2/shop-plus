@@ -331,8 +331,8 @@ describe('renderC7 réel — the real timeline', () => {
   it('the corner chip is the REAL order id — CMD-2417 is dead, and no id means no chip', () => {
     const html = renderC7(REEL);
     // SUIVI-REFERENCE — shown as the real order's short reference (« ord-abc-123 »
-    // → « N° ABC123 »), never the raw id that ran off a 360px phone.
-    expect(html).toContain('<span class="cl-cmd">N° ABC123</span>');
+    // → « Réf. ABC123 »), never the raw id that ran off a 360px phone.
+    expect(html).toContain('<span class="cl-cmd">Réf. ABC123</span>');
     expect(html).not.toContain('>ord-abc-123<');
     expect(html).not.toContain('CMD-2417');
     expect(renderC7({ step: 2, problem: false, demo: true })).not.toContain('CMD-2417');

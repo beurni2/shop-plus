@@ -484,7 +484,12 @@ describe('SP3.3c — the two new C6 states say what is true and no more', () => 
     for (const confirmState of ['attente', 'confirmed', 'echec'] as const) {
       const text = visible(renderC6(ROBE, { confirmState, paid: undefined, commande: id }));
       expect(text, `${confirmState} must carry the label`).toContain(CONFIRMATION.reference);
-      expect(text, `${confirmState} must carry the id itself`).toContain(id);
+      // SUIVI-REFERENCE — shown as the id's OWN last six characters, in
+      // capitals: the same the tracking shows, and still found by eye at the
+      // end of the full id on the ops console (never the raw 45-character id
+      // that ran off a 360px phone).
+      expect(text, `${confirmState} must carry the id's own reference`).toContain('CEAFAE');
+      expect(text, `${confirmState} must not print the raw id`).not.toContain(id);
     }
     // The offline/outbox states have no server order yet — an id here would
     // name a commande that does not exist. And '' is an absence, not a name.

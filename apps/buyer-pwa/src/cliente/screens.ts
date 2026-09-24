@@ -2297,7 +2297,7 @@ export function renderC6(
     typeof o.commande === 'string' &&
     o.commande !== '' &&
     (o.confirmState === 'attente' || o.confirmState === 'confirmed' || o.confirmState === 'echec')
-      ? `<div class="cl-conf-ref">${CONFIRMATION.reference}&nbsp;: <span class="cl-conf-ref-id">${esc(o.commande)}</span></div>`
+      ? `<div class="cl-conf-ref">${CONFIRMATION.reference}&nbsp;: <span class="cl-conf-ref-id">${esc(referenceCourte(o.commande))}</span></div>`
       : '',
     /**
      * ═══ « SUIVRE MA COMMANDE » EXISTS ONLY ONCE THE PAYMENT IS CONFIRMED ═══
@@ -2542,8 +2542,12 @@ function renderRemboursement(r: NonNullable<C7State['remboursement']>): string {
  * SUIVI-REFERENCE (founder report, 2026-09-24: the tracking opened from
  * « Suivre » with « ord-quote-8ef5bb44-41fd-4f73-b751-92db27a7f877 » in a pill
  * that ran off his phone) — the order as a person can read it out: its last
- * six letters or digits, in capitals (« A7F877 »). Only how it is SHOWN; the
- * full id stays the order's key everywhere.
+ * six letters or digits, in capitals (« A7F877 »). Only how it is SHOWN — on
+ * the confirmation, the tracking and « Mes commandes » alike, so she only
+ * ever sees ONE number for one order; the full id stays the order's key
+ * everywhere. DISPLAY ONLY: six characters are not unique across the whole
+ * platform, so this must never become a lookup key — the founder finds an
+ * order by her number and this reference together, on the full ids.
  */
 export function referenceCourte(orderId: string): string {
   return orderId.replace(/[^A-Za-z0-9]/g, '').slice(-6).toUpperCase();

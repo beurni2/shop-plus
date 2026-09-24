@@ -3139,7 +3139,7 @@
  },
  {
   "key": "cl.c7.reference",
-  "fr": "N° {ref}",
+  "fr": "Réf. {ref}",
   "register": "neutral",
   "screenClass": "label"
  },
