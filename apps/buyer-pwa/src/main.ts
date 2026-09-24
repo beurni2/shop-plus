@@ -750,7 +750,10 @@ if (app) {
    * commandes » opens it for any order her account lists, and then « C'est
    * terminé » forgets the phone's shortcut only when it is THIS order's.
    */
+  /** BANDE-PAYEE (verifier minor 2) — a whole screen took the shell's place: a band whose read lands late stays out of it. */
+  let shellRemplace = false;
   const ouvrirSuivi = (orderId: string, buyerRef: string, oublier?: () => void): void => {
+    shellRemplace = true;
     for (const child of Array.from(app.children)) child.remove();
     const port = resolveQuotePort();
     const suiviMain = document.createElement('main');
@@ -1393,12 +1396,15 @@ if (app) {
     else {
       void resolveQuotePort().orderState(gardeeSure.orderId).then((r) => {
         const verdict = verdictBande(r);
-        // Newest wins: a checkout that kept another order since must not lose it.
-        const encore = commandeGardee(garde)?.orderId === gardeeSure.orderId;
+        // Newest wins: a checkout that kept an order since — another one, or
+        // this one again on a retry (same id, new time; verifier minor 1) —
+        // must not lose it to this older answer.
+        const actuelle = commandeGardee(garde);
+        const encore = actuelle?.orderId === gardeeSure.orderId && actuelle.at === gardeeSure.at;
         if (verdict === 'oublier' && encore) oublierCommande(garde);
         if (verdict !== 'payee') return;
         if (encore) garderCommande({ ...gardeeSure, payee: true }, garde);
-        poserBandeCommande();
+        if (!shellRemplace) poserBandeCommande();
       });
     }
   }
@@ -1426,6 +1432,7 @@ if (app) {
       compte.textContent = String(paye.articles.length);
       btn.append(label, compte);
       btn.addEventListener('click', () => {
+        shellRemplace = true;
         for (const child of Array.from(app.children)) child.remove();
         const main = document.createElement('main');
         app.append(main);
@@ -1443,11 +1450,12 @@ if (app) {
     else {
       void resolveSuiviArticle().orderState(paye.articles[0]!.orderId).then((r) => {
         const verdict = verdictBande(r);
-        const encore = panierPaye(garde)?.groupId === paye.groupId;
+        const actuel = panierPaye(garde);
+        const encore = actuel?.groupId === paye.groupId && actuel.at === paye.at;
         if (verdict === 'oublier' && encore) oublierPanierPaye(garde);
         if (verdict !== 'payee') return;
         if (encore) garderPanierPaye({ ...paye, payee: true }, garde);
-        poserBandePanier();
+        if (!shellRemplace) poserBandePanier();
       });
     }
   }

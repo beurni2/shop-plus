@@ -965,10 +965,15 @@ test('BANDE-PAYEE — an order the service says is paid: the band stands, opens 
   expect(erreurs).toEqual([]);
 });
 
-for (const [etat, visible] of [['payment_pending', false], ['confirmed', true]] as const) {
-  test(`BANDE-PAYEE — the panier's band follows the same rule: its payment ${etat} ⇒ ${visible ? 'the band' : 'no band'}`, async ({ page }) => {
+for (const [etat, visible, oublie] of [['payment_pending', false, false], ['payment_failed', false, true], ['cancelled', false, true], ['confirmed', true, false]] as const) {
+  test(`BANDE-PAYEE — the panier's band follows the same rule: its payment ${etat} ⇒ ${visible ? 'the band, still there offline on the next visit' : oublie ? 'no band, and the phone forgets it' : 'no band, the record kept'}`, async ({ page }) => {
     const livre = new Livre();
-    await page.addInitScript((p) => localStorage.setItem('sp-panier-paye:v1', JSON.stringify(p)), PANIER_KEPT);
+    await page.addInitScript((p) => {
+      if (sessionStorage.getItem('panier-seme') === null) {
+        localStorage.setItem('sp-panier-paye:v1', JSON.stringify(p));
+        sessionStorage.setItem('panier-seme', '1');
+      }
+    }, PANIER_KEPT);
     let lus: string[] = [];
     const erreurs = await ouvrir(page, livre, '/?/v/aicha-4821', async () => {
       lus = await lectures(page, { 'ord-q-p1-A': etat, 'ord-q-p2-A': etat });
@@ -977,15 +982,78 @@ for (const [etat, visible] of [['payment_pending', false], ['confirmed', true]] 
     const bandePanier = page.locator('[data-role="mes-articles"]');
     if (visible) {
       await expect(bandePanier).toContainText('2');
+      // The next visit, offline: the phone already heard « paid » (verifier MAJOR).
+      await expect.poll(() => garde(page, 'sp-panier-paye:v1')).toContain('"payee":true');
+      await page.unroute('**/checkout/order/**');
+      await page.route('**/checkout/**', (route) => route.abort('internetdisconnected'));
+      const demandes: string[] = [];
+      page.on('request', (req) => { if (req.url().includes('/checkout/order/')) demandes.push(req.url()); });
+      await page.goto('/?/v/aicha-4821');
+      await expect(bandePanier).toContainText('2');
+      expect(demandes, 'a paid panier already known asks the service again').toEqual([]);
       await bandePanier.click();
       await expect(page.locator('[data-screen="MES-ARTICLES"]')).toBeVisible();
     } else {
       await expect(bandePanier, 'a band for articles nobody paid').toHaveCount(0, { timeout: 2_000 });
       await expect.poll(() => lus.length).toBeGreaterThan(0);
+      if (oublie) await expect.poll(() => garde(page, 'sp-panier-paye:v1')).toBeNull();
       await page.waitForTimeout(500);
       await expect(bandePanier).toHaveCount(0);
-      expect(await garde(page, 'sp-panier-paye:v1')).toContain('grp-bande-1');
+      if (!oublie) expect(await garde(page, 'sp-panier-paye:v1')).toContain('grp-bande-1');
     }
     expect(erreurs).toEqual([]);
   });
 }
+
+test('BANDE-PAYEE — an old answer never erases the order a retry kept since (verifier minor 1)', async ({ page }) => {
+  const livre = new Livre();
+  await page.addInitScript((c) => localStorage.setItem('sp-commande:v1', JSON.stringify(c)), COMMANDE_KEPT);
+  let lacher: () => void = () => undefined;
+  const lu = new Promise<void>((ok) => { lacher = ok; });
+  let arrive = false;
+  const erreurs = await ouvrir(page, livre, '/?/v/aicha-4821', async () => {
+    await page.route('**/checkout/order/**', async (route) => {
+      arrive = true;
+      await lu;
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ orderId: COMMANDE_KEPT.orderId, state: 'payment_failed', amountPaidAtCheckout: 13_000, amountDueAtDelivery: 0, doorLeg: 'none' }) });
+    });
+  });
+  await expect.poll(() => arrive).toBe(true);
+  // While the first read hangs, her retry keeps the SAME order again, at a new time.
+  const reessai = { ...COMMANDE_KEPT, at: '2026-09-24T08:05:00.000Z' };
+  await page.evaluate((c) => localStorage.setItem('sp-commande:v1', JSON.stringify(c)), reessai);
+  lacher();
+  await page.waitForTimeout(800);
+  expect(await garde(page, 'sp-commande:v1')).toContain('2026-09-24T08:05:00.000Z');
+  await expect(page.locator('[data-role="ma-commande"]')).toHaveCount(0);
+  expect(erreurs).toEqual([]);
+});
+
+test('BANDE-PAYEE — a band whose answer lands late stays off a screen she already opened (verifier minor 2)', async ({ page }) => {
+  const livre = new Livre();
+  await page.addInitScript(({ c, p }) => {
+    localStorage.setItem('sp-commande:v1', JSON.stringify(c));
+    localStorage.setItem('sp-panier-paye:v1', JSON.stringify({ ...p, payee: true }));
+  }, { c: COMMANDE_KEPT, p: PANIER_KEPT });
+  let lacher: () => void = () => undefined;
+  const lu = new Promise<void>((ok) => { lacher = ok; });
+  const erreurs = await ouvrir(page, livre, '/?/v/aicha-4821', async () => {
+    await page.route('**/checkout/order/**', async (route) => {
+      const url = route.request().url();
+      if (/\/remise$/.test(url)) return route.fulfill({ status: 404, contentType: 'application/json', body: '{"ok":false}' });
+      const id = decodeURIComponent(url.split('/').pop()!);
+      if (id === COMMANDE_KEPT.orderId) await lu;
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ orderId: id, state: 'confirmed', amountPaidAtCheckout: 13_000, amountDueAtDelivery: 0, doorLeg: 'none' }) });
+    });
+  });
+  // The panier is known paid: its band stands at once; she opens it.
+  await page.locator('[data-role="mes-articles"]').click();
+  await expect(page.locator('[data-screen="MES-ARTICLES"]')).toBeVisible();
+  // Only now does the other order's « paid » land.
+  lacher();
+  await expect.poll(() => garde(page, 'sp-commande:v1')).toContain('"payee":true');
+  await page.waitForTimeout(300);
+  await expect(page.locator('[data-role="ma-commande"]')).toHaveCount(0);
+  await expect(page.locator('[data-screen="MES-ARTICLES"]')).toBeVisible();
+  expect(erreurs).toEqual([]);
+});
