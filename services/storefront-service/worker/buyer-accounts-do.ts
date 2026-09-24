@@ -387,7 +387,7 @@ export class BuyerAccountsDO {
       const code = lireCode(body['code']);
       // ONE refusal for an unknown number, a wrong code and a spent or expired
       // one — and ten per number per quarter hour, counted before the proof.
-      if (cle === null || code === '') return refus('bad_code', 401);
+      if (phone === null || cle === null || code === '') return refus('bad_code', 401);
       const hashTel = await sha256Hex(cle);
       const presente = await sha256Hex(code);
       const cleEchecs = `${ECHECS_PREFIX}rec:${hashTel}`;
