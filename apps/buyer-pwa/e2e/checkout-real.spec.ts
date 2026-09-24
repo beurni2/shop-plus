@@ -1161,7 +1161,10 @@ test('VRAI-SUIVI · re-entry — « Ma commande » reopens the REAL tracking of 
   const bande = page.locator('[data-role="ma-commande"]');
   await bande.waitFor();
   await expect(bande).toContainText('Ma commande');
-  await expect(bande).toContainText('ord-quote-full-1');
+  // PORTE-BELLE — the band says « Suivre », not the order's code; the code
+  // stays on the tracking screen it opens (asserted just below).
+  await expect(bande).toContainText('Suivre');
+  await expect(bande).not.toContainText('ord-quote-full-1');
   await bande.click();
 
   await page.locator('[data-screen="C7"]').waitFor();

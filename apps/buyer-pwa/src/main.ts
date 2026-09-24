@@ -57,6 +57,7 @@ import { monterRacine } from './racine-view';
 import { resolveComptePort } from './compte/port';
 import { creerRattacheur, monterBandeCompte, monterEntreeCompte } from './compte/entree';
 import { sessionActive } from './compte/garde';
+import { icon } from './icons';
 import type { StorefrontProfilePort } from './vitrine/profile';
 
 /**
@@ -576,6 +577,104 @@ style.textContent = `
   }
   .compte-commande:active { opacity: var(--pressed-opacity); }
   .compte-commande-ref { font-size: var(--t-caption); color: var(--c-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* PORTE-BELLE (founder, 2026-09-24: « very beautiful, and more structured »)
+     — the doors wear HER boutique: the head in her habillage (the same --vt-*
+     the boutique paints, set by applyTheme), a quiet sand placeholder while
+     it is read, the plain Shop+ ink when no boutique stands behind them. Then
+     one card of three true reasons, one primary, and the guest road as a
+     full-width button (a full road, never a whisper). */
+  .porte { gap: var(--sp-lg); }
+  .porte-tete {
+    margin: calc(var(--sp-lg) * -1) calc(var(--sp-lg) * -1) 0;
+    padding: var(--sp-xl) var(--sp-lg) var(--sp-lg);
+    display: grid; justify-items: start; gap: var(--sp-sm);
+    background: var(--vt-deep, var(--c-ink)); color: var(--vt-on, var(--c-onInk));
+    border-bottom: var(--theme-strip) solid var(--vt-accent, var(--c-themeStrip));
+  }
+  .porte-tete[data-etat="attente"] { background: var(--c-sand); color: var(--c-ink); border-bottom-color: var(--c-hairline); }
+  .porte-avatar {
+    position: relative; display: inline-grid; place-items: center;
+    width: calc(var(--touch) * 1.25); height: calc(var(--touch) * 1.25);
+    margin-bottom: var(--sp-xs);
+    border-radius: var(--r-pill);
+    border: var(--hair-strong) solid var(--vt-on, var(--c-onInk));
+    background: var(--vt-soft, var(--c-sand)); color: var(--vt-deep, var(--c-ink));
+    font-family: 'Bricolage Grotesque', 'Archivo', system-ui, sans-serif;
+    font-size: var(--t-titleLG); font-weight: ${type.scale.display.wght};
+  }
+  .porte-avatar-attente { border-color: var(--c-hairline); background: var(--c-paper); }
+  .porte-tete[data-etat="attente"] .porte-ligne-attente { background: var(--c-paper); }
+  .porte-avatar-img { width: 100%; height: 100%; object-fit: cover; display: block; border-radius: inherit; }
+  .porte-avatar-bulle {
+    position: absolute; right: 0; bottom: 0;
+    width: var(--icon); height: var(--icon); border-radius: var(--r-pill);
+    display: grid; place-items: center;
+    background: var(--c-success); color: var(--c-onInk);
+    border: var(--hair-strong) solid var(--vt-deep, var(--c-ink));
+  }
+  .porte-bulle-glyphe { width: var(--icon-sm); height: var(--icon-sm); }
+  .porte-ligne-attente { width: 45%; }
+  .porte-verifiee, .porte-marque {
+    margin: 0; display: inline-flex; align-items: center; gap: var(--sp-xs);
+    font-size: var(--t-labelXS); font-weight: ${type.scale.labelXS.wght};
+    letter-spacing: var(--ls-labelXS); text-transform: uppercase;
+    color: var(--vt-soft, var(--c-onInk));
+  }
+  .porte-verifiee-glyphe { width: var(--icon-sm); height: var(--icon-sm); flex: none; }
+  .porte-titre {
+    margin: 0; color: inherit; text-wrap: balance;
+    font-family: 'Bricolage Grotesque', 'Archivo', system-ui, sans-serif;
+    font-size: var(--t-display); font-weight: ${type.scale.display.wght}; line-height: ${type.scale.display.lh};
+  }
+  .porte-sous {
+    margin: 0; color: inherit;
+    font-family: 'Instrument Sans', 'Archivo', system-ui, sans-serif;
+    font-size: var(--t-body); line-height: ${type.scale.body.lh};
+  }
+  .porte-atouts {
+    display: grid; gap: var(--sp-md); padding: var(--sp-lg);
+    background: var(--c-surfaceMuted); border: var(--hair-mid) solid var(--c-hairline);
+  }
+  .porte-atouts-titre {
+    margin: 0; font-size: var(--t-labelXS); font-weight: ${type.scale.labelXS.wght};
+    letter-spacing: var(--ls-labelXS); text-transform: uppercase; color: var(--c-muted);
+  }
+  .porte-atouts-liste { margin: 0; padding: 0; list-style: none; display: grid; gap: var(--sp-md); }
+  .porte-atout { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: var(--sp-md); }
+  .porte-atout-icone {
+    display: grid; place-items: center;
+    width: calc(var(--touch) * 0.8); height: calc(var(--touch) * 0.8);
+    border-radius: var(--r-pill);
+    background: var(--vt-soft, var(--c-sand)); color: var(--vt-deep, var(--c-ink));
+  }
+  .porte-atout-glyphe { width: var(--icon); height: var(--icon); }
+  .porte-atout-mots { display: grid; min-width: 0; }
+  .porte-atout-titre { font-size: var(--t-row); font-weight: ${type.scale.bodyStrong.wght}; line-height: ${type.scale.row.lh}; color: var(--c-ink); }
+  .porte-atout-texte { font-size: var(--t-caption); line-height: ${type.scale.caption.lh}; color: var(--c-body); }
+  .porte-actions { display: grid; gap: var(--sp-md); }
+  .porte .primary-action, .porte .secondary-action, .porte-invitee {
+    width: 100%; min-height: calc(var(--touch) + var(--sp-xs)); border-radius: var(--r-button);
+  }
+  .porte .primary-action { background: var(--vt-deep, var(--c-ink)); color: var(--vt-on, var(--c-onInk)); }
+  .porte .secondary-action { border-color: var(--c-ink); }
+  .porte-ou {
+    margin: 0; display: flex; align-items: center; gap: var(--sp-md);
+    font-size: var(--t-labelXS); font-weight: ${type.scale.labelXS.wght};
+    letter-spacing: var(--ls-labelXS); text-transform: uppercase; color: var(--c-muted);
+  }
+  .porte-ou::before, .porte-ou::after { content: ''; flex: 1; border-top: 1px solid var(--c-hairline); }
+  .porte-invitee {
+    border: 0; background: var(--c-sand); color: var(--c-ink); cursor: pointer;
+    font-family: inherit; font-size: var(--t-label); font-weight: ${type.scale.label.wght};
+    letter-spacing: var(--ls-label); text-transform: uppercase;
+    padding: var(--sp-sm) var(--sp-lg);
+  }
+  .porte .secondary-action:active, .porte-invitee:active { opacity: var(--pressed-opacity); }
+  .porte-invitee-note { margin: 0; text-align: center; font-size: var(--t-caption); line-height: ${type.scale.caption.lh}; color: var(--c-muted); }
+  @media (prefers-reduced-motion: no-preference) {
+    .porte-tete[data-etat="boutique"] > * { animation: porte-arrivee var(--motion-standard) ease-out both; }
+    @keyframes porte-arrivee { from { opacity: 0; transform: translateY(var(--sp-xs)); } }
+  }
 
   /* VRAI-SUIVI — « Ma commande », the quiet way back to a live order. Chrome,
      not content: a full-width sand band at the head of the shell, token-driven, one
@@ -593,6 +692,8 @@ style.textContent = `
     text-align: left; cursor: pointer;
   }
   .ma-commande:active { opacity: var(--pressed-opacity); }
+  .ma-commande .ma-commande-suivre { display: inline-flex; align-items: center; gap: var(--sp-xs); color: var(--c-ink); font-weight: ${type.scale.labelXS.wght}; text-transform: uppercase; }
+  .ma-commande-chevron { width: var(--icon-sm); height: var(--icon-sm); flex: none; }
   .ma-commande-ref {
     font-size: var(--t-labelXS); color: var(--c-muted);
     letter-spacing: var(--ls-labelXS); text-transform: none;
@@ -1206,7 +1307,12 @@ if (app) {
         local: localStorageOrUndefined(),
         onglet: sessionStorageOrUndefined(),
         monterBoutique: () => monterBoutique(portPartage),
-        nomBoutique: premiere.then((r) => r?.storefront.name).catch(() => undefined),
+        boutique: premiere.then((r) => {
+          if (r === undefined) return undefined;
+          const sf = r.storefront;
+          const portrait = sf.avatar.mode === 'photo' && sf.avatar.url ? sf.avatar.url : undefined;
+          return { nom: sf.name, lieu: sf.zone, theme: sf.theme, ...(portrait !== undefined ? { portrait } : {}) };
+        }).catch(() => undefined),
         ouvrirSuivi: suiviDepuisCompte,
       });
     }
@@ -1237,8 +1343,10 @@ if (app) {
    * the re-entry polls the same service the checkout did. NOT offered on the
    * `?demo-cliente=` harness — a demo walk must never wear a real order.
    *
-   * The text nodes are built with `textContent` (never innerHTML): the order
-   * id is a server byte and travels as text, exactly as C6's reference does.
+   * PORTE-BELLE: the band says « Suivre › », not the order's reference — a
+   * code like « ord-quote-8ef5… » means nothing to her at the head of every
+   * page; the reference stays on the tracking screen it opens, where it
+   * belongs.
    */
   const gardee = clienteDemo === null ? commandeGardee(localStorageOrUndefined()) : undefined;
   if (gardee !== undefined) {
@@ -1249,8 +1357,10 @@ if (app) {
     const suiviLabel = document.createElement('span');
     suiviLabel.textContent = SUIVI.reentree;
     const suiviRef = document.createElement('span');
-    suiviRef.className = 'ma-commande-ref';
-    suiviRef.textContent = gardeeSure.orderId;
+    suiviRef.className = 'ma-commande-ref ma-commande-suivre';
+    suiviRef.setAttribute('data-role', 'ma-commande-suivre');
+    suiviRef.textContent = t('bande.suivre');
+    suiviRef.insertAdjacentHTML('beforeend', icon('chevron', 'ma-commande-chevron'));
     suiviBtn.append(suiviLabel, suiviRef);
     suiviBtn.addEventListener('click', () => ouvrirSuivi(gardeeSure.orderId, gardeeSure.buyerRef));
     // BANDEAUX-RETIRÉS — this band was inserted AFTER the ribbon object; with

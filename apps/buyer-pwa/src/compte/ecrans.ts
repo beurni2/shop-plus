@@ -3,6 +3,8 @@ import { esc } from '../format';
 import { caretApresChiffres, telEnPaires } from '../cliente/telephone';
 import type { CommandeCompte, ComptePort, Echec, ProfilCliente } from './port';
 import { garderSession, marquerInvitee, oublierSessions, rafraichirSession, sessionActive } from './garde';
+import { icon } from '../icons';
+import { applyTheme, VITRINE_THEMES, type VitrineThemeKey } from '../vitrine/themes';
 
 /**
  * ═══ COMPTE-CLIENTE — HER ACCOUNT SCREENS (founder order 2026-09-24) ═══
@@ -54,9 +56,10 @@ export interface OptsCompte {
   readonly ecran: EcranCompte;
   /** She is done here (signed in or up, continued without, signed out, or back). */
   readonly versBoutique: () => void;
-  /** COMPTE-CLIENTE-2 — the boutique's name, once its read answers: the doors
-   *  greet her by the shop she opened. Absent or unanswered, « Shop+ ». */
-  readonly nomBoutique?: Promise<string | undefined>;
+  /** COMPTE-CLIENTE-2 / PORTE-BELLE — her boutique, once its read answers:
+   *  the doors greet her by the shop she opened, in its own colours. Absent
+   *  or unanswered, « Shop+ ». */
+  readonly boutique?: Promise<BoutiquePorte | undefined>;
   /** « Mes commandes » — open one order's tracking (the host mounts it). */
   readonly ouvrirSuivi?: (orderId: string, buyerRef: string) => void;
   /** Opened as a layer over a product or a payment: « Retour » goes back to
@@ -65,6 +68,18 @@ export interface OptsCompte {
 }
 
 const NOM_MAX = 60;
+
+/**
+ * PORTE-BELLE — what the doors show of her boutique, taken from the SAME read
+ * that draws the boutique (never a second one): its name, its city, its
+ * habillage, and her portrait when she has one. All public boutique bytes.
+ */
+export interface BoutiquePorte {
+  readonly nom: string;
+  readonly lieu: string;
+  readonly theme: VitrineThemeKey;
+  readonly portrait?: string;
+}
 
 /** The service's own phone rule (`cleAcheteur`), mirrored so she hears about
  *  a short number before a round trip; the service stays the authority. */
@@ -139,20 +154,93 @@ function champ(o: {
 const rester = (): string =>
   `<label class="compte-rester"><input type="checkbox" data-role="compte-rester" checked> <span>${t('compte.rester')}</span></label>`;
 
-export function renderPorte(nomBoutique?: string): string {
+/** « Chez Aïcha Mode » is greeted « Bienvenue chez Aïcha Mode », never « chez Chez ». */
+const nomAccueil = (nom: string): string => nom.replace(/^chez\s+/i, '');
+
+/**
+ * PORTE-BELLE (founder, 2026-09-24: « make this screen … very beautiful, and
+ * more structured ») — the head of the doors, in three honest states:
+ *   attente  — her boutique is still being read: a quiet placeholder, and the
+ *              doors below already work;
+ *   boutique — her shop's portrait or monogram, the vérifiée mark and her city
+ *              (the boutique's own words), and the welcome by name, in her
+ *              habillage;
+ *   (absent) — no boutique behind these doors (a layer over a payment page,
+ *              or a read that failed): the plain Shop+ welcome.
+ */
+export function renderPorteTete(b?: BoutiquePorte | 'attente'): string {
+  const sous = `<p class="porte-sous">${t('compte.porte.sous')}</p>`;
+  if (b === 'attente') {
+    return [
+      '<div class="porte-tete" data-role="porte-tete" data-etat="attente" aria-busy="true">',
+      '<span class="porte-avatar porte-avatar-attente" aria-hidden="true"></span>',
+      '<span class="skeleton-line porte-ligne-attente" aria-hidden="true"></span>',
+      `<h2 class="porte-titre" data-role="compte-porte-titre">${t('compte.porte.titre_court')}</h2>`,
+      sous,
+      '</div>',
+    ].join('');
+  }
+  if (b === undefined) {
+    return [
+      '<div class="porte-tete" data-role="porte-tete" data-etat="shop">',
+      `<p class="porte-marque">${t('compte.porte.marque')}</p>`,
+      `<h2 class="porte-titre" data-role="compte-porte-titre">${t('compte.porte.titre')}</h2>`,
+      sous,
+      '</div>',
+    ].join('');
+  }
+  const nom = nomAccueil(b.nom);
+  const bulle = `<span class="porte-avatar-bulle">${icon('coche', 'porte-bulle-glyphe')}</span>`;
+  const avatar = b.portrait !== undefined
+    ? `<span class="porte-avatar porte-avatar-photo" data-role="porte-avatar"><img class="porte-avatar-img" src="${esc(b.portrait)}" alt="${t('vit.avatar_alt')}" decoding="async">${bulle}</span>`
+    : `<span class="porte-avatar" data-role="porte-avatar" aria-hidden="true">${esc(nom.charAt(0).toUpperCase())}${bulle}</span>`;
   return [
-    '<section class="compte" data-screen="compte-porte">',
-    `<h2 class="compte-titre" data-role="compte-porte-titre">${nomBoutique !== undefined ? tf('compte.porte.titre_boutique', { boutique: esc(nomBoutique) }) : t('compte.porte.titre')}</h2>`,
-    `<p class="compte-sous">${t('compte.porte.sous')}</p>`,
-    '<div class="compte-actions">',
+    '<div class="porte-tete" data-role="porte-tete" data-etat="boutique">',
+    avatar,
+    b.lieu !== ''
+      ? `<p class="porte-verifiee" data-role="porte-verifiee">${icon('coche', 'porte-verifiee-glyphe')}<span>${t('vit.verifiee')} ${esc(b.lieu)}</span></p>`
+      : '',
+    `<h2 class="porte-titre" data-role="compte-porte-titre">${tf('compte.porte.titre_boutique', { boutique: esc(nom) })}</h2>`,
+    sous,
+    '</div>',
+  ].join('');
+}
+
+const atout = (glyphe: string, titre: string, texte: string): string =>
+  `<li class="porte-atout"><span class="porte-atout-icone">${icon(glyphe, 'porte-atout-glyphe')}</span>` +
+  `<span class="porte-atout-mots"><strong class="porte-atout-titre">${t(titre)}</strong><span class="porte-atout-texte">${t(texte)}</span></span></li>`;
+
+export function renderPorte(b?: BoutiquePorte | 'attente'): string {
+  return [
+    '<section class="compte porte" data-screen="compte-porte">',
+    renderPorteTete(b),
+    '<div class="porte-atouts" data-role="porte-atouts">',
+    `<p class="porte-atouts-titre">${t('compte.porte.atouts_titre')}</p>`,
+    '<ul class="porte-atouts-liste">',
+    atout('colis', 'compte.porte.atout1_titre', 'compte.porte.atout1_texte'),
+    atout('telephone', 'compte.porte.atout2_titre', 'compte.porte.atout2_texte'),
+    atout('cadenas', 'compte.porte.atout3_titre', 'compte.porte.atout3_texte'),
+    '</ul>',
+    '</div>',
+    '<div class="porte-actions">',
     `<button class="primary-action" type="button" data-action="compte-vers-inscription">${t('compte.porte.creer')}</button>`,
     `<button class="secondary-action" type="button" data-action="compte-vers-connexion">${t('compte.porte.connecter')}</button>`,
-    `<button class="secondary-action" type="button" data-action="compte-invitee">${t('compte.porte.invitee')}</button>`,
+    `<p class="porte-ou" aria-hidden="true"><span>${t('compte.porte.ou')}</span></p>`,
+    // Continuing without an account is a FULL road, never a whisper (canon):
+    // a full-width button, quieter in colour only.
+    `<button class="porte-invitee" type="button" data-action="compte-invitee">${t('compte.porte.invitee')}</button>`,
+    `<p class="porte-invitee-note">${t('compte.porte.invitee_note')}</p>`,
     '</div>',
-    `<p class="compte-sous">${t('compte.porte.invitee_note')}</p>`,
-    prive(),
     '</section>',
   ].join('');
+}
+
+/** Her boutique's habillage on the doors — the same `--vt-*` variables the
+ *  boutique itself wears; a key outside the closed set paints nothing. */
+function peindrePorte(section: Element | null, b: BoutiquePorte | 'attente' | undefined): void {
+  if (!(section instanceof HTMLElement) || b === undefined || b === 'attente') return;
+  if (VITRINE_THEMES[b.theme] === undefined) return;
+  applyTheme(section, b.theme);
 }
 
 export function renderInscription(): string {
@@ -355,7 +443,7 @@ export function monterCompte(main: HTMLElement, opts: OptsCompte): void {
   let enCours = false;
   /** « Mes commandes » as last read: her read tokens live HERE, never in the page. */
   let commandes: readonly CommandeCompte[] = [];
-  let nomBoutique: string | undefined;
+  let boutique: BoutiquePorte | 'attente' | undefined = opts.boutique !== undefined ? 'attente' : undefined;
   const session = () => sessionActive(opts.local, opts.onglet);
 
   const valeur = (cle: string): string => main.querySelector<HTMLInputElement>(`[data-champ="${cle}"]`)?.value ?? '';
@@ -421,7 +509,7 @@ export function monterCompte(main: HTMLElement, opts: OptsCompte): void {
   const afficher = (ecran: EcranCompte, extra: { note?: string; telephone?: string } = {}): void => {
     enCours = false;
     main.innerHTML =
-      ecran === 'porte' ? renderPorte(nomBoutique)
+      ecran === 'porte' ? renderPorte(boutique)
       : ecran === 'inscription' ? renderInscription()
       : ecran === 'connexion' ? renderConnexion(extra.note, extra.telephone)
       : ecran === 'recuperation' ? renderRecuperation(extra.telephone)
@@ -430,6 +518,7 @@ export function monterCompte(main: HTMLElement, opts: OptsCompte): void {
       : ecran === 'mot-de-passe' ? renderMotDePasse()
       : renderProfil(profil ?? 'chargement', extra.note, opts.enCalque === true);
     cablerTelephone();
+    if (ecran === 'porte') peindrePorte(main.querySelector('[data-screen="compte-porte"]'), boutique);
     if (ecran === 'profil' && profil === null) void lireProfil(extra.note);
     else if (ecran === 'profil') void lireCommandes();
   };
@@ -684,13 +773,15 @@ export function monterCompte(main: HTMLElement, opts: OptsCompte): void {
   };
 
   afficher(opts.ecran);
-  // The doors greet her by the shop she opened, once its read answers — the
-  // title's TEXT is set, so her shop's name is never markup.
-  void opts.nomBoutique?.then((nom) => {
-    if (nom === undefined || nom === '') return;
-    nomBoutique = nom;
-    const titre = main.querySelector('[data-role="compte-porte-titre"]');
-    // « Chez Aïcha Mode » is read « Bienvenue chez Aïcha Mode », never « chez Chez ».
-    if (titre !== null) titre.textContent = tf('compte.porte.titre_boutique', { boutique: nom.replace(/^chez\s+/i, '') });
-  }).catch(() => undefined);
+  // Her boutique lands on the doors when its read answers; a read that fails,
+  // or finds nothing, turns the placeholder into the plain Shop+ welcome — the
+  // doors below never waited for it.
+  const poserBoutique = (b: BoutiquePorte | undefined): void => {
+    boutique = b !== undefined && b.nom !== '' ? b : undefined;
+    const tete = main.querySelector('[data-role="porte-tete"]');
+    if (tete === null) return;
+    tete.outerHTML = renderPorteTete(boutique);
+    peindrePorte(main.querySelector('[data-screen="compte-porte"]'), boutique);
+  };
+  void opts.boutique?.then(poserBoutique, () => poserBoutique(undefined));
 }

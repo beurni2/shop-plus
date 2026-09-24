@@ -749,3 +749,79 @@ test('a basket paid while signed in: her number is filled, and every article joi
   expect(await page.content()).not.toContain(BUYER_REF);
   expect(erreurs).toEqual([]);
 });
+
+
+/* ═══ PORTE-BELLE — the doors wear her boutique (founder: « very beautiful, and more structured ») ═══ */
+
+test('PORTE-BELLE — the doors wear her boutique: her monogram, « Vendeuse vérifiée · » her city, her habillage — then three true reasons and the doors in order', async ({ page }) => {
+  const livre = new Livre();
+  const erreurs = await ouvrir(page, livre, '/?/v/aicha-4821', async () => {
+    await page.route('**/api/s/**', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ...BOUTIQUE, theme: 'foret' }) }));
+  });
+  const tete = page.locator('[data-role="porte-tete"]');
+  await expect(tete).toHaveAttribute('data-etat', 'boutique');
+  await expect(page.locator('[data-role="porte-avatar"]')).toHaveText('A');
+  await expect(page.locator('[data-role="porte-verifiee"]')).toHaveText('Vendeuse vérifiée · Ouagadougou');
+  await expect(page.locator('[data-role="compte-porte-titre"]')).toHaveText('Bienvenue chez Aïcha Mode');
+  // Her habillage reached the doors (the boutique's own theme key) — a state, not a colour.
+  await expect(page.locator('[data-screen="compte-porte"]')).toHaveClass(/vt-theme-foret/);
+  await expect(page.locator('.porte-atout')).toHaveCount(3);
+  // One primary, and every door pressable, in the order she reads them.
+  await expect(page.locator('[data-screen="compte-porte"] .primary-action')).toHaveCount(1);
+  for (const a of ['compte-vers-inscription', 'compte-vers-connexion', 'compte-invitee']) await expect(action(page, a)).toBeEnabled();
+  await action(page, 'compte-invitee').click();
+  await expect(boutique(page)).toContainText('Chez Aïcha Mode');
+  expect(erreurs).toEqual([]);
+});
+
+test('PORTE-BELLE — while her boutique is still being read, the doors already work; when it lands, the head fills in', async ({ page }) => {
+  const livre = new Livre();
+  let lacher: (() => void) | undefined;
+  const lachee = new Promise<void>((r) => { lacher = r; });
+  const erreurs = await ouvrir(page, livre, '/?/v/aicha-4821', async () => {
+    await page.route('**/api/s/**', async (route) => {
+      await lachee;
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(BOUTIQUE) });
+    });
+  });
+  const tete = page.locator('[data-role="porte-tete"]');
+  await expect(tete).toHaveAttribute('data-etat', 'attente');
+  await expect(page.locator('[data-role="compte-porte-titre"]')).toHaveText('Bienvenue');
+  // The doors did not wait for the read: « Créer mon compte » opens the form now.
+  await action(page, 'compte-vers-inscription').click();
+  await expect(page.locator('[data-screen="compte-inscription"]')).toBeVisible();
+  await action(page, 'compte-vers-porte').click();
+  await expect(tete).toHaveAttribute('data-etat', 'attente');
+  lacher!();
+  await expect(tete).toHaveAttribute('data-etat', 'boutique');
+  await expect(page.locator('[data-role="compte-porte-titre"]')).toHaveText('Bienvenue chez Aïcha Mode');
+  expect(erreurs).toEqual([]);
+});
+
+test('PORTE-BELLE — no boutique behind the doors: the plain Shop+ welcome, and the doors still work', async ({ page }) => {
+  const livre = new Livre();
+  const erreurs = await ouvrir(page, livre, '/?/v/aicha-4821', async () => {
+    await page.route('**/api/s/**', (route) => route.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ error: 'not_found' }) }));
+  });
+  const tete = page.locator('[data-role="porte-tete"]');
+  await expect(tete).toHaveAttribute('data-etat', 'shop');
+  await expect(page.locator('[data-role="compte-porte-titre"]')).toHaveText('Bienvenue sur Shop+');
+  await action(page, 'compte-vers-connexion').click();
+  await expect(page.locator('[data-screen="compte-connexion"]')).toBeVisible();
+  expect(erreurs).toEqual([]);
+});
+
+test('PORTE-BELLE — « Ma commande » says « Suivre », never the order\'s code, and still opens its tracking', async ({ page }) => {
+  const livre = new Livre();
+  await page.addInitScript(() => {
+    localStorage.setItem('sp-commande:v1', JSON.stringify({ orderId: 'ord-quote-8ef5bb44-41fd-4f73', buyerRef: 'REF-BANDE', at: '2026-09-24T08:00:00.000Z' }));
+  });
+  const erreurs = await ouvrir(page, livre);
+  const bandeCommande = page.locator('[data-role="ma-commande"]');
+  await expect(bandeCommande).toContainText('Ma commande');
+  await expect(page.locator('[data-role="ma-commande-suivre"]')).toHaveText('Suivre');
+  await expect(bandeCommande).not.toContainText('ord-quote');
+  await bandeCommande.click();
+  await expect(page.locator('[data-screen="C7"]')).toBeVisible();
+  expect(erreurs).toEqual([]);
+});

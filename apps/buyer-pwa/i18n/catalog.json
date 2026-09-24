@@ -3517,7 +3517,7 @@
  },
  {
   "key": "compte.porte.sous",
-  "fr": "Avec votre compte, votre nom et votre numéro sont gardés pour vous, en sécurité.",
+  "fr": "Un compte gratuit, pour acheter plus simplement.",
   "register": "selling",
   "screenClass": "selling_surface"
  },
@@ -3544,6 +3544,72 @@
   "fr": "Sans compte, vous pouvez aussi acheter.",
   "register": "selling",
   "screenClass": "status"
+ },
+ {
+  "key": "compte.porte.titre_court",
+  "fr": "Bienvenue",
+  "register": "selling",
+  "screenClass": "selling_surface"
+ },
+ {
+  "key": "compte.porte.marque",
+  "fr": "Shop+",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "compte.porte.atouts_titre",
+  "fr": "Avec votre compte",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "compte.porte.atout1_titre",
+  "fr": "Vos commandes, toujours avec vous",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "compte.porte.atout1_texte",
+  "fr": "Suivez-les même sur un autre téléphone.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "compte.porte.atout2_titre",
+  "fr": "Commandez plus vite",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "compte.porte.atout2_texte",
+  "fr": "Votre numéro est déjà rempli pour vous.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "compte.porte.atout3_titre",
+  "fr": "Vos infos restent privées",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "compte.porte.atout3_texte",
+  "fr": "La vendeuse ne les voit pas.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "compte.porte.ou",
+  "fr": "ou",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "bande.suivre",
+  "fr": "Suivre",
+  "register": "neutral",
+  "screenClass": "label"
  },
  {
   "key": "compte.prive",

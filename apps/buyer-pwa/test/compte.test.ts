@@ -8,6 +8,7 @@ import {
   renderModifier,
   renderMotDePasse,
   renderPorte,
+  renderPorteTete,
   renderProfil,
 } from '../src/compte/ecrans';
 
@@ -190,7 +191,44 @@ describe('the screens', () => {
   it('the doors: create, sign in, and continuing without an account is a FULL button', () => {
     const html = renderPorte();
     for (const a of ['compte-vers-inscription', 'compte-vers-connexion', 'compte-invitee']) expect(html).toContain(`data-action="${a}"`);
-    expect(html).toMatch(/class="secondary-action" type="button" data-action="compte-invitee"/);
+    // A <button>, full width (.porte-invitee), never a link or a small print.
+    expect(html).toMatch(/<button class="porte-invitee" type="button" data-action="compte-invitee">Continuer sans compte<\/button>/);
+    // Its order: the one primary, then « Me connecter », then « ou », then the guest road.
+    const ordre = ['compte-vers-inscription', 'compte-vers-connexion', 'porte-ou', 'compte-invitee'].map((m) => html.indexOf(m));
+    expect([...ordre].sort((a, b) => a - b)).toEqual(ordre);
+  });
+
+  it('PORTE-BELLE — three true reasons, each an icon WITH its words', () => {
+    const html = renderPorte();
+    const atouts = [...html.matchAll(/<li class="porte-atout">([\s\S]*?)<\/li>/g)].map((m) => m[1]!);
+    expect(atouts).toHaveLength(3);
+    for (const a of atouts) {
+      expect(a).toMatch(/<svg class="porte-atout-glyphe"/);
+      expect(a).toMatch(/<strong class="porte-atout-titre">[^<]+<\/strong><span class="porte-atout-texte">[^<]+<\/span>/);
+    }
+    expect(html).toContain('Vos commandes, toujours avec vous');
+    expect(html).toContain('Votre numéro est déjà rempli pour vous.');
+    expect(html).toContain('La vendeuse ne les voit pas.');
+  });
+
+  it('PORTE-BELLE — the head in its three states: waiting, her boutique, plain Shop+', () => {
+    const attente = renderPorteTete('attente');
+    expect(attente).toContain('data-etat="attente"');
+    expect(attente).toContain('aria-busy="true"');
+    expect(attente).toContain('>Bienvenue</h2>');
+    const shop = renderPorteTete();
+    expect(shop).toContain('data-etat="shop"');
+    expect(shop).toContain('>Bienvenue sur Shop+</h2>');
+    const elle = renderPorteTete({ nom: 'Chez Aïcha Mode', lieu: 'Gounghin, Ouagadougou', theme: 'foret' });
+    expect(elle).toContain('data-etat="boutique"');
+    expect(elle).toContain('>Bienvenue chez Aïcha Mode</h2>');
+    expect(elle).toContain('Vendeuse vérifiée · Gounghin, Ouagadougou');
+    // Her monogram is the first letter of the name she is greeted by.
+    expect(elle).toMatch(/<span class="porte-avatar" data-role="porte-avatar" aria-hidden="true">A</);
+    const portrait = renderPorteTete({ nom: 'Awa', lieu: '', theme: 'indigo', portrait: 'https://media.example/a.jpg' });
+    expect(portrait).toContain('<img class="porte-avatar-img" src="https://media.example/a.jpg"');
+    // No city, no « Vendeuse vérifiée · » dangling on nothing.
+    expect(portrait).not.toContain('porte-verifiee');
   });
 
   it('sign-up asks exactly her five fields, the email marked optional', () => {
@@ -305,7 +343,10 @@ describe('COMPTE-CLIENTE-2 — the screens', () => {
   });
 
   it('the doors greet her by her boutique, escaped', () => {
-    expect(renderPorte('Chez <Aïcha>')).toContain('Bienvenue chez Chez &lt;Aïcha&gt;');
+    const html = renderPorte({ nom: 'Chez <Aïcha>', lieu: '"><img src=x>', theme: 'laterite', portrait: '"><script>' });
+    expect(html).toContain('Bienvenue chez &lt;Aïcha&gt;');
+    expect(html).not.toContain('<img src=x>');
+    expect(html).not.toContain('"><script>');
     expect(renderPorte()).toContain('Bienvenue sur Shop+');
   });
 });

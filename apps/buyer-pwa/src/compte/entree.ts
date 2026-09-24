@@ -1,7 +1,7 @@
 import { t } from '../i18n';
 import type { ComptePort } from './port';
 import { estInvitee, sessionActive } from './garde';
-import { monterCompte, type EcranCompte } from './ecrans';
+import { monterCompte, type BoutiquePorte, type EcranCompte } from './ecrans';
 
 /**
  * ═══ COMPTE-CLIENTE — THE BOUTIQUE'S FRONT STEP ═══
@@ -26,8 +26,8 @@ export interface OptsEntree {
   readonly onglet: Storage | undefined;
   /** Mounts the boutique into the shell, exactly as the road did before accounts. */
   readonly monterBoutique: () => void;
-  /** COMPTE-CLIENTE-2 — the boutique's name, from the SAME read that draws it. */
-  readonly nomBoutique?: Promise<string | undefined>;
+  /** COMPTE-CLIENTE-2 / PORTE-BELLE — her boutique, from the SAME read that draws it. */
+  readonly boutique?: Promise<BoutiquePorte | undefined>;
   /** « Mes commandes » — open one order's tracking. */
   readonly ouvrirSuivi?: (orderId: string, buyerRef: string) => void;
 }
@@ -71,7 +71,7 @@ export function monterEntreeCompte(app: HTMLElement, opts: OptsEntree): void {
     app.append(main);
     monterCompte(main, {
       port: opts.port, local: opts.local, onglet: opts.onglet, ecran, versBoutique: suivre,
-      ...(opts.nomBoutique !== undefined ? { nomBoutique: opts.nomBoutique } : {}),
+      ...(opts.boutique !== undefined ? { boutique: opts.boutique } : {}),
       ...(opts.ouvrirSuivi !== undefined ? { ouvrirSuivi: opts.ouvrirSuivi } : {}),
     });
   };
@@ -101,7 +101,7 @@ export function monterEntreeCompte(app: HTMLElement, opts: OptsEntree): void {
  */
 export function monterBandeCompte(
   app: HTMLElement,
-  opts: Omit<OptsEntree, 'monterBoutique' | 'nomBoutique'>,
+  opts: Omit<OptsEntree, 'monterBoutique' | 'boutique'>,
 ): void {
   // Android's Back closes the layer, as « Retour » does — never the payment
   // under it (verifier minor 3): opening adds ONE history entry, Back takes it
