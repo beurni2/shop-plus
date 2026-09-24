@@ -1,6 +1,39 @@
 # JOURNAL — shop-plus
 Continuity ledger per CTO charter §6/§6bis. Every entry is evidence-grounded.
 
+## 2026-09-24 · SUIVI-REFERENCE (founder report) — the tracking opened from « Suivre » fits his phone: « Réf. A7F877 », never the raw order code; one number for one order on every screen · no canon change · ON THE BRANCH, awaiting the founder's word
+
+**Founder report (2026-09-24),** on a phone screenshot (≈390 px) of the order tracking reached by tapping « Suivre » on the « Ma commande » band: « When I tap suivre ma commande I see this ». The title « Le suivi » broke onto two lines, and beside it a pill holding the raw order code « ord-quote-8ef5bb44-41fd-4f73-b751-92db27a7f877 » ran off the right edge of the screen, dragging the timeline card and the buttons with it.
+
+**Governing text.** SCREEN-FIT (founder, 2026-07-22): every buyer screen fills a 360 px phone with ZERO horizontal overflow; CLAUDE.md §5 — the 5-second test, large readable type, labels that never truncate meaning; French Voice §10.5 (every string in the catalog, register-tagged; the checkout's `cl.*` keys pinned in `copy-lint-inline-refus.mjs`); 2026-08-10 — a screen bug he reports gets its walk written FIRST, red.
+
+**Red first.** The walk `SUIVI-REFERENCE` (`e2e/compte.spec.ts`) seeds his exact order code, taps « Suivre » on the band and measures the page: **red at `ce210a0`** — the chip held the raw code and the page was **495 px wide on a 360 px phone** (his screenshot's width, to the pixel, as the verifier's probe confirmed).
+
+**What changed (`f7cbc67`, `e9e7681`).**
+- **`referenceCourte`** (`src/cliente/screens.ts`): the order as a person can read it aloud — its last six letters or digits, in capitals (« A7F877 »). Only how it is SHOWN: the full id stays the key of every read, link, `data-order` and store.
+- **The tracking chip** reads « Réf. A7F877 » (`cl.c7.reference`, neutral/label, pinned `M('neutral', L(['{ref}']))`); **« Mes commandes »** shows the same words on each row; **the payment-confirmed screen** shows the same six characters after « Numéro de commande : » — one number for one order, on every screen she sees it.
+- « Le suivi » stays on one line at 320, 360 and 390 px.
+- **DISPLAY ONLY — never a lookup key.** Six hex characters are ≈16.7 million values: within one buyer's list a clash is negligible, across the platform two orders will likely share one by ≈5,000 orders. Nothing on the console or rider side looks an order up by it, and nothing may: support finds an order by her number and the full id.
+- **Nothing else changed:** money, orders, tracking behaviour, the reads and their keys, the canon.
+
+**Evidence.**
+- **Red first:** `SUIVI-REFERENCE` red at `ce210a0` (raw code in the chip, page 495 px on a 360 px phone); green after the fix at 360 and 390 px (page = phone width, « Réf. A7F877 », the buyer's read token absent).
+- **Walks:** compte + checkout-real + cliente 107 passed; the checkout walk now asserts the confirmation's six characters (`EFULL1`) before « Suivre » and « Réf. EFULL1 » on the tracking; the « Mes commandes » walk asserts row « Réf. QUOTE2 » and, after tapping row 1, chip « Réf. QUOTE1 ».
+- **Unit:** buyer app 1356 / 1356 (incl. the font-coverage test that caught « ° »); copy-lint 673 / 0; `copy-lint-inline-refus` OK.
+- **Mutations** (committed first; anchor exactly once before and gone after; byte-checked restore): R1 raw code back on the tracking chip → KILLED (SUIVI-REFERENCE) · R2 raw code back in « Mes commandes » → KILLED (unit + walk) · R3 a reference not taken from the order's own end → KILLED (SUIVI-REFERENCE) · R4 raw code back on the confirmation → KILLED (checkout-real). **4 / 4.**
+- **Gate board at `e9e7681`:** ALL GATES GREEN, 115 sections, EXIT 0 (Playwright 243 passed).
+- **Looked at, not asserted:** the real-path build at 390 × 664 and 360 × 640 with his exact code — page width 390 / 360, « Le suivi » on one line, « Réf. A7F877 ».
+
+**Verifier.** ONE fresh-context pass (given only the founder's report, the laws, the diff `f7cbc67` and the definition of done; it ran the units 70/70, the account walks 4/4, the three edited checkout walks 3/3 on the real-path build, both copy gates, and its own width probe at 320/360/390 with his exact code — fixed: page = phone width, title on one line; raw code put back: 495 px, two lines). **0 blocker · 1 major · 3 minor, all handled once in `e9e7681`, never re-inspected:**
+- **MAJOR — two numbers for one order, one tap apart:** the payment-confirmed screen still showed the raw code while the tracking showed « N° A7F877 », at the money moment. **Fixed:** the confirmation shows the same six characters; the checkout walk now asserts them there (`.cl-conf-ref-id` = `EFULL1`) before tapping « Suivre ».
+- **MINOR — 390 px not pinned:** the walk now runs at 360 AND 390.
+- **MINOR — chip = row asserted nowhere; the seeded buyer token never asserted absent:** the « Mes commandes » walk now checks the tracking chip reads the row's reference after the tap, and SUIVI-REFERENCE asserts the token is not in the page.
+- **MINOR — not unique platform-wide:** written into the code and this entry as DISPLAY ONLY, never a lookup key.
+- **Mine, found by the full unit suite while fixing:** « N° » carries « ° » (U+00B0), which neither display face (Bricolage Bold, Barlow Condensed ExtraBold) contains — it would have been drawn from a fallback font. The label is « Réf. {ref} ».
+
+**Still open.**
+- Nothing new from this fix. Still the founder's from COMPTE-CLIENTE-2: the SMS/WhatsApp provider for automatic codes · whether a recovered number keeps its name and orders (safest default applied: it starts clean) · a Shop+ support number on the recovery screen · the legal data-protection declaration.
+
 ## 2026-09-24 · PORTE-BELLE (founder order) — the account doors wear her boutique: structured, calm, the one main action on the first screen; « Ma commande » says « Suivre » · no canon change · MERGED AND DEPLOYED 2026-09-24 on the founder's « Go »
 
 **MERGED AND DEPLOYED (founder: « Go », 2026-09-24).** `main` fast-forwarded `4a6007f → b598b74` (ancestry verified before the push). Buyer app only — no Worker change, so no storefront-deploy: **pwa-preview 495 (id 36033206049) `success`** publishes the new doors; on `b598b74`: ci 707 · expo-preview 528 · **service-canon-drift 394 green** (the live Worker `4a6007f` speaks 3.23.0, the canon `main` ships).
