@@ -1,7 +1,9 @@
 # JOURNAL — shop-plus
 Continuity ledger per CTO charter §6/§6bis. Every entry is evidence-grounded.
 
-## 2026-09-24 · MES-COMMANDES-PAYEES (founder decision) — an order joins « Mes commandes » only once she paid, and only the account that made it · no canon change · ON THE BRANCH, awaiting the founder's word
+## 2026-09-24 · MES-COMMANDES-PAYEES (founder decision) — an order joins « Mes commandes » only once she paid, and only the account that made it · no canon change · MERGED AND DEPLOYED 2026-09-24 on the founder's « Go »
+
+**MERGED AND DEPLOYED (founder: « Go », 2026-09-24).** `main` fast-forwarded `b787a6f → 2ba436e` (ancestry verified before the push). Buyer app only — no Worker change, so no storefront-deploy: **pwa-preview 497 (id 36060717088) `success`**; on `2ba436e`: ci 709 · expo-preview 530 · service-canon-drift 396 — all green.
 
 **Founder decision (2026-09-24),** on the item left open by BANDE-PAYEE (« « Mes commandes » can still list an order that was never paid … I recommend adding it to her account only once the service says it's paid »): « Mes commandes » (for buyers with an account) go with your recommendation.
 
