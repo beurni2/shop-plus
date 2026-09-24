@@ -178,8 +178,10 @@ export interface ClienteInit {
    *  decides where she lands (main.ts reloads onto the shell). */
   readonly onTerminee?: (() => void) | undefined;
   /** COMPTE-CLIENTE-2 — her account's number, filling C3's empty field; she
-   *  can change it like anything she typed. Absent: the field starts empty. */
-  readonly telephoneCompte?: string | undefined;
+   *  can change it like anything she typed. Asked when the field is filled,
+   *  never at mount: she may sign in, or out, over the page (verifier minor 2).
+   *  Absent, or no one signed in: the field starts empty. */
+  readonly telephoneCompte?: (() => string | undefined) | undefined;
   /** COMPTE-CLIENTE-2 — told the order she just created, so a signed-in
    *  buyer's « Mes commandes » lists it. Best effort, after the create; the
    *  order never waits on it. */
@@ -561,7 +563,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
     zoneFiltre: '',
     zoneEdition: false,
     repere: '',
-    phone: init.telephoneCompte ?? '',
+    phone: init.telephoneCompte?.() ?? '',
     voice: (init.microRefuse ?? false) ? 'refused' : 'idle',
     vSec: 0,
     note: null,
@@ -2276,7 +2278,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
           }
           jump('C3', {
             // COMPTE-CLIENTE-2 — a signed-in buyer's number fills the empty field.
-            zone: null, repere: '', phone: init.telephoneCompte ?? '',
+            zone: null, repere: '', phone: init.telephoneCompte?.() ?? '',
             voice: (init.microRefuse ?? false) ? 'refused' : 'idle', vSec: 0, note: null,
             geo: 'repos', pin: null,
           });

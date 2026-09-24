@@ -844,7 +844,7 @@ if (app) {
         }
         const main = document.createElement('main');
         app.append(main);
-        const telephoneCompte = comptePortOffre !== undefined ? sessionActive(localStorageOrUndefined(), sessionStorageOrUndefined())?.telephone : undefined;
+        const telephoneCompte = comptePortOffre !== undefined ? () => sessionActive(localStorageOrUndefined(), sessionStorageOrUndefined())?.telephone : undefined;
         monterPanier(main, {
           monter: monterCliente,
           ...(telephoneCompte !== undefined ? { telephoneCompte } : {}),
@@ -979,7 +979,7 @@ if (app) {
         // buyer C1→C9 flow is ALWAYS INDIGO — the resolved storefront's theme
         // no longer drives it. Her vitrine keeps her habillage; the harness
         // `theme=` param stays as the §1.2 gate/audit lever only.
-        const telephoneCompte = comptePortOffre !== undefined ? sessionActive(localStorageOrUndefined(), sessionStorageOrUndefined())?.telephone : undefined;
+        const telephoneCompte = comptePortOffre !== undefined ? () => sessionActive(localStorageOrUndefined(), sessionStorageOrUndefined())?.telephone : undefined;
         monterCliente(main, {
           produit,
           quoteSource,

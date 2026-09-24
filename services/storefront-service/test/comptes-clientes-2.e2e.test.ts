@@ -10,8 +10,10 @@ import { afterAll, describe, expect, it } from 'vitest';
  * Founder order 2026-09-24 (« fix the ones still open »):
  *   · a forgotten password, or a number someone else signed up with, is no
  *     longer for ever: the founder mints a one-time code for a NUMBER (key C)
- *     and gives it by calling that number; she enters it with a new password,
- *     every other session ends, the old password dies, the code is spent;
+ *     and gives it by calling that number; she enters it with her names and a
+ *     new password, every other session ends, the old password dies, the code
+ *     is spent — and the number starts clean: nothing the previous holder left
+ *     (names, email, order list and its read tokens) passes to her;
  *   · « Mes commandes » — the orders she made while signed in follow her
  *     account, from any phone;
  *   · « Supprimer mon compte » — everything the book holds of her goes, and
@@ -58,6 +60,8 @@ async function inscrire(phone = numero(), password = 'grain-de-nere-77', prenom 
 }
 const lire = (s: string) => poste('/buyer/profile', {}, bearer(s));
 const code = (phone: string, headers: Record<string, string> = cleC) => poste('/buyer/accounts/recovery-code', { phone }, headers);
+const NOMS = { firstName: 'Awa', lastName: 'Ouédraogo' };
+const recuperer = (corps: Record<string, unknown>) => poste('/buyer/recover', { ...NOMS, ...corps });
 
 describe('COMPTE-CLIENTE-2 — the founder\'s recovery code', () => {
   it('is minted only with key C, for a number that has an account, and answers the code — nothing about her', async () => {
@@ -79,52 +83,81 @@ describe('COMPTE-CLIENTE-2 — the founder\'s recovery code', () => {
     const { phone, password, session: ancienne } = await inscrire();
     const ailleurs = (await poste('/buyer/login', { phone, password })).body['session'] as string;
     const { body } = await code(phone);
-    const recup = await poste('/buyer/recover', { phone: `+226 ${phone}`, code: String(body['code']).toLowerCase(), newPassword: 'karite-du-soir-8' });
+    const recup = await recuperer({ phone: `+226 ${phone}`, code: String(body['code']).toLowerCase(), newPassword: 'karite-du-soir-8' });
     expect(recup.res.status).toBe(200);
-    expect(recup.body).toMatchObject({ ok: true, firstName: 'Awa', phone });
+    expect(recup.body).toMatchObject({ ok: true, firstName: 'Awa', lastName: 'Ouédraogo', phone: `+226 ${phone}` });
     const neuve = recup.body['session'] as string;
     expect(neuve).toMatch(/^SPC-/);
     expect((await lire(neuve)).res.status).toBe(200);
     for (const s of [ancienne, ailleurs]) expect((await lire(s)).res.status).toBe(401);
     expect((await poste('/buyer/login', { phone, password })).res.status).toBe(401);
     expect((await poste('/buyer/login', { phone, password: 'karite-du-soir-8' })).res.status).toBe(200);
-    const encore = await poste('/buyer/recover', { phone, code: body['code'], newPassword: 'autre-mot-long' });
+    const encore = await recuperer({ phone, code: body['code'], newPassword: 'autre-mot-long' });
     expect(encore.res.status).toBe(401);
     expect(encore.body).toEqual({ ok: false, reason: 'bad_code' });
   });
 
-  it('a number someone else took goes back to its owner — the one the founder reaches by calling it', async () => {
+  it('a number someone else took goes back to its owner CLEAN — nothing the intruder left passes to her, least of all an order\'s read token', async () => {
     const phone = numero();
-    const intrus = await inscrire(phone, 'mot-de-l-intrus', 'Intrus');
+    const r = await poste('/buyer/signup', { firstName: 'Intrus', lastName: 'Inconnu', email: 'intrus@exemple.bf', phone, password: 'mot-de-l-intrus' });
+    const intrus = r.body['session'] as string;
+    await poste('/buyer/orders', { ajouter: [{ orderId: 'ord-intrus-1', buyerRef: 'REF-INTRUS-SECRET' }] }, bearer(intrus));
     const { body } = await code(phone);
-    const elle = await poste('/buyer/recover', { phone, code: body['code'], newPassword: 'le-mien-enfin-9' });
-    expect(elle.res.status).toBe(200);
-    const session = elle.body['session'] as string;
-    expect((await lire(intrus.session)).res.status).toBe(401);
-    const corrige = await poste('/buyer/profile', { firstName: 'Aïcha', lastName: 'Kaboré', email: '' }, bearer(session));
-    expect(corrige.body).toMatchObject({ firstName: 'Aïcha', lastName: 'Kaboré', phone });
+    const retour = await poste('/buyer/recover', { firstName: 'Aïcha', lastName: 'Kaboré', phone, code: body['code'], newPassword: 'le-mien-enfin-9' });
+    expect(retour.res.status).toBe(200);
+    for (const interdit of ['Intrus', 'Inconnu', 'intrus@', 'ord-intrus', 'REF-INTRUS']) expect(retour.text).not.toContain(interdit);
+    expect(retour.body).toMatchObject({ firstName: 'Aïcha', lastName: 'Kaboré', phone });
+    expect(retour.body['email']).toBeUndefined();
+    const session = retour.body['session'] as string;
+    const profilLu = await lire(session);
+    expect(profilLu.body['email']).toBeUndefined();
+    const liste = await poste('/buyer/orders', {}, bearer(session));
+    expect(liste.body['commandes']).toEqual([]);
+    expect(liste.text).not.toContain('REF-INTRUS');
+    expect((await lire(intrus)).res.status).toBe(401);
     expect((await poste('/buyer/login', { phone, password: 'mot-de-l-intrus' })).res.status).toBe(401);
+  });
+
+  it('the code is taken however it was heard: no dashes, spaces, lower case, with or without « SPR »', async () => {
+    const forme = (c: string, i: number): string => {
+      const corps = c.slice(4).replace(/-/g, '');
+      return [corps, `spr ${corps.match(/.{4}/g)!.join(' ')}`, c.slice(4), ` ${c.toLowerCase()} `][i]!;
+    };
+    for (let i = 0; i < 4; i += 1) {
+      const { phone } = await inscrire();
+      const { body } = await code(phone);
+      const r = await recuperer({ phone, code: forme(String(body['code']), i), newPassword: 'karite-du-soir-8' });
+      expect(r.res.status, `form ${i}: ${forme(String(body['code']), i)}`).toBe(200);
+    }
+    // Too short or too long is still the one refusal, never a hint.
+    const { phone } = await inscrire();
+    const { body } = await code(phone);
+    for (const faux of [String(body['code']).slice(0, -1), `${String(body['code'])}A`]) {
+      expect((await recuperer({ phone, code: faux, newPassword: 'karite-du-soir-8' })).body).toEqual({ ok: false, reason: 'bad_code' });
+    }
   });
 
   it('every wrong way in is one refusal, and ten lock the number — even the right code waits', async () => {
     const { phone } = await inscrire();
-    const faux = await poste('/buyer/recover', { phone, code: 'SPR-AAAA-AAAA-AAAA-AAAA', newPassword: 'nouveau-mot-long' });
-    const inconnu = await poste('/buyer/recover', { phone: numero(), code: 'SPR-AAAA-AAAA-AAAA-AAAA', newPassword: 'nouveau-mot-long' });
+    const faux = await recuperer({ phone, code: 'SPR-AAAA-AAAA-AAAA-AAAA', newPassword: 'nouveau-mot-long' });
+    const inconnu = await recuperer({ phone: numero(), code: 'SPR-AAAA-AAAA-AAAA-AAAA', newPassword: 'nouveau-mot-long' });
     expect(faux.text).toBe(inconnu.text);
     expect(faux.body).toEqual({ ok: false, reason: 'bad_code' });
     const { body } = await code(phone);
     for (let i = 1; i < 10; i += 1) {
-      expect((await poste('/buyer/recover', { phone, code: `SPR-AAAA-AAAA-AAAA-AAA${'BCDEFGHIJ'[i]}`, newPassword: 'nouveau-mot-long' })).res.status).toBe(401);
+      expect((await recuperer({ phone, code: `SPR-AAAA-AAAA-AAAA-AAA${'ABCDEFGHIJ'[i]}`, newPassword: 'nouveau-mot-long' })).res.status).toBe(401);
     }
-    const bloque = await poste('/buyer/recover', { phone, code: body['code'], newPassword: 'nouveau-mot-long' });
+    const bloque = await recuperer({ phone, code: body['code'], newPassword: 'nouveau-mot-long' });
     expect(bloque.res.status).toBe(429);
     expect(bloque.body).toEqual({ ok: false, reason: 'too_many_attempts' });
   });
 
-  it('refuses a short new password and a smuggled field by name', async () => {
+  it('refuses a short new password, a missing name and a smuggled field by name', async () => {
     const { phone } = await inscrire();
-    expect((await poste('/buyer/recover', { phone, code: 'x', newPassword: 'court' })).body).toEqual({ ok: false, reason: 'bad_field', field: 'newPassword' });
-    expect((await poste('/buyer/recover', { phone, code: 'x', newPassword: 'assez-long', session: 's' })).body).toEqual({ ok: false, reason: 'unknown_field', field: 'session' });
+    expect((await recuperer({ phone, code: 'x', newPassword: 'court' })).body).toEqual({ ok: false, reason: 'bad_field', field: 'newPassword' });
+    expect((await recuperer({ phone, code: 'x', newPassword: 'assez-long', session: 's' })).body).toEqual({ ok: false, reason: 'unknown_field', field: 'session' });
+    expect((await poste('/buyer/recover', { lastName: 'K', phone, code: 'x', newPassword: 'assez-long' })).body).toEqual({ ok: false, reason: 'bad_field', field: 'firstName' });
+    expect((await poste('/buyer/recover', { firstName: 'A', phone, code: 'x', newPassword: 'assez-long' })).body).toEqual({ ok: false, reason: 'bad_field', field: 'lastName' });
   });
 });
 
@@ -136,10 +169,13 @@ describe('COMPTE-CLIENTE-2 — « Mes commandes »', () => {
     expect(a1.res.status).toBe(200);
     const a2 = await poste('/buyer/orders', { ajouter: [{ orderId: 'ord-q-2', buyerRef: 'ref-2' }, { orderId: 'ord-q-1', buyerRef: 'ref-1' }] }, bearer(elle.session));
     expect((a2.body['commandes'] as { orderId: string }[]).map((c) => c.orderId)).toEqual(['ord-q-2', 'ord-q-1']);
+    // Once each inside ONE call too (verifier minor 5).
+    const a3 = await poste('/buyer/orders', { ajouter: [{ orderId: 'ord-q-3', buyerRef: 'ref-3' }, { orderId: 'ord-q-3', buyerRef: 'ref-3' }] }, bearer(elle.session));
+    expect((a3.body['commandes'] as { orderId: string }[]).map((c) => c.orderId)).toEqual(['ord-q-3', 'ord-q-2', 'ord-q-1']);
     // Read from ANOTHER phone: the list follows the account.
     const ailleurs = (await poste('/buyer/login', { phone: elle.phone, password: elle.password })).body['session'] as string;
     const lu = await poste('/buyer/orders', {}, bearer(ailleurs));
-    expect(lu.body['commandes']).toEqual(a2.body['commandes']);
+    expect(lu.body['commandes']).toEqual(a3.body['commandes']);
     expect(lu.res.headers.get('cache-control')).toBe('private, no-store');
     expect((await poste('/buyer/orders', {}, bearer(autre.session))).body['commandes']).toEqual([]);
     expect((await poste('/buyer/orders', {})).res.status).toBe(401);

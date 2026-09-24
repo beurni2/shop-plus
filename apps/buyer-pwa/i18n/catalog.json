@@ -3901,9 +3901,21 @@
  },
  {
   "key": "compte.recup.comment",
-  "fr": "Demandez un code à l’équipe Shop+ : votre vendeuse peut les prévenir. L’équipe vous appelle sur votre numéro pour vous le donner.",
+  "fr": "Demandez un code à l’équipe Shop+ : votre vendeuse peut la prévenir. L’équipe vous appelle sur votre numéro pour vous le donner.",
   "register": "neutral",
   "screenClass": "status"
+ },
+ {
+  "key": "compte.recup.neuf",
+  "fr": "Votre compte recommence à neuf : écrivez votre prénom, votre nom et un nouveau mot de passe. Vos commandes en cours seront quand même livrées.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "compte.code_exemple",
+  "fr": "Ex. : SPR-ABCD-EFGH-JKLM-NPQR",
+  "register": "neutral",
+  "screenClass": "instruction"
  },
  {
   "key": "compte.recup.envoyer",
@@ -3949,7 +3961,7 @@
  },
  {
   "key": "compte.supprimer.explique",
-  "fr": "Votre nom, votre numéro et votre liste de commandes seront effacés. Vos commandes en cours continuent : elles seront livrées.",
+  "fr": "Votre nom, votre email, votre mot de passe et votre liste de commandes seront effacés. Vos commandes en cours continuent : elles seront livrées.",
   "register": "neutral",
   "screenClass": "status"
  },

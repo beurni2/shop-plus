@@ -58,8 +58,9 @@ export interface ComptePort {
   lireProfil(session: string): Promise<Resultat<ProfilCliente>>;
   modifierProfil(session: string, patch: PatchProfil): Promise<Resultat<ProfilCliente>>;
   deconnecter(session: string): Promise<void>;
-  /** COMPTE-CLIENTE-2 — the founder's code, her number and a new password. */
-  recuperer(phone: string, code: string, newPassword: string): Promise<Resultat<{ profil: ProfilCliente; session: string }>>;
+  /** COMPTE-CLIENTE-2 — the founder's code, her number, her names and a new
+   *  password: the number starts clean for whoever holds it. */
+  recuperer(phone: string, code: string, newPassword: string, noms: { readonly firstName: string; readonly lastName: string }): Promise<Resultat<{ profil: ProfilCliente; session: string }>>;
   /** « Mes commandes » — read, or add then read (at most ten added at once). */
   commandes(session: string, ajouter?: readonly { readonly orderId: string; readonly buyerRef: string }[]): Promise<Resultat<readonly CommandeCompte[]>>;
   supprimer(session: string, currentPassword: string): Promise<Resultat<true>>;
@@ -160,8 +161,8 @@ export function httpComptePort(base: string): ComptePort {
       };
       return lire(await appeler('profile', corps, session), lireProfilWire);
     },
-    async recuperer(phone, code, newPassword) {
-      return lire(await appeler('recover', { phone, code, newPassword }), avecSession);
+    async recuperer(phone, code, newPassword, noms) {
+      return lire(await appeler('recover', { firstName: noms.firstName, lastName: noms.lastName, phone, code, newPassword }), avecSession);
     },
     async commandes(session, ajouter) {
       const corps = ajouter !== undefined && ajouter.length > 0

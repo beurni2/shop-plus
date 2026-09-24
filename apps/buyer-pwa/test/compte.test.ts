@@ -226,15 +226,15 @@ import { creerRattacheur } from '../src/compte/entree';
 describe('COMPTE-CLIENTE-2 — the wire', () => {
   const port = httpComptePort('https://svc/api');
 
-  it('recovery sends her number, the code and the new password, nothing else, with no Bearer', async () => {
+  it('recovery sends her number, the code, her names and the new password, nothing else, with no Bearer', async () => {
     const { appels } = faux(() => Response.json({ ...PROFIL, session: SESSION }));
-    const r = await port.recuperer('70 12 34 56', 'SPR-AAAA-BBBB-CCCC-DDDD', 'nouveau-mot-long');
+    const r = await port.recuperer('70 12 34 56', 'SPR-AAAA-BBBB-CCCC-DDDD', 'nouveau-mot-long', { firstName: 'Awa', lastName: 'Ouédraogo' });
     expect(appels[0]!.url).toBe('https://svc/api/buyer/recover');
-    expect(JSON.parse(appels[0]!.init.body as string)).toEqual({ phone: '70 12 34 56', code: 'SPR-AAAA-BBBB-CCCC-DDDD', newPassword: 'nouveau-mot-long' });
+    expect(JSON.parse(appels[0]!.init.body as string)).toEqual({ firstName: 'Awa', lastName: 'Ouédraogo', phone: '70 12 34 56', code: 'SPR-AAAA-BBBB-CCCC-DDDD', newPassword: 'nouveau-mot-long' });
     expect(new Headers(appels[0]!.init.headers).has('Authorization')).toBe(false);
     expect(r.kind).toBe('ok');
     faux(() => Response.json({ ok: false, reason: 'bad_code' }, { status: 401 }));
-    expect(await port.recuperer('70 12 34 56', 'x', 'nouveau-mot-long')).toEqual({ kind: 'refus', reason: 'bad_code' });
+    expect(await port.recuperer('70 12 34 56', 'x', 'nouveau-mot-long', { firstName: 'Awa', lastName: 'Ouédraogo' })).toEqual({ kind: 'refus', reason: 'bad_code' });
   });
 
   it('« Mes commandes » reads on her Bearer, adds at most ten, and keeps only whole rows', async () => {
@@ -287,9 +287,11 @@ describe('COMPTE-CLIENTE-2 — the screens', () => {
     expect(renderCommandes('echec')).toContain('data-action="compte-commandes-relire"');
   });
 
-  it('recovery asks her number, the code and a new password, and keeps her number when she came with it', () => {
+  it('recovery asks her number, the code, her names and a new password — the number starts clean, and she is told so', () => {
     const html = renderRecuperation('70 12 34 56');
-    expect([...html.matchAll(/data-champ="([^"]+)"/g)].map((m) => m[1])).toEqual(['phone', 'code', 'newPassword']);
+    expect([...html.matchAll(/data-champ="([^"]+)"/g)].map((m) => m[1])).toEqual(['phone', 'code', 'firstName', 'lastName', 'newPassword']);
+    expect(html).toContain('Votre compte recommence à neuf');
+    expect(html).toContain('placeholder="Ex. : SPR-ABCD-EFGH-JKLM-NPQR"');
     expect(html).toContain('value="70 12 34 56"');
     expect(html).toContain('data-role="compte-rester"');
     expect(html.match(/class="primary-action"/g)?.length).toBe(1);

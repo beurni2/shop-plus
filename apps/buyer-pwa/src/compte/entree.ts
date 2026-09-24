@@ -103,13 +103,35 @@ export function monterBandeCompte(
   app: HTMLElement,
   opts: Omit<OptsEntree, 'monterBoutique' | 'nomBoutique'>,
 ): void {
-  const fermer = (): void => {
+  // Android's Back closes the layer, as « Retour » does — never the payment
+  // under it (verifier minor 3): opening adds ONE history entry, Back takes it
+  // and closes; a button close takes it back itself.
+  let entree = false;
+  const retirer = (): void => {
     document.querySelector('[data-role="compte-voile"]')?.remove();
     document.body.classList.remove('compte-voile-ouvert');
     poser();
   };
+  const surRetour = (): void => {
+    entree = false;
+    window.removeEventListener('popstate', surRetour);
+    retirer();
+  };
+  const fermer = (): void => {
+    if (entree) {
+      entree = false;
+      window.removeEventListener('popstate', surRetour);
+      window.history.back();
+    }
+    retirer();
+  };
   const ouvrir = (ecran: EcranCompte): void => {
-    fermer();
+    retirer();
+    if (!entree) {
+      window.history.pushState({ compteCalque: true }, '');
+      entree = true;
+      window.addEventListener('popstate', surRetour);
+    }
     const voile = document.createElement('div');
     voile.className = 'compte-voile';
     voile.setAttribute('data-role', 'compte-voile');

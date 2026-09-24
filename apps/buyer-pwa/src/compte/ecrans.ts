@@ -28,12 +28,14 @@ import { garderSession, marquerInvitee, oublierSessions, rafraichirSession, sess
  * COMPTE-CLIENTE-2 (founder « fix the ones still open », 2026-09-24):
  *   recuperation — the way back for a forgotten password or a number someone
  *                  else took: the founder's one-time code, given by calling
- *                  her number, and a new password.
+ *                  her number, her names and a new password — the number
+ *                  starts clean for her (nothing a previous holder left).
  *   profil       — also « Mes commandes » (her orders made while signed in,
  *                  from any phone) and « Supprimer mon compte ».
  *   supprimer    — her password, then everything the book holds of her goes.
- *   Sign-in, sign-up and recovery ask « Rester connectée sur ce téléphone » —
- *   unticked, closing the browser signs her out of this phone.
+ *   Sign-in, sign-up and recovery ask « Garder mon compte ouvert sur ce
+ *   téléphone » — unticked, she is signed in for this tab only (a phone that
+ *   restores its tabs may keep that tab open; « Me déconnecter » always ends it).
  *
  * Every act is one request on a tap, never queued: nothing about her account
  * is « done » until the service said so. A refusal keeps what she typed and
@@ -133,7 +135,7 @@ function champ(o: {
   ].join('');
 }
 
-/** « Rester connectée sur ce téléphone » — ticked unless she unticks it. */
+/** « Garder mon compte ouvert sur ce téléphone » — ticked unless she unticks it. */
 const rester = (): string =>
   `<label class="compte-rester"><input type="checkbox" data-role="compte-rester" checked> <span>${t('compte.rester')}</span></label>`;
 
@@ -278,9 +280,12 @@ export function renderRecuperation(telephone?: string): string {
     retour('compte-vers-connexion', t('retour')),
     `<h2 class="compte-titre">${t('compte.recup.titre')}</h2>`,
     `<p class="compte-sous">${t('compte.recup.comment')}</p>`,
+    `<p class="compte-sous" data-role="compte-recup-neuf">${t('compte.recup.neuf')}</p>`,
     '<form class="compte-form" data-role="compte-form" novalidate>',
     champ({ cle: 'phone', label: t('compte.label.telephone'), type: 'tel', autocomplete: 'tel', inputmode: 'tel', placeholder: t('compte.telephone_exemple'), ...(telephone !== undefined ? { valeur: telephone } : {}) }),
-    champ({ cle: 'code', label: t('compte.label.code'), type: 'text', autocomplete: 'one-time-code' }),
+    champ({ cle: 'code', label: t('compte.label.code'), type: 'text', autocomplete: 'one-time-code', placeholder: t('compte.code_exemple') }),
+    champ({ cle: 'firstName', label: t('compte.label.prenom'), type: 'text', autocomplete: 'given-name' }),
+    champ({ cle: 'lastName', label: t('compte.label.nom'), type: 'text', autocomplete: 'family-name' }),
     champ({ cle: 'newPassword', label: t('compte.label.mot_nouveau'), type: 'password', autocomplete: 'new-password', aide: t('compte.aide.mot_de_passe'), mdp: true }),
     rester(),
     alerte(),
@@ -638,12 +643,16 @@ export function monterCompte(main: HTMLElement, opts: OptsCompte): void {
   const recuperer = async (): Promise<void> => {
     const phone = valeur('phone').trim();
     const code = valeur('code').trim();
+    const firstName = valeur('firstName').trim();
+    const lastName = valeur('lastName').trim();
     const newPassword = valeur('newPassword');
     if (!numeroComplet(phone)) return montrerRefus({ champ: 'phone', texte: t('compte.champ.telephone') });
     if (code === '') return montrerRefus({ champ: 'code', texte: t('compte.champ.code') });
+    if (!nomValide(firstName)) return montrerRefus({ champ: 'firstName', texte: t('compte.champ.prenom') });
+    if (!nomValide(lastName)) return montrerRefus({ champ: 'lastName', texte: t('compte.champ.nom') });
     if (newPassword.length < 8) return montrerRefus({ champ: 'newPassword', texte: t('compte.champ.mot_de_passe') });
     occupe(true);
-    const r = await port.recuperer(phone, code, newPassword);
+    const r = await port.recuperer(phone, code, newPassword, { firstName, lastName });
     occupe(false);
     if (r.kind === 'ok') return entrer(r.value.session, r.value.profil);
     montrerRefus(phraseRefus(r));
@@ -681,6 +690,7 @@ export function monterCompte(main: HTMLElement, opts: OptsCompte): void {
     if (nom === undefined || nom === '') return;
     nomBoutique = nom;
     const titre = main.querySelector('[data-role="compte-porte-titre"]');
-    if (titre !== null) titre.textContent = tf('compte.porte.titre_boutique', { boutique: nom });
+    // « Chez Aïcha Mode » is read « Bienvenue chez Aïcha Mode », never « chez Chez ».
+    if (titre !== null) titre.textContent = tf('compte.porte.titre_boutique', { boutique: nom.replace(/^chez\s+/i, '') });
   }).catch(() => undefined);
 }

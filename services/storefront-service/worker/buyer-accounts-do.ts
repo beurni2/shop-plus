@@ -125,6 +125,17 @@ function lireEmail(v: unknown): { email?: string } | null {
   return { email };
 }
 
+/** A recovery code as she heard it over the phone (verifier MAJOR 2): any
+ *  case, any spaces or dashes, with or without « SPR » — read back to the
+ *  one written form, or `''` when it cannot be one. */
+function lireCode(v: unknown): string {
+  if (typeof v !== 'string') return '';
+  const net = v.toUpperCase().replace(/[^A-Z2-7]/g, '');
+  const corps = net.length === 19 && net.startsWith('SPR') ? net.slice(3) : net;
+  if (corps.length !== 16) return '';
+  return `SPR-${corps.slice(0, 4)}-${corps.slice(4, 8)}-${corps.slice(8, 12)}-${corps.slice(12)}`;
+}
+
 /** The salt a refused login derives against when there is no account to
  *  prove, so an unknown number costs the same derivation as a wrong password
  *  (verifier MINOR 1: 3–5 ms against 17–20 ms told them apart). */
@@ -339,9 +350,10 @@ export class BuyerAccountsDO {
      * be for ever. Now the FOUNDER mints a one-time code for a NUMBER on his
      * console (key C, index.ts) and gives it by CALLING that number: whoever
      * answers that phone holds the number, which is the proof no signup could
-     * ask for. She enters it with a new password; every session of the
-     * account ends, hers begins. The founder's door answers the code and
-     * nothing about her — no name, no email.
+     * ask for. She enters it with her names and a new password; the account
+     * starts clean for her (see `/recover`), every session of it ends, hers
+     * begins. The founder's door answers the code and nothing about her — no
+     * name, no email.
      */
     if (pathname === '/recovery-code') {
       const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
@@ -362,13 +374,17 @@ export class BuyerAccountsDO {
       const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
       if (body === null || typeof body !== 'object' || Array.isArray(body)) return refus('malformed', 400);
       for (const key of Object.keys(body)) {
-        if (!['phone', 'code', 'newPassword'].includes(key)) return refus('unknown_field', 400, key);
+        if (!['phone', 'code', 'newPassword', 'firstName', 'lastName'].includes(key)) return refus('unknown_field', 400, key);
       }
+      const firstName = champ(body['firstName'], NOM_MAX);
+      if (firstName === null) return refus('bad_field', 400, 'firstName');
+      const lastName = champ(body['lastName'], NOM_MAX);
+      if (lastName === null) return refus('bad_field', 400, 'lastName');
       const nouveau = typeof body['newPassword'] === 'string' ? body['newPassword'] : '';
       if (nouveau.length < 8 || nouveau.length > MAX_FIELD) return refus('bad_field', 400, 'newPassword');
       const phone = champ(body['phone'], 32);
       const cle = phone === null ? null : cleAcheteur(phone);
-      const code = typeof body['code'] === 'string' ? body['code'].trim().toUpperCase() : '';
+      const code = lireCode(body['code']);
       // ONE refusal for an unknown number, a wrong code and a spent or expired
       // one — and ten per number per quarter hour, counted before the proof.
       if (cle === null || code === '') return refus('bad_code', 401);
@@ -388,21 +404,30 @@ export class BuyerAccountsDO {
       if (record === undefined || !vivant) return refus('bad_code', 401);
       // Every hash is taken above, so the read, the check and the writes below
       // sit in storage-only turns (the input gate): a code is spent exactly once.
-      const { recoveryHash: _code, recoveryExpiresAt: _fin, ...reste } = record;
-      const maj: BuyerAccountRecord = { ...reste, passwordSaltHex: saltHex, passwordHashHex: hashNeuf, passwordIterations: PBKDF2_ITERATIONS };
+      // THE NUMBER STARTS CLEAN (safest default, verifier MAJOR 1 — the founder
+      // may choose otherwise): the founder cannot tell « she forgot » from « a
+      // stranger signed up with her number » or « a recycled SIM », so nothing
+      // the previous holder left passes to whoever holds the number now — not
+      // their names or email, and above all not the order list, whose read
+      // tokens open tracking and, at the door, the drop code.
+      const { recoveryHash: _code, recoveryExpiresAt: _fin, email: _email, ...reste } = record;
+      const maj: BuyerAccountRecord = {
+        ...reste, firstName, lastName, phone, createdAt: new Date().toISOString(),
+        passwordSaltHex: saltHex, passwordHashHex: hashNeuf, passwordIterations: PBKDF2_ITERATIONS,
+      };
       await this.state.storage.put(`${COMPTE_PREFIX}${maj.accountId}`, maj);
       await this.effacerAutresSessions(maj.accountId, '');
       const { session, ecritures } = await this.minterSession(maj.accountId);
       await this.state.storage.put(ecritures);
-      await this.state.storage.delete([cleEchecs, `${ECHECS_PREFIX}${hashTel}`]);
+      await this.state.storage.delete([cleEchecs, `${ECHECS_PREFIX}${hashTel}`, `${ECHECS_PREFIX}mdp:${maj.accountId}`, `${COMMANDES_PREFIX}${maj.accountId}`]);
       return Response.json({ ...profil(maj), session });
     }
 
     /**
      * « MES COMMANDES » — the orders she made while signed in, so her tracking
      * opens from any phone. The app adds each order right after its create
-     * (and those this phone kept, when she signs in); the order itself never
-     * reads this book. A body with only `session` reads the list.
+     * (best effort, once); the order itself never reads this book. A body
+     * with only `session` reads the list.
      */
     if (pathname === '/orders') {
       const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
@@ -430,7 +455,8 @@ export class BuyerAccountsDO {
       const cle = `${COMMANDES_PREFIX}${resolue.record.accountId}`;
       const avant = (await this.state.storage.get<CommandeLiee[]>(cle)) ?? [];
       if (ajouter.length === 0) return Response.json({ ok: true, commandes: avant });
-      const neuves = ajouter.filter((c) => !avant.some((a) => a.orderId === c.orderId));
+      // Once each: against the list AND inside this one call.
+      const neuves = ajouter.filter((c, i) => !avant.some((a) => a.orderId === c.orderId) && ajouter.findIndex((x) => x.orderId === c.orderId) === i);
       const liste = [...neuves.reverse(), ...avant].slice(0, COMMANDES_MAX);
       if (neuves.length > 0) await this.state.storage.put(cle, liste);
       return Response.json({ ok: true, commandes: liste });

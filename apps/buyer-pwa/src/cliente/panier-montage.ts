@@ -154,7 +154,7 @@ export function monterPanier(
     /** COMPTE-CLIENTE-2 — a signed-in buyer's paid articles join « Mes commandes ». */
     readonly rattacher?: (c: { readonly orderId: string; readonly buyerRef: string }) => void;
     /** COMPTE-CLIENTE-2 — a signed-in buyer's number fills the empty field, as on one article. */
-    readonly telephoneCompte?: string;
+    readonly telephoneCompte?: () => string | undefined;
   },
 ): void {
   const port = resolvePanierPort(new Map(args.articles.map((a) => [a.pid, a.prixFcfa])));

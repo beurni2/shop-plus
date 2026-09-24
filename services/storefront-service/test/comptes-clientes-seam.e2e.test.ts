@@ -118,12 +118,16 @@ describe('COMPTE-CLIENTE-2 — the app\'s port against the real book: the way ba
       method: 'POST', headers: { Authorization: 'Bearer cle-c-seam', 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: '73 00 00 01' }),
     });
     const { code } = (await mint.json()) as { code: string };
-    expect(await port.recuperer('73 00 00 01', 'SPR-AAAA-AAAA-AAAA-AAAA', 'karite-du-soir-8')).toEqual({ kind: 'refus', reason: 'bad_code' });
-    const repris = await port.recuperer('+226 73000001', code, 'karite-du-soir-8');
+    const noms = { firstName: 'Awa', lastName: 'Sawadogo' };
+    expect(await port.recuperer('73 00 00 01', 'SPR-AAAA-AAAA-AAAA-AAAA', 'karite-du-soir-8', noms)).toEqual({ kind: 'refus', reason: 'bad_code' });
+    // Written the way it was heard: lower case, spaces for dashes.
+    const repris = await port.recuperer('+226 73000001', code.toLowerCase().replace(/-/g, ' '), 'karite-du-soir-8', noms);
     if (repris.kind !== 'ok') throw new Error(JSON.stringify(repris));
     expect(await port.lireProfil(ici)).toEqual({ kind: 'session_perdue' });
     expect(await port.lireProfil(ailleurs.value.session)).toEqual({ kind: 'session_perdue' });
     const neuve = repris.value.session;
+    // The number starts clean: the list the old sessions built is gone, from the book.
+    expect(await port.commandes(neuve)).toEqual({ kind: 'ok', value: [] });
 
     expect(await port.supprimer(neuve, 'pas-le-bon')).toEqual({ kind: 'refus', reason: 'bad_password' });
     expect(await port.supprimer(neuve, 'karite-du-soir-8')).toEqual({ kind: 'ok', value: true });

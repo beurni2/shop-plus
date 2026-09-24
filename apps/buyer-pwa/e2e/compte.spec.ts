@@ -100,16 +100,24 @@ class Livre {
       return json(200, { ok: true });
     }
     if (chemin === 'recover') {
-      const k = cle(String(corps['phone'] ?? ''));
-      const c = this.comptes.get(k);
-      if (c === undefined || this.codes.get(k) === undefined || this.codes.get(k) !== String(corps['code'] ?? '').trim().toUpperCase()) {
-        return json(401, { ok: false, reason: 'bad_code' });
+      // The book's real bounds (buyer-accounts-do `/recover`): names required,
+      // the code read however it was heard, and the number starts CLEAN.
+      for (const f of ['firstName', 'lastName']) {
+        if (String(corps[f] ?? '').trim() === '') return json(400, { ok: false, reason: 'bad_field', field: f });
       }
       if (String(corps['newPassword'] ?? '').length < 8) return json(400, { ok: false, reason: 'bad_field', field: 'newPassword' });
+      const k = cle(String(corps['phone'] ?? ''));
+      const c = this.comptes.get(k);
+      const net = String(corps['code'] ?? '').toUpperCase().replace(/[^A-Z2-7]/g, '');
+      const lu = net.length === 19 && net.startsWith('SPR') ? net.slice(3) : net;
+      const attendu = this.codes.get(k)?.slice(4).replace(/-/g, '');
+      if (c === undefined || attendu === undefined || lu !== attendu) return json(401, { ok: false, reason: 'bad_code' });
       this.codes.delete(k);
-      c.password = String(corps['newPassword']);
+      this.commandes.delete(k);
+      const neuf: Compte = { firstName: String(corps['firstName']).trim(), lastName: String(corps['lastName']).trim(), phone: String(corps['phone']).trim(), password: String(corps['newPassword']) };
+      this.comptes.set(k, neuf);
       for (const [s, kk] of [...this.sessions]) if (kk === k) this.sessions.delete(s);
-      return json(200, { ...this.profil(c), session: this.ouvrir(k) });
+      return json(200, { ...this.profil(neuf), session: this.ouvrir(k) });
     }
     if (chemin === 'orders' || chemin === 'delete') {
       const k = bearer !== null ? this.sessions.get(bearer) : undefined;
@@ -468,16 +476,18 @@ test('the doors greet her by the boutique she opened — and that boutique is re
       return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(BOUTIQUE) });
     });
   });
-  await expect(page.locator('[data-role="compte-porte-titre"]')).toHaveText('Bienvenue chez Chez Aïcha Mode');
+  // « Chez Aïcha Mode » is greeted « Bienvenue chez Aïcha Mode », never « chez Chez ».
+  await expect(page.locator('[data-role="compte-porte-titre"]')).toHaveText('Bienvenue chez Aïcha Mode');
   await action(page, 'compte-invitee').click();
   await expect(boutique(page)).toContainText('Chez Aïcha Mode');
   expect(lectures).toBe(1);
   expect(erreurs).toEqual([]);
 });
 
-test('a forgotten password: « Mot de passe oublié ? » → the founder\'s code → a new password → in, and the old one is dead', async ({ page }) => {
+test('a forgotten password: « Mot de passe oublié ? » → the founder\'s code, typed as she heard it → her names and a new password → in, clean, and the old password dead', async ({ page }) => {
   const livre = new Livre();
-  livre.comptes.set('70123456', { firstName: 'Awa', lastName: 'Ouédraogo', phone: '70 12 34 56', password: 'grain-de-nere' });
+  livre.comptes.set('70123456', { firstName: 'Intrus', lastName: 'Inconnu', email: 'intrus@exemple.bf', phone: '70 12 34 56', password: 'grain-de-nere' });
+  livre.commandes.set('70123456', [{ orderId: 'ord-intrus', buyerRef: 'REF-INTRUS', at: '2026-09-24T08:00:00.000Z' }]);
   const erreurs = await ouvrir(page, livre);
   await action(page, 'compte-vers-connexion').click();
   await champ(page, 'phone').pressSequentially('70123456');
@@ -486,18 +496,24 @@ test('a forgotten password: « Mot de passe oublié ? » → the founder\'s code
   await expect(page.locator('[data-role="compte-alerte"]')).toContainText('ne va pas');
   await action(page, 'compte-vers-recuperation').click();
   await expect(page.locator('[data-screen="compte-recuperation"]')).toContainText('L’équipe vous appelle sur votre numéro');
+  await expect(page.locator('[data-role="compte-recup-neuf"]')).toContainText('Votre compte recommence à neuf');
   await expect(champ(page, 'phone')).toHaveValue('70 12 34 56');
   // The founder minted her code on his console and read it to her on the phone.
   livre.codes.set('70123456', 'SPR-ABCD-EFGH-IJKL-MNOP');
   await champ(page, 'code').fill('SPR-XXXX-XXXX-XXXX-XXXX');
+  await champ(page, 'firstName').fill('Aïcha');
+  await champ(page, 'lastName').fill('Kaboré');
   await champ(page, 'newPassword').fill('karite-du-soir-8');
   await action(page, 'compte-recuperer').click();
   await expect(page.locator('[data-refus="code"]')).toContainText('Ce code ne marche pas');
-  await champ(page, 'code').fill('spr-abcd-efgh-ijkl-mnop');
+  // As she heard it: lower case, spaces, no « SPR ».
+  await champ(page, 'code').fill('abcd efgh ijkl mnop');
   await action(page, 'compte-recuperer').click();
   await expect(boutique(page)).toContainText('Chez Aïcha Mode');
-  await expect(bande(page)).toContainText('Awa');
-  expect(livre.comptes.get('70123456')!.password).toBe('karite-du-soir-8');
+  await expect(bande(page)).toContainText('Aïcha');
+  expect(livre.comptes.get('70123456')).toMatchObject({ firstName: 'Aïcha', lastName: 'Kaboré', password: 'karite-du-soir-8' });
+  expect(livre.comptes.get('70123456')!.email).toBeUndefined();
+  expect(livre.commandes.has('70123456')).toBe(false);
   expect(livre.codes.has('70123456')).toBe(false);
   expect(erreurs).toEqual([]);
 });
@@ -589,6 +605,49 @@ test('on the payment pages: her number is filled, « Mon compte » opens OVER th
   await page.locator('[data-action="payer"]').click();
   await expect.poll(() => vu.commandes.length).toBe(1);
   await expect.poll(() => livre.commandes.get('70123456')?.map((c) => [c.orderId, c.buyerRef])).toEqual([[vu.commandes[0], BUYER_REF]]);
+  expect(erreurs).toEqual([]);
+});
+
+test('Android « Retour » on « Mon compte » over the payment closes the layer — never the payment under it', async ({ page }) => {
+  const livre = new Livre();
+  await dejaConnectee(page, livre);
+  const erreurs = await ouvrir(page, livre, '/?/s/aicha-4821&pid=p1', async () => { await caisse(page); });
+  await page.locator('[data-action="commander"]').click();
+  await page.locator('[data-screen="C3"]').waitFor();
+  await page.locator('[data-role="repere"]').fill('Face à la pharmacie du marché');
+  const url = page.url();
+  await bande(page).click();
+  await expect(page.locator('[data-role="compte-voile"]')).toHaveCount(1);
+  await page.goBack();
+  await expect(page.locator('[data-role="compte-voile"]')).toHaveCount(0);
+  expect(page.url()).toBe(url);
+  await expect(page.locator('[data-screen="C3"]')).toHaveCount(1);
+  await expect(page.locator('[data-role="repere"]')).toHaveValue('Face à la pharmacie du marché');
+  // Closed by its own button, the layer takes its history entry back: one
+  // more Back is then the page's own, not a dead press.
+  await bande(page).click();
+  await page.locator('[data-role="compte-voile"] [data-action="compte-boutique"]').click();
+  await expect(page.locator('[data-role="compte-voile"]')).toHaveCount(0);
+  await expect.poll(() => page.evaluate(() => (window.history.state as { compteCalque?: boolean } | null)?.compteCalque ?? false)).toBe(false);
+  expect(erreurs).toEqual([]);
+});
+
+test('signed in OVER the payment page, her number is there when she reaches the address screen', async ({ page }) => {
+  const livre = new Livre();
+  livre.comptes.set('70123456', { firstName: 'Awa', lastName: 'Ouédraogo', phone: '70 12 34 56', password: 'grain-de-nere' });
+  const erreurs = await ouvrir(page, livre, '/?/s/aicha-4821&pid=p1', async () => { await caisse(page); });
+  await expect(page.locator('[data-screen="C1"]')).toBeVisible();
+  await bande(page).click();
+  const calque = page.locator('[data-role="compte-voile"]');
+  await calque.locator('[data-action="compte-vers-connexion"]').click();
+  await calque.locator('[data-champ="phone"]').pressSequentially('70123456');
+  await calque.locator('[data-champ="password"]').fill('grain-de-nere');
+  await calque.locator('[data-action="compte-connecter"]').click();
+  await expect(calque).toHaveCount(0);
+  await expect(bande(page)).toContainText('Awa');
+  await page.locator('[data-action="commander"]').click();
+  await page.locator('[data-screen="C3"]').waitFor();
+  await expect(page.locator('[data-role="phone"]')).toHaveValue('70 12 34 56');
   expect(erreurs).toEqual([]);
 });
 

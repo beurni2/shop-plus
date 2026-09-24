@@ -1,8 +1,9 @@
 /**
  * COMPTE-CLIENTE — what this phone remembers of her account: her session
- * (the only thing that opens it) and her first name (so the band can greet her
- * without a network read). Nothing else — her number, her email and her names
- * live on the service and are read on demand. The session never reaches the
+ * (the only thing that opens it), her first name (so the band can greet her
+ * without a network read) and, since COMPTE-CLIENTE-2, her number (so the
+ * checkout can fill it). Nothing else — her email and her family name live on
+ * the service and are read on demand. The session never reaches the
  * DOM; it rides only the Bearer header of her own account doors.
  *
  * And, for the tab only, that she chose « Continuer sans compte »: she is not
