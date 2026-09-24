@@ -1090,7 +1090,7 @@ test('VRAI-SUIVI · the timeline advances on server facts alone, and the code ar
   await page.locator('[data-action="suivre"]').click();
   await page.locator('[data-screen="C7"]').waitFor();
   // THE REAL ORDER NUMBER in the corner — CMD-2417 is dead.
-  await expect(page.locator('.cl-cmd')).toHaveText('ord-quote-full-1');
+  await expect(page.locator('.cl-cmd')).toHaveText('N° EFULL1');
   expect(await stage(page)).not.toContain('CMD-2417');
 
   // The facts land one poll at a time, and the timeline follows THEM.
@@ -1168,7 +1168,7 @@ test('VRAI-SUIVI · re-entry — « Ma commande » reopens the REAL tracking of 
   await bande.click();
 
   await page.locator('[data-screen="C7"]').waitFor();
-  await expect(page.locator('.cl-cmd')).toHaveText('ord-quote-full-1');
+  await expect(page.locator('.cl-cmd')).toHaveText('N° EFULL1');
   // The re-entry polls the REAL service: the arrival fact lands, step 5.
   await page.locator('[data-action="voir-code"]').waitFor({ timeout: 15_000 });
   // No Simuler — and no door road either: a re-entry has no live checkout
@@ -1693,7 +1693,7 @@ test('REPRISE · un rechargement après paiement retombe sur sa commande', async
   await page.reload();
   // RED today: C1 renders and the order is nowhere on screen.
   await page.locator('[data-screen="C7"]').waitFor({ timeout: 15_000 });
-  await expect(page.locator('.cl-cmd')).toHaveText('ord-quote-full-1');
+  await expect(page.locator('.cl-cmd')).toHaveText('N° EFULL1');
   // …and the delivery watch is LIVE again: reads keep flowing to the service.
   // (This is the assertion the « resume skips the watch restart » mutation —
   // the e6bcc54 class — must turn red: a resumed C7 with a dead watch renders

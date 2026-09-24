@@ -334,7 +334,10 @@ describe('COMPTE-CLIENTE-2 — the screens', () => {
   it('her orders show their date and reference — never her read token', () => {
     const html = renderCommandes([{ orderId: 'ord-<b>1', buyerRef: 'REF-SECRETE-9', at: '2026-09-24T08:00:00.000Z' }]);
     expect(html).toContain('Commande du 24/09/2026');
-    expect(html).toContain('ord-&lt;b&gt;1');
+    // SUIVI-REFERENCE — she reads a reference she can say out loud; the raw id
+    // rides only the tap's attribute, escaped.
+    expect(html).toContain('<span class="compte-commande-ref">N° ORDB1</span>');
+    expect(html).toContain('data-order="ord-&lt;b&gt;1"');
     expect(html).not.toContain('REF-SECRETE-9');
     expect(renderCommandes([])).toContain('Pas encore de commande');
     expect(renderCommandes('echec')).toContain('data-action="compte-commandes-relire"');

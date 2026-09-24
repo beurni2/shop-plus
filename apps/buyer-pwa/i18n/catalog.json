@@ -3138,6 +3138,12 @@
   "screenClass": "label"
  },
  {
+  "key": "cl.c7.reference",
+  "fr": "N° {ref}",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
   "key": "cl.c7.probleme",
   "fr": "Problème signalé. Une personne s’en occupe. La commande reste protégée.",
   "register": "money",

@@ -548,7 +548,9 @@ test('« Mes commandes »: her orders from any phone, newest first — a tap ope
   const lignes = page.locator('[data-action="compte-suivre"]');
   await expect(lignes).toHaveCount(2);
   await expect(lignes.nth(0)).toContainText('Commande du 23/09/2026');
-  await expect(lignes.nth(0)).toContainText('ord-quote-2');
+  // SUIVI-REFERENCE — the same short reference the tracking shows.
+  await expect(lignes.nth(0)).toContainText('N° QUOTE2');
+  await expect(lignes.nth(0)).not.toContainText('ord-quote');
   expect(await page.content()).not.toContain('REF-SECRETE');
   await lignes.nth(1).click();
   await expect(page.locator('[data-screen="C7"]')).toBeVisible();
@@ -836,5 +838,30 @@ test('PORTE-BELLE — « Ma commande » says « Suivre », never the order\'s co
   await expect(bandeCommande).not.toContainText('ord-quote');
   await bandeCommande.click();
   await expect(page.locator('[data-screen="C7"]')).toBeVisible();
+  expect(erreurs).toEqual([]);
+});
+
+
+/* ═══ SUIVI-REFERENCE — the founder's report (2026-09-24): « When I tap suivre ma commande I see this » ═══
+ * His screenshot: the tracking opened from « Suivre », « Le suivi » crushed onto
+ * two lines, and the raw order code « ord-quote-8ef5bb44-41fd-4f73-b751-
+ * 92db27a7f877 » in a pill running off the right edge of the phone. Written
+ * RED first, on his exact code. The width check is the SCREEN-FIT law's own
+ * (founder, 2026-07-22: zero horizontal overflow on a 360px phone) — the
+ * existing SCREEN-FIT walk only ever fed this screen a short demo code. */
+test('SUIVI-REFERENCE — « Suivre » opens a tracking that fits a 360px phone, with a reference she can read out, not the raw code', async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 800 });
+  const livre = new Livre();
+  await page.addInitScript(() => {
+    localStorage.setItem('sp-commande:v1', JSON.stringify({ orderId: 'ord-quote-8ef5bb44-41fd-4f73-b751-92db27a7f877', buyerRef: 'REF-SUIVI', at: '2026-09-24T08:00:00.000Z' }));
+  });
+  const erreurs = await ouvrir(page, livre);
+  await page.locator('[data-role="ma-commande"]').click();
+  await expect(page.locator('[data-screen="C7"]')).toBeVisible();
+  const reference = page.locator('[data-screen="C7"] .cl-cmd');
+  await expect(reference).toHaveText('N° A7F877');
+  await expect(page.locator('[data-screen="C7"]')).not.toContainText('ord-quote');
+  const largeur = await page.evaluate(() => document.documentElement.scrollWidth);
+  expect(largeur, `the tracking overflows a 360px phone (scrollWidth ${largeur})`).toBeLessThanOrEqual(360);
   expect(erreurs).toEqual([]);
 });

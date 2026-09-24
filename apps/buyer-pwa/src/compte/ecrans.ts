@@ -1,6 +1,7 @@
 import { t, tf } from '../i18n';
 import { esc } from '../format';
 import { caretApresChiffres, telEnPaires } from '../cliente/telephone';
+import { referenceCourte } from '../cliente/screens';
 import type { CommandeCompte, ComptePort, Echec, ProfilCliente } from './port';
 import { garderSession, marquerInvitee, oublierSessions, rafraichirSession, sessionActive } from './garde';
 import { icon } from '../icons';
@@ -367,7 +368,7 @@ export function renderCommandes(etat: readonly CommandeCompte[] | 'chargement' |
     '<div class="compte-commandes" data-role="compte-commandes">',
     ...etat.map((c) =>
       `<button class="compte-commande" type="button" data-action="compte-suivre" data-order="${esc(c.orderId)}">` +
-      `<span>${tf('compte.commandes.ligne', { date: dateCourte(c.at) })}</span><span class="compte-commande-ref">${esc(c.orderId)}</span></button>`),
+      `<span>${tf('compte.commandes.ligne', { date: dateCourte(c.at) })}</span><span class="compte-commande-ref">${esc(tf('cl.c7.reference', { ref: referenceCourte(c.orderId) }))}</span></button>`),
     '</div>',
   ].join('');
 }

@@ -2538,6 +2538,17 @@ function renderRemboursement(r: NonNullable<C7State['remboursement']>): string {
   ].join('');
 }
 
+/**
+ * SUIVI-REFERENCE (founder report, 2026-09-24: the tracking opened from
+ * « Suivre » with « ord-quote-8ef5bb44-41fd-4f73-b751-92db27a7f877 » in a pill
+ * that ran off his phone) — the order as a person can read it out: its last
+ * six letters or digits, in capitals (« A7F877 »). Only how it is SHOWN; the
+ * full id stays the order's key everywhere.
+ */
+export function referenceCourte(orderId: string): string {
+  return orderId.replace(/[^A-Za-z0-9]/g, '').slice(-6).toUpperCase();
+}
+
 export function renderC7(s: C7State): string {
   const rembourse = s.remboursement !== undefined;
   const atDoor = s.step >= 5 && !s.problem && s.step < 6 && s.porte !== false && !rembourse;
@@ -2548,7 +2559,9 @@ export function renderC7(s: C7State): string {
   return [
     '<div class="cl-screen" data-screen="C7">',
     `<div class="cl-stephead"><div class="cl-steptitle">${t('cl.c7.titre')}</div>${
-      s.commande !== undefined && s.commande !== '' ? `<span class="cl-cmd">${esc(s.commande)}</span>` : ''
+      s.commande !== undefined && s.commande !== ''
+        ? `<span class="cl-cmd">${esc(tf('cl.c7.reference', { ref: referenceCourte(s.commande) }))}</span>`
+        : ''
     }</div>`,
     `<div class="cl-c7-intro">${SUIVI.intro}</div>`,
     s.problem ? `<div class="cl-problem" data-role="problem-banner">${t('cl.c7.probleme')}</div>` : '',

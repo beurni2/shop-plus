@@ -236,7 +236,7 @@ const ECRANS = {
   'cl.c6.pending_chip': M('money', L()), 'cl.c6.offline_titre': M('money', L()), 'cl.c6.offline_corps': M('money', S()),
   'cl.c6.suivre': M('money', L()),
   // C7 — the tracking (and the demo lever)
-  'cl.c7.titre': M('neutral', L()), 'cl.c7.probleme': M('money', S()), 'cl.c7.maintenant': M('neutral', L()), 'cl.c7.porte': M('money', L()),
+  'cl.c7.titre': M('neutral', L()), 'cl.c7.reference': M('neutral', L(['{ref}'])), 'cl.c7.probleme': M('money', S()), 'cl.c7.maintenant': M('neutral', L()), 'cl.c7.porte': M('money', L()),
   'cl.c7.signaler': M('money', L()), 'cl.demo.simuler': M('neutral', L(['{etape}'])), 'cl.demo.etape_preparee': M('neutral', L()),
   'cl.demo.etape_prete': M('neutral', L()), 'cl.demo.etape_en_route': M('neutral', L()), 'cl.demo.etape_porte': M('neutral', L()),
   'cl.demo.note_toast': M('neutral', L(['{titre}', '{duree}'])),
