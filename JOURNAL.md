@@ -1,7 +1,9 @@
 # JOURNAL — shop-plus
 Continuity ledger per CTO charter §6/§6bis. Every entry is evidence-grounded.
 
-## 2026-09-24 · COMPTE-CLIENTE-2 (founder « Go, and fix the ones still open ») — her way back through a code the founder gives by calling her number, « Mes commandes », « Supprimer mon compte », « Garder mon compte ouvert », her boutique's name at the door, and her account on the product and payment pages · canon 3.23.0 (abc9f9c, docs only) · ON THE BRANCH, awaiting the founder's word
+## 2026-09-24 · COMPTE-CLIENTE-2 (founder « Go, and fix the ones still open ») — her way back through a code the founder gives by calling her number, « Mes commandes », « Supprimer mon compte », « Garder mon compte ouvert », her boutique's name at the door, and her account on the product and payment pages · canon 3.23.0 (abc9f9c, docs only) · MERGED AND DEPLOYED 2026-09-24 on the founder's « Go »
+
+**MERGED AND DEPLOYED (founder: « Go », 2026-09-24).** Canon first (`main` → `359161f`, docs only). Shop+ `main` fast-forwarded `1b1121c → 4a6007f` (ancestry verified before the push); **storefront-deploy 112 (id 36002912438) `success`, provenance read back from the live `/health`: release `4a6007f…`, canon 3.23.0, custody armed (all four wires), PBKDF2 at 100 000**; **pwa-preview 494 (id 36002904927) `success`** — the buyer app with the recovery, « Mes commandes », delete and the payment-page account; on `4a6007f`: ci 706 · expo-preview 527 green; **service-canon-drift 393 red on attempt 1** — it read `/health` at 13:02:45, one second before the deploy step began, and saw the old release (`1b1121c`, 3.22.0) — **green on attempt 2** with no change. Then Boutik+ (see its journal).
 
 **Founder order (2026-09-24).** « Go, and fix the ones still open » — on the COMPTE-CLIENTE report, whose open items were: no proof of number ownership and no forgotten-password road; the account only on boutique links; the doors without the boutique's name; the account unused at checkout and her orders not following her; a shared phone always kept signed in; the data-protection declaration (his, legal) and the deploy order.
 
