@@ -1,7 +1,43 @@
 # JOURNAL — shop-plus
 Continuity ledger per CTO charter §6/§6bis. Every entry is evidence-grounded.
 
-## 2026-09-24 · BANDE-PAYEE (founder report) — « Ma commande » stands only for an order she paid; the panier's band too · no canon change · ON THE BRANCH, awaiting the founder's word
+## 2026-09-24 · MES-COMMANDES-PAYEES (founder decision) — an order joins « Mes commandes » only once she paid, and only the account that made it · no canon change · ON THE BRANCH, awaiting the founder's word
+
+**Founder decision (2026-09-24),** on the item left open by BANDE-PAYEE (« « Mes commandes » can still list an order that was never paid … I recommend adding it to her account only once the service says it's paid »): « Mes commandes » (for buyers with an account) go with your recommendation.
+
+**Governing text.** Ten Laws #2 — provider webhooks are the only payment truth; COMPTE-CLIENTE-2's own laws — a guest's order is linked to nobody, her session rides only her own account doors' Bearer, « Garder mon compte ouvert » unticked leaves nothing lasting; 2026-08-10 — walks red first.
+
+**What was happening (read before writing).** `creerRattacheur` (`compte/entree.ts`) sent the link to her account book the moment it was told an order: from `passerLaCommande` right after the create (`payment_pending`) and from the panier's first, still-pending grouped answer. So a payment she never finished sat in her list, opening « Commande enregistrée — Nous avons bien reçu votre commande ».
+
+**Red first.** 5 walks red at `b787a6f` (`e2e/compte.spec.ts`): an order joined « Mes commandes » before anyone paid — on the payment page, in the panier, and in the three closed-tab cases.
+
+**What changed (`3848428`, `a63d640`, `efa7762`).**
+- **At the create the phone only REMEMBERS the order as owed** (`retenirLien`, `compte/garde.ts`): its id, her read token and the session signed in then, beside that session and in the same store — so « Garder mon compte ouvert » unticked keeps it in the tab only — at most ten, newest first (the book's own bound for one call). Signing out forgets every owed link.
+- **Whose an order is, is decided once**, at its first create in the tab — an account, or nobody — and the tab remembers it past a sign-out (ids only, no session): a retried payment answers the same order and never re-aims it (verifier BLOCKER).
+- **The link goes when the service says her money moved** (paid · confirmed · refunded — `verdictBande`), under the session that made the order: the payment watch's confirmation and a create answered already confirmed (`flow.ts` `lierAuCompte`), the panier's confirmation, every article (`panier-source.ts`), and her next visit when the tab closed first (`lierLesCommandesDues`, one read per owed order: paid joins; failed or cancelled is dropped — except a failed payment in the tab still open, which « Réessayer » there can still turn into a paid one; waiting or no answer is asked again).
+- **Answers:** linked, or refused by name (her session ended since) ⇒ owed no more, never re-aimed; no network, or the book could not answer (« indisponible ») ⇒ still owed. The page's own copy stands in only for a store that refused, and only while that session is still hers.
+- **Nothing else changed:** the checkout, the payment, the tracking, the bands, the service, money, the canon.
+
+**Evidence.**
+- **Red first:** 5 walks red at `b787a6f` (an order joined « Mes commandes » before anyone paid); green after.
+- **Walks:** compte + checkout-real + panier-payer + cliente 129 / 129 at `efa7762` (7 MES-COMMANDES-PAYEES walks: the payment page joins only on confirmation · a create answered already confirmed · the panier, every article · the closed tab then paid / failed / still waiting · Awa signs out, Mariam signs in, retries).
+- **Unit:** buyer app 1370 / 1370 (`test/compte.test.ts` 36: nothing sent at the create · once on « paid » · the making session, never the current one · a session ended since drops it · no network and « indisponible » keep it owed · the store of her session, and sign-out forgets · ten at most · the next visit's verdicts · a failed payment in the open tab kept · a retry never re-aims, also across a reload · the page copy dead after sign-out); typecheck green.
+- **Mutations** (committed first; anchor exactly once before and gone after; byte-checked restore): C1 sent at the create · C2 the watch's « paid » never links · C3 a create answered « paid » never links (survived at first — no signed-in walk had it; walk added in `a63d640`, then KILLED) · C4 the panier never links · C5 the next visit never links · C6 failed/cancelled never dropped · C7 sent under whoever is signed in now · C8 sign-out keeps owed links · C9 owed links always lasting · C10 a session ended since keeps it owed · D1 a retry re-aims · D2 the page copy after sign-out · D3 a server error drops it · D4 a failed payment in the open tab dropped — **14 / 14 KILLED.**
+- **Gate board at `efa7762`:** ALL GATES GREEN, 115 sections, EXIT 0 (Playwright 259 passed).
+
+**Verifier.** ONE fresh-context pass (given only the founder's decision, what was there before, the laws, the diff `b787a6f..a63d640` and the definition of done; it ran the unit file 32/32, the 43 account walks and the typecheck, and wrote a scratch reproduction against the real modules). It confirmed the four joining moments, that a waiting, failed or cancelled order never sends, that owed links live with her session and every sign-out, lost session and deletion wipes the stored copies, that nothing new reaches the page, and that a double send is absorbed by the book. **1 blocker · 0 major · 3 minor, handled once in `efa7762`, never re-inspected:**
+- **BLOCKER — a retried payment re-aimed the order:** every create answer re-read who was signed in, so Awa's failed payment, retried after she signed out and Mariam signed in over it, would have joined Mariam's list with Awa's read token (and a guest's order could join the account she signed into before a retry). **Fixed:** the first create decides, the tab remembers past a sign-out; walked on the real page (Awa signs out, Mariam signs in, « Réessayer », confirmed — Mariam's list empty) and in unit (also across a reload). Mutation D1 killed by both.
+- **MINOR — sign-out cleared the phone but not the page's copy:** a confirmation later on the same page still sent under her old session (her own account only, and only if the logout never reached the service). **Fixed:** the page's copy counts only while that session is still signed in. D2 killed.
+- **MINOR — a passing server error dropped the owed link for good.** **Fixed:** « indisponible » keeps it owed. D3 killed.
+- **MINOR — a late « failed » at the next-visit check could drop what a retry still needs.** **Fixed:** a failed payment in the tab still open stays owed. D4 killed. (The closed-tab walks now close the tab — its whole storage — which is what made this visible.)
+
+**Still open.**
+- Nothing new from this build. Still the founder's from COMPTE-CLIENTE-2: the SMS/WhatsApp provider for automatic codes · whether a recovered number keeps its name and orders (safest default applied: it starts clean) · a Shop+ support number on the recovery screen · the legal data-protection declaration.
+- **Kept, not changed:** orders linked before this deploy stay in the lists that already hold them (a list the book keeps is not rewritten from the phone).
+
+## 2026-09-24 · BANDE-PAYEE (founder report) — « Ma commande » stands only for an order she paid; the panier's band too · no canon change · MERGED AND DEPLOYED 2026-09-24 on the founder's « Go for both »
+
+**MERGED AND DEPLOYED (founder: « Go for both », 2026-09-24).** `main` fast-forwarded `b598b74 → b787a6f` (ancestry verified before the push) with SUIVI-REFERENCE and BANDE-PAYEE together. Buyer app only — no Worker change, so no storefront-deploy: **pwa-preview 496 (id 36052622958) `success`**; on `b787a6f`: expo-preview 529 · service-canon-drift 395 green · **ci 708 red on its first attempt** — one Worker seam test (`colis.e2e` COLIS-2, « TOOK NOTHING ») timed out its 5 s wait for a background wire on a loaded runner; no Worker code changed in this merge, the same test is green on ci 707 and on both local boards and 3 × 3 locally, and **the re-run of that job (attempt 2) is `success`**.
 
 **Founder report (2026-09-24),** right after SUIVI-REFERENCE: « I did not submit any commande why is there a suivre ma commande ».
 
@@ -35,7 +71,9 @@ Continuity ledger per CTO charter §6/§6bis. Every entry is evidence-grounded.
 - **« Mes commandes » (signed-in buyers) — the founder's call.** An order is linked to her account the moment she taps « Payer », and the list carries no order state, so a never-paid order can still show there and open « Commande enregistrée ». Two ways: link the order only once the service says it is paid (recommended — no extra reads, but the link then rides the payment's confirmation, including when the tab died before it), or ask the service about each listed order (up to 50 reads per visit).
 - Still the founder's from COMPTE-CLIENTE-2: the SMS/WhatsApp provider · whether a recovered number keeps its name and orders (safest default applied: it starts clean) · a Shop+ support number on the recovery screen · the legal data-protection declaration.
 
-## 2026-09-24 · SUIVI-REFERENCE (founder report) — the tracking opened from « Suivre » fits his phone: « Réf. A7F877 », never the raw order code; one number for one order on every screen · no canon change · ON THE BRANCH, awaiting the founder's word
+## 2026-09-24 · SUIVI-REFERENCE (founder report) — the tracking opened from « Suivre » fits his phone: « Réf. A7F877 », never the raw order code; one number for one order on every screen · no canon change · MERGED AND DEPLOYED 2026-09-24 on the founder's « Go for both »
+
+**MERGED AND DEPLOYED (founder: « Go for both », 2026-09-24).** `main` fast-forwarded `b598b74 → b787a6f` (ancestry verified before the push) with SUIVI-REFERENCE and BANDE-PAYEE together. Buyer app only — no Worker change, so no storefront-deploy: **pwa-preview 496 (id 36052622958) `success`**; on `b787a6f`: expo-preview 529 · service-canon-drift 395 green · **ci 708 red on its first attempt** — one Worker seam test (`colis.e2e` COLIS-2, « TOOK NOTHING ») timed out its 5 s wait for a background wire on a loaded runner; no Worker code changed in this merge, the same test is green on ci 707 and on both local boards and 3 × 3 locally, and **the re-run of that job (attempt 2) is `success`**.
 
 **Founder report (2026-09-24),** on a phone screenshot (≈390 px) of the order tracking reached by tapping « Suivre » on the « Ma commande » band: « When I tap suivre ma commande I see this ». The title « Le suivi » broke onto two lines, and beside it a pill holding the raw order code « ord-quote-8ef5bb44-41fd-4f73-b751-92db27a7f877 » ran off the right edge of the screen, dragging the timeline card and the buttons with it.
 
