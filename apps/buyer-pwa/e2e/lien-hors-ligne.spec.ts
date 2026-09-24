@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { commeInvitee } from './invitee';
 
 /**
  * ═══ LIEN-HORS-LIGNE-1 (AUDIT-SHOP-2 F-02 · F-52) — THE LINK SHE ACTUALLY
@@ -138,6 +139,7 @@ test('VIGNETTES-1 (F-22) — on the real port the grid tile asks the media servi
   await page.route('https://media.example/**', (route) => route.abort('failed'));
   await page.route('**/checkout/**', (route) => route.abort('failed'));
   await service(page, 'ok');
+  await commeInvitee(page);
   await page.goto('/?/v/aicha-4821');
   await expect(page.locator('.vt-root[data-etat="ready"]')).toBeVisible();
   const tuile = page.locator('.vt-tile[data-pid="p2"] img.vt-tile-photo');

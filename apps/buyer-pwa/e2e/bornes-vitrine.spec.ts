@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { commeInvitee } from './invitee';
 
 /**
  * BORNES-VITRINE-1 (AUDIT-SHOP-2 F-55) — a malformed wire field never blanks
@@ -42,6 +43,7 @@ const MALFORMEE = {
 async function ouvrir(page: Page, path: string): Promise<string[]> {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(String(e.message ?? e)));
+  await commeInvitee(page);
   await page.route('**/api/s/**', (route) =>
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(MALFORMEE) }),
   );

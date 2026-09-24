@@ -1,4 +1,5 @@
 import { expect, test, type Page, type Route } from '@playwright/test';
+import { commeInvitee } from './invitee';
 
 /**
  * ═══ POLITIQUE-CONTENU-1 (AUDIT-SHOP-2 F-61) — THE BROWSER'S OWN WORD ═══
@@ -145,6 +146,7 @@ test('RÉEL — the boutique carries no WhatsApp tap; on the buyer’s own produ
   // SERVED, renders no WhatsApp tap on any tile: the option lives on the
   // buyer's own page. The panier button beside each price is the one control
   // on the grid besides the heart.
+  await commeInvitee(page);
   await page.goto(`${REEL}/?/v/aicha-4821`);
   await expect(page.locator('.vt-root[data-etat="ready"]')).toBeVisible();
   await expect(page.locator('[data-action="whatsapp"]')).toHaveCount(0);

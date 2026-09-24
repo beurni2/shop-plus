@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { commeInvitee } from './invitee';
 
 /**
  * ═══ PAUSE-VENTE-1 — « paused resellers can not sell anything until they
@@ -42,6 +43,7 @@ const PAUSE = { service: 'storefront-service', enPause: true, name: 'Chez Aïcha
 async function service(page: Page, shop: 'active' | 'pause', prix: 'muet' | 'pause' = 'muet'): Promise<string[]> {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(String(e.message ?? e)));
+  await commeInvitee(page);
   await page.route('**/api/s/**', (route) =>
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(shop === 'pause' ? PAUSE : BOUTIQUE) }),
   );

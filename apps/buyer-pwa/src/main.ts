@@ -54,6 +54,8 @@ import { VITRINE_THEMES, type VitrineThemeKey } from './vitrine/themes';
 // under base './' at / and /shop-plus/).
 import fontsCss from './fonts.css?raw';
 import { monterRacine } from './racine-view';
+import { resolveComptePort } from './compte/port';
+import { monterEntreeCompte } from './compte/entree';
 
 /**
  * The buyer PWA shell (WO-5.3 chrome). The legacy Grand Teint demo params
@@ -534,6 +536,28 @@ style.textContent = `
   .racine-input[aria-invalid="true"] { border-color: var(--c-danger); }
   .racine-refus { margin: 0; font-size: var(--t-caption); color: var(--c-danger); line-height: ${type.scale.caption.lh}; }
   .racine-pied { margin: 0; font-size: var(--t-caption); color: var(--c-muted); line-height: ${type.scale.caption.lh}; }
+
+  /* COMPTE-CLIENTE — her account screens: the shell's own field, button and
+     band vocabulary; one primary per screen, every other road a full button. */
+  .compte { display: grid; gap: var(--sp-lg); }
+  .compte-titre { margin: 0; font-size: var(--t-titleLG); font-weight: ${type.scale.titleLG.wght}; line-height: ${type.scale.titleLG.lh}; color: var(--c-ink); }
+  .compte-sous { margin: 0; font-size: var(--t-body); color: var(--c-body); line-height: ${type.scale.body.lh}; }
+  .compte-note { margin: 0; padding: var(--sp-md); background: var(--c-sand); color: var(--c-ink); font-size: var(--t-body); line-height: ${type.scale.body.lh}; }
+  .compte-actions { display: grid; gap: var(--sp-md); }
+  .compte-form { display: grid; gap: var(--sp-md); }
+  .compte-saisie { display: flex; gap: var(--sp-sm); }
+  .compte-input { flex: 1; min-width: 0; font-family: inherit; }
+  .compte-input[aria-invalid="true"] { border-color: var(--c-danger); }
+  .compte-voir { flex: none; }
+  .compte-aide { margin: 0; font-size: var(--t-caption); color: var(--c-muted); line-height: ${type.scale.caption.lh}; }
+  .compte-champ-refus { margin: 0; font-size: var(--t-caption); color: var(--c-danger); line-height: ${type.scale.caption.lh}; }
+  .compte-alerte { margin: 0; display: grid; gap: var(--sp-sm); font-size: var(--t-body); color: var(--c-danger); line-height: ${type.scale.body.lh}; }
+  .compte-prive { margin: 0; font-size: var(--t-caption); color: var(--c-body); line-height: ${type.scale.caption.lh}; }
+  .compte-infos { margin: 0; display: grid; gap: var(--sp-md); }
+  .compte-info { display: grid; gap: var(--sp-xs); padding-bottom: var(--sp-sm); border-bottom: 1px solid var(--c-hairline); }
+  .compte-info dt { font-size: var(--t-labelXS); font-weight: ${type.scale.labelXS.wght}; letter-spacing: var(--ls-labelXS); text-transform: uppercase; color: var(--c-muted); }
+  .compte-info dd, .compte-fixe { margin: 0; font-size: var(--t-row); font-weight: ${type.scale.bodyStrong.wght}; color: var(--c-ink); overflow-wrap: anywhere; }
+  .compte-info dd.compte-vide { font-weight: ${type.scale.body.wght}; color: var(--c-muted); }
 
   /* VRAI-SUIVI — « Ma commande », the quiet way back to a live order. Chrome,
      not content: a full-width sand band at the head of the shell, token-driven, one
@@ -1053,7 +1077,7 @@ if (app) {
     // ONE `/v/` link form, no second scheme). Shape-checked here: a mangled
     // token mounts the plain boutique, never an error wall over her shop.
     const listeParam = params.get('liste');
-    mountVitrine(app as HTMLElement, vitrineSlug, {
+    const monterBoutique = (): void => mountVitrine(app as HTMLElement, vitrineSlug, {
       etat: etatParam && (VIT_ETATS as readonly string[]).includes(etatParam) ? (etatParam as VitrineEtat) : undefined,
       profil: harnessProfil(isRealVitrinePath, profilParam),
       fromProduct: params.get('demo-vitrine-depuis') === 'produit',
@@ -1065,6 +1089,27 @@ if (app) {
       // one render draws and nothing that is stored.
       sansPhotos: params.has('apercu-nu'),
     }, listeParam !== null && LISTE_TOKEN.test(listeParam) ? listeParam : undefined);
+    /**
+     * COMPTE-CLIENTE (founder order 2026-09-24) — a REAL boutique link opens on
+     * the three doors (create an account · sign in · continue without one)
+     * unless she is signed in or already chose to continue without. Never on
+     * the harness, and never on the reseller's own previews of his page
+     * (`?entete=` / `apercu-nu`): he is looking at his frame, not shopping.
+     * Without a configured service there is no account road and the boutique
+     * opens exactly as before.
+     */
+    const apercuRevendeur = entete !== undefined || params.has('apercu-nu');
+    const comptePort = isRealVitrinePath && !apercuRevendeur ? resolveComptePort() : undefined;
+    if (comptePort === undefined) {
+      monterBoutique();
+    } else {
+      monterEntreeCompte(app as HTMLElement, {
+        port: comptePort,
+        local: localStorageOrUndefined(),
+        onglet: sessionStorageOrUndefined(),
+        monterBoutique,
+      });
+    }
   } else {
     // RACINE-HONNETE-1 (AUDIT-SHOP-2 F-19, F-63) — the root and every unmatched
     // path land on the HONEST card: a boutique opens from the link her seller

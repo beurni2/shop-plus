@@ -24,6 +24,7 @@ import {
   sondePbkdf2,
 } from './reseller-accounts-do.js';
 import { DLQ_NAME, DeadLetterDO } from './dead-letter-do.js';
+import { BUYER_ACCOUNTS_NAME, BuyerAccountsDO } from './buyer-accounts-do.js';
 import { checkoutPreflight, handleRequest, withReadCors, type StorefrontServiceEnv } from '../src/index.js';
 import { SUPPLY_COLLECTION_ROUTE, SUPPLY_DIAGNOSTIC_ROUTE } from '../src/supply-collection.js';
 import { signPrice } from '../src/publish-price.js';
@@ -66,7 +67,7 @@ const PAGE_DISPATCH = 40;
  *
  * wrangler binds these two classes by their exported names.
  */
-export { StorefrontDO, ListingDO, CheckoutDO, OrderDO, DispatchIndexDO, ResellerFeedDO, BuyerLadderDO, ResellerAccountsDO, WishlistDO, DeadLetterDO, PaymentGroupDO };
+export { StorefrontDO, ListingDO, CheckoutDO, OrderDO, DispatchIndexDO, ResellerFeedDO, BuyerLadderDO, ResellerAccountsDO, WishlistDO, DeadLetterDO, PaymentGroupDO, BuyerAccountsDO };
 /**
  * C1/C2 (audit) — the DURABLE attribution-lock authority (SP-I09b.3
  * first-lock-wins), deployed by joining THIS combined Worker like every other
@@ -103,6 +104,11 @@ interface Env extends WriteAuthEnv {
   ATTRIBUTION_LOCK: DurableObjectNamespace;
   /** RESELLER-ACCOUNTS-1b — the singleton account book (canon v3.8.0). */
   COMPTES?: DurableObjectNamespace;
+  /** COMPTE-CLIENTE — the buyers' own account book (one singleton). OPTIONAL
+   *  like COMPTES: a Worker deployed before migration v12 has no binding, and
+   *  the buyer's account doors answer a named 503 — her purchase never needed it.
+   *  Read in ONE place, the buyer's own doors (pinned by test). */
+  COMPTES_CLIENTES?: DurableObjectNamespace;
   /** LISTE-ENVIES-1 — one instance per liste, idFromName('liste:'+token).
    *  OPTIONAL like COMPTES: a Worker deployed before migration v9 has no
    *  binding, and the liste doors answer a named 503 rather than throwing. */
@@ -169,6 +175,10 @@ interface Env extends WriteAuthEnv {
    * budget; the /health PBKDF2 probe spends the login one. Same fail-open law. */
   LIMITE_INSCRIPTIONS?: Limiteur;
   LIMITE_CONNEXIONS?: Limiteur;
+  /** COMPTE-CLIENTE — the buyer's signup and login, each its own budget
+   * (never a reseller's, never the buyer's create doors). Same fail-open law. */
+  LIMITE_INSCRIPTIONS_CLIENTES?: Limiteur;
+  LIMITE_CONNEXIONS_CLIENTES?: Limiteur;
 }
 
 /**
@@ -211,7 +221,8 @@ function corpsMaxPour(pathname: string): number {
 
 /** The buyer doors answer in their own shape and with CORS, so a browser can read the refusal. */
 function corpsTropGrand(pathname: string): Response {
-  const acheteur = pathname.startsWith('/checkout/') || pathname === '/listes' || pathname.startsWith('/listes/');
+  const acheteur =
+    pathname.startsWith('/checkout/') || pathname === '/listes' || pathname.startsWith('/listes/') || pathname.startsWith('/buyer/');
   return acheteur
     ? withReadCors(Response.json({ ok: false, reason: 'body_too_large' }, { status: 413 }))
     : Response.json({ error: 'body_too_large' }, { status: 413 });
@@ -287,6 +298,16 @@ export default {
     }
     if (request.method === 'GET' && pathname === '/health' && url.searchParams.get('pbkdf2') === '1' && !(await admis(env.LIMITE_CONNEXIONS, request))) {
       return withReadCors(refusLimite());
+    }
+    // COMPTE-CLIENTE — the buyer's two anonymous account doors, each its OWN
+    // budget: a neighbourhood signing up must never refuse a reseller's login,
+    // nor a buyer's order. The book behind the login door adds its per-PHONE
+    // count; this is the per-ADDRESS ceiling it cannot see.
+    if (request.method === 'POST' && pathname === '/buyer/signup' && !(await admis(env.LIMITE_INSCRIPTIONS_CLIENTES, request))) {
+      return withReadCors(refusLimiteCompte());
+    }
+    if (request.method === 'POST' && pathname === '/buyer/login' && !(await admis(env.LIMITE_CONNEXIONS_CLIENTES, request))) {
+      return withReadCors(refusLimiteCompte());
     }
 
     // CORPS-BORNE (AUDIT-SHOP-2 F-06) — bounded before anything reads it.
@@ -1205,6 +1226,41 @@ export default {
       const answer = Response.json({ ok: true, ventes, incomplet: illisibles > 0 });
       answer.headers.set('Cache-Control', 'private, no-store');
       return withResellerCors(answer);
+    }
+
+    /**
+     * ═══ COMPTE-CLIENTE — THE BUYER'S OWN ACCOUNT DOORS (founder 2026-09-24) ═══
+     *
+     * Public on the checkout's terms — the exact buyer origin, the checkout
+     * preflight (POST + Authorization + Content-Type) — because a stranger
+     * must be able to create an account and sign in. Nothing else on this
+     * Worker reads the book behind them: no order, quote, liste, seller,
+     * supplier, rider or founder road. Profile and logout ride her session as
+     * a Bearer; the book receives it in the body (a DO fetch has no ambient
+     * auth). Signup and login carry their body verbatim — the book's own
+     * allowlist refuses a smuggled field. Every answer is `private, no-store`.
+     */
+    if (pathname === '/buyer/signup' || pathname === '/buyer/login' || pathname === '/buyer/profile' || pathname === '/buyer/logout') {
+      if (request.method === 'OPTIONS') return checkoutPreflight();
+      if (request.method !== 'POST') return withReadCors(Response.json({ ok: false, reason: 'method_not_allowed' }, { status: 405 }));
+      if (env.COMPTES_CLIENTES === undefined) {
+        return withReadCors(Response.json({ ok: false, reason: 'accounts_unavailable' }, { status: 503 }));
+      }
+      const livre = env.COMPTES_CLIENTES.get(env.COMPTES_CLIENTES.idFromName(BUYER_ACCOUNTS_NAME));
+      let corps: string;
+      if (pathname === '/buyer/profile' || pathname === '/buyer/logout') {
+        const auth = request.headers.get('Authorization') ?? '';
+        const session = auth.startsWith('Bearer ') ? auth.slice('Bearer '.length) : '';
+        const body = (await request.json().catch(() => ({}))) as unknown;
+        const champs = body !== null && typeof body === 'object' && !Array.isArray(body) ? (body as Record<string, unknown>) : {};
+        corps = JSON.stringify({ ...champs, session });
+      } else {
+        corps = await request.text();
+      }
+      const answer = await livre.fetch(new Request(`https://do${pathname.slice('/buyer'.length)}`, { method: 'POST', body: corps }));
+      const out = new Response(answer.body, answer);
+      out.headers.set('Cache-Control', 'private, no-store');
+      return withReadCors(out);
     }
 
     /**

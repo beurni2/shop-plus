@@ -97,6 +97,14 @@ class_name = "DeadLetterDO"
 name = "PAYMENT_GROUP"
 class_name = "PaymentGroupDO"
 
+# COMPTE-CLIENTE — the buyers' own account book, ONE singleton (idFromName
+# inside): her names, her optional email, her phone (her login) and a PBKDF2
+# hash; sessions only as SHA-256. No money, no order. Read by the buyer's own
+# account doors and nothing else. Same UNPROVEN-UNTIL-DEPLOY caveat as the header.
+[[durable_objects.bindings]]
+name = "COMPTES_CLIENTES"
+class_name = "BuyerAccountsDO"
+
 # FIRST-DEPLOY MIGRATION — create both DO classes. `new_sqlite_classes` is CORRECT
 # AND MANDATORY, not a coin-flip: Cloudflare stopped issuing key-value-backed DO
 # namespaces (changelog 2026-07-09) to any account without a pre-existing one, and
@@ -178,6 +186,13 @@ new_sqlite_classes = ["DeadLetterDO"]
 [[migrations]]
 tag = "v11"
 new_sqlite_classes = ["PaymentGroupDO"]
+
+# COMPTE-CLIENTE — BuyerAccountsDO on its OWN tag, the append-only law every
+# tag above states. Same UNPROVEN-UNTIL-DEPLOY caveat: Miniflare binds this
+# class from its own test config, never from this file.
+[[migrations]]
+tag = "v12"
+new_sqlite_classes = ["BuyerAccountsDO"]
 
 # The PRIVATE R2 bucket (exists: Standard, jurisdiction default, location hint
 # ENAM). Reads go THROUGH the Worker (GET /media/{key}); never a public custom
@@ -354,6 +369,23 @@ simple = { limit = 10, period = 60 }
 [[ratelimits]]
 name = "LIMITE_CONNEXIONS"
 namespace_id = "1004"
+simple = { limit = 60, period = 60 }
+
+# COMPTE-CLIENTE — the buyer's two anonymous account doors, each its OWN budget
+# (never a reseller's, never the buyer's create doors). Buyers are many and sit
+# behind carrier NAT: a reseller posts her link to a WhatsApp group and thirty
+# women open it in the same minute, so a signup allows thirty a minute per
+# address (each one derivation and one account) and a login sixty, like the
+# reseller's. The book behind the login door counts ten refusals per PHONE per
+# quarter hour; a flood from many addresses is not bounded here and never was.
+[[ratelimits]]
+name = "LIMITE_INSCRIPTIONS_CLIENTES"
+namespace_id = "1005"
+simple = { limit = 30, period = 60 }
+
+[[ratelimits]]
+name = "LIMITE_CONNEXIONS_CLIENTES"
+namespace_id = "1006"
 simple = { limit = 60, period = 60 }
 
 # ═══════════════════════════════════════════════════════════════════════════

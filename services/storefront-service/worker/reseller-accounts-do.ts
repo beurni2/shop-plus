@@ -87,7 +87,7 @@ export const SESSION_IDLE_MS = 90 * 24 * 60 * 60 * 1000;
 /** `lastSeenAt` is rewritten at most this often — one storage write per hour
  *  of use, not per request. Bounded by a quarter of the idle life so a short
  *  test life still observes the touch. */
-const SESSION_TOUCH_MS = 60 * 60 * 1000;
+export const SESSION_TOUCH_MS = 60 * 60 * 1000;
 export const LOGIN_FAIL_LIMIT = 10;
 export const LOGIN_FAIL_WINDOW_MS = 15 * 60 * 1000;
 
@@ -108,7 +108,7 @@ interface LoginFailures {
  * way to lengthen a life past the constant); unset, malformed or larger reads
  * as the constant. Nothing in wrangler.toml sets it.
  */
-function idleMsDe(env: { SESSION_IDLE_MS?: string }): number {
+export function idleMsDe(env: { SESSION_IDLE_MS?: string }): number {
   const raw = Number(env.SESSION_IDLE_MS);
   if (!Number.isInteger(raw) || raw < 1) return SESSION_IDLE_MS;
   return Math.min(raw, SESSION_IDLE_MS);
@@ -176,7 +176,7 @@ function toView(a: AccountRecord): AccountView {
   };
 }
 
-async function sha256Hex(value: string): Promise<string> {
+export async function sha256Hex(value: string): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
 }
@@ -198,13 +198,13 @@ async function sha256Hex(value: string): Promise<string> {
  * same commit as the session — nobody is asked to reset anything, and a record
  * that never logs in again simply keeps verifying at its own count.
  */
-const PBKDF2_ITERATIONS = 100_000;
+export const PBKDF2_ITERATIONS = 100_000;
 /** What a record with no `passwordIterations` was derived with — the constant
  *  as it stood before SESSION-VIE-1 wrote the count onto each record. Verifying
  *  such a record at the raised count would refuse every one of them. */
 const PBKDF2_ITERATIONS_HERITEES = 60_000;
 
-async function derivePassword(password: string, saltHex: string, iterations = PBKDF2_ITERATIONS): Promise<string> {
+export async function derivePassword(password: string, saltHex: string, iterations = PBKDF2_ITERATIONS): Promise<string> {
   const salt = new Uint8Array(saltHex.match(/../g)!.map((h) => parseInt(h, 16)));
   const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveBits']);
   const bits = await crypto.subtle.deriveBits(
@@ -244,7 +244,7 @@ export async function sondePbkdf2(): Promise<SondePbkdf2> {
 }
 
 /** Constant-time hex compare — a mismatch costs the same as a match. */
-function egaleConstante(a: string, b: string): boolean {
+export function egaleConstante(a: string, b: string): boolean {
   if (a.length !== b.length) return false;
   let diff = 0;
   for (let i = 0; i < a.length; i += 1) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
@@ -253,7 +253,7 @@ function egaleConstante(a: string, b: string): boolean {
 
 /** Same base32-over-CSPRNG mint the feed codes use; its own prefix so one look
  *  says which door a code opens (SP- feed · SPA- admission · SPS- session). */
-function mintToken(prefix: string): string {
+export function mintToken(prefix: string): string {
   const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
   const bytes = crypto.getRandomValues(new Uint8Array(10)); // 80 bits
   let bits = 0;
@@ -270,9 +270,9 @@ function mintToken(prefix: string): string {
   return `${prefix}-${out.slice(0, 4)}-${out.slice(4, 8)}-${out.slice(8, 12)}-${out.slice(12, 16)}`;
 }
 
-const MAX_FIELD = 191;
+export const MAX_FIELD = 191;
 
-function champ(v: unknown, max = MAX_FIELD): string | null {
+export function champ(v: unknown, max = MAX_FIELD): string | null {
   if (typeof v !== 'string') return null;
   const t = v.trim();
   return t === '' || t.length > max ? null : t;

@@ -3508,5 +3508,353 @@
   "fr": "Vous avez tout rendu. Il n’y a rien à payer.",
   "register": "money",
   "screenClass": "status"
+ },
+ {
+  "key": "compte.porte.titre",
+  "fr": "Bienvenue sur Shop+",
+  "register": "selling",
+  "screenClass": "selling_surface"
+ },
+ {
+  "key": "compte.porte.sous",
+  "fr": "Avec votre compte, vos infos sont gardées pour vous, en sécurité.",
+  "register": "selling",
+  "screenClass": "selling_surface"
+ },
+ {
+  "key": "compte.porte.creer",
+  "fr": "Créer mon compte",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "compte.porte.connecter",
+  "fr": "Me connecter",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "compte.porte.invitee",
+  "fr": "Continuer sans compte",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "compte.porte.invitee_note",
+  "fr": "Sans compte, vous pouvez aussi acheter.",
+  "register": "selling",
+  "screenClass": "status"
+ },
+ {
+  "key": "compte.prive",
+  "fr": "Vos infos restent privées. La vendeuse ne les voit pas.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "compte.inscription.titre",
+  "fr": "Créer mon compte",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "compte.inscription.envoyer",
+  "fr": "Créer mon compte",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "compte.inscription.deja",
+  "fr": "J’ai déjà un compte",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "compte.connexion.titre",
+  "fr": "Me connecter",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "compte.connexion.envoyer",
+  "fr": "Me connecter",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "compte.connexion.creer",
+  "fr": "Créer un compte",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "compte.label.prenom",
+  "fr": "Prénom",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "compte.label.nom",
+  "fr": "Nom de famille",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "compte.label.telephone",
+  "fr": "Numéro de téléphone",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "compte.label.email",
+  "fr": "Email (pas obligatoire)",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "compte.label.email_court",
+  "fr": "Email",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "compte.label.mot_de_passe",
+  "fr": "Mot de passe",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "compte.label.mot_actuel",
+  "fr": "Mot de passe actuel",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "compte.label.mot_nouveau",
+  "fr": "Nouveau mot de passe",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "compte.telephone_exemple",
+  "fr": "Ex. : 70 12 34 56",
+  "register": "neutral",
+  "screenClass": "instruction"
+ },
+ {
+  "key": "compte.aide.mot_de_passe",
+  "fr": "Au moins 8 lettres ou chiffres.",
+  "register": "neutral",
+  "screenClass": "instruction"
+ },
+ {
+  "key": "compte.voir",
+  "fr": "Voir",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "compte.masquer",
+  "fr": "Cacher",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "compte.champ.prenom",
+  "fr": "Écrivez votre prénom.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "compte.champ.nom",
+  "fr": "Écrivez votre nom de famille.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "compte.champ.telephone",
+  "fr": "Écrivez votre numéro en entier, par exemple 70 12 34 56.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "compte.champ.email",
+  "fr": "Cet email n’est pas complet. Vous pouvez aussi le laisser vide.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "compte.champ.mot_de_passe",
+  "fr": "Le mot de passe doit avoir au moins 8 lettres ou chiffres.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "compte.champ.mot_actuel",
+  "fr": "Écrivez votre mot de passe actuel.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "compte.champ.mot_vide",
+  "fr": "Écrivez votre mot de passe.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "compte.refus.hors_ligne",
+  "fr": "Pas de réseau. Rien n’est parti. Réessayez quand la connexion revient.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "compte.refus.session",
+  "fr": "Pour voir votre compte, connectez-vous à nouveau.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "compte.refus.numero_pris",
+  "fr": "Ce numéro a déjà un compte. Connectez-vous avec lui.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "compte.refus.identifiants",
+  "fr": "Le numéro ou le mot de passe ne va pas. Vérifiez, puis réessayez.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "compte.refus.mot_actuel",
+  "fr": "Ce n’est pas votre mot de passe actuel.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "compte.refus.trop",
+  "fr": "Trop d’essais. Attendez quelques minutes, puis réessayez.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "compte.refus.indisponible",
+  "fr": "Ça n’a pas marché. Réessayez dans un moment.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "compte.profil.titre",
+  "fr": "Mon compte",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "compte.profil.retour",
+  "fr": "Retour à la boutique",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "compte.profil.sans_email",
+  "fr": "Pas d’email",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "compte.profil.modifier",
+  "fr": "Modifier mes infos",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "compte.profil.mot_de_passe",
+  "fr": "Changer mon mot de passe",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "compte.profil.deconnecter",
+  "fr": "Me déconnecter",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "compte.profil.hors_ligne",
+  "fr": "Pas de réseau. Vos infos s’afficheront quand la connexion revient.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "compte.reessayer",
+  "fr": "Réessayer",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "compte.annuler",
+  "fr": "Annuler",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "compte.modifier.titre",
+  "fr": "Modifier mes infos",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "compte.modifier.numero_fixe",
+  "fr": "Votre numéro sert à vous connecter. Il ne change pas ici.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "compte.modifier.enregistrer",
+  "fr": "Enregistrer",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "compte.modifier.fait",
+  "fr": "C’est enregistré.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "compte.mdp.titre",
+  "fr": "Changer mon mot de passe",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "compte.mdp.autres",
+  "fr": "Sur vos autres téléphones, il faudra vous connecter à nouveau. Celui-ci reste connecté.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "compte.mdp.envoyer",
+  "fr": "Changer le mot de passe",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "compte.mdp.fait",
+  "fr": "Mot de passe changé. Vos autres téléphones sont déconnectés.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "compte.bande.titre",
+  "fr": "Mon compte",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "compte.bande.invitee",
+  "fr": "Se connecter",
+  "register": "neutral",
+  "screenClass": "label"
  }
 ]
