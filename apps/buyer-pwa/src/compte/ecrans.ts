@@ -167,8 +167,9 @@ export function renderConnexion(note?: string, telephone?: string): string {
   ].join('');
 }
 
-/** Her profile: `null` while it is read, the read's failure, or her infos. */
-export function renderProfil(etat: ProfilCliente | 'chargement' | 'hors_ligne', note?: string): string {
+/** Her profile: while it is read, the read's failure (no network, or the
+ *  service refused), or her infos. */
+export function renderProfil(etat: ProfilCliente | 'chargement' | 'hors_ligne' | 'indisponible', note?: string): string {
   const tete = [
     '<section class="compte" data-screen="compte-profil">',
     retour('compte-boutique', t('compte.profil.retour')),
@@ -180,9 +181,11 @@ export function renderProfil(etat: ProfilCliente | 'chargement' | 'hors_ligne', 
       '<span class="skeleton-line skeleton-line-wide"></span><span class="skeleton-line skeleton-line-mid"></span>',
       '<span class="skeleton-line skeleton-line-wide"></span></div>', '</section>'].join('');
   }
-  if (etat === 'hors_ligne') {
+  if (etat === 'hors_ligne' || etat === 'indisponible') {
     return [...tete,
-      `<p class="offline-banner" data-role="compte-hors-ligne">${t('compte.profil.hors_ligne')}</p>`,
+      etat === 'hors_ligne'
+        ? `<p class="offline-banner" data-role="compte-hors-ligne">${t('compte.profil.hors_ligne')}</p>`
+        : `<p class="compte-alerte" data-role="compte-indisponible">${t('compte.refus.indisponible')}</p>`,
       `<button class="primary-action" type="button" data-action="compte-relire">${t('compte.reessayer')}</button>`,
       '</section>'].join('');
   }
@@ -343,7 +346,7 @@ export function monterCompte(main: HTMLElement, opts: OptsCompte): void {
       afficher('connexion', { note: t('compte.refus.session') });
       return;
     }
-    main.innerHTML = renderProfil('hors_ligne');
+    main.innerHTML = renderProfil(r.kind === 'hors_ligne' ? 'hors_ligne' : 'indisponible');
   };
 
   const entrer = (session: string, p: ProfilCliente): void => {

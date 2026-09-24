@@ -105,6 +105,11 @@ function lireEmail(v: unknown): { email?: string } | null {
   return { email };
 }
 
+/** The salt a refused login derives against when there is no account to
+ *  prove, so an unknown number costs the same derivation as a wrong password
+ *  (verifier MINOR 1: 3–5 ms against 17–20 ms told them apart). */
+const SEL_FACTICE = '5a17fac71ce0000000000000a55e7b1e';
+
 const selNeuf = (): string =>
   [...crypto.getRandomValues(new Uint8Array(16))].map((b) => b.toString(16).padStart(2, '0')).join('');
 
@@ -211,9 +216,11 @@ export class BuyerAccountsDO {
       if (expires.length > 0) await this.state.storage.delete(expires);
 
       const accountId = await this.state.storage.get<string>(`${TEL_PREFIX}${hashTel}`);
-      if (accountId === undefined) return refus('bad_credentials', 401);
-      const record = await this.compte(accountId);
-      if (record === undefined) return refus('bad_credentials', 401);
+      const record = accountId === undefined ? undefined : await this.compte(accountId);
+      if (accountId === undefined || record === undefined) {
+        await derivePassword(password, SEL_FACTICE);
+        return refus('bad_credentials', 401);
+      }
       const derive = await derivePassword(password, record.passwordSaltHex, record.passwordIterations);
       if (!egaleConstante(derive, record.passwordHashHex)) return refus('bad_credentials', 401);
       const { session, ecritures } = await this.minterSession(accountId);
@@ -281,8 +288,20 @@ export class BuyerAccountsDO {
         const nouveau = typeof body['newPassword'] === 'string' ? body['newPassword'] : '';
         if (actuel === '') return refus('bad_field', 400, 'currentPassword');
         if (nouveau.length < 8 || nouveau.length > MAX_FIELD) return refus('bad_field', 400, 'newPassword');
+        // A stolen session must not be a free way to guess her password (verifier
+        // MINOR 2): the login's own count, per ACCOUNT, before any derivation.
+        const cleEchecs = `${ECHECS_PREFIX}mdp:${record.accountId}`;
+        const nowMs = Date.now();
+        const echecs = await this.state.storage.get<LoginFailures>(cleEchecs);
+        const dansLaFenetre = echecs !== undefined && nowMs - Date.parse(echecs.depuis) < LOGIN_FAIL_WINDOW_MS;
+        if (dansLaFenetre && echecs.n >= LOGIN_FAIL_LIMIT) return refus('too_many_attempts', 429);
+        await this.state.storage.put(cleEchecs, {
+          n: dansLaFenetre ? echecs.n + 1 : 1,
+          depuis: dansLaFenetre ? echecs.depuis : new Date(nowMs).toISOString(),
+        } satisfies LoginFailures);
         const derive = await derivePassword(actuel, record.passwordSaltHex, record.passwordIterations);
         if (!egaleConstante(derive, record.passwordHashHex)) return refus('bad_password', 401);
+        await this.state.storage.delete(cleEchecs);
         const saltHex = selNeuf();
         nouveauMotDePasse = { passwordSaltHex: saltHex, passwordHashHex: await derivePassword(nouveau, saltHex), passwordIterations: PBKDF2_ITERATIONS };
       }

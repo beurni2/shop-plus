@@ -68,16 +68,29 @@ export function lireProfilWire(body: unknown): ProfilCliente | undefined {
   return { firstName, lastName, phone, ...(email !== undefined ? { email } : {}) };
 }
 
+/**
+ * The profile read fires by itself when her profile opens, so it alone is
+ * bounded in time (the delivery watch's law, quote-port.ts): a stalled socket
+ * must end on the offline face with its « Réessayer », never on a skeleton
+ * with nothing to press. Every other door here is a tap she can see busy.
+ */
+export const LECTURE_PROFIL_TIMEOUT_MS = 15_000;
+
 export function httpComptePort(base: string): ComptePort {
-  const appeler = async (chemin: string, corps: unknown, session?: string): Promise<Response | null> => {
+  const appeler = async (chemin: string, corps: unknown, session?: string, delaiMs?: number): Promise<Response | null> => {
+    const ctrl = delaiMs !== undefined && typeof AbortController === 'function' ? new AbortController() : null;
+    const stall = ctrl === null ? null : setTimeout(() => ctrl.abort(), delaiMs);
     try {
       return await fetch(`${base}/buyer/${chemin}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...(session !== undefined ? { Authorization: `Bearer ${session}` } : {}) },
         body: JSON.stringify(corps),
+        ...(ctrl !== null ? { signal: ctrl.signal } : {}),
       });
     } catch {
       return null;
+    } finally {
+      if (stall !== null) clearTimeout(stall);
     }
   };
   const lire = async <T>(res: Response | null, extraire: (body: Record<string, unknown>) => T | undefined): Promise<Resultat<T>> => {
@@ -109,7 +122,7 @@ export function httpComptePort(base: string): ComptePort {
       return lire(await appeler('login', { phone, password }), avecSession);
     },
     async lireProfil(session) {
-      return lire(await appeler('profile', {}, session), lireProfilWire);
+      return lire(await appeler('profile', {}, session, LECTURE_PROFIL_TIMEOUT_MS), lireProfilWire);
     },
     async modifierProfil(session, patch) {
       const corps = {

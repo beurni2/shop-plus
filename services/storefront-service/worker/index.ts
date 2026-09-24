@@ -1242,9 +1242,10 @@ export default {
      */
     if (pathname === '/buyer/signup' || pathname === '/buyer/login' || pathname === '/buyer/profile' || pathname === '/buyer/logout') {
       if (request.method === 'OPTIONS') return checkoutPreflight();
-      if (request.method !== 'POST') return withReadCors(Response.json({ ok: false, reason: 'method_not_allowed' }, { status: 405 }));
+      const prive = { headers: { 'Cache-Control': 'private, no-store' } };
+      if (request.method !== 'POST') return withReadCors(Response.json({ ok: false, reason: 'method_not_allowed' }, { status: 405, ...prive }));
       if (env.COMPTES_CLIENTES === undefined) {
-        return withReadCors(Response.json({ ok: false, reason: 'accounts_unavailable' }, { status: 503 }));
+        return withReadCors(Response.json({ ok: false, reason: 'accounts_unavailable' }, { status: 503, ...prive }));
       }
       const livre = env.COMPTES_CLIENTES.get(env.COMPTES_CLIENTES.idFromName(BUYER_ACCOUNTS_NAME));
       let corps: string;

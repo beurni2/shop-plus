@@ -3517,7 +3517,7 @@
  },
  {
   "key": "compte.porte.sous",
-  "fr": "Avec votre compte, vos infos sont gardées pour vous, en sécurité.",
+  "fr": "Avec votre compte, votre nom et votre numéro sont gardés pour vous, en sécurité.",
   "register": "selling",
   "screenClass": "selling_surface"
  },
@@ -3703,7 +3703,7 @@
  },
  {
   "key": "compte.refus.hors_ligne",
-  "fr": "Pas de réseau. Rien n’est parti. Réessayez quand la connexion revient.",
+  "fr": "La connexion a coupé. Réessayez quand le réseau revient.",
   "register": "neutral",
   "screenClass": "status"
  },

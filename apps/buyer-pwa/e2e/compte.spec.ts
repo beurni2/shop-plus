@@ -266,13 +266,13 @@ test('a new password needs the old one; then she signs out and is a guest again'
   expect(erreurs).toEqual([]);
 });
 
-test('no network: nothing is sent and nothing is lost — she presses again when it returns', async ({ page }) => {
+test('no network: she is told the connection cut, nothing she typed is lost, and she presses again when it returns', async ({ page }) => {
   const livre = new Livre();
   const erreurs = await ouvrir(page, livre);
   await action(page, 'compte-vers-inscription').click();
   livre.horsLigne = true;
   await sInscrire(page);
-  await expect(page.locator('[data-role="compte-alerte"]')).toContainText('Pas de réseau');
+  await expect(page.locator('[data-role="compte-alerte"]')).toContainText('La connexion a coupé');
   await expect(champ(page, 'firstName')).toHaveValue('Awa');
   await expect(action(page, 'compte-inscrire')).toBeEnabled();
   expect(await page.evaluate(() => localStorage.getItem('sp-compte:v1'))).toBeNull();
@@ -319,3 +319,59 @@ test('no doors on a signed product link, on the reseller\'s own previews, or on 
   await expect(page.locator('[data-screen="compte-porte"]')).toHaveCount(0);
   expect(livre.appels).toEqual([]);
 });
+
+test('her profile when the service refuses: said plainly (not « no network »), and « Réessayer » reads it again', async ({ page }) => {
+  const livre = new Livre();
+  const erreurs = await ouvrir(page, livre);
+  await action(page, 'compte-vers-inscription').click();
+  await sInscrire(page);
+  let refuser = true;
+  await page.route('**/api/buyer/profile', (route) =>
+    refuser
+      ? route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ ok: false, reason: 'accounts_unavailable' }) })
+      : livre.servir(route));
+  await bande(page).click();
+  await expect(page.locator('[data-role="compte-indisponible"]')).toContainText('Ça n’a pas marché');
+  await expect(page.locator('[data-role="compte-hors-ligne"]')).toHaveCount(0);
+  refuser = false;
+  await action(page, 'compte-relire').click();
+  await expect(page.locator('[data-info="firstName"]')).toHaveText('Awa');
+  expect(erreurs).toEqual([]);
+});
+
+/**
+ * VERIFIER BLOCKER 1 — a phone that will not let the page keep anything (a
+ * WebView with storage off, a store that throws). The choice she makes must
+ * still carry her through: the doors may never become a wall.
+ */
+for (const [nom, bloquer] of [
+  ['every write refused', () => {
+    Storage.prototype.setItem = () => { throw new DOMException('refusé', 'QuotaExceededError'); };
+  }],
+  ['the stores unreachable', () => {
+    for (const k of ['localStorage', 'sessionStorage']) {
+      Object.defineProperty(window, k, { configurable: true, get() { throw new DOMException('refusé', 'SecurityError'); } });
+    }
+  }],
+] as const) {
+  test(`storage blocked (${nom}): « Continuer sans compte » opens the boutique, and a new account greets her and opens her profile`, async ({ page }) => {
+    const livre = new Livre();
+    await page.addInitScript(bloquer);
+    const erreurs = await ouvrir(page, livre);
+    await action(page, 'compte-invitee').click();
+    await expect(boutique(page)).toContainText('Chez Aïcha Mode');
+    await expect(bande(page)).toContainText('Se connecter');
+    await bande(page).click();
+    await action(page, 'compte-vers-inscription').click();
+    await sInscrire(page);
+    await expect(boutique(page)).toContainText('Chez Aïcha Mode');
+    await expect(bande(page)).toContainText('Awa');
+    await bande(page).click();
+    await expect(page.locator('[data-info="firstName"]')).toHaveText('Awa');
+    expect(livre.appels.filter((a) => a.chemin === 'signup')).toHaveLength(1);
+    await action(page, 'compte-deconnecter').click();
+    await expect(bande(page)).toContainText('Se connecter');
+    expect(erreurs).toEqual([]);
+  });
+}
+

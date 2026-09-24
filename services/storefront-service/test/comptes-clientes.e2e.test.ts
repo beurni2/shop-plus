@@ -232,6 +232,20 @@ describe('COMPTE-CLIENTE — her profile', () => {
     expect((await connecter(phone, 'nouveau-mot-long')).res.status).toBe(200);
   });
 
+  it('ten wrong current passwords lock the change — a stolen session is no free way to guess (verifier MINOR 2)', async () => {
+    const { body, password } = await inscrire();
+    const session = body['session'] as string;
+    for (let i = 0; i < 10; i += 1) {
+      const r = await profil(session, { currentPassword: `faux-${i}-mot`, newPassword: 'nouveau-mot-long' });
+      expect(r.res.status, `try ${i + 1}`).toBe(401);
+    }
+    const bloque = await profil(session, { currentPassword: password, newPassword: 'nouveau-mot-long' });
+    expect(bloque.res.status).toBe(429);
+    expect(bloque.body).toEqual({ ok: false, reason: 'too_many_attempts' });
+    // Her infos still read, and her password did not move.
+    expect((await profil(session)).res.status).toBe(200);
+  });
+
   it('sign out ends that session, and is idempotent', async () => {
     const { body } = await inscrire();
     const session = body['session'] as string;
@@ -254,6 +268,7 @@ describe('COMPTE-CLIENTE — the doors', () => {
       const get = await mf.dispatchFetch(`https://svc${path}`);
       expect(get.status, path).toBe(405);
       expect(get.headers.get('access-control-allow-origin')).toBe(ORIGINE);
+      expect(get.headers.get('cache-control')).toBe('private, no-store');
     }
   });
 
@@ -356,6 +371,7 @@ describe('COMPTE-CLIENTE — a Worker without the book', () => {
       expect(res.status).toBe(503);
       expect(await res.json()).toEqual({ ok: false, reason: 'accounts_unavailable' });
       expect(res.headers.get('access-control-allow-origin')).toBe(ORIGINE);
+      expect(res.headers.get('cache-control')).toBe('private, no-store');
     } finally {
       await mf3.dispose();
       rmSync(persist3, { recursive: true, force: true });

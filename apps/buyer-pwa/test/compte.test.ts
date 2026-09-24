@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { httpComptePort, lireProfilWire, resolveComptePort } from '../src/compte/port';
+import { httpComptePort, LECTURE_PROFIL_TIMEOUT_MS, lireProfilWire, resolveComptePort } from '../src/compte/port';
 import { estInvitee, garderSession, marquerInvitee, oublierSession, sessionGardee } from '../src/compte/garde';
 import {
   numeroComplet,
@@ -98,6 +98,21 @@ describe('the wire — each door gets exactly its allowlist, the session only as
     expect(await port.connecter('70 12 34 56', 'x')).toEqual({ kind: 'hors_ligne' });
   });
 
+  it('the profile read, which fires by itself, ends on « hors ligne » when the socket stalls — never a skeleton for ever', async () => {
+    vi.useFakeTimers();
+    try {
+      vi.stubGlobal('fetch', (_url: string, init: RequestInit) =>
+        new Promise((_resolve, reject) => {
+          init.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')));
+        }));
+      const r = port.lireProfil(SESSION);
+      await vi.advanceTimersByTimeAsync(LECTURE_PROFIL_TIMEOUT_MS);
+      expect(await r).toEqual({ kind: 'hors_ligne' });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('logout is best effort: an unreachable service never throws', async () => {
     vi.stubGlobal('fetch', async () => { throw new TypeError('Failed to fetch'); });
     await expect(port.deconnecter(SESSION)).resolves.toBeUndefined();
@@ -123,10 +138,18 @@ describe('what the phone keeps', () => {
     expect(JSON.parse(local.getItem('sp-compte:v1')!)).toEqual({ session: SESSION, prenom: 'Awa' });
     oublierSession(local);
     expect(sessionGardee(local)).toBeUndefined();
-    local.setItem('sp-compte:v1', JSON.stringify({ session: 'SPS-ABCD-EFGH-IJKL-MNOP', prenom: 'X' }));
-    expect(sessionGardee(local)).toBeUndefined();
-    local.setItem('sp-compte:v1', '{pas du json');
-    expect(sessionGardee(local)).toBeUndefined();
+    expect(local.getItem('sp-compte:v1')).toBeNull();
+    // A record this page never wrote is read from the store — and a malformed
+    // one (a reseller's session, broken JSON) is « not signed in ».
+    const autre = memoire();
+    autre.setItem('sp-compte:v1', JSON.stringify({ session: SESSION, prenom: 'Awa' }));
+    expect(sessionGardee(autre)).toEqual({ session: SESSION, prenom: 'Awa' });
+    const revendeuse = memoire();
+    revendeuse.setItem('sp-compte:v1', JSON.stringify({ session: 'SPS-ABCD-EFGH-IJKL-MNOP', prenom: 'X' }));
+    expect(sessionGardee(revendeuse)).toBeUndefined();
+    const casse = memoire();
+    casse.setItem('sp-compte:v1', '{pas du json');
+    expect(sessionGardee(casse)).toBeUndefined();
   });
 
   it('« continuer sans compte » lasts the tab; blocked storage never throws', () => {
@@ -136,10 +159,18 @@ describe('what the phone keeps', () => {
     expect(estInvitee(onglet)).toBe(true);
     const bloque = { getItem: () => { throw new Error('blocked'); }, setItem: () => { throw new Error('blocked'); }, removeItem: () => { throw new Error('blocked'); } } as unknown as Storage;
     expect(sessionGardee(bloque)).toBeUndefined();
-    expect(() => garderSession(bloque, { session: SESSION, prenom: 'A' })).not.toThrow();
     expect(estInvitee(bloque)).toBe(false);
-    expect(() => marquerInvitee(bloque)).not.toThrow();
     expect(sessionGardee(undefined)).toBeUndefined();
+    // VERIFIER BLOCKER 1 — a store that refuses everything never undoes the
+    // step she just took: the page remembers her choice and her session.
+    expect(() => marquerInvitee(bloque)).not.toThrow();
+    expect(estInvitee(bloque)).toBe(true);
+    expect(() => garderSession(bloque, { session: SESSION, prenom: 'A' })).not.toThrow();
+    expect(sessionGardee(bloque)).toEqual({ session: SESSION, prenom: 'A' });
+    expect(() => oublierSession(bloque)).not.toThrow();
+    expect(sessionGardee(bloque)).toBeUndefined();
+    marquerInvitee(null);
+    expect(estInvitee(null)).toBe(true);
   });
 });
 
@@ -151,7 +182,7 @@ describe('the screens', () => {
 
   it('every screen has exactly ONE primary action', () => {
     const p = { firstName: 'Awa', lastName: 'O', phone: '70 12 34 56' };
-    for (const html of [renderPorte(), renderInscription(), renderConnexion(), renderProfil(p), renderProfil('hors_ligne'), renderModifier(p), renderMotDePasse()]) {
+    for (const html of [renderPorte(), renderInscription(), renderConnexion(), renderProfil(p), renderProfil('hors_ligne'), renderProfil('indisponible'), renderModifier(p), renderMotDePasse()]) {
       expect(html.match(/class="primary-action"/g)?.length).toBe(1);
     }
   });
