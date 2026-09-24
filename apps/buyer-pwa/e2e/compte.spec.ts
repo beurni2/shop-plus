@@ -430,9 +430,9 @@ const BUYER_REF = 'ref-compte2-e2e';
 
 /** The checkout's service, scripted as checkout-real.spec scripts it: one full
  *  quote, a hold, an order whose create carries her read token. */
-async function caisse(page: Page): Promise<{ commandes: string[]; etat: string }> {
+async function caisse(page: Page): Promise<{ commandes: string[]; etat: string; creation: string }> {
   // MES-COMMANDES-PAYEES — what the service says of the order, the walk's to move.
-  const vu = { commandes: [] as string[], etat: 'payment_pending' };
+  const vu = { commandes: [] as string[], etat: 'payment_pending', creation: 'payment_pending' };
   await page.route('**/checkout/**', async (route) => {
     const req = route.request();
     const json = (status: number, body: unknown) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
@@ -441,7 +441,7 @@ async function caisse(page: Page): Promise<{ commandes: string[]; etat: string }
     if (/\/checkout\/order$/.test(req.url()) && req.method() === 'POST') {
       const orderId = `ord-${String(corps['quoteId'])}`;
       vu.commandes.push(orderId);
-      return json(200, { orderId, state: 'payment_pending', amountPaidAtCheckout: 13_000, amountDueAtDelivery: 0, doorLeg: 'none', buyerRef: BUYER_REF });
+      return json(200, { orderId, state: vu.creation, amountPaidAtCheckout: 13_000, amountDueAtDelivery: 0, doorLeg: 'none', buyerRef: BUYER_REF });
     }
     if (/\/checkout\/order\/[^/]+$/.test(req.url()) && req.method() === 'GET') {
       return json(200, { orderId: decodeURIComponent(req.url().split('/').pop()!), state: vu.etat, amountPaidAtCheckout: 13_000, amountDueAtDelivery: 0, doorLeg: 'none' });
@@ -583,7 +583,7 @@ test('« Supprimer mon compte »: her password first; then she is a guest, and t
 test('on the payment pages: her number is filled, « Mon compte » opens OVER the payment and leaves it exactly as it was, and the order joins « Mes commandes » once the payment is confirmed', async ({ page }) => {
   const livre = new Livre();
   await dejaConnectee(page, livre);
-  let vu: { commandes: string[]; etat: string } = { commandes: [], etat: 'payment_pending' };
+  let vu: { commandes: string[]; etat: string; creation: string } = { commandes: [], etat: 'payment_pending', creation: 'payment_pending' };
   const erreurs = await ouvrir(page, livre, '/?/s/aicha-4821&pid=p1', async () => { vu = await caisse(page); });
   await expect(page.locator('[data-screen="C1"]')).toBeVisible();
   await expect(bande(page)).toContainText('Awa');
@@ -640,11 +640,26 @@ async function jusquAuPaiement(page: Page): Promise<void> {
   await page.locator('[data-action="payer"]').click();
 }
 
+test('MES-COMMANDES-PAYEES — the service answers the payment already confirmed (a double tap, a replayed request): it joins at once', async ({ page }) => {
+  const livre = new Livre();
+  await dejaConnectee(page, livre);
+  let vu: { commandes: string[]; etat: string; creation: string } = { commandes: [], etat: 'confirmed', creation: 'confirmed' };
+  const erreurs = await ouvrir(page, livre, '/?/s/aicha-4821&pid=p1', async () => {
+    vu = await caisse(page);
+    vu.etat = 'confirmed';
+    vu.creation = 'confirmed';
+  });
+  await jusquAuPaiement(page);
+  await page.locator('[data-etat="confirmee"]').waitFor({ timeout: 20_000 });
+  await expect.poll(() => livre.commandes.get('70123456')?.map((c) => [c.orderId, c.buyerRef])).toEqual([[vu.commandes[0], BUYER_REF]]);
+  expect(erreurs).toEqual([]);
+});
+
 for (const [etatPlusTard, rejoint] of [['confirmed', true], ['payment_failed', false], ['payment_pending', false]] as const) {
   test(`MES-COMMANDES-PAYEES — the tab closes while the operator is asked; next visit the service says ${etatPlusTard}: ${rejoint ? 'it joins her list then' : 'it never joins'}`, async ({ page }) => {
     const livre = new Livre();
     await dejaConnectee(page, livre);
-    let vu: { commandes: string[]; etat: string } = { commandes: [], etat: 'payment_pending' };
+    let vu: { commandes: string[]; etat: string; creation: string } = { commandes: [], etat: 'payment_pending', creation: 'payment_pending' };
     const erreurs = await ouvrir(page, livre, '/?/s/aicha-4821&pid=p1', async () => { vu = await caisse(page); });
     await jusquAuPaiement(page);
     await expect.poll(() => vu.commandes.length).toBe(1);
