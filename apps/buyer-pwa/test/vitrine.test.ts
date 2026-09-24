@@ -182,7 +182,11 @@ describe('BUYER-LIVE-WIRE-2 — a REAL /v/{slug} entry reaches the env-gated por
     // /s/ already had it right; the two disagreeing is what made this survive.
     expect(main).toMatch(/const port = isRealPath \? resolveStorefrontPort\(\) : demoStorefrontPort\(profil\)/);
     const flows = readFileSync(join(__dirname, '..', 'src/vitrine/flows.ts'), 'utf8');
-    expect(flows).toMatch(/harness\.profil \? demoStorefrontPort\(harness\.profil\) : resolveStorefrontPort\(\)/);
+    // COMPTE-CLIENTE-2 — a real entry may hand in the port it reads through
+    // (the welcome step shares the boutique's FIRST read); what it hands in is
+    // `resolveStorefrontPort()` itself, wrapped (main.ts, asserted below).
+    expect(flows).toMatch(/harness\.profil \? demoStorefrontPort\(harness\.profil\) : \(harness\.port \?\? resolveStorefrontPort\(\)\)/);
+    expect(main).toMatch(/const lecture = resolveStorefrontPort\(\);/);
   });
 });
 

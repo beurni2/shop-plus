@@ -216,3 +216,114 @@ describe('the screens', () => {
     expect(modif).toContain('data-info="phone"');
   });
 });
+
+/* ═══ COMPTE-CLIENTE-2 — the way back, her orders, leaving, and « garder mon compte ouvert » ═══ */
+
+import { oublierSessions, rafraichirSession, sessionActive } from '../src/compte/garde';
+import { renderCommandes, renderRecuperation, renderSupprimer } from '../src/compte/ecrans';
+import { creerRattacheur } from '../src/compte/entree';
+
+describe('COMPTE-CLIENTE-2 — the wire', () => {
+  const port = httpComptePort('https://svc/api');
+
+  it('recovery sends her number, the code and the new password, nothing else, with no Bearer', async () => {
+    const { appels } = faux(() => Response.json({ ...PROFIL, session: SESSION }));
+    const r = await port.recuperer('70 12 34 56', 'SPR-AAAA-BBBB-CCCC-DDDD', 'nouveau-mot-long');
+    expect(appels[0]!.url).toBe('https://svc/api/buyer/recover');
+    expect(JSON.parse(appels[0]!.init.body as string)).toEqual({ phone: '70 12 34 56', code: 'SPR-AAAA-BBBB-CCCC-DDDD', newPassword: 'nouveau-mot-long' });
+    expect(new Headers(appels[0]!.init.headers).has('Authorization')).toBe(false);
+    expect(r.kind).toBe('ok');
+    faux(() => Response.json({ ok: false, reason: 'bad_code' }, { status: 401 }));
+    expect(await port.recuperer('70 12 34 56', 'x', 'nouveau-mot-long')).toEqual({ kind: 'refus', reason: 'bad_code' });
+  });
+
+  it('« Mes commandes » reads on her Bearer, adds at most ten, and keeps only whole rows', async () => {
+    const liste = [{ orderId: 'ord-1', buyerRef: 'ref-1', at: '2026-09-24T08:00:00.000Z' }, { orderId: 'ord-2' }];
+    const { appels } = faux(() => Response.json({ ok: true, commandes: liste }));
+    expect(await port.commandes(SESSION)).toEqual({ kind: 'ok', value: [liste[0]] });
+    await port.commandes(SESSION, Array.from({ length: 12 }, (_, i) => ({ orderId: `o-${i}`, buyerRef: `r-${i}`, extra: 'x' } as never)));
+    expect(appels[0]!.url).toBe('https://svc/api/buyer/orders');
+    expect(JSON.parse(appels[0]!.init.body as string)).toEqual({});
+    const ajout = JSON.parse(appels[1]!.init.body as string) as { ajouter: object[] };
+    expect(ajout.ajouter).toHaveLength(10);
+    expect(Object.keys(ajout.ajouter[0]!).sort()).toEqual(['buyerRef', 'orderId']);
+    for (const a of appels) expect(new Headers(a.init.headers).get('Authorization')).toBe(`Bearer ${SESSION}`);
+  });
+
+  it('delete sends only her current password, on her Bearer', async () => {
+    const { appels } = faux(() => Response.json({ ok: true }));
+    expect(await port.supprimer(SESSION, 'mon-mot-actuel')).toEqual({ kind: 'ok', value: true });
+    expect(appels[0]!.url).toBe('https://svc/api/buyer/delete');
+    expect(JSON.parse(appels[0]!.init.body as string)).toEqual({ currentPassword: 'mon-mot-actuel' });
+    expect(new Headers(appels[0]!.init.headers).get('Authorization')).toBe(`Bearer ${SESSION}`);
+  });
+});
+
+describe('COMPTE-CLIENTE-2 — « Garder mon compte ouvert sur ce téléphone »', () => {
+  it('kept on the phone or only in the tab; her session is whichever holds one; signing out empties both', () => {
+    const local = memoire();
+    const onglet = memoire();
+    expect(sessionActive(local, onglet)).toBeUndefined();
+    garderSession(onglet, { session: SESSION, prenom: 'Awa', telephone: '70 12 34 56' });
+    expect(local.getItem('sp-compte:v1')).toBeNull();
+    expect(sessionActive(local, onglet)).toEqual({ session: SESSION, prenom: 'Awa', telephone: '70 12 34 56' });
+    // A refreshed record goes back where the session lives — the tab, here.
+    rafraichirSession(local, onglet, { session: SESSION, prenom: 'Aïcha', telephone: '70 12 34 56' });
+    expect(local.getItem('sp-compte:v1')).toBeNull();
+    expect(sessionActive(local, onglet)?.prenom).toBe('Aïcha');
+    oublierSessions(local, onglet);
+    expect(sessionActive(local, onglet)).toBeUndefined();
+    expect(onglet.getItem('sp-compte:v1')).toBeNull();
+  });
+});
+
+describe('COMPTE-CLIENTE-2 — the screens', () => {
+  it('her orders show their date and reference — never her read token', () => {
+    const html = renderCommandes([{ orderId: 'ord-<b>1', buyerRef: 'REF-SECRETE-9', at: '2026-09-24T08:00:00.000Z' }]);
+    expect(html).toContain('Commande du 24/09/2026');
+    expect(html).toContain('ord-&lt;b&gt;1');
+    expect(html).not.toContain('REF-SECRETE-9');
+    expect(renderCommandes([])).toContain('Pas encore de commande');
+    expect(renderCommandes('echec')).toContain('data-action="compte-commandes-relire"');
+  });
+
+  it('recovery asks her number, the code and a new password, and keeps her number when she came with it', () => {
+    const html = renderRecuperation('70 12 34 56');
+    expect([...html.matchAll(/data-champ="([^"]+)"/g)].map((m) => m[1])).toEqual(['phone', 'code', 'newPassword']);
+    expect(html).toContain('value="70 12 34 56"');
+    expect(html).toContain('data-role="compte-rester"');
+    expect(html.match(/class="primary-action"/g)?.length).toBe(1);
+  });
+
+  it('delete asks her password and says what stays: her orders are still delivered', () => {
+    const html = renderSupprimer();
+    expect([...html.matchAll(/data-champ="([^"]+)"/g)].map((m) => m[1])).toEqual(['currentPassword']);
+    expect(html).toContain('seront livrées');
+    expect(html.match(/primary-action/g)?.length).toBe(1);
+  });
+
+  it('the doors greet her by her boutique, escaped', () => {
+    expect(renderPorte('Chez <Aïcha>')).toContain('Bienvenue chez Chez &lt;Aïcha&gt;');
+    expect(renderPorte()).toContain('Bienvenue sur Shop+');
+  });
+});
+
+describe('COMPTE-CLIENTE-2 — her orders join « Mes commandes »', () => {
+  it('only when she is signed in, and each order once', async () => {
+    const local = memoire();
+    const onglet = memoire();
+    const envoyes: { session: string; ajouter: unknown }[] = [];
+    const port = { commandes: async (session: string, ajouter?: unknown) => { envoyes.push({ session, ajouter }); return { kind: 'ok' as const, value: [] }; } } as never;
+    const rattacher = creerRattacheur(port, local, onglet);
+    rattacher({ orderId: 'ord-invitee', buyerRef: 'r0' });
+    expect(envoyes).toEqual([]);
+    garderSession(local, { session: SESSION, prenom: 'Awa' });
+    rattacher({ orderId: 'ord-1', buyerRef: 'r1' });
+    rattacher({ orderId: 'ord-1', buyerRef: 'r1' });
+    rattacher({ orderId: 'ord-2', buyerRef: 'r2' });
+    expect(envoyes).toEqual([
+      { session: SESSION, ajouter: [{ orderId: 'ord-1', buyerRef: 'r1' }] },
+      { session: SESSION, ajouter: [{ orderId: 'ord-2', buyerRef: 'r2' }] },
+    ]);
+  });
+});

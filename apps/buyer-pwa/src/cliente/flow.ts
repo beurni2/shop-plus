@@ -177,6 +177,13 @@ export interface ClienteInit {
   /** VRAI-SUIVI — after « C'est terminé » clears the stored order, the host
    *  decides where she lands (main.ts reloads onto the shell). */
   readonly onTerminee?: (() => void) | undefined;
+  /** COMPTE-CLIENTE-2 — her account's number, filling C3's empty field; she
+   *  can change it like anything she typed. Absent: the field starts empty. */
+  readonly telephoneCompte?: string | undefined;
+  /** COMPTE-CLIENTE-2 — told the order she just created, so a signed-in
+   *  buyer's « Mes commandes » lists it. Best effort, after the create; the
+   *  order never waits on it. */
+  readonly rattacher?: ((c: { readonly orderId: string; readonly buyerRef: string }) => void) | undefined;
   /**
    * ═══ REPRISE-PWA — THE TAB'S JOURNEY SURVIVES A REFRESH (2026-08-13) ═══
    *
@@ -554,7 +561,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
     zoneFiltre: '',
     zoneEdition: false,
     repere: '',
-    phone: '',
+    phone: init.telephoneCompte ?? '',
     voice: (init.microRefuse ?? false) ? 'refused' : 'idle',
     vSec: 0,
     note: null,
@@ -2012,6 +2019,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
           { orderId: r.order.orderId, buyerRef: r.order.buyerRef, at: new Date().toISOString() },
           localStorageOrUndefined(),
         );
+        init.rattacher?.({ orderId: r.order.orderId, buyerRef: r.order.buyerRef });
       }
       const etat = etatDeC6(r.order.state);
       // PRIVEE-APRES-CONFIRMATION — the server's word is recorded BEFORE the
@@ -2267,7 +2275,8 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
             return;
           }
           jump('C3', {
-            zone: null, repere: '', phone: '',
+            // COMPTE-CLIENTE-2 — a signed-in buyer's number fills the empty field.
+            zone: null, repere: '', phone: init.telephoneCompte ?? '',
             voice: (init.microRefuse ?? false) ? 'refused' : 'idle', vSec: 0, note: null,
             geo: 'repos', pin: null,
           });

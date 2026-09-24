@@ -39,7 +39,7 @@ function monterCliente(...args: Parameters<typeof createCliente>): void {
   arreterCliente = createCliente(...args);
 }
 import { clienteProduit, clienteProduitReel, composeQuote, harnessFrancs } from './cliente/seed';
-import { commandIdFor, commandeGardee, forgetRequestKey, localStorageOrUndefined, orderCommandIdFor, requestKeyFor, resolveQuotePort, villeDe } from './cliente/quote-port';
+import { commandIdFor, commandeGardee, forgetRequestKey, localStorageOrUndefined, oublierCommande, orderCommandIdFor, requestKeyFor, resolveQuotePort, villeDe } from './cliente/quote-port';
 import { SUIVI } from './cliente/screens';
 import { monterMesArticles, monterPanier } from './cliente/panier-montage';
 import { panierPaye } from './cliente/panier-port';
@@ -55,7 +55,9 @@ import { VITRINE_THEMES, type VitrineThemeKey } from './vitrine/themes';
 import fontsCss from './fonts.css?raw';
 import { monterRacine } from './racine-view';
 import { resolveComptePort } from './compte/port';
-import { monterEntreeCompte } from './compte/entree';
+import { creerRattacheur, monterBandeCompte, monterEntreeCompte } from './compte/entree';
+import { sessionActive } from './compte/garde';
+import type { StorefrontProfilePort } from './vitrine/profile';
 
 /**
  * The buyer PWA shell (WO-5.3 chrome). The legacy Grand Teint demo params
@@ -559,6 +561,21 @@ style.textContent = `
   .compte-info dt { font-size: var(--t-labelXS); font-weight: ${type.scale.labelXS.wght}; letter-spacing: var(--ls-labelXS); text-transform: uppercase; color: var(--c-muted); }
   .compte-info dd, .compte-fixe { margin: 0; font-size: var(--t-row); font-weight: ${type.scale.bodyStrong.wght}; color: var(--c-ink); overflow-wrap: anywhere; }
   .compte-info dd.compte-vide { font-weight: ${type.scale.body.wght}; color: var(--c-muted); }
+  /* COMPTE-CLIENTE-2 — the layer « Mon compte » opens over a product or a
+     payment: the page stays mounted under it, and nothing behind it scrolls. */
+  .compte-voile { position: fixed; inset: 0; z-index: 50; overflow-y: auto; background: var(--c-paper); }
+  body.compte-voile-ouvert { overflow: hidden; }
+  .compte-rester { display: flex; align-items: center; gap: var(--sp-sm); min-height: var(--touch); font-size: var(--t-body); color: var(--c-ink); }
+  .compte-rester input { width: var(--icon-sm); height: var(--icon-sm); margin: 0; flex: none; }
+  .compte-sous-titre { margin: 0; font-size: var(--t-title); font-weight: ${type.scale.title.wght}; color: var(--c-ink); }
+  .compte-commandes { display: grid; gap: var(--sp-sm); }
+  .compte-commande {
+    min-height: var(--touch); display: flex; align-items: center; justify-content: space-between; gap: var(--sp-sm);
+    border: var(--hair-mid) solid var(--c-hairlineStrong); background: var(--c-paper); color: var(--c-ink);
+    font-family: inherit; font-size: var(--t-body); padding: var(--sp-sm) var(--sp-md); text-align: left; cursor: pointer;
+  }
+  .compte-commande:active { opacity: var(--pressed-opacity); }
+  .compte-commande-ref { font-size: var(--t-caption); color: var(--c-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
   /* VRAI-SUIVI — « Ma commande », the quiet way back to a live order. Chrome,
      not content: a full-width sand band at the head of the shell, token-driven, one
@@ -618,6 +635,45 @@ function sessionStorageOrUndefined(): Storage | undefined {
 
 const app = document.querySelector('#app');
 if (app) {
+  /**
+   * VRAI-SUIVI — one order's tracking takes the screen: the cliente flow at C7
+   * over the env-gated port, exactly as the signed path mounts it. « Ma
+   * commande » opens it for the phone's kept order; COMPTE-CLIENTE-2's « Mes
+   * commandes » opens it for any order her account lists, and then « C'est
+   * terminé » forgets the phone's shortcut only when it is THIS order's.
+   */
+  const ouvrirSuivi = (orderId: string, buyerRef: string, oublier?: () => void): void => {
+    for (const child of Array.from(app.children)) child.remove();
+    const port = resolveQuotePort();
+    const suiviMain = document.createElement('main');
+    monterCliente(suiviMain, {
+      // C7/C9 read nothing off the product; the record deliberately stores
+      // none (no amount, no name — nothing worth stealing). This stub is
+      // unrenderable: C7 has no back road to C1 and the re-entry withholds
+      // the door screen (no live checkout handle).
+      produit: { shopName: '', prenom: '', slug: '', productName: '', zone: '', priceFcfa: 0, assetRefs: [], inStock: true },
+      theme: 'indigo',
+      ecran: 'C7',
+      suivi: {
+        orderId,
+        buyerRef,
+        etatCommande: (id) => port.orderState(id),
+        remise: (id, ref) => port.remise(id, ref),
+        ...(oublier !== undefined ? { oublier } : {}),
+      },
+      // « C'est terminé » cleared the key; the reload lands her on the shell
+      // with the band gone.
+      onTerminee: () => {
+        window.location.reload();
+      },
+    });
+    app.append(suiviMain);
+  };
+  /** « Mes commandes » → her order's tracking; the phone's shortcut is forgotten only if it is this order's. */
+  const suiviDepuisCompte = (orderId: string, buyerRef: string): void =>
+    ouvrirSuivi(orderId, buyerRef, () => {
+      if (commandeGardee(localStorageOrUndefined())?.orderId === orderId) oublierCommande(localStorageOrUndefined());
+    });
   /**
    * BANDEAUX-RETIRÉS (founder order 2026-08-14): « remove … the one on
    * buyer's payment pwa ». The WO-4.2E sandbox ribbon stood here,
@@ -683,6 +739,12 @@ if (app) {
     // profil lever. Widened to await ONE seam (STOREFRONT-READ-PATH-1).
     const isRealPath = signedProductSlugFromPath(window.location.pathname) !== undefined;
     const port = isRealPath ? resolveStorefrontPort() : demoStorefrontPort(profil);
+    // COMPTE-CLIENTE-2 — her account « as well with the payment pwa »: on a
+    // REAL offer link, « Mon compte » opens ON TOP of the page (the payment in
+    // progress stays mounted under it), her number fills the checkout, and her
+    // orders join « Mes commandes ». No doors here — they belong to the boutique.
+    const comptePortOffre = isRealPath ? resolveComptePort() : undefined;
+    const rattacher = comptePortOffre !== undefined ? creerRattacheur(comptePortOffre, localStorageOrUndefined(), sessionStorageOrUndefined()) : undefined;
     // LIEN-HORS-LIGNE-1 (AUDIT-SHOP-2 F-02) — THE LINK SHE ACTUALLY SENDS, WITH
     // NO SERVICE BEHIND IT. This road awaited the resolve with no catch: the
     // port's offline marker (thrown on purpose so `/v/` can draw its card)
@@ -695,7 +757,8 @@ if (app) {
     // way back to a live order (verifier, LIEN-HORS-LIGNE-1).
     const monterOffre = async (): Promise<void> => {
     for (const enfant of Array.from(app.children)) {
-      if (enfant.getAttribute('data-role') !== 'ma-commande') enfant.remove();
+      const role = enfant.getAttribute('data-role');
+      if (role !== 'ma-commande' && role !== 'mon-compte') enfant.remove();
     }
     let resolved: Awaited<ReturnType<typeof port.resolve>>;
     try {
@@ -738,6 +801,14 @@ if (app) {
         );
       } catch {
         /* storage unavailable — arrival is best-effort */
+      }
+      if (comptePortOffre !== undefined) {
+        monterBandeCompte(app as HTMLElement, {
+          port: comptePortOffre,
+          local: localStorageOrUndefined(),
+          onglet: sessionStorageOrUndefined(),
+          ouvrirSuivi: suiviDepuisCompte,
+        });
       }
       // THE SIGNED OFFER — the pixel-for-pixel PWA CLIENTE C1 (Édition Indigo),
       // ALWAYS in indigo (founder ruling 2026-07-22 — the storefront theme no
@@ -791,6 +862,7 @@ if (app) {
             window.location.href = vitrineHref(window.location.pathname, slug);
           },
           onTerminee: () => window.location.reload(),
+          ...(rattacher !== undefined ? { rattacher } : {}),
         });
         return;
       }
@@ -905,11 +977,14 @@ if (app) {
         // buyer C1→C9 flow is ALWAYS INDIGO — the resolved storefront's theme
         // no longer drives it. Her vitrine keeps her habillage; the harness
         // `theme=` param stays as the §1.2 gate/audit lever only.
+        const telephoneCompte = comptePortOffre !== undefined ? sessionActive(localStorageOrUndefined(), sessionStorageOrUndefined())?.telephone : undefined;
         monterCliente(main, {
           produit,
           quoteSource,
           theme: 'indigo',
           ecran: 'C1',
+          ...(telephoneCompte !== undefined ? { telephoneCompte } : {}),
+          ...(rattacher !== undefined ? { rattacher } : {}),
           epuise: !produit.inStock,
           sansVoix: produit.voiceDuree === undefined,
           // REPRISE-PWA (founder 2026-08-13) — the tab's journey survives a
@@ -1078,7 +1153,8 @@ if (app) {
     // ONE `/v/` link form, no second scheme). Shape-checked here: a mangled
     // token mounts the plain boutique, never an error wall over her shop.
     const listeParam = params.get('liste');
-    const monterBoutique = (): void => mountVitrine(app as HTMLElement, vitrineSlug, {
+    const monterBoutique = (portLecture?: StorefrontProfilePort): void => mountVitrine(app as HTMLElement, vitrineSlug, {
+      ...(portLecture !== undefined ? { port: portLecture } : {}),
       etat: etatParam && (VIT_ETATS as readonly string[]).includes(etatParam) ? (etatParam as VitrineEtat) : undefined,
       profil: harnessProfil(isRealVitrinePath, profilParam),
       fromProduct: params.get('demo-vitrine-depuis') === 'produit',
@@ -1104,11 +1180,32 @@ if (app) {
     if (comptePort === undefined) {
       monterBoutique();
     } else {
+      /**
+       * COMPTE-CLIENTE-2 — her boutique is read ONCE, starting now, while she
+       * chooses at the doors: the doors take its name from that read, and the
+       * boutique's first draw is served the SAME answer (one fetch on a 2G
+       * phone, and the shop already loading when she taps). Any later read —
+       * « Réessayer » — goes to the service afresh.
+       */
+      const lecture = resolveStorefrontPort();
+      const premiere = lecture.resolve(vitrineSlug);
+      let servie = false;
+      const portPartage: StorefrontProfilePort = {
+        resolve: (slug) => {
+          if (!servie && slug === vitrineSlug) {
+            servie = true;
+            return premiere;
+          }
+          return lecture.resolve(slug);
+        },
+      };
       monterEntreeCompte(app as HTMLElement, {
         port: comptePort,
         local: localStorageOrUndefined(),
         onglet: sessionStorageOrUndefined(),
-        monterBoutique,
+        monterBoutique: () => monterBoutique(portPartage),
+        nomBoutique: premiere.then((r) => r?.storefront.name).catch(() => undefined),
+        ouvrirSuivi: suiviDepuisCompte,
       });
     }
   } else {
@@ -1153,35 +1250,7 @@ if (app) {
     suiviRef.className = 'ma-commande-ref';
     suiviRef.textContent = gardeeSure.orderId;
     suiviBtn.append(suiviLabel, suiviRef);
-    suiviBtn.addEventListener('click', () => {
-      // The tracking takes the screen, and the cliente flow mounts at C7
-      // exactly as the signed path mounts it. (The clear used to spare the
-      // sandbox ribbon; with the ribbon gone it simply clears — BANDEAUX-RETIRÉS.)
-      for (const child of Array.from(app.children)) child.remove();
-      const port = resolveQuotePort();
-      const suiviMain = document.createElement('main');
-      monterCliente(suiviMain, {
-        // C7/C9 read nothing off the product; the record deliberately stores
-        // none (no amount, no name — nothing worth stealing). This stub is
-        // unrenderable: C7 has no back road to C1 and the re-entry withholds
-        // the door screen (no live checkout handle).
-        produit: { shopName: '', prenom: '', slug: '', productName: '', zone: '', priceFcfa: 0, assetRefs: [], inStock: true },
-        theme: 'indigo',
-        ecran: 'C7',
-        suivi: {
-          orderId: gardeeSure.orderId,
-          buyerRef: gardeeSure.buyerRef,
-          etatCommande: (id) => port.orderState(id),
-          remise: (id, ref) => port.remise(id, ref),
-        },
-        // « C'est terminé » cleared the key; the reload lands her on the shell
-        // with the band gone.
-        onTerminee: () => {
-          window.location.reload();
-        },
-      });
-      app.append(suiviMain);
-    });
+    suiviBtn.addEventListener('click', () => ouvrirSuivi(gardeeSure.orderId, gardeeSure.buyerRef));
     // BANDEAUX-RETIRÉS — this band was inserted AFTER the ribbon object; with
     // the ribbon gone it takes the ribbon's place at the head of the shell,
     // which is where it always rendered. `prepend` keeps that position without

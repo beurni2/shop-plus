@@ -83,6 +83,10 @@ export interface VitrineHarness {
    *  the vitrine as it always did. */
   readonly raison?: 'reseau' | 'service' | undefined;
   readonly reessayer?: (() => void) | undefined;
+  /** COMPTE-CLIENTE-2 — the port the REAL entry reads through, handed in so
+   *  the welcome step can read her boutique's name from the SAME first read
+   *  (one fetch on a 2G phone, not two). Absent, the env-gated port as always. */
+  readonly port?: StorefrontProfilePort | undefined;
 }
 
 /**
@@ -264,7 +268,7 @@ export function mountVitrine(
   // The audit harness (a profil override) drives the DEMO adapter; a real entry
   // uses the env-gated port — the real HTTP adapter iff a service base is
   // configured at build time, the in-process demo otherwise (offline-safe).
-  const port: StorefrontProfilePort = harness.profil ? demoStorefrontPort(harness.profil) : resolveStorefrontPort();
+  const port: StorefrontProfilePort = harness.profil ? demoStorefrontPort(harness.profil) : (harness.port ?? resolveStorefrontPort());
   const root = document.createElement('div');
   root.className = 'vt-root';
   root.setAttribute('data-screen', 'vitrine');

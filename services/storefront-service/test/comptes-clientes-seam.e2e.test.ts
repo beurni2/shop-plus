@@ -28,7 +28,7 @@ const mf = new Miniflare({
     LADDER: 'BuyerLadderDO', DISPATCH: 'DispatchIndexDO', RESELLER: 'ResellerFeedDO', COMPTES: 'ResellerAccountsDO', COMPTES_CLIENTES: 'BuyerAccountsDO',
   },
   durableObjectsPersist: persist,
-  bindings: {},
+  bindings: { CHECKOUT_OPS_SECRET: 'cle-c-seam' },
 });
 beforeAll(async () => {
   await mf.ready;
@@ -98,3 +98,38 @@ describe('COMPTE-CLIENTE — the app\'s port against the real book', () => {
       .toEqual({ kind: 'refus', reason: 'bad_field', field: 'password' });
   });
 });
+
+describe('COMPTE-CLIENTE-2 — the app\'s port against the real book: the way back, « Mes commandes », leaving', () => {
+  it('orders follow her account; the founder\'s code takes her back in; deleting frees her number', async () => {
+    reseau();
+    const port = httpComptePort(BASE);
+    const cree = await port.inscrire({ firstName: 'Awa', lastName: 'Sawadogo', phone: '73 00 00 01', password: 'grain-de-nere-77' });
+    if (cree.kind !== 'ok') throw new Error(JSON.stringify(cree));
+    const ici = cree.value.session;
+    expect(await port.commandes(ici, [{ orderId: 'ord-quote-seam-1', buyerRef: 'ref-seam-1' }])).toMatchObject({ kind: 'ok' });
+    // Another phone reads the same list — from the book.
+    const ailleurs = await port.connecter('73000001', 'grain-de-nere-77');
+    if (ailleurs.kind !== 'ok') throw new Error('login');
+    const lu = await port.commandes(ailleurs.value.session);
+    expect(lu.kind === 'ok' && lu.value.map((c) => [c.orderId, c.buyerRef])).toEqual([['ord-quote-seam-1', 'ref-seam-1']]);
+
+    // The founder mints on key C; the app redeems it.
+    const mint = await mf.dispatchFetch('https://svc/buyer/accounts/recovery-code', {
+      method: 'POST', headers: { Authorization: 'Bearer cle-c-seam', 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: '73 00 00 01' }),
+    });
+    const { code } = (await mint.json()) as { code: string };
+    expect(await port.recuperer('73 00 00 01', 'SPR-AAAA-AAAA-AAAA-AAAA', 'karite-du-soir-8')).toEqual({ kind: 'refus', reason: 'bad_code' });
+    const repris = await port.recuperer('+226 73000001', code, 'karite-du-soir-8');
+    if (repris.kind !== 'ok') throw new Error(JSON.stringify(repris));
+    expect(await port.lireProfil(ici)).toEqual({ kind: 'session_perdue' });
+    expect(await port.lireProfil(ailleurs.value.session)).toEqual({ kind: 'session_perdue' });
+    const neuve = repris.value.session;
+
+    expect(await port.supprimer(neuve, 'pas-le-bon')).toEqual({ kind: 'refus', reason: 'bad_password' });
+    expect(await port.supprimer(neuve, 'karite-du-soir-8')).toEqual({ kind: 'ok', value: true });
+    expect(await port.lireProfil(neuve)).toEqual({ kind: 'session_perdue' });
+    expect(await port.connecter('73000001', 'karite-du-soir-8')).toEqual({ kind: 'refus', reason: 'bad_credentials' });
+    expect((await port.inscrire({ firstName: 'Awa', lastName: 'Sawadogo', phone: '73 00 00 01', password: 'tout-neuf-mot-1' })).kind).toBe('ok');
+  });
+});
+

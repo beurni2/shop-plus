@@ -3856,5 +3856,107 @@
   "fr": "Se connecter",
   "register": "neutral",
   "screenClass": "label"
+ },
+ {
+  "key": "compte.porte.titre_boutique",
+  "fr": "Bienvenue chez {boutique}",
+  "register": "selling",
+  "screenClass": "selling_surface"
+ },
+ {
+  "key": "compte.rester",
+  "fr": "Garder mon compte ouvert sur ce téléphone",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "compte.connexion.oublie",
+  "fr": "Mot de passe oublié ?",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "compte.refus.code",
+  "fr": "Ce code ne marche pas. Vérifiez-le, ou demandez-en un nouveau.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "compte.champ.code",
+  "fr": "Écrivez le code qu’on vous a donné.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "compte.label.code",
+  "fr": "Code de récupération",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "compte.recup.titre",
+  "fr": "Récupérer mon compte",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "compte.recup.comment",
+  "fr": "Demandez un code à l’équipe Shop+ : votre vendeuse peut les prévenir. L’équipe vous appelle sur votre numéro pour vous le donner.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "compte.recup.envoyer",
+  "fr": "Récupérer mon compte",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "compte.commandes.titre",
+  "fr": "Mes commandes",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "compte.commandes.vide",
+  "fr": "Pas encore de commande avec ce compte.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "compte.commandes.echec",
+  "fr": "La liste de vos commandes ne s’affiche pas pour le moment.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "compte.commandes.ligne",
+  "fr": "Commande du {date}",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "compte.supprimer.ouvrir",
+  "fr": "Supprimer mon compte",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "compte.supprimer.titre",
+  "fr": "Supprimer mon compte",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "compte.supprimer.explique",
+  "fr": "Votre nom, votre numéro et votre liste de commandes seront effacés. Vos commandes en cours continuent : elles seront livrées.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "compte.supprimer.envoyer",
+  "fr": "Oui, supprimer mon compte",
+  "register": "neutral",
+  "screenClass": "label"
  }
 ]

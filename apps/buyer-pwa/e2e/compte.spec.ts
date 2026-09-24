@@ -16,10 +16,15 @@ import { expect, test, type Page, type Route } from '@playwright/test';
  * signup; one `bad_credentials` 401 for every wrong way in; a profile only on
  * the Bearer; `no_session` 401 for anything else; `email: ''` clears; a phone
  * in a profile body is `unknown_field`; a new password needs the current one
- * (`bad_password`) and ends every other session. What it does NOT mirror,
- * stated: the password hashing, the per-phone throttle, the idle life and the
- * address ceilings — all four are the real book's, tested there. The storefront
- * read is scripted like every boutique walk on this port.
+ * (`bad_password`) and ends every other session. COMPTE-CLIENTE-2: a
+ * recovery code (`codes`, set by the walk as the founder's console would mint
+ * it) is spent once and ends every session; `bad_code` for every wrong way;
+ * « Mes commandes » adds once each, newest first, for the Bearer's account;
+ * delete needs the password and frees the number. What it does NOT mirror,
+ * stated: the password hashing, the throttles, the idle life, the code's 24 h
+ * life and the address ceilings — the real book's, tested there
+ * (comptes-clientes*.e2e). The storefront read is scripted like every boutique
+ * walk on this port.
  */
 
 const BASE = 'http://127.0.0.1:4175';
@@ -30,6 +35,7 @@ const BOUTIQUE = {
   slug: 'aicha-4821',
   resellerId: 'rs-e2e-compte-1',
   name: 'Chez Aïcha Mode',
+  zone: 'Ouagadougou',
   discoverable: true,
   createdAt: '2026-09-01T00:00:00.000Z',
   updatedAt: '2026-09-01T00:00:00.000Z',
@@ -47,6 +53,9 @@ const cle = (phone: string): string => {
 
 class Livre {
   comptes = new Map<string, Compte>();
+  /** COMPTE-CLIENTE-2 — the founder's live recovery codes, by phone key. */
+  codes = new Map<string, string>();
+  commandes = new Map<string, { orderId: string; buyerRef: string; at: string }[]>();
   sessions = new Map<string, string>();
   appels: { chemin: string; corps: Record<string, unknown>; bearer: string | null }[] = [];
   horsLigne = false;
@@ -90,6 +99,37 @@ class Livre {
       if (bearer !== null) this.sessions.delete(bearer);
       return json(200, { ok: true });
     }
+    if (chemin === 'recover') {
+      const k = cle(String(corps['phone'] ?? ''));
+      const c = this.comptes.get(k);
+      if (c === undefined || this.codes.get(k) === undefined || this.codes.get(k) !== String(corps['code'] ?? '').trim().toUpperCase()) {
+        return json(401, { ok: false, reason: 'bad_code' });
+      }
+      if (String(corps['newPassword'] ?? '').length < 8) return json(400, { ok: false, reason: 'bad_field', field: 'newPassword' });
+      this.codes.delete(k);
+      c.password = String(corps['newPassword']);
+      for (const [s, kk] of [...this.sessions]) if (kk === k) this.sessions.delete(s);
+      return json(200, { ...this.profil(c), session: this.ouvrir(k) });
+    }
+    if (chemin === 'orders' || chemin === 'delete') {
+      const k = bearer !== null ? this.sessions.get(bearer) : undefined;
+      const c = k !== undefined ? this.comptes.get(k) : undefined;
+      if (k === undefined || c === undefined) return json(401, { ok: false, reason: 'no_session' });
+      if (chemin === 'delete') {
+        if (corps['currentPassword'] !== c.password) return json(401, { ok: false, reason: 'bad_password' });
+        this.comptes.delete(k);
+        this.commandes.delete(k);
+        for (const [s, kk] of [...this.sessions]) if (kk === k) this.sessions.delete(s);
+        return json(200, { ok: true });
+      }
+      const avant = this.commandes.get(k) ?? [];
+      const neuves = ((corps['ajouter'] as { orderId: string; buyerRef: string }[] | undefined) ?? [])
+        .filter((a) => !avant.some((b) => b.orderId === a.orderId))
+        .map((a) => ({ orderId: a.orderId, buyerRef: a.buyerRef, at: '2026-09-24T08:00:00.000Z' }));
+      const liste = [...neuves.reverse(), ...avant].slice(0, 50);
+      this.commandes.set(k, liste);
+      return json(200, { ok: true, commandes: liste });
+    }
     if (chemin === 'profile') {
       const k = bearer !== null ? this.sessions.get(bearer) : undefined;
       const c = k !== undefined ? this.comptes.get(k) : undefined;
@@ -110,12 +150,13 @@ class Livre {
   }
 }
 
-async function ouvrir(page: Page, livre: Livre, chemin = '/?/v/aicha-4821'): Promise<string[]> {
+async function ouvrir(page: Page, livre: Livre, chemin = '/?/v/aicha-4821', avant?: () => Promise<void>): Promise<string[]> {
   const erreurs: string[] = [];
   page.on('pageerror', (e) => erreurs.push(String(e.message ?? e)));
   await page.route('**/api/s/**', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(BOUTIQUE) }));
   await page.route('**/api/buyer/**', (route) => livre.servir(route));
   await page.route('**/checkout/**', (route) => route.abort('failed'));
+  if (avant !== undefined) await avant();
   await page.goto(chemin);
   return erreurs;
 }
@@ -184,7 +225,7 @@ test('sign up: her five fields (email left out), then her boutique greets her by
   await expect(profil.locator('[data-info="phone"]')).toHaveText('70 12 34 56');
   await expect(profil.locator('[data-info="email"]')).toHaveText('Pas d’email');
   await expect(profil).toContainText('La vendeuse ne les voit pas');
-  expect(livre.appels.at(-1)).toEqual({ chemin: 'profile', bearer: session, corps: {} });
+  expect(livre.appels.filter((a) => a.chemin === 'profile').at(-1)).toEqual({ chemin: 'profile', bearer: session, corps: {} });
   await action(page, 'compte-boutique').click();
   await expect(boutique(page)).toContainText('Chez Aïcha Mode');
   expect(await page.content()).not.toContain(session);
@@ -235,7 +276,7 @@ test('her profile: she edits her names and clears her email, never her number; t
   await expect(page.locator('[data-role="compte-note"]')).toContainText('C’est enregistré');
   await expect(page.locator('[data-info="firstName"]')).toHaveText('Aïcha');
   await expect(page.locator('[data-info="email"]')).toHaveText('Pas d’email');
-  expect(livre.appels.at(-1)!.corps).toEqual({ firstName: 'Aïcha', lastName: 'Ouédraogo', email: '' });
+  expect(livre.appels.filter((a) => a.chemin === 'profile').at(-1)!.corps).toEqual({ firstName: 'Aïcha', lastName: 'Ouédraogo', email: '' });
   await action(page, 'compte-boutique').click();
   await expect(bande(page)).toContainText('Aïcha');
   expect(erreurs).toEqual([]);
@@ -374,4 +415,195 @@ for (const [nom, bloquer] of [
     expect(erreurs).toEqual([]);
   });
 }
+
+/* ═══ COMPTE-CLIENTE-2 — the open items, walked (founder « fix the ones still open ») ═══ */
+
+const BUYER_REF = 'ref-compte2-e2e';
+
+/** The checkout's service, scripted as checkout-real.spec scripts it: one full
+ *  quote, a hold, an order whose create carries her read token. */
+async function caisse(page: Page): Promise<{ commandes: string[] }> {
+  const vu = { commandes: [] as string[] };
+  await page.route('**/checkout/**', async (route) => {
+    const req = route.request();
+    const json = (status: number, body: unknown) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
+    const corps = JSON.parse(req.postData() ?? '{}') as Record<string, unknown>;
+    if (/\/reserve$/.test(req.url())) return json(200, { status: 'reserved', reservationId: 'res-1' });
+    if (/\/checkout\/order$/.test(req.url()) && req.method() === 'POST') {
+      const orderId = `ord-${String(corps['quoteId'])}`;
+      vu.commandes.push(orderId);
+      return json(200, { orderId, state: 'payment_pending', amountPaidAtCheckout: 13_000, amountDueAtDelivery: 0, doorLeg: 'none', buyerRef: BUYER_REF });
+    }
+    if (/\/checkout\/order\/[^/]+$/.test(req.url()) && req.method() === 'GET') {
+      return json(200, { orderId: decodeURIComponent(req.url().split('/').pop()!), state: 'payment_pending', amountPaidAtCheckout: 13_000, amountDueAtDelivery: 0, doorLeg: 'none' });
+    }
+    if (/\/remise$/.test(req.url())) return json(404, { ok: false });
+    if (corps['paymentMode'] === 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR') return json(422, { error: 'pay_at_door_not_eligible' });
+    return json(200, {
+      quoteId: 'quote-compte2-1', paymentMode: 'FULL_PREPAY', productSubtotal: 12_000, deliveryFee: 1_000, buyerTotal: 13_000,
+      amountPaidAtCheckout: 13_000, amountDueAtDelivery: 0, expiry: new Date(Date.now() + 15 * 60_000).toISOString(),
+    });
+  });
+  return vu;
+}
+
+/** She is signed in on this phone: the book knows her session, the phone keeps it. */
+async function dejaConnectee(page: Page, livre: Livre, telephone = '70 12 34 56'): Promise<void> {
+  livre.comptes.set('70123456', { firstName: 'Awa', lastName: 'Ouédraogo', phone: telephone, password: 'grain-de-nere' });
+  livre.sessions.set('SPC-AWAA-AWAA-AWAA-AWAA', '70123456');
+  await page.addInitScript((tel) => {
+    if (sessionStorage.getItem('graine') === null) {
+      localStorage.setItem('sp-compte:v1', JSON.stringify({ session: 'SPC-AWAA-AWAA-AWAA-AWAA', prenom: 'Awa', telephone: tel }));
+      sessionStorage.setItem('graine', '1');
+    }
+  }, telephone);
+}
+
+test('the doors greet her by the boutique she opened — and that boutique is read ONCE for both', async ({ page }) => {
+  const livre = new Livre();
+  let lectures = 0;
+  const erreurs = await ouvrir(page, livre, '/?/v/aicha-4821', async () => {
+    await page.route('**/api/s/**', (route) => {
+      lectures += 1;
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(BOUTIQUE) });
+    });
+  });
+  await expect(page.locator('[data-role="compte-porte-titre"]')).toHaveText('Bienvenue chez Chez Aïcha Mode');
+  await action(page, 'compte-invitee').click();
+  await expect(boutique(page)).toContainText('Chez Aïcha Mode');
+  expect(lectures).toBe(1);
+  expect(erreurs).toEqual([]);
+});
+
+test('a forgotten password: « Mot de passe oublié ? » → the founder\'s code → a new password → in, and the old one is dead', async ({ page }) => {
+  const livre = new Livre();
+  livre.comptes.set('70123456', { firstName: 'Awa', lastName: 'Ouédraogo', phone: '70 12 34 56', password: 'grain-de-nere' });
+  const erreurs = await ouvrir(page, livre);
+  await action(page, 'compte-vers-connexion').click();
+  await champ(page, 'phone').pressSequentially('70123456');
+  await champ(page, 'password').fill('je-ne-sais-plus');
+  await action(page, 'compte-connecter').click();
+  await expect(page.locator('[data-role="compte-alerte"]')).toContainText('ne va pas');
+  await action(page, 'compte-vers-recuperation').click();
+  await expect(page.locator('[data-screen="compte-recuperation"]')).toContainText('L’équipe vous appelle sur votre numéro');
+  await expect(champ(page, 'phone')).toHaveValue('70 12 34 56');
+  // The founder minted her code on his console and read it to her on the phone.
+  livre.codes.set('70123456', 'SPR-ABCD-EFGH-IJKL-MNOP');
+  await champ(page, 'code').fill('SPR-XXXX-XXXX-XXXX-XXXX');
+  await champ(page, 'newPassword').fill('karite-du-soir-8');
+  await action(page, 'compte-recuperer').click();
+  await expect(page.locator('[data-refus="code"]')).toContainText('Ce code ne marche pas');
+  await champ(page, 'code').fill('spr-abcd-efgh-ijkl-mnop');
+  await action(page, 'compte-recuperer').click();
+  await expect(boutique(page)).toContainText('Chez Aïcha Mode');
+  await expect(bande(page)).toContainText('Awa');
+  expect(livre.comptes.get('70123456')!.password).toBe('karite-du-soir-8');
+  expect(livre.codes.has('70123456')).toBe(false);
+  expect(erreurs).toEqual([]);
+});
+
+test('« Garder mon compte ouvert » unticked: signed in for this tab only — nothing lasting on the phone', async ({ page }) => {
+  const livre = new Livre();
+  livre.comptes.set('70123456', { firstName: 'Awa', lastName: 'Ouédraogo', phone: '70 12 34 56', password: 'grain-de-nere' });
+  const erreurs = await ouvrir(page, livre);
+  await action(page, 'compte-vers-connexion').click();
+  await champ(page, 'phone').pressSequentially('70123456');
+  await champ(page, 'password').fill('grain-de-nere');
+  await expect(page.locator('[data-role="compte-rester"]')).toBeChecked();
+  await page.locator('[data-role="compte-rester"]').uncheck();
+  await action(page, 'compte-connecter').click();
+  await expect(bande(page)).toContainText('Awa');
+  expect(await page.evaluate(() => localStorage.getItem('sp-compte:v1'))).toBeNull();
+  expect(await page.evaluate(() => JSON.parse(sessionStorage.getItem('sp-compte:v1') ?? '{}').prenom)).toBe('Awa');
+  await bande(page).click();
+  await expect(page.locator('[data-info="firstName"]')).toHaveText('Awa');
+  expect(erreurs).toEqual([]);
+});
+
+test('« Mes commandes »: her orders from any phone, newest first — a tap opens its tracking; her read token never reaches the page', async ({ page }) => {
+  const livre = new Livre();
+  await dejaConnectee(page, livre);
+  livre.commandes.set('70123456', [
+    { orderId: 'ord-quote-2', buyerRef: 'REF-SECRETE-2', at: '2026-09-23T10:00:00.000Z' },
+    { orderId: 'ord-quote-1', buyerRef: 'REF-SECRETE-1', at: '2026-09-20T10:00:00.000Z' },
+  ]);
+  const erreurs = await ouvrir(page, livre, '/?/v/aicha-4821', async () => { await caisse(page); });
+  await bande(page).click();
+  const lignes = page.locator('[data-action="compte-suivre"]');
+  await expect(lignes).toHaveCount(2);
+  await expect(lignes.nth(0)).toContainText('Commande du 23/09/2026');
+  await expect(lignes.nth(0)).toContainText('ord-quote-2');
+  expect(await page.content()).not.toContain('REF-SECRETE');
+  await lignes.nth(1).click();
+  await expect(page.locator('[data-screen="C7"]')).toBeVisible();
+  expect(erreurs).toEqual([]);
+});
+
+test('« Supprimer mon compte »: her password first; then she is a guest, and the book holds nothing of her', async ({ page }) => {
+  const livre = new Livre();
+  await dejaConnectee(page, livre);
+  const erreurs = await ouvrir(page, livre);
+  await bande(page).click();
+  await action(page, 'compte-vers-supprimer').click();
+  await expect(page.locator('[data-screen="compte-supprimer"]')).toContainText('seront livrées');
+  await champ(page, 'currentPassword').fill('pas-le-bon');
+  await action(page, 'compte-supprimer').click();
+  await expect(page.locator('[data-refus="currentPassword"]')).toContainText('Ce n’est pas votre mot de passe actuel');
+  expect(livre.comptes.has('70123456')).toBe(true);
+  await champ(page, 'currentPassword').fill('grain-de-nere');
+  await action(page, 'compte-supprimer').click();
+  await expect(boutique(page)).toContainText('Chez Aïcha Mode');
+  await expect(bande(page)).toContainText('Se connecter');
+  expect(livre.comptes.has('70123456')).toBe(false);
+  expect(await page.evaluate(() => localStorage.getItem('sp-compte:v1'))).toBeNull();
+  expect(erreurs).toEqual([]);
+});
+
+test('on the payment pages: her number is filled, « Mon compte » opens OVER the payment and leaves it exactly as it was, and the order joins « Mes commandes »', async ({ page }) => {
+  const livre = new Livre();
+  await dejaConnectee(page, livre);
+  let vu: { commandes: string[] } = { commandes: [] };
+  const erreurs = await ouvrir(page, livre, '/?/s/aicha-4821&pid=p1', async () => { vu = await caisse(page); });
+  await expect(page.locator('[data-screen="C1"]')).toBeVisible();
+  await expect(bande(page)).toContainText('Awa');
+  await expect(page.locator('[data-screen="compte-porte"]')).toHaveCount(0);
+  await page.locator('[data-action="commander"]').click();
+  await page.locator('[data-screen="C3"]').waitFor();
+  await expect(page.locator('[data-role="phone"]')).toHaveValue('70 12 34 56');
+  await page.locator('[data-action="zone"][data-zone="Gounghin"]').click();
+  await page.locator('[data-role="repere"]').fill('Face à la pharmacie du marché');
+  // Her account, OVER the payment in progress.
+  await bande(page).click();
+  const calque = page.locator('[data-role="compte-voile"]');
+  await expect(calque.locator('[data-info="firstName"]')).toHaveText('Awa');
+  await expect(page.locator('[data-screen="C3"]')).toHaveCount(1);
+  await calque.locator('[data-action="compte-boutique"]').click();
+  await expect(calque).toHaveCount(0);
+  await expect(page.locator('[data-role="repere"]')).toHaveValue('Face à la pharmacie du marché');
+  await expect(page.locator('[data-role="phone"]')).toHaveValue('70 12 34 56');
+  await page.locator('[data-action="continuer-c3"]').click();
+  await page.locator('[data-screen="C4"]').waitFor({ timeout: 15_000 });
+  await page.locator('[data-action="continuer-c4"]').click();
+  await page.locator('[data-screen="C5"]').waitFor();
+  await page.locator('[data-action="choix-paiement"][data-mode="A"]').click();
+  await page.locator('[data-action="payer"]').click();
+  await expect.poll(() => vu.commandes.length).toBe(1);
+  await expect.poll(() => livre.commandes.get('70123456')?.map((c) => [c.orderId, c.buyerRef])).toEqual([[vu.commandes[0], BUYER_REF]]);
+  expect(erreurs).toEqual([]);
+});
+
+test('a guest on the payment pages: « Se connecter » opens the doors over the page, and « Continuer sans compte » closes them onto it', async ({ page }) => {
+  const livre = new Livre();
+  const erreurs = await ouvrir(page, livre, '/?/s/aicha-4821&pid=p1');
+  await expect(page.locator('[data-screen="C1"]')).toBeVisible();
+  await expect(bande(page)).toContainText('Se connecter');
+  await bande(page).click();
+  const calque = page.locator('[data-role="compte-voile"]');
+  await expect(calque.locator('[data-screen="compte-porte"]')).toBeVisible();
+  await calque.locator('[data-action="compte-invitee"]').click();
+  await expect(calque).toHaveCount(0);
+  await expect(page.locator('[data-screen="C1"]')).toBeVisible();
+  expect(livre.appels).toEqual([]);
+  expect(erreurs).toEqual([]);
+});
 

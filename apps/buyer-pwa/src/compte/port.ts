@@ -45,12 +45,38 @@ export interface PatchProfil {
   readonly newPassword?: string;
 }
 
+/** COMPTE-CLIENTE-2 — an order she made while signed in, as her account lists it. */
+export interface CommandeCompte {
+  readonly orderId: string;
+  readonly buyerRef: string;
+  readonly at: string;
+}
+
 export interface ComptePort {
   inscrire(i: Inscription): Promise<Resultat<{ profil: ProfilCliente; session: string }>>;
   connecter(phone: string, password: string): Promise<Resultat<{ profil: ProfilCliente; session: string }>>;
   lireProfil(session: string): Promise<Resultat<ProfilCliente>>;
   modifierProfil(session: string, patch: PatchProfil): Promise<Resultat<ProfilCliente>>;
   deconnecter(session: string): Promise<void>;
+  /** COMPTE-CLIENTE-2 — the founder's code, her number and a new password. */
+  recuperer(phone: string, code: string, newPassword: string): Promise<Resultat<{ profil: ProfilCliente; session: string }>>;
+  /** « Mes commandes » — read, or add then read (at most ten added at once). */
+  commandes(session: string, ajouter?: readonly { readonly orderId: string; readonly buyerRef: string }[]): Promise<Resultat<readonly CommandeCompte[]>>;
+  supprimer(session: string, currentPassword: string): Promise<Resultat<true>>;
+}
+
+function lireCommandes(body: Record<string, unknown>): readonly CommandeCompte[] | undefined {
+  const brut = body['commandes'];
+  if (!Array.isArray(brut)) return undefined;
+  const out: CommandeCompte[] = [];
+  for (const c of brut) {
+    const o = c as Record<string, unknown> | null;
+    const orderId = texte(o?.['orderId']);
+    const buyerRef = texte(o?.['buyerRef']);
+    const at = texte(o?.['at']);
+    if (orderId !== undefined && buyerRef !== undefined && at !== undefined) out.push({ orderId, buyerRef, at });
+  }
+  return out;
 }
 
 const texte = (v: unknown): string | undefined => (typeof v === 'string' && v !== '' ? v : undefined);
@@ -133,6 +159,18 @@ export function httpComptePort(base: string): ComptePort {
         ...(patch.newPassword !== undefined ? { newPassword: patch.newPassword } : {}),
       };
       return lire(await appeler('profile', corps, session), lireProfilWire);
+    },
+    async recuperer(phone, code, newPassword) {
+      return lire(await appeler('recover', { phone, code, newPassword }), avecSession);
+    },
+    async commandes(session, ajouter) {
+      const corps = ajouter !== undefined && ajouter.length > 0
+        ? { ajouter: ajouter.slice(0, 10).map((c) => ({ orderId: c.orderId, buyerRef: c.buyerRef })) }
+        : {};
+      return lire(await appeler('orders', corps, session, LECTURE_PROFIL_TIMEOUT_MS), lireCommandes);
+    },
+    async supprimer(session, currentPassword) {
+      return lire(await appeler('delete', { currentPassword }, session), () => true as const);
     },
     async deconnecter(session) {
       // Best effort: the phone forgets the session whatever the network says;

@@ -151,6 +151,8 @@ export function monterPanier(
     readonly garde: Storage | undefined;
     readonly onVitrine: (slug: string) => void;
     readonly onTerminee: () => void;
+    /** COMPTE-CLIENTE-2 — a signed-in buyer's paid articles join « Mes commandes ». */
+    readonly rattacher?: (c: { readonly orderId: string; readonly buyerRef: string }) => void;
   },
 ): void {
   const port = resolvePanierPort(new Map(args.articles.map((a) => [a.pid, a.prixFcfa])));
@@ -162,6 +164,7 @@ export function monterPanier(
     articles: args.articles.map((a) => ({ pid: a.pid, nom: a.nom })),
     session: args.session,
     garde: args.garde,
+    ...(args.rattacher !== undefined ? { rattacher: args.rattacher } : {}),
   });
   args.monter(host, {
     produit: stub(args.boutique, tf('cl.panier.titre', { n: String(args.articles.length) })),

@@ -306,7 +306,7 @@ export default {
     if (request.method === 'POST' && pathname === '/buyer/signup' && !(await admis(env.LIMITE_INSCRIPTIONS_CLIENTES, request))) {
       return withReadCors(refusLimiteCompte());
     }
-    if (request.method === 'POST' && pathname === '/buyer/login' && !(await admis(env.LIMITE_CONNEXIONS_CLIENTES, request))) {
+    if (request.method === 'POST' && (pathname === '/buyer/login' || pathname === '/buyer/recover') && !(await admis(env.LIMITE_CONNEXIONS_CLIENTES, request))) {
       return withReadCors(refusLimiteCompte());
     }
 
@@ -1240,7 +1240,8 @@ export default {
      * auth). Signup and login carry their body verbatim — the book's own
      * allowlist refuses a smuggled field. Every answer is `private, no-store`.
      */
-    if (pathname === '/buyer/signup' || pathname === '/buyer/login' || pathname === '/buyer/profile' || pathname === '/buyer/logout') {
+    const porteCliente = ['/buyer/signup', '/buyer/login', '/buyer/profile', '/buyer/logout', '/buyer/recover', '/buyer/orders', '/buyer/delete'];
+    if (porteCliente.includes(pathname)) {
       if (request.method === 'OPTIONS') return checkoutPreflight();
       const prive = { headers: { 'Cache-Control': 'private, no-store' } };
       if (request.method !== 'POST') return withReadCors(Response.json({ ok: false, reason: 'method_not_allowed' }, { status: 405, ...prive }));
@@ -1249,7 +1250,7 @@ export default {
       }
       const livre = env.COMPTES_CLIENTES.get(env.COMPTES_CLIENTES.idFromName(BUYER_ACCOUNTS_NAME));
       let corps: string;
-      if (pathname === '/buyer/profile' || pathname === '/buyer/logout') {
+      if (pathname === '/buyer/profile' || pathname === '/buyer/logout' || pathname === '/buyer/orders' || pathname === '/buyer/delete') {
         const auth = request.headers.get('Authorization') ?? '';
         const session = auth.startsWith('Bearer ') ? auth.slice('Bearer '.length) : '';
         const body = (await request.json().catch(() => ({}))) as unknown;
@@ -1262,6 +1263,26 @@ export default {
       const out = new Response(answer.body, answer);
       out.headers.set('Cache-Control', 'private, no-store');
       return withReadCors(out);
+    }
+
+    /**
+     * COMPTE-CLIENTE-2 — THE FOUNDER'S RECOVERY CODE for a buyer's NUMBER. Key
+     * C, the same credential as his account console. The answer is the code
+     * and when it expires — never her name, her email or anything else.
+     */
+    if (pathname === '/buyer/accounts/recovery-code') {
+      if (request.method === 'OPTIONS') return dispatchPreflight('POST');
+      if (request.method !== 'POST') return withDispatchCors(unauthorized());
+      const refused = await rejectUnauthorizedOpsRead(request, env);
+      if (refused) return withDispatchCors(refused);
+      if (env.COMPTES_CLIENTES === undefined) {
+        return withDispatchCors(Response.json({ ok: false, reason: 'accounts_unavailable' }, { status: 503 }));
+      }
+      const livre = env.COMPTES_CLIENTES.get(env.COMPTES_CLIENTES.idFromName(BUYER_ACCOUNTS_NAME));
+      const answer = await livre.fetch(new Request('https://do/recovery-code', { method: 'POST', body: await request.text() }));
+      const out = new Response(answer.body, answer);
+      out.headers.set('Cache-Control', 'private, no-store');
+      return withDispatchCors(out);
     }
 
     /**

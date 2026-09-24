@@ -1,6 +1,6 @@
 import { t } from '../i18n';
 import type { ComptePort } from './port';
-import { estInvitee, sessionGardee } from './garde';
+import { estInvitee, sessionActive } from './garde';
 import { monterCompte, type EcranCompte } from './ecrans';
 
 /**
@@ -26,6 +26,35 @@ export interface OptsEntree {
   readonly onglet: Storage | undefined;
   /** Mounts the boutique into the shell, exactly as the road did before accounts. */
   readonly monterBoutique: () => void;
+  /** COMPTE-CLIENTE-2 — the boutique's name, from the SAME read that draws it. */
+  readonly nomBoutique?: Promise<string | undefined>;
+  /** « Mes commandes » — open one order's tracking. */
+  readonly ouvrirSuivi?: (orderId: string, buyerRef: string) => void;
+}
+
+/** The band, for her name or for a guest — text only, her name is a server byte. */
+function bande(prenom: string | undefined, ouvrir: (ecran: EcranCompte) => void): HTMLButtonElement {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'ma-commande';
+  b.setAttribute('data-role', 'mon-compte');
+  const label = document.createElement('span');
+  label.textContent = t('compte.bande.titre');
+  const droite = document.createElement('span');
+  droite.className = 'ma-commande-ref';
+  droite.textContent = prenom ?? t('compte.bande.invitee');
+  b.append(label, droite);
+  b.addEventListener('click', () => ouvrir(prenom !== undefined ? 'profil' : 'porte'));
+  return b;
+}
+
+/** Under the order bands, above everything else. */
+function placerBande(app: HTMLElement, b: HTMLElement): void {
+  app.querySelector('[data-role="mon-compte"]')?.remove();
+  const dernieres = Array.from(app.children).filter((e) => BANDES_COMMANDE.has(e.getAttribute('data-role') ?? ''));
+  const apres = dernieres[dernieres.length - 1];
+  if (apres !== undefined) apres.after(b);
+  else app.prepend(b);
 }
 
 export function monterEntreeCompte(app: HTMLElement, opts: OptsEntree): void {
@@ -40,39 +69,84 @@ export function monterEntreeCompte(app: HTMLElement, opts: OptsEntree): void {
     vider();
     const main = document.createElement('main');
     app.append(main);
-    monterCompte(main, { port: opts.port, local: opts.local, onglet: opts.onglet, ecran, versBoutique: suivre });
-  };
-
-  const bande = (prenom: string | undefined): HTMLButtonElement => {
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.className = 'ma-commande';
-    b.setAttribute('data-role', 'mon-compte');
-    const label = document.createElement('span');
-    label.textContent = t('compte.bande.titre');
-    const droite = document.createElement('span');
-    droite.className = 'ma-commande-ref';
-    // Her first name is a server byte: text, never markup.
-    droite.textContent = prenom ?? t('compte.bande.invitee');
-    b.append(label, droite);
-    b.addEventListener('click', () => ouvrirCompte(prenom !== undefined ? 'profil' : 'porte'));
-    return b;
+    monterCompte(main, {
+      port: opts.port, local: opts.local, onglet: opts.onglet, ecran, versBoutique: suivre,
+      ...(opts.nomBoutique !== undefined ? { nomBoutique: opts.nomBoutique } : {}),
+      ...(opts.ouvrirSuivi !== undefined ? { ouvrirSuivi: opts.ouvrirSuivi } : {}),
+    });
   };
 
   function suivre(): void {
-    const g = sessionGardee(opts.local);
+    const g = sessionActive(opts.local, opts.onglet);
     if (g === undefined && !estInvitee(opts.onglet)) {
       ouvrirCompte('porte');
       return;
     }
     vider();
     opts.monterBoutique();
-    const b = bande(g?.prenom);
-    const dernieres = Array.from(app.children).filter((e) => BANDES_COMMANDE.has(e.getAttribute('data-role') ?? ''));
-    const apres = dernieres[dernieres.length - 1];
-    if (apres !== undefined) apres.after(b);
-    else app.prepend(b);
+    placerBande(app, bande(g?.prenom, ouvrirCompte));
   }
 
   suivre();
+}
+
+/**
+ * ═══ COMPTE-CLIENTE-2 — « MON COMPTE » ON THE PRODUCT AND PAYMENT PAGES ═══
+ *
+ * (Founder « fix the ones still open »: the account « as well with the
+ * payment pwa ».) No doors here — they belong to the boutique link — only the
+ * band, and it opens her account ON TOP of the page, never in its place: the
+ * product page and any payment in progress stay mounted underneath, untouched,
+ * and « Retour » closes the layer onto them exactly as she left them.
+ */
+export function monterBandeCompte(
+  app: HTMLElement,
+  opts: Omit<OptsEntree, 'monterBoutique' | 'nomBoutique'>,
+): void {
+  const fermer = (): void => {
+    document.querySelector('[data-role="compte-voile"]')?.remove();
+    document.body.classList.remove('compte-voile-ouvert');
+    poser();
+  };
+  const ouvrir = (ecran: EcranCompte): void => {
+    fermer();
+    const voile = document.createElement('div');
+    voile.className = 'compte-voile';
+    voile.setAttribute('data-role', 'compte-voile');
+    voile.setAttribute('role', 'dialog');
+    voile.setAttribute('aria-modal', 'true');
+    const main = document.createElement('main');
+    voile.append(main);
+    document.body.append(voile);
+    document.body.classList.add('compte-voile-ouvert');
+    monterCompte(main, {
+      port: opts.port, local: opts.local, onglet: opts.onglet, ecran, versBoutique: fermer, enCalque: true,
+      ...(opts.ouvrirSuivi !== undefined ? { ouvrirSuivi: (orderId: string, buyerRef: string) => { fermer(); opts.ouvrirSuivi?.(orderId, buyerRef); } } : {}),
+    });
+  };
+  function poser(): void {
+    placerBande(app, bande(sessionActive(opts.local, opts.onglet)?.prenom, ouvrir));
+  }
+  poser();
+}
+
+/**
+ * COMPTE-CLIENTE-2 — « Mes commandes » learns each order she makes while
+ * signed in: right after the create (single article) or once the payment
+ * keeps them (a panier). Once per order per page, best effort and never
+ * awaited — her order is already hers on the service; a missed link costs the
+ * list one row, never the order. A guest's order is linked to nobody.
+ */
+export function creerRattacheur(
+  port: ComptePort,
+  local: Storage | undefined,
+  onglet: Storage | undefined,
+): (c: { readonly orderId: string; readonly buyerRef: string }) => void {
+  const envoyes = new Set<string>();
+  return (c) => {
+    const g = sessionActive(local, onglet);
+    if (g === undefined || envoyes.has(c.orderId)) return;
+    envoyes.add(c.orderId);
+    void port.commandes(g.session, [c]).catch(() => undefined);
+  };
 }

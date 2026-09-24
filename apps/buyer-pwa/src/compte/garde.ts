@@ -26,6 +26,10 @@ const SESSION = /^SPC-[A-Z2-7]{4}-[A-Z2-7]{4}-[A-Z2-7]{4}-[A-Z2-7]{4}$/;
 export interface SessionGardee {
   readonly session: string;
   readonly prenom: string;
+  /** COMPTE-CLIENTE-2 — her number, so the checkout can fill it for her. Her
+   *  own number on her own phone; read back from the service each time her
+   *  profile opens. */
+  readonly telephone?: string;
 }
 
 type Stockage = Storage | null | undefined;
@@ -39,18 +43,19 @@ export function sessionGardee(stockage: Stockage): SessionGardee | undefined {
   try {
     const brut = stockage?.getItem(CLE_SESSION);
     if (brut === null || brut === undefined) return undefined;
-    const lu = JSON.parse(brut) as { session?: unknown; prenom?: unknown };
+    const lu = JSON.parse(brut) as { session?: unknown; prenom?: unknown; telephone?: unknown };
     if (typeof lu.session !== 'string' || !SESSION.test(lu.session) || typeof lu.prenom !== 'string') return undefined;
-    return { session: lu.session, prenom: lu.prenom };
+    return { session: lu.session, prenom: lu.prenom, ...(typeof lu.telephone === 'string' ? { telephone: lu.telephone } : {}) };
   } catch {
     return undefined;
   }
 }
 
 export function garderSession(stockage: Stockage, g: SessionGardee): void {
-  sessionsEnMemoire.set(stockage, { session: g.session, prenom: g.prenom });
+  const record = { session: g.session, prenom: g.prenom, ...(g.telephone !== undefined ? { telephone: g.telephone } : {}) };
+  sessionsEnMemoire.set(stockage, record);
   try {
-    stockage?.setItem(CLE_SESSION, JSON.stringify({ session: g.session, prenom: g.prenom }));
+    stockage?.setItem(CLE_SESSION, JSON.stringify(record));
   } catch {
     /* the store refused — this page still knows her */
   }
@@ -82,3 +87,25 @@ export function marquerInvitee(onglet: Stockage): void {
     /* the store refused — this page still carries her choice */
   }
 }
+
+/**
+ * COMPTE-CLIENTE-2 — « RESTER CONNECTÉE SUR CE TÉLÉPHONE ». Kept, her session
+ * lives in the phone's lasting store; not kept, only in this tab's store, and
+ * closing the browser signs her out of this phone. Her session is whichever
+ * of the two holds one — the lasting store first.
+ */
+export function sessionActive(local: Stockage, onglet: Stockage): SessionGardee | undefined {
+  return sessionGardee(local) ?? sessionGardee(onglet);
+}
+
+/** Signing out forgets her in both stores. */
+export function oublierSessions(local: Stockage, onglet: Stockage): void {
+  oublierSession(local);
+  oublierSession(onglet);
+}
+
+/** A refreshed record (her profile read) goes back where the session lives. */
+export function rafraichirSession(local: Stockage, onglet: Stockage, g: SessionGardee): void {
+  garderSession(sessionGardee(local) !== undefined ? local : onglet, g);
+}
+

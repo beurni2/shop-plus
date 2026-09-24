@@ -347,6 +347,8 @@ describe('COMPTE-CLIENTE — budgets and life', () => {
     // Her login budget stands, and so do the reseller's doors from the same address.
     for (let i = 0; i < 3; i += 1) expect((await de(A, '/buyer/login', {})).status, `login ${i + 1}`).toBe(401);
     expect((await de(A, '/buyer/login', {})).status).toBe(429);
+    // COMPTE-CLIENTE-2 — the recovery door spends the login budget: it checks a secret too.
+    expect((await de(A, '/buyer/recover', {})).status).toBe(429);
     expect((await de(A, '/reseller/signup', {})).status).toBe(400);
     expect((await de(A, '/reseller/login', {})).status).toBe(401);
   });

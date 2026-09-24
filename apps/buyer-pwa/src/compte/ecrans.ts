@@ -1,8 +1,8 @@
-import { t } from '../i18n';
+import { t, tf } from '../i18n';
 import { esc } from '../format';
 import { caretApresChiffres, telEnPaires } from '../cliente/telephone';
-import type { ComptePort, Echec, ProfilCliente } from './port';
-import { garderSession, marquerInvitee, oublierSession, sessionGardee } from './garde';
+import type { CommandeCompte, ComptePort, Echec, ProfilCliente } from './port';
+import { garderSession, marquerInvitee, oublierSessions, rafraichirSession, sessionActive } from './garde';
 
 /**
  * ═══ COMPTE-CLIENTE — HER ACCOUNT SCREENS (founder order 2026-09-24) ═══
@@ -25,13 +25,23 @@ import { garderSession, marquerInvitee, oublierSession, sessionGardee } from './
  *                  it is her login) and changes her password (the current
  *                  one first), or signs out.
  *
+ * COMPTE-CLIENTE-2 (founder « fix the ones still open », 2026-09-24):
+ *   recuperation — the way back for a forgotten password or a number someone
+ *                  else took: the founder's one-time code, given by calling
+ *                  her number, and a new password.
+ *   profil       — also « Mes commandes » (her orders made while signed in,
+ *                  from any phone) and « Supprimer mon compte ».
+ *   supprimer    — her password, then everything the book holds of her goes.
+ *   Sign-in, sign-up and recovery ask « Rester connectée sur ce téléphone » —
+ *   unticked, closing the browser signs her out of this phone.
+ *
  * Every act is one request on a tap, never queued: nothing about her account
  * is « done » until the service said so. A refusal keeps what she typed and
  * says, in one sentence, what to do. Server bytes reach the page escaped, and
  * her session never reaches it at all.
  */
 
-export type EcranCompte = 'porte' | 'inscription' | 'connexion' | 'profil' | 'modifier' | 'mot-de-passe';
+export type EcranCompte = 'porte' | 'inscription' | 'connexion' | 'profil' | 'modifier' | 'mot-de-passe' | 'recuperation' | 'supprimer';
 
 export interface OptsCompte {
   readonly port: ComptePort;
@@ -42,6 +52,14 @@ export interface OptsCompte {
   readonly ecran: EcranCompte;
   /** She is done here (signed in or up, continued without, signed out, or back). */
   readonly versBoutique: () => void;
+  /** COMPTE-CLIENTE-2 — the boutique's name, once its read answers: the doors
+   *  greet her by the shop she opened. Absent or unanswered, « Shop+ ». */
+  readonly nomBoutique?: Promise<string | undefined>;
+  /** « Mes commandes » — open one order's tracking (the host mounts it). */
+  readonly ouvrirSuivi?: (orderId: string, buyerRef: string) => void;
+  /** Opened as a layer over a product or a payment: « Retour » goes back to
+   *  that page, not to a boutique. */
+  readonly enCalque?: boolean;
 }
 
 const NOM_MAX = 60;
@@ -77,6 +95,7 @@ function phraseRefus(e: Echec): { champ?: string; texte: string } {
     case 'phone_taken': return { champ: 'phone', texte: t('compte.refus.numero_pris') };
     case 'bad_credentials': return { texte: t('compte.refus.identifiants') };
     case 'bad_password': return { champ: 'currentPassword', texte: t('compte.refus.mot_actuel') };
+    case 'bad_code': return { champ: 'code', texte: t('compte.refus.code') };
     case 'too_many_attempts':
     case 'too_many_requests': return { texte: t('compte.refus.trop') };
     default: return { texte: t('compte.refus.indisponible') };
@@ -114,10 +133,14 @@ function champ(o: {
   ].join('');
 }
 
-export function renderPorte(): string {
+/** « Rester connectée sur ce téléphone » — ticked unless she unticks it. */
+const rester = (): string =>
+  `<label class="compte-rester"><input type="checkbox" data-role="compte-rester" checked> <span>${t('compte.rester')}</span></label>`;
+
+export function renderPorte(nomBoutique?: string): string {
   return [
     '<section class="compte" data-screen="compte-porte">',
-    `<h2 class="compte-titre">${t('compte.porte.titre')}</h2>`,
+    `<h2 class="compte-titre" data-role="compte-porte-titre">${nomBoutique !== undefined ? tf('compte.porte.titre_boutique', { boutique: esc(nomBoutique) }) : t('compte.porte.titre')}</h2>`,
     `<p class="compte-sous">${t('compte.porte.sous')}</p>`,
     '<div class="compte-actions">',
     `<button class="primary-action" type="button" data-action="compte-vers-inscription">${t('compte.porte.creer')}</button>`,
@@ -141,6 +164,7 @@ export function renderInscription(): string {
     champ({ cle: 'phone', label: t('compte.label.telephone'), type: 'tel', autocomplete: 'tel', inputmode: 'tel', placeholder: t('compte.telephone_exemple') }),
     champ({ cle: 'email', label: t('compte.label.email'), type: 'email', autocomplete: 'email', inputmode: 'email' }),
     champ({ cle: 'password', label: t('compte.label.mot_de_passe'), type: 'password', autocomplete: 'new-password', aide: t('compte.aide.mot_de_passe'), mdp: true }),
+    rester(),
     alerte(),
     `<button class="primary-action" type="submit" data-action="compte-inscrire">${t('compte.inscription.envoyer')}</button>`,
     '</form>',
@@ -159,9 +183,11 @@ export function renderConnexion(note?: string, telephone?: string): string {
     '<form class="compte-form" data-role="compte-form" novalidate>',
     champ({ cle: 'phone', label: t('compte.label.telephone'), type: 'tel', autocomplete: 'tel', inputmode: 'tel', placeholder: t('compte.telephone_exemple'), ...(telephone !== undefined ? { valeur: telephone } : {}) }),
     champ({ cle: 'password', label: t('compte.label.mot_de_passe'), type: 'password', autocomplete: 'current-password', mdp: true }),
+    rester(),
     alerte(),
     `<button class="primary-action" type="submit" data-action="compte-connecter">${t('compte.connexion.envoyer')}</button>`,
     '</form>',
+    `<button class="link-quiet" type="button" data-action="compte-vers-recuperation">${t('compte.connexion.oublie')}</button>`,
     `<button class="link-quiet" type="button" data-action="compte-vers-inscription">${t('compte.connexion.creer')}</button>`,
     '</section>',
   ].join('');
@@ -169,10 +195,10 @@ export function renderConnexion(note?: string, telephone?: string): string {
 
 /** Her profile: while it is read, the read's failure (no network, or the
  *  service refused), or her infos. */
-export function renderProfil(etat: ProfilCliente | 'chargement' | 'hors_ligne' | 'indisponible', note?: string): string {
+export function renderProfil(etat: ProfilCliente | 'chargement' | 'hors_ligne' | 'indisponible', note?: string, enCalque = false): string {
   const tete = [
     '<section class="compte" data-screen="compte-profil">',
-    retour('compte-boutique', t('compte.profil.retour')),
+    retour('compte-boutique', enCalque ? t('retour') : t('compte.profil.retour')),
     `<h2 class="compte-titre">${t('compte.profil.titre')}</h2>`,
     note !== undefined ? `<p class="compte-note" data-role="compte-note">${note}</p>` : '',
   ];
@@ -205,6 +231,76 @@ export function renderProfil(etat: ProfilCliente | 'chargement' | 'hors_ligne' |
     `<button class="secondary-action" type="button" data-action="compte-vers-mot-de-passe">${t('compte.profil.mot_de_passe')}</button>`,
     `<button class="secondary-action" type="button" data-action="compte-deconnecter">${t('compte.profil.deconnecter')}</button>`,
     '</div>',
+    `<h3 class="compte-sous-titre">${t('compte.commandes.titre')}</h3>`,
+    renderCommandes('chargement'),
+    `<button class="secondary-action problem-path" type="button" data-action="compte-vers-supprimer">${t('compte.supprimer.ouvrir')}</button>`,
+    '</section>',
+  ].join('');
+}
+
+/** jj/mm/aaaa, digits only — no month name to translate. */
+function dateCourte(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+}
+
+/** « Mes commandes »: while read, its failure, none yet, or her orders. The
+ *  order's reference is on the page (as « Ma commande » shows it); her read
+ *  token for it never is — the controller keeps it. */
+export function renderCommandes(etat: readonly CommandeCompte[] | 'chargement' | 'echec'): string {
+  if (etat === 'chargement') {
+    return '<div class="compte-commandes" data-role="compte-commandes" aria-busy="true"><span class="skeleton-line skeleton-line-wide"></span></div>';
+  }
+  if (etat === 'echec') {
+    return [
+      '<div class="compte-commandes" data-role="compte-commandes">',
+      `<p class="compte-sous" data-role="compte-commandes-echec">${t('compte.commandes.echec')}</p>`,
+      `<button class="secondary-action" type="button" data-action="compte-commandes-relire">${t('compte.reessayer')}</button>`,
+      '</div>',
+    ].join('');
+  }
+  if (etat.length === 0) {
+    return `<div class="compte-commandes" data-role="compte-commandes"><p class="compte-sous" data-role="compte-commandes-vide">${t('compte.commandes.vide')}</p></div>`;
+  }
+  return [
+    '<div class="compte-commandes" data-role="compte-commandes">',
+    ...etat.map((c) =>
+      `<button class="compte-commande" type="button" data-action="compte-suivre" data-order="${esc(c.orderId)}">` +
+      `<span>${tf('compte.commandes.ligne', { date: dateCourte(c.at) })}</span><span class="compte-commande-ref">${esc(c.orderId)}</span></button>`),
+    '</div>',
+  ].join('');
+}
+
+export function renderRecuperation(telephone?: string): string {
+  return [
+    '<section class="compte" data-screen="compte-recuperation">',
+    retour('compte-vers-connexion', t('retour')),
+    `<h2 class="compte-titre">${t('compte.recup.titre')}</h2>`,
+    `<p class="compte-sous">${t('compte.recup.comment')}</p>`,
+    '<form class="compte-form" data-role="compte-form" novalidate>',
+    champ({ cle: 'phone', label: t('compte.label.telephone'), type: 'tel', autocomplete: 'tel', inputmode: 'tel', placeholder: t('compte.telephone_exemple'), ...(telephone !== undefined ? { valeur: telephone } : {}) }),
+    champ({ cle: 'code', label: t('compte.label.code'), type: 'text', autocomplete: 'one-time-code' }),
+    champ({ cle: 'newPassword', label: t('compte.label.mot_nouveau'), type: 'password', autocomplete: 'new-password', aide: t('compte.aide.mot_de_passe'), mdp: true }),
+    rester(),
+    alerte(),
+    `<button class="primary-action" type="submit" data-action="compte-recuperer">${t('compte.recup.envoyer')}</button>`,
+    '</form>',
+    '</section>',
+  ].join('');
+}
+
+export function renderSupprimer(): string {
+  return [
+    '<section class="compte" data-screen="compte-supprimer">',
+    retour('compte-vers-profil', t('compte.annuler')),
+    `<h2 class="compte-titre">${t('compte.supprimer.titre')}</h2>`,
+    `<p class="compte-sous">${t('compte.supprimer.explique')}</p>`,
+    '<form class="compte-form" data-role="compte-form" novalidate>',
+    champ({ cle: 'currentPassword', label: t('compte.label.mot_de_passe'), type: 'password', autocomplete: 'current-password', mdp: true }),
+    alerte(),
+    `<button class="primary-action problem-path" type="submit" data-action="compte-supprimer">${t('compte.supprimer.envoyer')}</button>`,
+    '</form>',
     '</section>',
   ].join('');
 }
@@ -252,6 +348,10 @@ export function monterCompte(main: HTMLElement, opts: OptsCompte): void {
   const { port } = opts;
   let profil: ProfilCliente | null = null;
   let enCours = false;
+  /** « Mes commandes » as last read: her read tokens live HERE, never in the page. */
+  let commandes: readonly CommandeCompte[] = [];
+  let nomBoutique: string | undefined;
+  const session = () => sessionActive(opts.local, opts.onglet);
 
   const valeur = (cle: string): string => main.querySelector<HTMLInputElement>(`[data-champ="${cle}"]`)?.value ?? '';
 
@@ -316,20 +416,36 @@ export function monterCompte(main: HTMLElement, opts: OptsCompte): void {
   const afficher = (ecran: EcranCompte, extra: { note?: string; telephone?: string } = {}): void => {
     enCours = false;
     main.innerHTML =
-      ecran === 'porte' ? renderPorte()
+      ecran === 'porte' ? renderPorte(nomBoutique)
       : ecran === 'inscription' ? renderInscription()
       : ecran === 'connexion' ? renderConnexion(extra.note, extra.telephone)
+      : ecran === 'recuperation' ? renderRecuperation(extra.telephone)
+      : ecran === 'supprimer' ? renderSupprimer()
       : ecran === 'modifier' && profil !== null ? renderModifier(profil)
       : ecran === 'mot-de-passe' ? renderMotDePasse()
-      : renderProfil(profil ?? 'chargement', extra.note);
+      : renderProfil(profil ?? 'chargement', extra.note, opts.enCalque === true);
     cablerTelephone();
     if (ecran === 'profil' && profil === null) void lireProfil(extra.note);
+    else if (ecran === 'profil') void lireCommandes();
+  };
+
+  /** « Mes commandes » is read with her profile, into its own slot: a failed
+   *  list never hides her infos, and it says so with a way to try again. */
+  const lireCommandes = async (): Promise<void> => {
+    const g = session();
+    const slot = main.querySelector('[data-role="compte-commandes"]');
+    if (g === undefined || slot === null) return;
+    const r = await port.commandes(g.session);
+    const ici = main.querySelector('[data-role="compte-commandes"]');
+    if (ici === null) return;
+    if (r.kind === 'ok') commandes = r.value;
+    ici.outerHTML = renderCommandes(r.kind === 'ok' ? r.value : 'echec');
   };
 
   /** The profile is read on every arrival — the service, not this phone, is
    *  where her infos live. A lost session sends her to sign in, said plainly. */
   const lireProfil = async (note?: string): Promise<void> => {
-    const g = sessionGardee(opts.local);
+    const g = session();
     if (g === undefined) {
       afficher('connexion', { note: t('compte.refus.session') });
       return;
@@ -337,20 +453,25 @@ export function monterCompte(main: HTMLElement, opts: OptsCompte): void {
     const r = await port.lireProfil(g.session);
     if (r.kind === 'ok') {
       profil = r.value;
-      garderSession(opts.local, { session: g.session, prenom: r.value.firstName });
-      main.innerHTML = renderProfil(r.value, note);
+      rafraichirSession(opts.local, opts.onglet, { session: g.session, prenom: r.value.firstName, telephone: r.value.phone });
+      main.innerHTML = renderProfil(r.value, note, opts.enCalque === true);
+      void lireCommandes();
       return;
     }
     if (r.kind === 'session_perdue') {
-      oublierSession(opts.local);
+      oublierSessions(opts.local, opts.onglet);
       afficher('connexion', { note: t('compte.refus.session') });
       return;
     }
-    main.innerHTML = renderProfil(r.kind === 'hors_ligne' ? 'hors_ligne' : 'indisponible');
+    main.innerHTML = renderProfil(r.kind === 'hors_ligne' ? 'hors_ligne' : 'indisponible', undefined, opts.enCalque === true);
   };
 
-  const entrer = (session: string, p: ProfilCliente): void => {
-    garderSession(opts.local, { session, prenom: p.firstName });
+  /** Signed in: kept on this phone when she ticked « Rester connectée », in
+   *  this tab only when she did not. */
+  const entrer = (sessionNeuve: string, p: ProfilCliente): void => {
+    const resterIci = main.querySelector<HTMLInputElement>('[data-role="compte-rester"]')?.checked !== false;
+    oublierSessions(opts.local, opts.onglet);
+    garderSession(resterIci ? opts.local : opts.onglet, { session: sessionNeuve, prenom: p.firstName, telephone: p.phone });
     opts.versBoutique();
   };
 
@@ -370,10 +491,23 @@ export function monterCompte(main: HTMLElement, opts: OptsCompte): void {
     switch (action) {
       case 'compte-vers-porte': afficher('porte'); break;
       case 'compte-vers-inscription': afficher('inscription'); break;
-      case 'compte-vers-connexion': {
-        // A taken number carries over to the sign-in form: she typed it once.
+      case 'compte-vers-connexion':
+      case 'compte-vers-recuperation': {
+        // A number she typed carries over to the next form: she typed it once.
         const tel = valeur('phone');
-        afficher('connexion', tel !== '' ? { telephone: tel } : {});
+        afficher(action === 'compte-vers-connexion' ? 'connexion' : 'recuperation', tel !== '' ? { telephone: tel } : {});
+        break;
+      }
+      case 'compte-vers-supprimer': afficher('supprimer'); break;
+      case 'compte-commandes-relire': {
+        const ici = main.querySelector('[data-role="compte-commandes"]');
+        if (ici !== null) ici.outerHTML = renderCommandes('chargement');
+        void lireCommandes();
+        break;
+      }
+      case 'compte-suivre': {
+        const c = commandes.find((x) => x.orderId === el.getAttribute('data-order'));
+        if (c !== undefined) opts.ouvrirSuivi?.(c.orderId, c.buyerRef);
         break;
       }
       case 'compte-invitee':
@@ -400,8 +534,8 @@ export function monterCompte(main: HTMLElement, opts: OptsCompte): void {
       }
       case 'compte-deconnecter': {
         // The phone forgets her at once; the service is told on a best effort.
-        const g = sessionGardee(opts.local);
-        oublierSession(opts.local);
+        const g = session();
+        oublierSessions(opts.local, opts.onglet);
         marquerInvitee(opts.onglet);
         if (g !== undefined) void port.deconnecter(g.session);
         opts.versBoutique();
@@ -420,6 +554,8 @@ export function monterCompte(main: HTMLElement, opts: OptsCompte): void {
     else if (ecran === 'compte-connexion') void connecter();
     else if (ecran === 'compte-modifier') void enregistrer();
     else if (ecran === 'compte-mot-de-passe') void changerMotDePasse();
+    else if (ecran === 'compte-recuperation') void recuperer();
+    else if (ecran === 'compte-supprimer') void supprimer();
   });
 
   const nomValide = (v: string): boolean => v.trim() !== '' && v.trim().length <= NOM_MAX;
@@ -457,7 +593,7 @@ export function monterCompte(main: HTMLElement, opts: OptsCompte): void {
   /** The two profile writes share one ending: the service's answer becomes
    *  her profile, and a lost session sends her to sign in. */
   const ecrire = async (patch: Parameters<ComptePort['modifierProfil']>[1], note: string): Promise<void> => {
-    const g = sessionGardee(opts.local);
+    const g = session();
     if (g === undefined) {
       afficher('connexion', { note: t('compte.refus.session') });
       return;
@@ -467,12 +603,13 @@ export function monterCompte(main: HTMLElement, opts: OptsCompte): void {
     occupe(false);
     if (r.kind === 'ok') {
       profil = r.value;
-      garderSession(opts.local, { session: g.session, prenom: r.value.firstName });
-      main.innerHTML = renderProfil(r.value, note);
+      rafraichirSession(opts.local, opts.onglet, { session: g.session, prenom: r.value.firstName, telephone: r.value.phone });
+      main.innerHTML = renderProfil(r.value, note, opts.enCalque === true);
+      void lireCommandes();
       return;
     }
     if (r.kind === 'session_perdue') {
-      oublierSession(opts.local);
+      oublierSessions(opts.local, opts.onglet);
       afficher('connexion', { note: t('compte.refus.session') });
       return;
     }
@@ -498,5 +635,52 @@ export function monterCompte(main: HTMLElement, opts: OptsCompte): void {
     await ecrire({ currentPassword, newPassword }, t('compte.mdp.fait'));
   };
 
+  const recuperer = async (): Promise<void> => {
+    const phone = valeur('phone').trim();
+    const code = valeur('code').trim();
+    const newPassword = valeur('newPassword');
+    if (!numeroComplet(phone)) return montrerRefus({ champ: 'phone', texte: t('compte.champ.telephone') });
+    if (code === '') return montrerRefus({ champ: 'code', texte: t('compte.champ.code') });
+    if (newPassword.length < 8) return montrerRefus({ champ: 'newPassword', texte: t('compte.champ.mot_de_passe') });
+    occupe(true);
+    const r = await port.recuperer(phone, code, newPassword);
+    occupe(false);
+    if (r.kind === 'ok') return entrer(r.value.session, r.value.profil);
+    montrerRefus(phraseRefus(r));
+  };
+
+  const supprimer = async (): Promise<void> => {
+    const g = session();
+    if (g === undefined) {
+      afficher('connexion', { note: t('compte.refus.session') });
+      return;
+    }
+    const currentPassword = valeur('currentPassword');
+    if (currentPassword === '') return montrerRefus({ champ: 'currentPassword', texte: t('compte.champ.mot_vide') });
+    occupe(true);
+    const r = await port.supprimer(g.session, currentPassword);
+    occupe(false);
+    if (r.kind === 'ok') {
+      oublierSessions(opts.local, opts.onglet);
+      marquerInvitee(opts.onglet);
+      opts.versBoutique();
+      return;
+    }
+    if (r.kind === 'session_perdue') {
+      oublierSessions(opts.local, opts.onglet);
+      afficher('connexion', { note: t('compte.refus.session') });
+      return;
+    }
+    montrerRefus(phraseRefus(r));
+  };
+
   afficher(opts.ecran);
+  // The doors greet her by the shop she opened, once its read answers — the
+  // title's TEXT is set, so her shop's name is never markup.
+  void opts.nomBoutique?.then((nom) => {
+    if (nom === undefined || nom === '') return;
+    nomBoutique = nom;
+    const titre = main.querySelector('[data-role="compte-porte-titre"]');
+    if (titre !== null) titre.textContent = tf('compte.porte.titre_boutique', { boutique: nom });
+  }).catch(() => undefined);
 }

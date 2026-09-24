@@ -51,7 +51,23 @@ const COMPTE_PREFIX = 'compte:'; // compte:{accountId} → BuyerAccountRecord
 const TEL_PREFIX = 'tel:'; // tel:{sha256(cleAcheteur(phone))} → accountId
 const SESSION_PREFIX = 'session:'; // session:{sha256(token)} → SessionRow
 const SESSION_INDEX_PREFIX = 'sessions-of:'; // sessions-of:{accountId}:{sha256(token)} → issuedAt
-const ECHECS_PREFIX = 'echecs:'; // echecs:{sha256(cleAcheteur(phone))} → LoginFailures
+const ECHECS_PREFIX = 'echecs:'; // echecs:{sha256(cleAcheteur(phone))} · echecs:mdp:{accountId} · echecs:rec:{sha256(key)} → LoginFailures
+const COMMANDES_PREFIX = 'commandes:'; // commandes:{accountId} → CommandeLiee[] (newest first)
+
+/** COMPTE-CLIENTE-2 — a recovery code the founder mints lives this long. */
+export const RECUPERATION_VIE_MS = 24 * 60 * 60 * 1000;
+/** « Mes commandes » keeps her last fifty; older ones leave the list, never the service. */
+export const COMMANDES_MAX = 50;
+const REFERENCE = /^[A-Za-z0-9_:.-]{1,191}$/;
+
+/** An order she made while signed in: enough to reopen its tracking from any
+ *  phone — the order's id and her own read token for it. No amount, no
+ *  product, no address; the order never reads this book. */
+export interface CommandeLiee {
+  readonly orderId: string;
+  readonly buyerRef: string;
+  readonly at: string;
+}
 
 /** Her names are hers to write — long enough for « Ouédraogo-Kaboré », short
  *  enough that a name is not a document. */
@@ -80,6 +96,10 @@ export interface BuyerAccountRecord {
   readonly passwordSaltHex: string;
   readonly passwordHashHex: string;
   readonly passwordIterations: number;
+  /** COMPTE-CLIENTE-2 — the founder's one-time recovery code, as SHA-256 only,
+   *  and when it stops working. Absent when none is live. */
+  readonly recoveryHash?: string;
+  readonly recoveryExpiresAt?: string;
 }
 
 /** What crosses back to her — never the salt, the hash or the id. */
@@ -202,18 +222,7 @@ export class BuyerAccountsDO {
       // derivation (only storage awaits between them), deleted on success.
       const hashTel = await sha256Hex(cle);
       const cleEchecs = `${ECHECS_PREFIX}${hashTel}`;
-      const nowMs = Date.now();
-      const echecs = await this.state.storage.get<LoginFailures>(cleEchecs);
-      const dansLaFenetre = echecs !== undefined && nowMs - Date.parse(echecs.depuis) < LOGIN_FAIL_WINDOW_MS;
-      if (dansLaFenetre && echecs.n >= LOGIN_FAIL_LIMIT) return refus('too_many_attempts', 429);
-      await this.state.storage.put(cleEchecs, {
-        n: dansLaFenetre ? echecs.n + 1 : 1,
-        depuis: dansLaFenetre ? echecs.depuis : new Date(nowMs).toISOString(),
-      } satisfies LoginFailures);
-      // Counters of a flood on invented numbers must not stand for ever.
-      const anciens = await this.state.storage.list<LoginFailures>({ prefix: ECHECS_PREFIX, limit: 50 });
-      const expires = [...anciens].filter(([, v]) => nowMs - Date.parse(v.depuis) >= LOGIN_FAIL_WINDOW_MS).map(([k]) => k);
-      if (expires.length > 0) await this.state.storage.delete(expires);
+      if (!(await this.essai(cleEchecs))) return refus('too_many_attempts', 429);
 
       const accountId = await this.state.storage.get<string>(`${TEL_PREFIX}${hashTel}`);
       const record = accountId === undefined ? undefined : await this.compte(accountId);
@@ -291,14 +300,7 @@ export class BuyerAccountsDO {
         // A stolen session must not be a free way to guess her password (verifier
         // MINOR 2): the login's own count, per ACCOUNT, before any derivation.
         const cleEchecs = `${ECHECS_PREFIX}mdp:${record.accountId}`;
-        const nowMs = Date.now();
-        const echecs = await this.state.storage.get<LoginFailures>(cleEchecs);
-        const dansLaFenetre = echecs !== undefined && nowMs - Date.parse(echecs.depuis) < LOGIN_FAIL_WINDOW_MS;
-        if (dansLaFenetre && echecs.n >= LOGIN_FAIL_LIMIT) return refus('too_many_attempts', 429);
-        await this.state.storage.put(cleEchecs, {
-          n: dansLaFenetre ? echecs.n + 1 : 1,
-          depuis: dansLaFenetre ? echecs.depuis : new Date(nowMs).toISOString(),
-        } satisfies LoginFailures);
+        if (!(await this.essai(cleEchecs))) return refus('too_many_attempts', 429);
         const derive = await derivePassword(actuel, record.passwordSaltHex, record.passwordIterations);
         if (!egaleConstante(derive, record.passwordHashHex)) return refus('bad_password', 401);
         await this.state.storage.delete(cleEchecs);
@@ -330,7 +332,167 @@ export class BuyerAccountsDO {
       return Response.json(profil(maj));
     }
 
+    /**
+     * ═══ COMPTE-CLIENTE-2 — THE WAY BACK (founder order 2026-09-24) ═══
+     *
+     * A forgotten password, or a number someone else signed up with, used to
+     * be for ever. Now the FOUNDER mints a one-time code for a NUMBER on his
+     * console (key C, index.ts) and gives it by CALLING that number: whoever
+     * answers that phone holds the number, which is the proof no signup could
+     * ask for. She enters it with a new password; every session of the
+     * account ends, hers begins. The founder's door answers the code and
+     * nothing about her — no name, no email.
+     */
+    if (pathname === '/recovery-code') {
+      const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
+      const phone = champ(body?.['phone'], 32);
+      const cle = phone === null ? null : cleAcheteur(phone);
+      if (cle === null || Object.keys(body ?? {}).length !== 1) return refus('bad_field', 400, 'phone');
+      const code = mintToken('SPR');
+      const recoveryHash = await sha256Hex(code);
+      const accountId = await this.state.storage.get<string>(`${TEL_PREFIX}${await sha256Hex(cle)}`);
+      const record = accountId === undefined ? undefined : await this.compte(accountId);
+      if (record === undefined) return refus('no_account', 404);
+      const recoveryExpiresAt = new Date(Date.now() + RECUPERATION_VIE_MS).toISOString();
+      await this.state.storage.put(`${COMPTE_PREFIX}${record.accountId}`, { ...record, recoveryHash, recoveryExpiresAt } satisfies BuyerAccountRecord);
+      return Response.json({ ok: true, code, expiresAt: recoveryExpiresAt });
+    }
+
+    if (pathname === '/recover') {
+      const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
+      if (body === null || typeof body !== 'object' || Array.isArray(body)) return refus('malformed', 400);
+      for (const key of Object.keys(body)) {
+        if (!['phone', 'code', 'newPassword'].includes(key)) return refus('unknown_field', 400, key);
+      }
+      const nouveau = typeof body['newPassword'] === 'string' ? body['newPassword'] : '';
+      if (nouveau.length < 8 || nouveau.length > MAX_FIELD) return refus('bad_field', 400, 'newPassword');
+      const phone = champ(body['phone'], 32);
+      const cle = phone === null ? null : cleAcheteur(phone);
+      const code = typeof body['code'] === 'string' ? body['code'].trim().toUpperCase() : '';
+      // ONE refusal for an unknown number, a wrong code and a spent or expired
+      // one — and ten per number per quarter hour, counted before the proof.
+      if (cle === null || code === '') return refus('bad_code', 401);
+      const hashTel = await sha256Hex(cle);
+      const presente = await sha256Hex(code);
+      const cleEchecs = `${ECHECS_PREFIX}rec:${hashTel}`;
+      if (!(await this.essai(cleEchecs))) return refus('too_many_attempts', 429);
+      const saltHex = selNeuf();
+      const hashNeuf = await derivePassword(nouveau, saltHex);
+      const accountId = await this.state.storage.get<string>(`${TEL_PREFIX}${hashTel}`);
+      const record = accountId === undefined ? undefined : await this.compte(accountId);
+      const vivant =
+        record?.recoveryHash !== undefined &&
+        record.recoveryExpiresAt !== undefined &&
+        Date.parse(record.recoveryExpiresAt) > Date.now() &&
+        egaleConstante(presente, record.recoveryHash);
+      if (record === undefined || !vivant) return refus('bad_code', 401);
+      // Every hash is taken above, so the read, the check and the writes below
+      // sit in storage-only turns (the input gate): a code is spent exactly once.
+      const { recoveryHash: _code, recoveryExpiresAt: _fin, ...reste } = record;
+      const maj: BuyerAccountRecord = { ...reste, passwordSaltHex: saltHex, passwordHashHex: hashNeuf, passwordIterations: PBKDF2_ITERATIONS };
+      await this.state.storage.put(`${COMPTE_PREFIX}${maj.accountId}`, maj);
+      await this.effacerAutresSessions(maj.accountId, '');
+      const { session, ecritures } = await this.minterSession(maj.accountId);
+      await this.state.storage.put(ecritures);
+      await this.state.storage.delete([cleEchecs, `${ECHECS_PREFIX}${hashTel}`]);
+      return Response.json({ ...profil(maj), session });
+    }
+
+    /**
+     * « MES COMMANDES » — the orders she made while signed in, so her tracking
+     * opens from any phone. The app adds each order right after its create
+     * (and those this phone kept, when she signs in); the order itself never
+     * reads this book. A body with only `session` reads the list.
+     */
+    if (pathname === '/orders') {
+      const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
+      if (body === null || typeof body !== 'object' || Array.isArray(body)) return refus('malformed', 400);
+      for (const key of Object.keys(body)) {
+        if (!['session', 'ajouter'].includes(key)) return refus('unknown_field', 400, key);
+      }
+      const ajouter: CommandeLiee[] = [];
+      if (body['ajouter'] !== undefined) {
+        const brut = body['ajouter'];
+        if (!Array.isArray(brut) || brut.length > 10) return refus('bad_field', 400, 'ajouter');
+        const at = new Date().toISOString();
+        for (const c of brut) {
+          const o = c as Record<string, unknown> | null;
+          const orderId = o?.['orderId'];
+          const buyerRef = o?.['buyerRef'];
+          if (typeof orderId !== 'string' || !REFERENCE.test(orderId) || typeof buyerRef !== 'string' || !REFERENCE.test(buyerRef)) {
+            return refus('bad_field', 400, 'ajouter');
+          }
+          ajouter.push({ orderId, buyerRef, at });
+        }
+      }
+      const resolue = await this.resoudreSession(body['session']);
+      if (resolue === null) return refus('no_session', 401);
+      const cle = `${COMMANDES_PREFIX}${resolue.record.accountId}`;
+      const avant = (await this.state.storage.get<CommandeLiee[]>(cle)) ?? [];
+      if (ajouter.length === 0) return Response.json({ ok: true, commandes: avant });
+      const neuves = ajouter.filter((c) => !avant.some((a) => a.orderId === c.orderId));
+      const liste = [...neuves.reverse(), ...avant].slice(0, COMMANDES_MAX);
+      if (neuves.length > 0) await this.state.storage.put(cle, liste);
+      return Response.json({ ok: true, commandes: liste });
+    }
+
+    /**
+     * « SUPPRIMER MON COMPTE » — her account, every session, her order list and
+     * her counters go, and her number is free again. Her orders themselves
+     * are not touched: they live on the service, owed their delivery.
+     */
+    if (pathname === '/delete') {
+      const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
+      if (body === null || typeof body !== 'object' || Array.isArray(body)) return refus('malformed', 400);
+      for (const key of Object.keys(body)) {
+        if (!['session', 'currentPassword'].includes(key)) return refus('unknown_field', 400, key);
+      }
+      const resolue = await this.resoudreSession(body['session']);
+      if (resolue === null) return refus('no_session', 401);
+      const { record } = resolue;
+      const actuel = typeof body['currentPassword'] === 'string' ? body['currentPassword'] : '';
+      if (actuel === '') return refus('bad_field', 400, 'currentPassword');
+      const cleEchecs = `${ECHECS_PREFIX}mdp:${record.accountId}`;
+      if (!(await this.essai(cleEchecs))) return refus('too_many_attempts', 429);
+      const derive = await derivePassword(actuel, record.passwordSaltHex, record.passwordIterations);
+      if (!egaleConstante(derive, record.passwordHashHex)) return refus('bad_password', 401);
+      const hashTel = await sha256Hex(cleAcheteur(record.phone) ?? '');
+      await this.effacerAutresSessions(record.accountId, '');
+      await this.state.storage.delete([
+        `${COMPTE_PREFIX}${record.accountId}`,
+        `${TEL_PREFIX}${hashTel}`,
+        `${COMMANDES_PREFIX}${record.accountId}`,
+        cleEchecs,
+        `${ECHECS_PREFIX}${hashTel}`,
+        `${ECHECS_PREFIX}rec:${hashTel}`,
+      ]);
+      return Response.json({ ok: true });
+    }
+
     return refus('not_found', 404);
+  }
+
+  /**
+   * COUNT FIRST, PROVE AFTER — the reseller book's throttle, one helper for
+   * every door that checks a secret: read and written with only storage
+   * between them, before any derivation; the caller deletes the key on
+   * success. `false` once ten refusals stand inside the quarter hour. Every
+   * call also sweeps up to fifty expired counters, so a flood on invented
+   * numbers never stands for ever.
+   */
+  private async essai(cle: string): Promise<boolean> {
+    const nowMs = Date.now();
+    const echecs = await this.state.storage.get<LoginFailures>(cle);
+    const dansLaFenetre = echecs !== undefined && nowMs - Date.parse(echecs.depuis) < LOGIN_FAIL_WINDOW_MS;
+    if (dansLaFenetre && echecs.n >= LOGIN_FAIL_LIMIT) return false;
+    await this.state.storage.put(cle, {
+      n: dansLaFenetre ? echecs.n + 1 : 1,
+      depuis: dansLaFenetre ? echecs.depuis : new Date(nowMs).toISOString(),
+    } satisfies LoginFailures);
+    const anciens = await this.state.storage.list<LoginFailures>({ prefix: ECHECS_PREFIX, limit: 50 });
+    const expires = [...anciens].filter(([, v]) => nowMs - Date.parse(v.depuis) >= LOGIN_FAIL_WINDOW_MS).map(([k]) => k);
+    if (expires.length > 0) await this.state.storage.delete(expires);
+    return true;
   }
 
   private async effacerAutresSessions(accountId: string, sauf: string): Promise<void> {

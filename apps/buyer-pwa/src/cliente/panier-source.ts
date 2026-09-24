@@ -194,6 +194,9 @@ export function creerSourcePanier(args: {
   /** The phone's storage: the paid panier, for « Mes articles » after the tab dies. */
   readonly garde: Storage | undefined;
   readonly doorGraceMs?: number;
+  /** COMPTE-CLIENTE-2 — told each article's order once the payment keeps it,
+   *  so a signed-in buyer's « Mes commandes » lists them. Best effort. */
+  readonly rattacher?: (c: { readonly orderId: string; readonly buyerRef: string }) => void;
 }): SourcePanier {
   const { port, articles } = args;
   // The panier's composition names its PAYMENT: the same articles, the same pay command.
@@ -271,6 +274,7 @@ export function creerSourcePanier(args: {
         { groupId: g.groupId, holderRef: titulaire, at: new Date().toISOString(), slug: args.slug, articles: payes, ...(colis.length > 0 ? { colis } : {}) },
         args.garde,
       );
+      for (const a of payes) args.rattacher?.({ orderId: a.orderId, buyerRef: a.buyerRef });
     }
     // Paid AND confirmed: these articles leave her boutique's panier, and
     // their quotes with them — the next panier with one of them is a new sale.

@@ -27,18 +27,23 @@ describe('COMPTE-CLIENTE — the book is read in one place', () => {
     expect(qui).toEqual(['worker/buyer-accounts-do.ts', 'worker/index.ts']);
   });
 
-  it('inside index.ts, every use of the binding sits inside the buyer account doors', () => {
+  it('inside index.ts, every use of the binding sits inside the buyer\'s own doors or the founder\'s recovery-code door', () => {
     const s = readFileSync(join(racine, 'worker/index.ts'), 'utf8');
-    const debut = s.indexOf("if (pathname === '/buyer/signup' || pathname === '/buyer/login' || pathname === '/buyer/profile' || pathname === '/buyer/logout') {");
+    const debut = s.indexOf('if (porteCliente.includes(pathname)) {');
     const fin = s.indexOf('═══ RESELLER-ACCOUNTS-1b — THE ACCOUNT DOORS');
     expect(debut).toBeGreaterThan(0);
     expect(fin).toBeGreaterThan(debut);
     const usages = [...s.matchAll(/env\.COMPTES_CLIENTES/g)].map((m) => m.index ?? -1);
-    expect(usages.length).toBe(3);
+    // 3 in the buyer's doors, 3 in the founder's recovery-code door, which
+    // sits between them and the reseller doors and forwards to ONE book path.
+    expect(usages.length).toBe(6);
     for (const i of usages) {
       expect(i).toBeGreaterThan(debut);
       expect(i).toBeLessThan(fin);
     }
+    const fondateur = s.slice(s.indexOf("if (pathname === '/buyer/accounts/recovery-code') {"), fin);
+    expect([...fondateur.matchAll(/https:\/\/do\/[a-z-]+/g)].map((m) => m[0])).toEqual(['https://do/recovery-code']);
+    expect(fondateur).toContain('rejectUnauthorizedOpsRead(request, env)');
     // The class is exported for the runtime and imported once — nothing else.
     expect([...s.matchAll(/BuyerAccountsDO/g)].length).toBe(2);
   });
