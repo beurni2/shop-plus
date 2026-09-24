@@ -655,6 +655,39 @@ test('MES-COMMANDES-PAYEES — the service answers the payment already confirmed
   expect(erreurs).toEqual([]);
 });
 
+test('MES-COMMANDES-PAYEES — her payment failed; over it she signs out and Mariam signs in and retries: the order never reaches Mariam\'s list (verifier BLOCKER)', async ({ page }) => {
+  const livre = new Livre();
+  await dejaConnectee(page, livre);
+  livre.comptes.set('70999999', { firstName: 'Mariam', lastName: 'Sawadogo', phone: '70 99 99 99', password: 'mangue-verte-9' });
+  let vu: { commandes: string[]; etat: string; creation: string } = { commandes: [], etat: 'payment_failed', creation: 'payment_pending' };
+  const erreurs = await ouvrir(page, livre, '/?/s/aicha-4821&pid=p1', async () => {
+    vu = await caisse(page);
+    vu.etat = 'payment_failed';
+  });
+  await jusquAuPaiement(page);
+  await page.locator('[data-etat="echec"]').waitFor({ timeout: 20_000 });
+  // Over the failed payment: Awa signs out…
+  await bande(page).click();
+  const calque = page.locator('[data-role="compte-voile"]');
+  await calque.locator('[data-action="compte-deconnecter"]').click();
+  await expect(bande(page)).toContainText('Se connecter');
+  // …Mariam signs in on the same screen…
+  await bande(page).click();
+  await calque.locator('[data-action="compte-vers-connexion"]').click();
+  await calque.locator('[data-champ="phone"]').pressSequentially('70999999');
+  await calque.locator('[data-champ="password"]').fill('mangue-verte-9');
+  await calque.locator('[data-action="compte-connecter"]').click();
+  await expect(bande(page)).toContainText('Mariam');
+  // …and retries: the same order, and this time the operator confirms.
+  vu.etat = 'confirmed';
+  await page.locator('[data-action="reessayer-paiement"]').click();
+  await page.locator('[data-etat="confirmee"]').waitFor({ timeout: 20_000 });
+  await page.waitForTimeout(1_000);
+  expect(livre.commandes.get('70999999') ?? [], 'Awa\'s order reached Mariam\'s list').toEqual([]);
+  expect(livre.commandes.get('70123456') ?? []).toEqual([]);
+  expect(erreurs).toEqual([]);
+});
+
 for (const [etatPlusTard, rejoint] of [['confirmed', true], ['payment_failed', false], ['payment_pending', false]] as const) {
   test(`MES-COMMANDES-PAYEES — the tab closes while the operator is asked; next visit the service says ${etatPlusTard}: ${rejoint ? 'it joins her list then' : 'it never joins'}`, async ({ page }) => {
     const livre = new Livre();
@@ -666,8 +699,9 @@ for (const [etatPlusTard, rejoint] of [['confirmed', true], ['payment_failed', f
     await expect(page.locator('[data-screen="C6"]')).toBeVisible();
     await page.waitForTimeout(1_500);
     expect(livre.commandes.get('70123456') ?? [], 'an order joined « Mes commandes » before anyone paid').toEqual([]);
-    // She closes the tab; the operator answers while she is away.
-    await page.evaluate(() => sessionStorage.removeItem('sp-reprise:v1'));
+    // She closes the tab — everything the tab kept goes with it; the operator
+    // answers while she is away.
+    await page.evaluate(() => sessionStorage.clear());
     vu.etat = etatPlusTard;
     await page.goto('/?/v/aicha-4821');
     await expect(bande(page)).toContainText('Awa');

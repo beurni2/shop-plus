@@ -170,6 +170,38 @@ export function liensDus(local: Stockage, onglet: Stockage): readonly LienDu[] {
   return [...lireLiens(local), ...lireLiens(onglet)];
 }
 
+/**
+ * MES-COMMANDES-PAYEES (verifier BLOCKER) — whose an order is, is decided ONCE,
+ * at its first create in this tab: the account signed in then, or nobody. A
+ * retried payment answers the same order again, and must never re-aim it at
+ * whoever is signed in by then — so the tab remembers which orders it has
+ * already decided, and that memory outlives a sign-out (it holds ids, no
+ * session). The tab, because a retry can only come from the checkout that made
+ * the order. At most ten, newest first, as the owed links.
+ */
+const CLE_DECIDEES = 'sp-commandes-decidees:v1';
+
+function lireDecidees(onglet: Stockage): string[] {
+  try {
+    const lu = JSON.parse(onglet?.getItem(CLE_DECIDEES) ?? '[]') as unknown;
+    return Array.isArray(lu) ? lu.filter((x): x is string => typeof x === 'string' && x !== '') : [];
+  } catch {
+    return [];
+  }
+}
+
+export function decidee(onglet: Stockage, orderId: string): boolean {
+  return lireDecidees(onglet).includes(orderId);
+}
+
+export function marquerDecidee(onglet: Stockage, orderId: string): void {
+  try {
+    onglet?.setItem(CLE_DECIDEES, JSON.stringify([orderId, ...lireDecidees(onglet).filter((x) => x !== orderId)].slice(0, LIENS_MAX)));
+  } catch {
+    /* the store refused — the page that made the order still knows */
+  }
+}
+
 export function oublierLien(local: Stockage, onglet: Stockage, orderId: string): void {
   for (const s of [local, onglet]) {
     const liens = lireLiens(s);

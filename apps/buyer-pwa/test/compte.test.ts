@@ -459,7 +459,8 @@ describe('COMPTE-CLIENTE-2 · MES-COMMANDES-PAYEES — her orders join « Mes co
     const rattacher = creerRattacheur(port, local, onglet);
     for (const id of ['ord-paye', 'ord-echec', 'ord-annule', 'ord-attente', 'ord-muet']) rattacher({ orderId: id, buyerRef: `r-${id}` });
     const etats: Record<string, string> = { 'ord-paye': 'confirmed', 'ord-echec': 'payment_failed', 'ord-annule': 'cancelled', 'ord-attente': 'payment_pending' };
-    lierLesCommandesDues(port, local, onglet, async (id) =>
+    // The next visit: a new tab — the checkout that made them is gone.
+    lierLesCommandesDues(port, local, memoire(), async (id) =>
       etats[id] === undefined
         ? { status: 'unreachable' }
         : { status: 'order', order: { orderId: id, state: etats[id]!, amountPaidAtCheckout: 1, amountDueAtDelivery: 0 } });
@@ -467,5 +468,75 @@ describe('COMPTE-CLIENTE-2 · MES-COMMANDES-PAYEES — her orders join « Mes co
     await attendre();
     expect(envoyes).toEqual([{ session: SESSION, ajouter: [{ orderId: 'ord-paye', buyerRef: 'r-ord-paye' }] }]);
     expect(liensDus(local, onglet).map((l) => l.orderId).sort()).toEqual(['ord-attente', 'ord-muet']);
+  });
+
+  it('a payment that failed in the tab still open stays owed: « Réessayer » there answers the same order (verifier minor 4)', async () => {
+    const local = memoire();
+    const onglet = memoire();
+    garderSession(local, { session: SESSION, prenom: 'Awa' });
+    const { envoyes, port } = livre();
+    creerRattacheur(port, local, onglet)({ orderId: 'ord-echec', buyerRef: 'r1' });
+    lierLesCommandesDues(port, local, onglet, async (id) => ({ status: 'order', order: { orderId: id, state: 'payment_failed', amountPaidAtCheckout: 1, amountDueAtDelivery: 0 } }));
+    await attendre();
+    expect(envoyes).toEqual([]);
+    expect(liensDus(local, onglet).map((l) => l.orderId)).toEqual(['ord-echec']);
+  });
+
+  it('a retried payment never re-aims the order: signed out then someone else signed in, or a guest who signs in — the first create decided (verifier BLOCKER)', async () => {
+    const local = memoire();
+    const onglet = memoire();
+    const { envoyes, port } = livre();
+    const rattacher = creerRattacheur(port, local, onglet);
+    // Awa makes it; the payment fails; she signs out; Mariam signs in and retries.
+    garderSession(local, { session: SESSION, prenom: 'Awa' });
+    rattacher({ orderId: 'ord-awa', buyerRef: 'r-awa' });
+    oublierSessions(local, onglet);
+    garderSession(local, { session: SESSION_2, prenom: 'Mariam' });
+    rattacher({ orderId: 'ord-awa', buyerRef: 'r-awa' });
+    rattacher({ orderId: 'ord-awa', buyerRef: 'r-awa', payee: true });
+    // A guest's order, retried after she signed in: still nobody's.
+    oublierSessions(local, onglet);
+    rattacher({ orderId: 'ord-invitee', buyerRef: 'r-inv' });
+    garderSession(local, { session: SESSION, prenom: 'Awa' });
+    rattacher({ orderId: 'ord-invitee', buyerRef: 'r-inv' });
+    rattacher({ orderId: 'ord-invitee', buyerRef: 'r-inv', payee: true });
+    // …and the same holds after a reload: a new page, the same tab.
+    const apres = creerRattacheur(port, local, onglet);
+    apres({ orderId: 'ord-invitee', buyerRef: 'r-inv' });
+    apres({ orderId: 'ord-invitee', buyerRef: 'r-inv', payee: true });
+    await attendre();
+    expect(envoyes).toEqual([]);
+    expect(liensDus(local, onglet)).toEqual([]);
+  });
+
+  it('signed out while the payment waits: a confirmation later on the same page sends nothing (verifier minor 2)', async () => {
+    const local = memoire();
+    const onglet = memoire();
+    garderSession(local, { session: SESSION, prenom: 'Awa' });
+    const { envoyes, port } = livre();
+    const rattacher = creerRattacheur(port, local, onglet);
+    rattacher({ orderId: 'ord-1', buyerRef: 'r1' });
+    oublierSessions(local, onglet);
+    rattacher({ orderId: 'ord-1', buyerRef: 'r1', payee: true });
+    await attendre();
+    expect(envoyes).toEqual([]);
+  });
+
+  it('the book could not answer (a server error): still owed, sent on the next « paid » (verifier minor 3)', async () => {
+    const local = memoire();
+    const onglet = memoire();
+    garderSession(local, { session: SESSION, prenom: 'Awa' });
+    let panne = true;
+    const { envoyes, port } = livre(() => (panne ? { kind: 'refus', reason: 'indisponible' } : { kind: 'ok', value: [] }));
+    const rattacher = creerRattacheur(port, local, onglet);
+    rattacher({ orderId: 'ord-1', buyerRef: 'r1' });
+    rattacher({ orderId: 'ord-1', buyerRef: 'r1', payee: true });
+    await attendre();
+    expect(liensDus(local, onglet).map((l) => l.orderId)).toEqual(['ord-1']);
+    panne = false;
+    rattacher({ orderId: 'ord-1', buyerRef: 'r1', payee: true });
+    await attendre();
+    expect(envoyes).toHaveLength(2);
+    expect(liensDus(local, onglet)).toEqual([]);
   });
 });

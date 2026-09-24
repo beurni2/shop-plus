@@ -1,7 +1,7 @@
 import { t } from '../i18n';
 import { verdictBande, type OrderOutcome } from '../cliente/quote-port';
 import type { ComptePort } from './port';
-import { estInvitee, liensDus, oublierLien, retenirLien, sessionActive, type LienDu } from './garde';
+import { decidee, estInvitee, liensDus, marquerDecidee, oublierLien, retenirLien, sessionActive, type LienDu } from './garde';
 import { monterCompte, type BoutiquePorte, type EcranCompte } from './ecrans';
 
 /**
@@ -175,8 +175,14 @@ export function creerRattacheur(
 ): Rattacheur {
   const envoyes = new Set<string>();
   const dus = new Map<string, LienDu>();
+  const decidees = new Set<string>();
   return (c) => {
     if (c.payee !== true) {
+      // The first create decides whose the order is; a retried payment answers
+      // the same order again and never re-aims it (verifier BLOCKER).
+      if (decidees.has(c.orderId) || decidee(onglet, c.orderId)) return;
+      decidees.add(c.orderId);
+      marquerDecidee(onglet, c.orderId);
       const g = sessionActive(local, onglet);
       if (g === undefined) return;
       const l = { orderId: c.orderId, buyerRef: c.buyerRef, session: g.session };
@@ -184,14 +190,21 @@ export function creerRattacheur(
       retenirLien(local, onglet, l);
       return;
     }
-    const l = dus.get(c.orderId) ?? liensDus(local, onglet).find((x) => x.orderId === c.orderId);
+    // The page's copy stands in only for a store that refused, and only while
+    // that session is still hers here: a sign-out forgets it (verifier minor 2).
+    const memoire = dus.get(c.orderId);
+    const l =
+      liensDus(local, onglet).find((x) => x.orderId === c.orderId) ??
+      (memoire !== undefined && memoire.session === sessionActive(local, onglet)?.session ? memoire : undefined);
     if (l === undefined || envoyes.has(c.orderId)) return;
     envoyes.add(c.orderId);
     void port
       .commandes(l.session, [{ orderId: l.orderId, buyerRef: l.buyerRef }])
       .then((r) => {
-        // No network: still owed — the next « paid » sight, or the next visit, sends it.
-        if (r.kind === 'hors_ligne') {
+        // No network, or the book could not answer (a server error reads
+        // « indisponible », verifier minor 3): still owed — the next « paid »
+        // sight, or the next visit, sends it.
+        if (r.kind === 'hors_ligne' || (r.kind === 'refus' && r.reason === 'indisponible')) {
           envoyes.delete(c.orderId);
           return;
         }
@@ -208,7 +221,10 @@ export function creerRattacheur(
  * confirmed. On each visit, every order still owed asks the service once:
  * paid ⇒ it joins her list; failed or cancelled ⇒ owed no more; still waiting
  * or no answer ⇒ asked again next visit. The same rule as the band at the
- * head of her pages (`verdictBande`).
+ * head of her pages (`verdictBande`) — save one case: a payment that failed in
+ * the tab still open stays owed, since « Réessayer » there answers the same
+ * order and a late « failed » must not drop what the retry still needs
+ * (verifier minor 4).
  */
 export function lierLesCommandesDues(
   port: ComptePort,
@@ -222,7 +238,8 @@ export function lierLesCommandesDues(
   for (const l of liens) {
     void lireEtat(l.orderId).then((r) => {
       const verdict = verdictBande(r);
-      if (verdict === 'oublier') oublierLien(local, onglet, l.orderId);
+      const reessayable = r.status === 'order' && r.order.state === 'payment_failed' && decidee(onglet, l.orderId);
+      if (verdict === 'oublier' && !reessayable) oublierLien(local, onglet, l.orderId);
       if (verdict === 'payee') rattacher({ orderId: l.orderId, buyerRef: l.buyerRef, payee: true });
     });
   }
