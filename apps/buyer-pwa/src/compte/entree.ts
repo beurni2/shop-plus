@@ -1,6 +1,7 @@
 import { t } from '../i18n';
+import { verdictBande, type OrderOutcome } from '../cliente/quote-port';
 import type { ComptePort } from './port';
-import { estInvitee, sessionActive } from './garde';
+import { estInvitee, liensDus, oublierLien, retenirLien, sessionActive, type LienDu } from './garde';
 import { monterCompte, type BoutiquePorte, type EcranCompte } from './ecrans';
 
 /**
@@ -154,21 +155,75 @@ export function monterBandeCompte(
 
 /**
  * COMPTE-CLIENTE-2 — « Mes commandes » learns each order she makes while
- * signed in: right after the create (single article) or once the payment
- * keeps them (a panier). Once per order per page, best effort and never
- * awaited — her order is already hers on the service; a missed link costs the
- * list one row, never the order. A guest's order is linked to nobody.
+ * signed in. Best effort and never awaited — her order is already hers on the
+ * service; a missed link costs the list one row, never the order. A guest's
+ * order is linked to nobody.
+ *
+ * MES-COMMANDES-PAYEES (founder, 2026-09-24) — told at the create, it only
+ * REMEMBERS the order as owed to the session signed in now (`retenirLien`);
+ * told again with `payee` — the service said her money moved — it sends the
+ * owed link, under that session, once per order per page. An order never paid
+ * never joins her list. The page keeps what it was told too, so a store that
+ * refuses every write costs the next visit, never the payment seen here.
  */
+export type Rattacheur = (c: { readonly orderId: string; readonly buyerRef: string; readonly payee?: true }) => void;
+
 export function creerRattacheur(
   port: ComptePort,
   local: Storage | undefined,
   onglet: Storage | undefined,
-): (c: { readonly orderId: string; readonly buyerRef: string }) => void {
+): Rattacheur {
   const envoyes = new Set<string>();
+  const dus = new Map<string, LienDu>();
   return (c) => {
-    const g = sessionActive(local, onglet);
-    if (g === undefined || envoyes.has(c.orderId)) return;
+    if (c.payee !== true) {
+      const g = sessionActive(local, onglet);
+      if (g === undefined) return;
+      const l = { orderId: c.orderId, buyerRef: c.buyerRef, session: g.session };
+      dus.set(c.orderId, l);
+      retenirLien(local, onglet, l);
+      return;
+    }
+    const l = dus.get(c.orderId) ?? liensDus(local, onglet).find((x) => x.orderId === c.orderId);
+    if (l === undefined || envoyes.has(c.orderId)) return;
     envoyes.add(c.orderId);
-    void port.commandes(g.session, [c]).catch(() => undefined);
+    void port
+      .commandes(l.session, [{ orderId: l.orderId, buyerRef: l.buyerRef }])
+      .then((r) => {
+        // No network: still owed — the next « paid » sight, or the next visit, sends it.
+        if (r.kind === 'hors_ligne') {
+          envoyes.delete(c.orderId);
+          return;
+        }
+        // Linked, or the book answered by name (her session ended since): owed no more.
+        dus.delete(c.orderId);
+        oublierLien(local, onglet, c.orderId);
+      })
+      .catch(() => undefined);
   };
+}
+
+/**
+ * MES-COMMANDES-PAYEES — the tab that paid may have closed before the operator
+ * confirmed. On each visit, every order still owed asks the service once:
+ * paid ⇒ it joins her list; failed or cancelled ⇒ owed no more; still waiting
+ * or no answer ⇒ asked again next visit. The same rule as the band at the
+ * head of her pages (`verdictBande`).
+ */
+export function lierLesCommandesDues(
+  port: ComptePort,
+  local: Storage | undefined,
+  onglet: Storage | undefined,
+  lireEtat: (orderId: string) => Promise<OrderOutcome>,
+): void {
+  const liens = liensDus(local, onglet);
+  if (liens.length === 0) return;
+  const rattacher = creerRattacheur(port, local, onglet);
+  for (const l of liens) {
+    void lireEtat(l.orderId).then((r) => {
+      const verdict = verdictBande(r);
+      if (verdict === 'oublier') oublierLien(local, onglet, l.orderId);
+      if (verdict === 'payee') rattacher({ orderId: l.orderId, buyerRef: l.buyerRef, payee: true });
+    });
+  }
 }

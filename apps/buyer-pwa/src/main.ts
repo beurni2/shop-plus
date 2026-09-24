@@ -55,7 +55,7 @@ import { VITRINE_THEMES, type VitrineThemeKey } from './vitrine/themes';
 import fontsCss from './fonts.css?raw';
 import { monterRacine } from './racine-view';
 import { resolveComptePort } from './compte/port';
-import { creerRattacheur, monterBandeCompte, monterEntreeCompte } from './compte/entree';
+import { creerRattacheur, lierLesCommandesDues, monterBandeCompte, monterEntreeCompte } from './compte/entree';
 import { sessionActive } from './compte/garde';
 import { icon } from './icons';
 import type { StorefrontProfilePort } from './vitrine/profile';
@@ -1370,6 +1370,12 @@ if (app) {
    * too, as it always did for a paid order.
    */
   const garde = localStorageOrUndefined();
+  // MES-COMMANDES-PAYEES — an order owed to her account whose tab closed before
+  // the operator confirmed joins « Mes commandes » here, once the service says paid.
+  const comptePortShell = clienteDemo === null ? resolveComptePort() : undefined;
+  if (comptePortShell !== undefined) {
+    lierLesCommandesDues(comptePortShell, garde, sessionStorageOrUndefined(), (id) => resolveQuotePort().orderState(id));
+  }
   const gardee = clienteDemo === null ? commandeGardee(garde) : undefined;
   if (gardee !== undefined) {
     const gardeeSure = gardee;

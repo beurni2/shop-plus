@@ -195,8 +195,9 @@ export function creerSourcePanier(args: {
   readonly garde: Storage | undefined;
   readonly doorGraceMs?: number;
   /** COMPTE-CLIENTE-2 — told each article's order once the payment keeps it,
-   *  so a signed-in buyer's « Mes commandes » lists them. Best effort. */
-  readonly rattacher?: (c: { readonly orderId: string; readonly buyerRef: string }) => void;
+   *  then again (`payee`) once it is confirmed: only then does a signed-in
+   *  buyer's « Mes commandes » list them (MES-COMMANDES-PAYEES). Best effort. */
+  readonly rattacher?: (c: { readonly orderId: string; readonly buyerRef: string; readonly payee?: true }) => void;
 }): SourcePanier {
   const { port, articles } = args;
   // The panier's composition names its PAYMENT: the same articles, the same pay command.
@@ -279,6 +280,7 @@ export function creerSourcePanier(args: {
     // Paid AND confirmed: these articles leave her boutique's panier, and
     // their quotes with them — the next panier with one of them is a new sale.
     if (g.state === 'confirmed') {
+      for (const a of payes) args.rattacher?.({ orderId: a.orderId, buyerRef: a.buyerRef, payee: true });
       retirerDuPanier(args.slug, articles.map((a) => a.pid));
       oublierCles();
       ecrireLie(args.slug, undefined, args.session);

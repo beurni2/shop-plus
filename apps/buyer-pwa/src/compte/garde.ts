@@ -99,10 +99,82 @@ export function sessionActive(local: Stockage, onglet: Stockage): SessionGardee 
   return sessionGardee(local) ?? sessionGardee(onglet);
 }
 
-/** Signing out forgets her in both stores. */
+/** Signing out forgets her in both stores — and every order still owed to her account. */
 export function oublierSessions(local: Stockage, onglet: Stockage): void {
   oublierSession(local);
   oublierSession(onglet);
+  for (const s of [local, onglet]) {
+    try {
+      s?.removeItem(CLE_LIENS);
+    } catch {
+      /* nothing more to forget than the store will let go */
+    }
+  }
+}
+
+/**
+ * ═══ MES-COMMANDES-PAYEES — AN ORDER OWED TO HER ACCOUNT, NOT YET IN IT ═══
+ *
+ * (Founder, 2026-09-24: « go with your recommendation ».) An order she makes
+ * while signed in joins « Mes commandes » only once the service says her money
+ * moved. Until then the phone keeps it here, beside her session and in the
+ * SAME store (her « rester connectée » choice holds for it too), with the
+ * session that made it: the link goes under THAT session, so it can only ever
+ * reach her own account — a session signed out since is refused by the book,
+ * and the owed link is dropped, never re-aimed at whoever is signed in now.
+ * At most ten, newest first: the book's own bound for one call.
+ */
+const CLE_LIENS = 'sp-liens-dus:v1';
+const LIENS_MAX = 10;
+
+export interface LienDu {
+  readonly orderId: string;
+  readonly buyerRef: string;
+  readonly session: string;
+}
+
+function lireLiens(s: Stockage): LienDu[] {
+  try {
+    const brut = s?.getItem(CLE_LIENS);
+    if (brut === null || brut === undefined) return [];
+    const lu = JSON.parse(brut) as unknown;
+    if (!Array.isArray(lu)) return [];
+    return lu.flatMap((x: unknown) => {
+      const o = x !== null && typeof x === 'object' ? (x as Record<string, unknown>) : {};
+      return typeof o['orderId'] === 'string' && o['orderId'] !== '' && typeof o['buyerRef'] === 'string' && o['buyerRef'] !== '' &&
+        typeof o['session'] === 'string' && SESSION.test(o['session'])
+        ? [{ orderId: o['orderId'], buyerRef: o['buyerRef'], session: o['session'] }]
+        : [];
+    });
+  } catch {
+    return [];
+  }
+}
+
+function ecrireLiens(s: Stockage, liens: readonly LienDu[]): void {
+  try {
+    if (liens.length === 0) s?.removeItem(CLE_LIENS);
+    else s?.setItem(CLE_LIENS, JSON.stringify(liens.map((l) => ({ orderId: l.orderId, buyerRef: l.buyerRef, session: l.session }))));
+  } catch {
+    /* the store refused — the page that made the order still holds it */
+  }
+}
+
+/** Kept where her session lives — the lasting store first, as `rafraichirSession`. */
+export function retenirLien(local: Stockage, onglet: Stockage, l: LienDu): void {
+  const s = sessionGardee(local) !== undefined ? local : onglet;
+  ecrireLiens(s, [l, ...lireLiens(s).filter((x) => x.orderId !== l.orderId)].slice(0, LIENS_MAX));
+}
+
+export function liensDus(local: Stockage, onglet: Stockage): readonly LienDu[] {
+  return [...lireLiens(local), ...lireLiens(onglet)];
+}
+
+export function oublierLien(local: Stockage, onglet: Stockage, orderId: string): void {
+  for (const s of [local, onglet]) {
+    const liens = lireLiens(s);
+    if (liens.some((l) => l.orderId === orderId)) ecrireLiens(s, liens.filter((l) => l.orderId !== orderId));
+  }
 }
 
 /** A refreshed record (her profile read) goes back where the session lives. */

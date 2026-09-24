@@ -152,7 +152,7 @@ export function monterPanier(
     readonly onVitrine: (slug: string) => void;
     readonly onTerminee: () => void;
     /** COMPTE-CLIENTE-2 — a signed-in buyer's paid articles join « Mes commandes ». */
-    readonly rattacher?: (c: { readonly orderId: string; readonly buyerRef: string }) => void;
+    readonly rattacher?: (c: { readonly orderId: string; readonly buyerRef: string; readonly payee?: true }) => void;
     /** COMPTE-CLIENTE-2 — a signed-in buyer's number fills the empty field, as on one article. */
     readonly telephoneCompte?: () => string | undefined;
   },

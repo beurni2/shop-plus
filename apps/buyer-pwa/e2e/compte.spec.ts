@@ -430,8 +430,9 @@ const BUYER_REF = 'ref-compte2-e2e';
 
 /** The checkout's service, scripted as checkout-real.spec scripts it: one full
  *  quote, a hold, an order whose create carries her read token. */
-async function caisse(page: Page): Promise<{ commandes: string[] }> {
-  const vu = { commandes: [] as string[] };
+async function caisse(page: Page): Promise<{ commandes: string[]; etat: string }> {
+  // MES-COMMANDES-PAYEES — what the service says of the order, the walk's to move.
+  const vu = { commandes: [] as string[], etat: 'payment_pending' };
   await page.route('**/checkout/**', async (route) => {
     const req = route.request();
     const json = (status: number, body: unknown) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
@@ -443,7 +444,7 @@ async function caisse(page: Page): Promise<{ commandes: string[] }> {
       return json(200, { orderId, state: 'payment_pending', amountPaidAtCheckout: 13_000, amountDueAtDelivery: 0, doorLeg: 'none', buyerRef: BUYER_REF });
     }
     if (/\/checkout\/order\/[^/]+$/.test(req.url()) && req.method() === 'GET') {
-      return json(200, { orderId: decodeURIComponent(req.url().split('/').pop()!), state: 'payment_pending', amountPaidAtCheckout: 13_000, amountDueAtDelivery: 0, doorLeg: 'none' });
+      return json(200, { orderId: decodeURIComponent(req.url().split('/').pop()!), state: vu.etat, amountPaidAtCheckout: 13_000, amountDueAtDelivery: 0, doorLeg: 'none' });
     }
     if (/\/remise$/.test(req.url())) return json(404, { ok: false });
     if (corps['paymentMode'] === 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR') return json(422, { error: 'pay_at_door_not_eligible' });
@@ -579,10 +580,10 @@ test('« Supprimer mon compte »: her password first; then she is a guest, and t
   expect(erreurs).toEqual([]);
 });
 
-test('on the payment pages: her number is filled, « Mon compte » opens OVER the payment and leaves it exactly as it was, and the order joins « Mes commandes »', async ({ page }) => {
+test('on the payment pages: her number is filled, « Mon compte » opens OVER the payment and leaves it exactly as it was, and the order joins « Mes commandes » once the payment is confirmed', async ({ page }) => {
   const livre = new Livre();
   await dejaConnectee(page, livre);
-  let vu: { commandes: string[] } = { commandes: [] };
+  let vu: { commandes: string[]; etat: string } = { commandes: [], etat: 'payment_pending' };
   const erreurs = await ouvrir(page, livre, '/?/s/aicha-4821&pid=p1', async () => { vu = await caisse(page); });
   await expect(page.locator('[data-screen="C1"]')).toBeVisible();
   await expect(bande(page)).toContainText('Awa');
@@ -608,9 +609,68 @@ test('on the payment pages: her number is filled, « Mon compte » opens OVER th
   await page.locator('[data-action="choix-paiement"][data-mode="A"]').click();
   await page.locator('[data-action="payer"]').click();
   await expect.poll(() => vu.commandes.length).toBe(1);
+  // MES-COMMANDES-PAYEES — still waiting for the operator: not in her list yet.
+  await expect(page.locator('[data-screen="C6"]')).toBeVisible();
+  await page.waitForTimeout(1_500);
+  expect(livre.commandes.get('70123456') ?? [], 'an order joined « Mes commandes » before anyone paid').toEqual([]);
+  // The operator confirms: it joins, under her read token.
+  vu.etat = 'confirmed';
+  await page.locator('[data-etat="confirmee"]').waitFor({ timeout: 20_000 });
   await expect.poll(() => livre.commandes.get('70123456')?.map((c) => [c.orderId, c.buyerRef])).toEqual([[vu.commandes[0], BUYER_REF]]);
   expect(erreurs).toEqual([]);
 });
+
+/* ═══ MES-COMMANDES-PAYEES — founder (2026-09-24): « go with your recommendation » ═══
+ * An order joined « Mes commandes » the moment she tapped « Payer », so a
+ * payment she never finished sat in her list, opening « Nous avons bien reçu
+ * votre commande ». It now joins only once the service says her money moved —
+ * on the payment screen, or on her next visit when the tab closed first.
+ * Written RED first. */
+
+async function jusquAuPaiement(page: Page): Promise<void> {
+  await page.locator('[data-action="commander"]').click();
+  await page.locator('[data-screen="C3"]').waitFor();
+  await page.locator('[data-action="zone"][data-zone="Gounghin"]').click();
+  await page.locator('[data-role="repere"]').fill('Face à la pharmacie du marché');
+  await page.locator('[data-action="continuer-c3"]').click();
+  await page.locator('[data-screen="C4"]').waitFor({ timeout: 15_000 });
+  await page.locator('[data-action="continuer-c4"]').click();
+  await page.locator('[data-screen="C5"]').waitFor();
+  await page.locator('[data-action="choix-paiement"][data-mode="A"]').click();
+  await page.locator('[data-action="payer"]').click();
+}
+
+for (const [etatPlusTard, rejoint] of [['confirmed', true], ['payment_failed', false], ['payment_pending', false]] as const) {
+  test(`MES-COMMANDES-PAYEES — the tab closes while the operator is asked; next visit the service says ${etatPlusTard}: ${rejoint ? 'it joins her list then' : 'it never joins'}`, async ({ page }) => {
+    const livre = new Livre();
+    await dejaConnectee(page, livre);
+    let vu: { commandes: string[]; etat: string } = { commandes: [], etat: 'payment_pending' };
+    const erreurs = await ouvrir(page, livre, '/?/s/aicha-4821&pid=p1', async () => { vu = await caisse(page); });
+    await jusquAuPaiement(page);
+    await expect.poll(() => vu.commandes.length).toBe(1);
+    await expect(page.locator('[data-screen="C6"]')).toBeVisible();
+    await page.waitForTimeout(1_500);
+    expect(livre.commandes.get('70123456') ?? [], 'an order joined « Mes commandes » before anyone paid').toEqual([]);
+    // She closes the tab; the operator answers while she is away.
+    await page.evaluate(() => sessionStorage.removeItem('sp-reprise:v1'));
+    vu.etat = etatPlusTard;
+    await page.goto('/?/v/aicha-4821');
+    await expect(bande(page)).toContainText('Awa');
+    if (rejoint) {
+      await expect.poll(() => livre.commandes.get('70123456')?.map((c) => [c.orderId, c.buyerRef])).toEqual([[vu.commandes[0], BUYER_REF]]);
+      await expect.poll(() => page.evaluate(() => localStorage.getItem('sp-liens-dus:v1') ?? '')).not.toContain(vu.commandes[0]!);
+    } else {
+      await page.waitForTimeout(1_500);
+      expect(livre.commandes.get('70123456') ?? []).toEqual([]);
+      // Failed: owed no more. Still waiting: kept, asked again next visit.
+      const dus = await page.evaluate(() => localStorage.getItem('sp-liens-dus:v1') ?? '');
+      if (etatPlusTard === 'payment_failed') expect(dus).not.toContain(vu.commandes[0]!);
+      else expect(dus).toContain(vu.commandes[0]!);
+    }
+    expect(await page.content()).not.toContain(BUYER_REF);
+    expect(erreurs).toEqual([]);
+  });
+}
 
 test('Android « Retour » on « Mon compte » over the payment closes the layer — never the payment under it', async ({ page }) => {
   const livre = new Livre();
@@ -682,8 +742,8 @@ const FIG_PANIER: Record<string, { produit: number; frais: number }> = { p1: { p
 /** The grouped payment's service, scripted as panier-payer.spec scripts it:
  *  a quote per article, a hold each, ONE group whose create carries each
  *  article's order and read token. */
-async function caissePanier(page: Page): Promise<{ groupes: number }> {
-  const vu = { groupes: 0 };
+async function caissePanier(page: Page): Promise<{ groupes: number; etat: string }> {
+  const vu = { groupes: 0, etat: 'payment_pending' };
   await page.route('**/api/s/**', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(BOUTIQUE_DEUX) }));
   await page.route('**/checkout/**', async (route) => {
     const req = route.request();
@@ -712,7 +772,10 @@ async function caissePanier(page: Page): Promise<{ groupes: number }> {
       const v = vue('payment_pending', corps['quoteIds'] as string[]);
       return json(200, { ...v, commandes: v.articles.map((a, i) => ({ orderId: a.orderId, buyerRef: `${BUYER_REF}-${i}` })) });
     }
-    if (/\/checkout\/group\/[^/]+$/.test(url) && req.method() === 'GET') return json(200, vue('payment_pending', ['q-p1-A', 'q-p2-A']));
+    if (/\/checkout\/group\/[^/]+$/.test(url) && req.method() === 'GET') return json(200, vue(vu.etat, ['q-p1-A', 'q-p2-A']));
+    if (/\/checkout\/order\/[^/]+$/.test(url) && req.method() === 'GET') {
+      return json(200, { orderId: decodeURIComponent(url.split('/').pop()!), state: vu.etat, amountPaidAtCheckout: 13_000, amountDueAtDelivery: 0, doorLeg: 'none' });
+    }
     if (/\/remise$/.test(url)) return json(404, { ok: false });
     if (corps['paymentMode'] === 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR') return json(422, { error: 'pay_at_door_not_eligible' });
     const pid = String(corps['pid']);
@@ -725,10 +788,10 @@ async function caissePanier(page: Page): Promise<{ groupes: number }> {
   return vu;
 }
 
-test('a basket paid while signed in: her number is filled, and every article joins « Mes commandes »', async ({ page }) => {
+test('a basket paid while signed in: her number is filled, and every article joins « Mes commandes » once the payment is confirmed', async ({ page }) => {
   const livre = new Livre();
   await dejaConnectee(page, livre);
-  let vu = { groupes: 0 };
+  let vu = { groupes: 0, etat: 'payment_pending' };
   const erreurs = await ouvrir(page, livre, '/?/s/aicha-4821&panier=p1,p2', async () => { vu = await caissePanier(page); });
   await expect(page.locator('[data-screen="C1"][data-panier]')).toBeVisible();
   await expect(bande(page)).toContainText('Awa');
@@ -744,6 +807,10 @@ test('a basket paid while signed in: her number is filled, and every article joi
   await page.locator('[data-action="choix-paiement"][data-mode="A"]').click();
   await page.locator('[data-action="payer"]').click();
   await expect.poll(() => vu.groupes).toBe(1);
+  // MES-COMMANDES-PAYEES — still waiting for the operator: not in her list yet.
+  await page.waitForTimeout(1_500);
+  expect(livre.commandes.get('70123456') ?? [], 'articles joined « Mes commandes » before anyone paid').toEqual([]);
+  vu.etat = 'confirmed';
   // Both articles, each with its own read token — once each, and in the book only.
   await expect.poll(() => livre.commandes.get('70123456')?.map((c) => [c.orderId, c.buyerRef]).sort()).toEqual([
     ['ord-q-p1-A', `${BUYER_REF}-0`],

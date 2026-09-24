@@ -182,10 +182,11 @@ export interface ClienteInit {
    *  never at mount: she may sign in, or out, over the page (verifier minor 2).
    *  Absent, or no one signed in: the field starts empty. */
   readonly telephoneCompte?: (() => string | undefined) | undefined;
-  /** COMPTE-CLIENTE-2 — told the order she just created, so a signed-in
-   *  buyer's « Mes commandes » lists it. Best effort, after the create; the
-   *  order never waits on it. */
-  readonly rattacher?: ((c: { readonly orderId: string; readonly buyerRef: string }) => void) | undefined;
+  /** COMPTE-CLIENTE-2 — told the order she just created, then told again
+   *  (`payee`) once the service says her money moved: only then does a
+   *  signed-in buyer's « Mes commandes » list it (MES-COMMANDES-PAYEES). Best
+   *  effort; the order never waits on it. */
+  readonly rattacher?: ((c: { readonly orderId: string; readonly buyerRef: string; readonly payee?: true }) => void) | undefined;
   /**
    * ═══ REPRISE-PWA — THE TAB'S JOURNEY SURVIVES A REFRESH (2026-08-13) ═══
    *
@@ -1560,6 +1561,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
             state.confirmeParServeur = true;
             chargerMerci();
             libererNote(); // PRIVEE-APRES-CONFIRMATION — her note has ridden; nothing needs it now
+            lierAuCompte();
           }
           render();
           return;
@@ -2044,6 +2046,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
       if (etat === 'confirmed') {
         chargerMerci();
         libererNote(); // PRIVEE-APRES-CONFIRMATION — same moment, this road
+        lierAuCompte();
       }
     });
   }
@@ -2060,6 +2063,11 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
    * teardown renders nothing — the instance's standing law that no read may
    * land in a detached container.
    */
+  /** MES-COMMANDES-PAYEES — the service said her money moved: the order owed to her account joins it now. */
+  function lierAuCompte(): void {
+    if (state.orderId !== null && state.buyerRef !== null) init.rattacher?.({ orderId: state.orderId, buyerRef: state.buyerRef, payee: true });
+  }
+
   function chargerMerci(): void {
     const source = init.merci;
     if (source === undefined || state.merciDemande) return;

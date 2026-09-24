@@ -272,9 +272,9 @@ describe('the screens', () => {
 
 /* ═══ COMPTE-CLIENTE-2 — the way back, her orders, leaving, and « garder mon compte ouvert » ═══ */
 
-import { oublierSessions, rafraichirSession, sessionActive } from '../src/compte/garde';
+import { liensDus, oublierSessions, rafraichirSession, sessionActive } from '../src/compte/garde';
 import { renderCommandes, renderRecuperation, renderSupprimer } from '../src/compte/ecrans';
-import { creerRattacheur } from '../src/compte/entree';
+import { creerRattacheur, lierLesCommandesDues } from '../src/compte/entree';
 
 describe('COMPTE-CLIENTE-2 — the wire', () => {
   const port = httpComptePort('https://svc/api');
@@ -369,22 +369,103 @@ describe('COMPTE-CLIENTE-2 — the screens', () => {
   });
 });
 
-describe('COMPTE-CLIENTE-2 — her orders join « Mes commandes »', () => {
-  it('only when she is signed in, and each order once', async () => {
+describe('COMPTE-CLIENTE-2 · MES-COMMANDES-PAYEES — her orders join « Mes commandes » once paid', () => {
+  const SESSION_2 = 'SPC-QRST-UVWX-YZ23-4567';
+  const livre = (reponse: () => unknown = () => ({ kind: 'ok', value: [] })) => {
+    const envoyes: { session: string; ajouter: unknown }[] = [];
+    const port = { commandes: async (session: string, ajouter?: unknown) => { envoyes.push({ session, ajouter }); return reponse(); } } as never;
+    return { envoyes, port };
+  };
+  const attendre = () => new Promise((ok) => setTimeout(ok, 0));
+
+  it('told at the create it sends NOTHING; told « paid » it sends once — a guest\'s order never', async () => {
     const local = memoire();
     const onglet = memoire();
-    const envoyes: { session: string; ajouter: unknown }[] = [];
-    const port = { commandes: async (session: string, ajouter?: unknown) => { envoyes.push({ session, ajouter }); return { kind: 'ok' as const, value: [] }; } } as never;
+    const { envoyes, port } = livre();
     const rattacher = creerRattacheur(port, local, onglet);
     rattacher({ orderId: 'ord-invitee', buyerRef: 'r0' });
-    expect(envoyes).toEqual([]);
+    rattacher({ orderId: 'ord-invitee', buyerRef: 'r0', payee: true });
     garderSession(local, { session: SESSION, prenom: 'Awa' });
     rattacher({ orderId: 'ord-1', buyerRef: 'r1' });
-    rattacher({ orderId: 'ord-1', buyerRef: 'r1' });
     rattacher({ orderId: 'ord-2', buyerRef: 'r2' });
-    expect(envoyes).toEqual([
-      { session: SESSION, ajouter: [{ orderId: 'ord-1', buyerRef: 'r1' }] },
-      { session: SESSION, ajouter: [{ orderId: 'ord-2', buyerRef: 'r2' }] },
-    ]);
+    await attendre();
+    expect(envoyes, 'an order joined her list before anyone paid').toEqual([]);
+    expect(liensDus(local, onglet).map((l) => l.orderId)).toEqual(['ord-2', 'ord-1']);
+    rattacher({ orderId: 'ord-1', buyerRef: 'r1', payee: true });
+    rattacher({ orderId: 'ord-1', buyerRef: 'r1', payee: true });
+    await attendre();
+    expect(envoyes).toEqual([{ session: SESSION, ajouter: [{ orderId: 'ord-1', buyerRef: 'r1' }] }]);
+    expect(liensDus(local, onglet).map((l) => l.orderId)).toEqual(['ord-2']);
+  });
+
+  it('the link goes under the session that MADE the order — never whoever is signed in now; a session ended since drops it', async () => {
+    const local = memoire();
+    const onglet = memoire();
+    garderSession(local, { session: SESSION, prenom: 'Awa' });
+    const { envoyes, port } = livre(() => ({ kind: 'session_perdue' }));
+    creerRattacheur(port, local, onglet)({ orderId: 'ord-1', buyerRef: 'r1' });
+    // Someone else signs in on this phone before the payment is confirmed.
+    garderSession(local, { session: SESSION_2, prenom: 'Mariam' });
+    creerRattacheur(port, local, onglet)({ orderId: 'ord-1', buyerRef: 'r1', payee: true });
+    await attendre();
+    expect(envoyes).toEqual([{ session: SESSION, ajouter: [{ orderId: 'ord-1', buyerRef: 'r1' }] }]);
+    expect(liensDus(local, onglet), 'refused by name: owed no more, never re-aimed').toEqual([]);
+  });
+
+  it('no network: still owed, and sent on the next « paid »', async () => {
+    const local = memoire();
+    const onglet = memoire();
+    garderSession(local, { session: SESSION, prenom: 'Awa' });
+    let reseau = false;
+    const { envoyes, port } = livre(() => (reseau ? { kind: 'ok', value: [] } : { kind: 'hors_ligne' }));
+    const rattacher = creerRattacheur(port, local, onglet);
+    rattacher({ orderId: 'ord-1', buyerRef: 'r1' });
+    rattacher({ orderId: 'ord-1', buyerRef: 'r1', payee: true });
+    await attendre();
+    expect(liensDus(local, onglet).map((l) => l.orderId)).toEqual(['ord-1']);
+    reseau = true;
+    rattacher({ orderId: 'ord-1', buyerRef: 'r1', payee: true });
+    await attendre();
+    expect(envoyes).toHaveLength(2);
+    expect(liensDus(local, onglet)).toEqual([]);
+  });
+
+  it('kept where her session lives — « garder mon compte ouvert » unticked leaves nothing lasting — and signing out forgets it', () => {
+    const local = memoire();
+    const onglet = memoire();
+    garderSession(onglet, { session: SESSION, prenom: 'Awa' });
+    const { port } = livre();
+    creerRattacheur(port, local, onglet)({ orderId: 'ord-1', buyerRef: 'r1' });
+    expect(local.getItem('sp-liens-dus:v1')).toBeNull();
+    expect(onglet.getItem('sp-liens-dus:v1')).toContain('ord-1');
+    oublierSessions(local, onglet);
+    expect(liensDus(local, onglet)).toEqual([]);
+  });
+
+  it('at most ten owed, newest first — the book\'s own bound for one call', () => {
+    const local = memoire();
+    garderSession(local, { session: SESSION, prenom: 'Awa' });
+    const { port } = livre();
+    const rattacher = creerRattacheur(port, local, memoire());
+    for (let i = 0; i < 12; i += 1) rattacher({ orderId: `ord-${i}`, buyerRef: `r${i}` });
+    expect(liensDus(local, undefined).map((l) => l.orderId)).toEqual(['ord-11', 'ord-10', 'ord-9', 'ord-8', 'ord-7', 'ord-6', 'ord-5', 'ord-4', 'ord-3', 'ord-2']);
+  });
+
+  it('the next visit asks the service for each owed order: paid joins, failed or cancelled is dropped, waiting is kept', async () => {
+    const local = memoire();
+    const onglet = memoire();
+    garderSession(local, { session: SESSION, prenom: 'Awa' });
+    const { envoyes, port } = livre();
+    const rattacher = creerRattacheur(port, local, onglet);
+    for (const id of ['ord-paye', 'ord-echec', 'ord-annule', 'ord-attente', 'ord-muet']) rattacher({ orderId: id, buyerRef: `r-${id}` });
+    const etats: Record<string, string> = { 'ord-paye': 'confirmed', 'ord-echec': 'payment_failed', 'ord-annule': 'cancelled', 'ord-attente': 'payment_pending' };
+    lierLesCommandesDues(port, local, onglet, async (id) =>
+      etats[id] === undefined
+        ? { status: 'unreachable' }
+        : { status: 'order', order: { orderId: id, state: etats[id]!, amountPaidAtCheckout: 1, amountDueAtDelivery: 0 } });
+    await attendre();
+    await attendre();
+    expect(envoyes).toEqual([{ session: SESSION, ajouter: [{ orderId: 'ord-paye', buyerRef: 'r-ord-paye' }] }]);
+    expect(liensDus(local, onglet).map((l) => l.orderId).sort()).toEqual(['ord-attente', 'ord-muet']);
   });
 });
