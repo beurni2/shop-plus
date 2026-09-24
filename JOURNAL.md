@@ -1,7 +1,9 @@
 # JOURNAL — shop-plus
 Continuity ledger per CTO charter §6/§6bis. Every entry is evidence-grounded.
 
-## 2026-09-24 · PORTE-BELLE (founder order) — the account doors wear her boutique: structured, calm, the one main action on the first screen; « Ma commande » says « Suivre » · no canon change · ON THE BRANCH, awaiting the founder's word
+## 2026-09-24 · PORTE-BELLE (founder order) — the account doors wear her boutique: structured, calm, the one main action on the first screen; « Ma commande » says « Suivre » · no canon change · MERGED AND DEPLOYED 2026-09-24 on the founder's « Go »
+
+**MERGED AND DEPLOYED (founder: « Go », 2026-09-24).** `main` fast-forwarded `4a6007f → b598b74` (ancestry verified before the push). Buyer app only — no Worker change, so no storefront-deploy: **pwa-preview 495 (id 36033206049) `success`** publishes the new doors; on `b598b74`: ci 707 · expo-preview 528 · **service-canon-drift 394 green** (the live Worker `4a6007f` speaks 3.23.0, the canon `main` ships).
 
 **Founder order (2026-09-24),** on a phone screenshot of the account doors (« Bienvenue chez Maman & Moi », three stacked buttons of which two square and one rounded, a sentence of reassurance, a lot of empty space, and above it « MA COMMANDE ord-quote-8ef5bb44-41fd-… »): « Make this screen more nicer and very beautiful, and more structured , I want it to be like a multibillion dollar company app screen ».
 
