@@ -538,6 +538,8 @@ export interface PanierPaye {
   readonly articles: readonly ArticlePaye[];
   /** COLIS-FOURNISSEUR-1 — the packages, so a reopened tracking pays its door as one. */
   readonly colis?: readonly ColisPaye[];
+  /** BANDE-PAYEE — the service once said her payment moved: « Mes articles » no longer needs to ask. */
+  readonly payee?: true | undefined;
 }
 
 export function garderPanierPaye(p: PanierPaye, storage?: Storage): void {
@@ -559,6 +561,7 @@ export function garderPanierPaye(p: PanierPaye, storage?: Storage): void {
         ...(p.colis !== undefined && p.colis.length > 0
           ? { colis: p.colis.map((c) => ({ packageId: c.packageId, orderIds: [...c.orderIds] })) }
           : {}),
+        ...(p.payee === true ? { payee: true } : {}),
       }),
     );
   } catch {
@@ -589,6 +592,7 @@ export function panierPaye(storage?: Storage): PanierPaye | undefined {
       ...(nonVide(v['slug']) ? { slug: v['slug'] } : {}),
       articles,
       ...(colis.length > 0 ? { colis } : {}),
+      ...(v['payee'] === true ? { payee: true as const } : {}),
     };
   } catch {
     return undefined;

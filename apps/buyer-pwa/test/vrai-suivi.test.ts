@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import {
   COMMANDE_CLE, LECTURE_COMMANDE_TIMEOUT_MS, commandeGardee, garderCommande, httpQuotePort,
-  oublierCommande, type QuotePort,
+  oublierCommande, verdictBande, type QuotePort,
 } from '../src/cliente/quote-port';
 import {
   CODE_REMISE, SUIVI, SUIVI_STEPS, codeAffiche, etapeDeSuivi, renderC10, renderC7, renderC9,
@@ -508,5 +508,36 @@ describe('C10 — the thank-you screen', () => {
     for (const mot of ['data-screen="C7"', SUIVI.verifier, SUIVI.voirCode]) {
       expect(html, `${mot} belongs to the waiting screen, not the ending`).not.toContain(mot);
     }
+  });
+});
+
+/* ═══════════ 5 · BANDE-PAYEE — a band only for an order she paid ════════════ */
+
+describe('BANDE-PAYEE — the service says whether « Ma commande » may stand (founder report 2026-09-24)', () => {
+  const lue = (state: string) => ({ status: 'order' as const, order: { orderId: 'ord-1', state, amountPaidAtCheckout: 13_000, amountDueAtDelivery: 0 } });
+
+  it('the band only once her money moved: paid · confirmed · refunded', () => {
+    for (const st of ['paid', 'confirmed', 'refunded']) expect(verdictBande(lue(st)), st).toBe('payee');
+  });
+
+  it('a payment that failed or an order cancelled is forgotten — no money moved under it', () => {
+    for (const st of ['payment_failed', 'cancelled']) expect(verdictBande(lue(st)), st).toBe('oublier');
+  });
+
+  it('still paying, a state never heard of, or no answer ⇒ no band yet, the record kept (fail closed)', () => {
+    for (const st of ['payment_pending', 'quote_issued', 'reserved', 'livree', '']) expect(verdictBande(lue(st)), st).toBe('attendre');
+    expect(verdictBande({ status: 'unreachable' })).toBe('attendre');
+    expect(verdictBande({ status: 'unreadable' })).toBe('attendre');
+    expect(verdictBande({ status: 'refused', reason: 'unknown_order' })).toBe('attendre');
+  });
+
+  it('the record remembers « paid » — and only a literal true reads as paid', () => {
+    const s = memStorage();
+    garderCommande({ orderId: 'ord-1', buyerRef: 'ref-1', at: ISO, payee: true }, s);
+    expect(commandeGardee(s)).toEqual({ orderId: 'ord-1', buyerRef: 'ref-1', at: ISO, payee: true });
+    garderCommande({ orderId: 'ord-2', buyerRef: 'ref-2', at: ISO }, s);
+    expect(commandeGardee(s)?.payee).toBeUndefined();
+    s.setItem(COMMANDE_CLE, JSON.stringify({ orderId: 'o', buyerRef: 'r', at: ISO, payee: 'true' }));
+    expect(commandeGardee(s)?.payee).toBeUndefined();
   });
 });

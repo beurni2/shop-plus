@@ -435,6 +435,19 @@ describe('PAYER-TOUT-1 — the port: what crosses the wire, and what the phone k
     retirerArticlePaye('o2', garde);
     expect(panierPaye(garde)).toBeUndefined();
   });
+
+  it('BANDE-PAYEE — the record remembers « paid », and keeps remembering after one article is done', () => {
+    const garde = memoire();
+    garderPanierPaye(
+      { groupId: 'grp-1', holderRef: 'h', at: 'T', payee: true, articles: [{ orderId: 'o1', buyerRef: 'r1', nom: 'A' }, { orderId: 'o2', buyerRef: 'r2', nom: 'B' }] },
+      garde,
+    );
+    expect(panierPaye(garde)?.payee).toBe(true);
+    retirerArticlePaye('o1', garde);
+    expect(panierPaye(garde)?.payee).toBe(true);
+    garderPanierPaye({ groupId: 'grp-2', holderRef: 'h', at: 'T', articles: [{ orderId: 'o3', buyerRef: 'r3', nom: 'C' }] }, garde);
+    expect(panierPaye(garde)?.payee).toBeUndefined();
+  });
 });
 
 /**

@@ -833,7 +833,10 @@ test('PORTE-BELLE — « Ma commande » says « Suivre », never the order\'s co
   await page.addInitScript(() => {
     localStorage.setItem('sp-commande:v1', JSON.stringify({ orderId: 'ord-quote-8ef5bb44-41fd-4f73', buyerRef: 'REF-BANDE', at: '2026-09-24T08:00:00.000Z' }));
   });
-  const erreurs = await ouvrir(page, livre);
+  // BANDE-PAYEE — the band stands for an order the service says she paid.
+  const erreurs = await ouvrir(page, livre, '/?/v/aicha-4821', async () => {
+    await lectures(page, { 'ord-quote-8ef5bb44-41fd-4f73': 'confirmed' });
+  });
   const bandeCommande = page.locator('[data-role="ma-commande"]');
   await expect(bandeCommande).toContainText('Ma commande');
   await expect(page.locator('[data-role="ma-commande-suivre"]')).toHaveText('Suivre');
@@ -858,7 +861,9 @@ for (const largeurTel of [360, 390]) {
     await page.addInitScript(() => {
       localStorage.setItem('sp-commande:v1', JSON.stringify({ orderId: 'ord-quote-8ef5bb44-41fd-4f73-b751-92db27a7f877', buyerRef: 'REF-SUIVI', at: '2026-09-24T08:00:00.000Z' }));
     });
-    const erreurs = await ouvrir(page, livre);
+    const erreurs = await ouvrir(page, livre, '/?/v/aicha-4821', async () => {
+      await lectures(page, { 'ord-quote-8ef5bb44-41fd-4f73-b751-92db27a7f877': 'confirmed' });
+    });
     await page.locator('[data-role="ma-commande"]').click();
     await expect(page.locator('[data-screen="C7"]')).toBeVisible();
     const reference = page.locator('[data-screen="C7"] .cl-cmd');
@@ -867,6 +872,120 @@ for (const largeurTel of [360, 390]) {
     expect(await page.content()).not.toContain('REF-SUIVI');
     const largeur = await page.evaluate(() => document.documentElement.scrollWidth);
     expect(largeur, `the tracking overflows a ${largeurTel}px phone (scrollWidth ${largeur})`).toBeLessThanOrEqual(largeurTel);
+    expect(erreurs).toEqual([]);
+  });
+}
+
+/* ═══ BANDE-PAYEE — the founder's report (2026-09-24): « I did not submit any commande why is there a suivre ma commande » ═══
+ * The order is created — and kept on the phone — the moment she taps
+ * « Payer », before any operator has said a word. His phone kept one that was
+ * never paid, and every page then wore « Ma commande · Suivre » for it, opening
+ * a tracking that said « Nous avons bien reçu votre commande ». A band is a
+ * promise that she HAS an order, so it now waits for the service's word. Written
+ * RED first. The same holds for the panier's band, the twin of this one. */
+
+const COMMANDE_KEPT = { orderId: 'ord-quote-8ef5bb44-41fd-4f73-b751-92db27a7f877', buyerRef: 'REF-BANDE-PAYEE', at: '2026-09-24T08:00:00.000Z' };
+const PANIER_KEPT = {
+  groupId: 'grp-bande-1', holderRef: 'HOLD-BANDE', at: '2026-09-24T08:00:00.000Z', slug: 'aicha-4821',
+  articles: [
+    { orderId: 'ord-q-p1-A', buyerRef: 'REF-P1', nom: 'Bazin riche brodé', pid: 'p1' },
+    { orderId: 'ord-q-p2-A', buyerRef: 'REF-P2', nom: 'Pagne tissé', pid: 'p2' },
+  ],
+};
+
+/** The order reads, as the service answers them: one state per order id, or no answer at all. */
+async function lectures(page: Page, etats: Record<string, string | null>): Promise<string[]> {
+  const lus: string[] = [];
+  await page.route('**/checkout/order/**', (route) => {
+    const url = route.request().url();
+    if (/\/remise$/.test(url)) return route.fulfill({ status: 404, contentType: 'application/json', body: '{"ok":false}' });
+    const id = decodeURIComponent(url.split('/').pop()!);
+    lus.push(id);
+    const etat = etats[id];
+    if (etat === null || etat === undefined) return route.abort('internetdisconnected');
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ orderId: id, state: etat, amountPaidAtCheckout: 13_000, amountDueAtDelivery: 0, doorLeg: 'none' }) });
+  });
+  return lus;
+}
+
+const garde = (page: Page, cle: string) => page.evaluate((k) => localStorage.getItem(k), cle);
+
+for (const [etat, oublie] of [['payment_pending', false], ['payment_failed', true], ['cancelled', true], [null, false]] as const) {
+  test(`BANDE-PAYEE — an order the service says is ${etat ?? 'unreachable'}: no « Ma commande » band${oublie ? ', and the phone forgets it' : ', and the phone keeps it for the next visit'}`, async ({ page }) => {
+    const livre = new Livre();
+    await page.addInitScript((c) => localStorage.setItem('sp-commande:v1', JSON.stringify(c)), COMMANDE_KEPT);
+    let lus: string[] = [];
+    const erreurs = await ouvrir(page, livre, '/?/v/aicha-4821', async () => {
+      lus = await lectures(page, { [COMMANDE_KEPT.orderId]: etat });
+    });
+    await expect(page.locator('[data-screen="compte-porte"]')).toBeVisible();
+    await expect(page.locator('[data-role="ma-commande"]'), 'a band for an order nobody paid').toHaveCount(0, { timeout: 2_000 });
+    // It asked the service — and after the answer landed, still no band.
+    await expect.poll(() => lus.length).toBeGreaterThan(0);
+    if (oublie) await expect.poll(() => garde(page, 'sp-commande:v1')).toBeNull();
+    await page.waitForTimeout(500);
+    await expect(page.locator('[data-role="ma-commande"]')).toHaveCount(0);
+    if (!oublie) expect(await garde(page, 'sp-commande:v1')).toContain(COMMANDE_KEPT.orderId);
+    expect(erreurs).toEqual([]);
+  });
+}
+
+test('BANDE-PAYEE — an order the service says is paid: the band stands, opens its tracking, and a later visit with no network still shows it', async ({ page }) => {
+  const livre = new Livre();
+  await page.addInitScript((c) => {
+    if (sessionStorage.getItem('bande-payee-seme') === null) {
+      localStorage.setItem('sp-commande:v1', JSON.stringify(c));
+      sessionStorage.setItem('bande-payee-seme', '1');
+    }
+  }, COMMANDE_KEPT);
+  let lus: string[] = [];
+  const erreurs = await ouvrir(page, livre, '/?/v/aicha-4821', async () => {
+    lus = await lectures(page, { [COMMANDE_KEPT.orderId]: 'confirmed' });
+  });
+  const bandeCommande = page.locator('[data-role="ma-commande"]');
+  await expect(bandeCommande).toContainText('Ma commande');
+  await expect(bandeCommande).toContainText('Suivre');
+  expect(lus).toContain(COMMANDE_KEPT.orderId);
+
+  // The next visit, offline: the phone already heard « paid » — the band
+  // stands without asking, as it always did for a paid order.
+  await expect.poll(() => garde(page, 'sp-commande:v1')).toContain('"payee":true');
+  await page.unroute('**/checkout/order/**');
+  await page.route('**/checkout/**', (route) => route.abort('internetdisconnected'));
+  // The link reopened as the deploy's 404 page restores it (the preview server
+  // has no Pages fallback, so a bare reload of the rewritten path is a 404).
+  const demandes: string[] = [];
+  page.on('request', (req) => { if (req.url().includes('/checkout/order/')) demandes.push(req.url()); });
+  await page.goto('/?/v/aicha-4821');
+  await expect(bandeCommande).toContainText('Suivre');
+  expect(demandes, 'a paid order already known asks the service again').toEqual([]);
+  await bandeCommande.click();
+  await expect(page.locator('[data-screen="C7"]')).toBeVisible();
+  expect(await page.content()).not.toContain('REF-BANDE-PAYEE');
+  expect(erreurs).toEqual([]);
+});
+
+for (const [etat, visible] of [['payment_pending', false], ['confirmed', true]] as const) {
+  test(`BANDE-PAYEE — the panier's band follows the same rule: its payment ${etat} ⇒ ${visible ? 'the band' : 'no band'}`, async ({ page }) => {
+    const livre = new Livre();
+    await page.addInitScript((p) => localStorage.setItem('sp-panier-paye:v1', JSON.stringify(p)), PANIER_KEPT);
+    let lus: string[] = [];
+    const erreurs = await ouvrir(page, livre, '/?/v/aicha-4821', async () => {
+      lus = await lectures(page, { 'ord-q-p1-A': etat, 'ord-q-p2-A': etat });
+    });
+    await expect(page.locator('[data-screen="compte-porte"]')).toBeVisible();
+    const bandePanier = page.locator('[data-role="mes-articles"]');
+    if (visible) {
+      await expect(bandePanier).toContainText('2');
+      await bandePanier.click();
+      await expect(page.locator('[data-screen="MES-ARTICLES"]')).toBeVisible();
+    } else {
+      await expect(bandePanier, 'a band for articles nobody paid').toHaveCount(0, { timeout: 2_000 });
+      await expect.poll(() => lus.length).toBeGreaterThan(0);
+      await page.waitForTimeout(500);
+      await expect(bandePanier).toHaveCount(0);
+      expect(await garde(page, 'sp-panier-paye:v1')).toContain('grp-bande-1');
+    }
     expect(erreurs).toEqual([]);
   });
 }

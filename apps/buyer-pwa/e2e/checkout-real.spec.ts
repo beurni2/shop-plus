@@ -1747,9 +1747,13 @@ test('REPRISE · un rechargement pendant le paiement re-demande la vérité au s
    * the reload. The service answers pending twice, then confirmed, so a
    * snapshot that trusted its own memory would claim a state the server had
    * not yet said.
+   *
+   * BANDE-PAYEE: the reloaded shell asks once whether the kept order was paid
+   * (its « Ma commande » band waits for that word), so the script carries one
+   * more « pending » for that read.
    */
   const wire = await scriptService(page, {
-    orderStates: ['pending', 'pending', 'confirmed'],
+    orderStates: ['pending', 'pending', 'pending', 'confirmed'],
     marques: [MARQUES_ARRIVEE],
     codeRemise: '654321',
   });

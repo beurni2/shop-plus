@@ -1307,6 +1307,8 @@ export interface CommandeGardee {
   readonly orderId: string;
   readonly buyerRef: string;
   readonly at: string;
+  /** BANDE-PAYEE — the service once said her money moved for this order: the band no longer needs to ask. */
+  readonly payee?: true | undefined;
 }
 
 export function garderCommande(c: CommandeGardee, storage?: Storage): void {
@@ -1314,7 +1316,10 @@ export function garderCommande(c: CommandeGardee, storage?: Storage): void {
   try {
     // Field by field, never a spread — the same allowlist law as every wire
     // body in this file: what is stored is exactly what is named.
-    storage.setItem(COMMANDE_CLE, JSON.stringify({ orderId: c.orderId, buyerRef: c.buyerRef, at: c.at }));
+    storage.setItem(
+      COMMANDE_CLE,
+      JSON.stringify({ orderId: c.orderId, buyerRef: c.buyerRef, at: c.at, ...(c.payee === true ? { payee: true } : {}) }),
+    );
   } catch {
     /* best-effort — the order still lives on the service */
   }
@@ -1331,10 +1336,38 @@ export function commandeGardee(storage?: Storage): CommandeGardee | undefined {
     if (v === null || typeof v !== 'object') return undefined;
     const o = v as Record<string, unknown>;
     if (!nonEmpty(o['orderId']) || !nonEmpty(o['buyerRef']) || !nonEmpty(o['at'])) return undefined;
-    return { orderId: o['orderId'], buyerRef: o['buyerRef'], at: o['at'] };
+    return { orderId: o['orderId'], buyerRef: o['buyerRef'], at: o['at'], ...(o['payee'] === true ? { payee: true as const } : {}) };
   } catch {
     return undefined;
   }
+}
+
+/**
+ * ═══ BANDE-PAYEE — MAY A BAND AT THE HEAD OF HER PAGES STAND FOR THIS ORDER? ═══
+ *
+ * (Founder report, 2026-09-24: « I did not submit any commande why is there a
+ * suivre ma commande ».) The order is created — and kept on the phone — the
+ * moment she taps « Payer », before any operator has said a word; a band is a
+ * promise that she HAS an order, so it waits for the service's own state:
+ *  · `paid` · `confirmed` · `refunded` — the only states after her money moved
+ *    (the order machine) ⇒ the band;
+ *  · `payment_failed` · `cancelled` — no money moved under this order, and a
+ *    failed payment is retried only inside the checkout that made it (whose
+ *    create answer keeps the order again) ⇒ the phone forgets it;
+ *  · `payment_pending`, a state this client has never heard of, or a read that
+ *    did not land ⇒ no band, the record kept: she may still be paying, and the
+ *    next visit asks again. FAIL CLOSED, as `etatDeC6` does.
+ */
+export type VerdictBande = 'payee' | 'oublier' | 'attendre';
+
+const ARGENT_PASSE = new Set(['paid', 'confirmed', 'refunded']);
+const SANS_ARGENT = new Set(['payment_failed', 'cancelled']);
+
+export function verdictBande(r: OrderOutcome): VerdictBande {
+  if (r.status !== 'order') return 'attendre';
+  if (ARGENT_PASSE.has(r.order.state)) return 'payee';
+  if (SANS_ARGENT.has(r.order.state)) return 'oublier';
+  return 'attendre';
 }
 
 /** She said « C'est terminé » — the slot clears and the shortcut goes away. */
