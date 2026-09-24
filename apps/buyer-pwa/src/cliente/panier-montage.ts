@@ -153,6 +153,8 @@ export function monterPanier(
     readonly onTerminee: () => void;
     /** COMPTE-CLIENTE-2 — a signed-in buyer's paid articles join « Mes commandes ». */
     readonly rattacher?: (c: { readonly orderId: string; readonly buyerRef: string }) => void;
+    /** COMPTE-CLIENTE-2 — a signed-in buyer's number fills the empty field, as on one article. */
+    readonly telephoneCompte?: string;
   },
 ): void {
   const port = resolvePanierPort(new Map(args.articles.map((a) => [a.pid, a.prixFcfa])));
@@ -171,6 +173,7 @@ export function monterPanier(
     quoteSource: source.quoteSource,
     theme: 'indigo',
     ecran: 'C1',
+    ...(args.telephoneCompte !== undefined ? { telephoneCompte: args.telephoneCompte } : {}),
     panier: {
       articles: args.articles.map((a) => ({ nom: a.nom, prixFcfa: a.prixFcfa, ...(a.photo !== undefined ? { photo: a.photo } : {}) })),
       lignes: source.lignes,

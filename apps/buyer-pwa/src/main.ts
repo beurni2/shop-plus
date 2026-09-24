@@ -844,8 +844,10 @@ if (app) {
         }
         const main = document.createElement('main');
         app.append(main);
+        const telephoneCompte = comptePortOffre !== undefined ? sessionActive(localStorageOrUndefined(), sessionStorageOrUndefined())?.telephone : undefined;
         monterPanier(main, {
           monter: monterCliente,
+          ...(telephoneCompte !== undefined ? { telephoneCompte } : {}),
           boutique: {
             name: resolved.storefront.name,
             slug: signedSlug,

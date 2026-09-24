@@ -607,3 +607,86 @@ test('a guest on the payment pages: « Se connecter » opens the doors over the 
   expect(erreurs).toEqual([]);
 });
 
+
+/** Her boutique with two articles, for a panier. */
+const BOUTIQUE_DEUX = {
+  ...BOUTIQUE,
+  curatedItems: ['p1', 'p2'],
+  products: [...BOUTIQUE.products, { pid: 'p2', name: 'Sac en cuir tressé', priceFcfa: 20_000, inStock: true, assetRefs: [] }],
+};
+const FIG_PANIER: Record<string, { produit: number; frais: number }> = { p1: { produit: 12_000, frais: 1_000 }, p2: { produit: 20_000, frais: 1_000 } };
+
+/** The grouped payment's service, scripted as panier-payer.spec scripts it:
+ *  a quote per article, a hold each, ONE group whose create carries each
+ *  article's order and read token. */
+async function caissePanier(page: Page): Promise<{ groupes: number }> {
+  const vu = { groupes: 0 };
+  await page.route('**/api/s/**', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(BOUTIQUE_DEUX) }));
+  await page.route('**/checkout/**', async (route) => {
+    const req = route.request();
+    const url = req.url();
+    const json = (status: number, body: unknown) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
+    const corps = JSON.parse(req.postData() ?? '{}') as Record<string, unknown>;
+    const expiry = new Date(Date.now() + 15 * 60_000).toISOString();
+    if (/\/reserve$/.test(url)) return json(200, { status: 'reserved', expiresAt: expiry });
+    const vue = (state: string, ids: string[]) => {
+      const articles = ids.map((id) => {
+        const f = FIG_PANIER[id.split('-')[1]!]!;
+        return { orderId: `ord-${id}`, state, amountPaidAtCheckout: f.produit + f.frais, amountDueAtDelivery: 0, doorLeg: 'none' };
+      });
+      return {
+        groupId: 'grp-compte2', state, paymentMode: 'FULL_PREPAY',
+        amountPaidAtCheckout: articles.reduce((s, a) => s + a.amountPaidAtCheckout, 0), amountDueAtDelivery: 0, deliveryTotal: 2_000, articles,
+      };
+    };
+    if (/\/checkout\/group\/price$/.test(url)) {
+      const ids = corps['quoteIds'] as string[];
+      const produit = ids.reduce((s, id) => s + FIG_PANIER[id.split('-')[1]!]!.produit, 0);
+      return json(200, { paymentMode: 'FULL_PREPAY', articles: ids.length, amountPaidAtCheckout: produit + 2_000, amountDueAtDelivery: 0, deliveryTotal: 2_000, productTotal: produit });
+    }
+    if (/\/checkout\/group$/.test(url) && req.method() === 'POST') {
+      vu.groupes += 1;
+      const v = vue('payment_pending', corps['quoteIds'] as string[]);
+      return json(200, { ...v, commandes: v.articles.map((a, i) => ({ orderId: a.orderId, buyerRef: `${BUYER_REF}-${i}` })) });
+    }
+    if (/\/checkout\/group\/[^/]+$/.test(url) && req.method() === 'GET') return json(200, vue('payment_pending', ['q-p1-A', 'q-p2-A']));
+    if (/\/remise$/.test(url)) return json(404, { ok: false });
+    if (corps['paymentMode'] === 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR') return json(422, { error: 'pay_at_door_not_eligible' });
+    const pid = String(corps['pid']);
+    const f = FIG_PANIER[pid]!;
+    return json(200, {
+      quoteId: `q-${pid}-A`, paymentMode: 'FULL_PREPAY', productSubtotal: f.produit, deliveryFee: f.frais, buyerTotal: f.produit + f.frais,
+      amountPaidAtCheckout: f.produit + f.frais, amountDueAtDelivery: 0, expiry,
+    });
+  });
+  return vu;
+}
+
+test('a basket paid while signed in: her number is filled, and every article joins « Mes commandes »', async ({ page }) => {
+  const livre = new Livre();
+  await dejaConnectee(page, livre);
+  let vu = { groupes: 0 };
+  const erreurs = await ouvrir(page, livre, '/?/s/aicha-4821&panier=p1,p2', async () => { vu = await caissePanier(page); });
+  await expect(page.locator('[data-screen="C1"][data-panier]')).toBeVisible();
+  await expect(bande(page)).toContainText('Awa');
+  await page.locator('[data-action="commander"]').click();
+  await page.locator('[data-screen="C3"]').waitFor();
+  await expect(page.locator('[data-role="phone"]')).toHaveValue('70 12 34 56');
+  await page.locator('[data-action="zone"][data-zone="Gounghin"]').click();
+  await page.locator('[data-role="repere"]').fill('Face à la pharmacie du marché');
+  await page.locator('[data-action="continuer-c3"]').click();
+  await page.locator('[data-screen="C4"]').waitFor({ timeout: 15_000 });
+  await page.locator('[data-action="continuer-c4"]').click();
+  await page.locator('[data-screen="C5"]').waitFor();
+  await page.locator('[data-action="choix-paiement"][data-mode="A"]').click();
+  await page.locator('[data-action="payer"]').click();
+  await expect.poll(() => vu.groupes).toBe(1);
+  // Both articles, each with its own read token — once each, and in the book only.
+  await expect.poll(() => livre.commandes.get('70123456')?.map((c) => [c.orderId, c.buyerRef]).sort()).toEqual([
+    ['ord-q-p1-A', `${BUYER_REF}-0`],
+    ['ord-q-p2-A', `${BUYER_REF}-1`],
+  ]);
+  expect(livre.appels.filter((a) => a.chemin === 'orders' && a.corps['ajouter'] !== undefined).flatMap((a) => a.corps['ajouter'] as unknown[])).toHaveLength(2);
+  expect(await page.content()).not.toContain(BUYER_REF);
+  expect(erreurs).toEqual([]);
+});
