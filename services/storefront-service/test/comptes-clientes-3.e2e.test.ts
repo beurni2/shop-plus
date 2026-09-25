@@ -1,6 +1,7 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, readdirSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 import { Miniflare } from 'miniflare';
 import { afterAll, describe, expect, it } from 'vitest';
 
@@ -19,24 +20,25 @@ import { afterAll, describe, expect, it } from 'vitest';
 const SCRIPT = 'dist/worker/worker.mjs';
 const OPS = 'test-checkout-ops-secret-compte3';
 const persist = mkdtempSync(join(tmpdir(), 'comptes-clientes-3-'));
-const mf = new Miniflare({
+const monter = (dossier: string) => new Miniflare({
   modules: true,
   scriptPath: SCRIPT,
   durableObjects: {
     STOREFRONT: 'StorefrontDO', LISTING: 'ListingDO', CHECKOUT: 'CheckoutDO', ORDER: 'OrderDO', ATTRIBUTION_LOCK: 'AttributionLockDO',
     LADDER: 'BuyerLadderDO', DISPATCH: 'DispatchIndexDO', RESELLER: 'ResellerFeedDO', COMPTES: 'ResellerAccountsDO', COMPTES_CLIENTES: 'BuyerAccountsDO',
   },
-  durableObjectsPersist: persist,
+  durableObjectsPersist: dossier,
   bindings: { CHECKOUT_OPS_SECRET: OPS },
 });
+const mf = monter(persist);
 afterAll(async () => {
   await mf.dispose();
   rmSync(persist, { recursive: true, force: true });
 });
 
 const json = { 'Content-Type': 'application/json' };
-const poste = async (path: string, body: unknown, headers: Record<string, string> = {}) => {
-  const res = await mf.dispatchFetch(`https://svc${path}`, { method: 'POST', headers: { ...json, ...headers }, body: JSON.stringify(body) });
+const poste = async (path: string, body: unknown, headers: Record<string, string> = {}, sur: Miniflare = mf) => {
+  const res = await sur.dispatchFetch(`https://svc${path}`, { method: 'POST', headers: { ...json, ...headers }, body: JSON.stringify(body) });
   const text = await res.text();
   return { res, text, body: JSON.parse(text) as Record<string, unknown> };
 };
@@ -161,5 +163,40 @@ describe('MON-COMPTE-PLUS — her panier and her hearts, kept with her account',
     expect((await poste('/buyer/delete', { currentPassword: 'karite-du-soir-8' }, bearer(apres))).res.status).toBe(200);
     const nouveau = await inscrire(elle.phone);
     expect((await articles(nouveau.session)).body).toEqual({ ok: true, panier: [], favoris: [] });
+  });
+
+  it('« Supprimer » leaves nothing of her lists in the book — read off the store itself, not through a door', async () => {
+    // A new account gets a new id, so « empty lists after signing up again »
+    // cannot see lists left behind under the old one (mutation S6 survived
+    // that test). Only the store's own keys can.
+    const dossier = mkdtempSync(join(tmpdir(), 'comptes-clientes-3-effacement-'));
+    const fichiers = (d: string): string[] => readdirSync(d).flatMap((f) => (statSync(join(d, f)).isDirectory() ? fichiers(join(d, f)) : [join(d, f)]));
+    const cles = (): string[] => fichiers(dossier).filter((f) => f.endsWith('.sqlite')).flatMap((f) => {
+      const db = new DatabaseSync(f, { readOnly: true });
+      try {
+        const t = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='_cf_KV'").all();
+        return t.length === 0 ? [] : db.prepare('SELECT key FROM _cf_KV').all().map((r) => String((r as { key: unknown }).key));
+      } finally {
+        db.close();
+      }
+    });
+    const listes = (k: readonly string[]) => k.filter((c) => c.startsWith('panier:') || c.startsWith('favoris:'));
+    let ici = monter(dossier);
+    try {
+      const r = await poste('/buyer/signup', { firstName: 'Awa', lastName: 'Ouédraogo', phone: numero(), password: 'grain-de-nere-77' }, {}, ici);
+      const b = bearer(r.body['session'] as string);
+      const a = await poste('/buyer/articles', { operations: [op('panier', 'ajouter', 'aicha-4821', 'pv-1'), op('favoris', 'ajouter', 'aicha-4821', 'pv-2')] }, b, ici);
+      expect(a.res.status).toBe(200);
+      await ici.dispose();
+      // Control: the file read sees both lists before the delete.
+      expect(listes(cles()).map((c) => c.split(':')[0]).sort()).toEqual(['favoris', 'panier']);
+      ici = monter(dossier);
+      expect((await poste('/buyer/delete', { currentPassword: 'grain-de-nere-77' }, b, ici)).res.status).toBe(200);
+      await ici.dispose();
+      expect(listes(cles())).toEqual([]);
+    } finally {
+      await ici.dispose().catch(() => undefined);
+      rmSync(dossier, { recursive: true, force: true });
+    }
   });
 });
