@@ -1369,3 +1369,35 @@ test('MON-COMPTE-PLUS — her lists, read by themselves, fail with a way out: «
   expect(lectures).toBe(2);
   expect(erreurs).toEqual([]);
 });
+
+test('MON-COMPTE-PLUS — a shared phone: what Awa kept while signed in never joins the account signed in after her (verifier BLOCKER)', async ({ page }) => {
+  const livre = new Livre();
+  livre.comptes.set('70123456', { firstName: 'Awa', lastName: 'Ouédraogo', phone: '70 12 34 56', password: 'grain-de-nere' });
+  livre.comptes.set('76543210', { firstName: 'Mariam', lastName: 'Kaboré', phone: '76 54 32 10', password: 'karite-du-soir' });
+  const erreurs = await ouvrir(page, livre, '/?/v/aicha-4821', () => deuxBoutiques(page));
+  // Awa, on Mariam's phone: signs in, keeps one article, likes another, signs out.
+  await action(page, 'compte-vers-connexion').click();
+  await champ(page, 'phone').pressSequentially('70123456');
+  await champ(page, 'password').fill('grain-de-nere');
+  await action(page, 'compte-connecter').click();
+  await expect(page.locator('.vt-root[data-etat="ready"]')).toBeVisible();
+  await auPanier(page, 'p1').click();
+  await coeur(page, 'p2').click();
+  await expect.poll(() => livre.articles.get('70123456')).toEqual({ panier: [art('aicha-4821', 'p1')], favoris: [art('aicha-4821', 'p2')] });
+  await bande(page).click();
+  await action(page, 'compte-deconnecter').click();
+  await expect(bande(page)).toContainText('Se connecter');
+  // Mariam signs in on her own phone.
+  await bande(page).click();
+  await action(page, 'compte-vers-connexion').click();
+  await champ(page, 'phone').pressSequentially('76543210');
+  await champ(page, 'password').fill('karite-du-soir');
+  await action(page, 'compte-connecter').click();
+  await expect(bande(page).locator('.bande-nom')).toHaveText('Mariam');
+  await page.waitForTimeout(600);
+  expect(livre.articles.get('76543210')?.panier ?? [], 'Awa\'s panier joined Mariam\'s account').toEqual([]);
+  expect(livre.articles.get('76543210')?.favoris ?? [], 'Awa\'s heart joined Mariam\'s account').toEqual([]);
+  // Awa's account still holds what she kept.
+  expect(livre.articles.get('70123456')).toEqual({ panier: [art('aicha-4821', 'p1')], favoris: [art('aicha-4821', 'p2')] });
+  expect(erreurs).toEqual([]);
+});

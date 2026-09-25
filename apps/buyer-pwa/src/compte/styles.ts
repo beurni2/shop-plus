@@ -145,9 +145,12 @@ export const COMPTE_STYLES = `
     border: 0; outline: 0; background: transparent; color: var(--cpt-ink);
     font-family: var(--cpt-texte); font-size: var(--t-body);
   }
-  .compte .compte-input::placeholder { color: var(--cpt-sub); opacity: 0.7; }
+  .compte .compte-input::placeholder { color: var(--cpt-sub); }
+  /* A refused field is marked on the field itself too, for a phone whose
+     browser has no :has() — the box's own border is the finer mark. */
+  .compte .compte-input[aria-invalid="true"] { box-shadow: inset 0 calc(var(--hair-strong) * -1) 0 var(--cpt-danger-bord); }
   .compte .secondary-action.compte-voir {
-    flex: none; width: auto; min-height: calc(var(--touch) - var(--sp-sm)); padding: 0 var(--sp-md);
+    flex: none; width: auto; min-height: calc(var(--touch) - var(--sp-xs)); padding: 0 var(--sp-md);
     border: 0; border-radius: var(--cpt-r-pilule); background: var(--cpt-dim); color: var(--cpt-ink);
     font-family: var(--cpt-texte); font-size: ${PETIT}; font-weight: ${S.row.wght};
     letter-spacing: 0; text-transform: none;
@@ -340,7 +343,7 @@ export const COMPTE_STYLES = `
     border: 1px solid var(--cpt-hair);
   }
   .compte-produit-art img { width: 100%; height: 100%; object-fit: cover; display: block; }
-  .compte-produit[data-epuise] .compte-produit-art img { opacity: 0.5; }
+  .compte-produit[data-epuise] .compte-produit-art img { opacity: var(--disabled-opacity); }
   .compte-produit-nom {
     font-size: ${PETIT}; font-weight: ${S.row.wght}; line-height: 1.3; color: var(--cpt-ink);
     display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
@@ -359,7 +362,7 @@ export const COMPTE_STYLES = `
     border-radius: var(--cpt-r-bouton2); background: ${DOUX}; color: ${PROFOND};
     font-size: ${CORPS}; font-weight: ${S.row.wght}; text-decoration: none; text-align: center;
   }
-  .compte-voir-chez span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .compte-voir-chez span { min-width: 0; overflow-wrap: anywhere; line-height: 1.3; padding: var(--sp-sm) 0; }
   .compte-voir-chez svg { flex: none; }
   .compte-voir-chez:active { opacity: var(--pressed-opacity); }
 
@@ -416,7 +419,7 @@ export const COMPTE_STYLES = `
     font-family: var(--cpt-display); font-size: ${ECRAN}; font-weight: ${S.screen.wght};
     line-height: 1.1; letter-spacing: ${fp.families.display.titleLetterSpacing};
   }
-  .porte-sous { margin: 0; color: inherit; opacity: 0.9; font-size: ${CORPS}; line-height: 1.5; }
+  .porte-sous { margin: 0; color: inherit; font-size: ${CORPS}; line-height: 1.5; }
   .porte-actions { display: grid; gap: var(--sp-md); }
   .porte-ou {
     margin: 0; display: flex; align-items: center; gap: var(--sp-md);

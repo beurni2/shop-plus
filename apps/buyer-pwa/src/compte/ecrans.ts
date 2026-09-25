@@ -459,6 +459,7 @@ export function grouperArticles(articles: readonly ArticleCompte[]): GroupeArtic
 export type EtatArticles =
   | 'chargement'
   | 'echec'
+  | 'hors_ligne'
   | { readonly groupes: readonly GroupeArticles[]; readonly boutiques: ReadonlyMap<string, LectureBoutique | 'chargement'> };
 
 const avatarBoutique = (b: BoutiquePorte): string => {
@@ -521,15 +522,18 @@ export function renderArticles(liste: 'panier' | 'favoris', etat: EtatArticles, 
   if (etat === 'chargement') {
     return `<div class="compte-articles" data-role="${role}" aria-busy="true"><span class="skeleton-line skeleton-line-wide"></span><span class="skeleton-line skeleton-line-mid"></span></div>`;
   }
-  if (etat === 'echec') {
+  if (etat === 'echec' || etat === 'hors_ligne') {
     return [
       `<div class="compte-articles" data-role="${role}">`,
-      `<p class="compte-sous" data-role="${role}-echec">${t('compte.articles.echec')}</p>`,
+      `<p class="compte-sous" data-role="${role}-echec">${etat === 'hors_ligne' ? t('compte.articles.echec') : t('compte.articles.indisponible')}</p>`,
       `<button class="secondary-action" type="button" data-action="compte-articles-relire">${t('compte.reessayer')}</button>`,
       '</div>',
     ].join('');
   }
-  if (etat.groupes.length === 0) {
+  // A boutique that no longer exists takes its articles with it: a list whose
+  // every boutique is gone is an empty list, said so (verifier minor 1).
+  const groupes = etat.groupes.filter((g) => etat.boutiques.get(g.slug) !== 'introuvable');
+  if (groupes.length === 0) {
     return [
       `<div class="compte-articles" data-role="${role}">`,
       `<div class="compte-vide-bloc" data-role="${role}-vide">`,
@@ -539,10 +543,10 @@ export function renderArticles(liste: 'panier' | 'favoris', etat: EtatArticles, 
       '</div></div>',
     ].join('');
   }
-  const horsLigne = etat.groupes.some((g) => etat.boutiques.get(g.slug) === 'hors_ligne');
+  const horsLigne = groupes.some((g) => etat.boutiques.get(g.slug) === 'hors_ligne');
   return [
     `<div class="compte-articles" data-role="${role}">`,
-    ...etat.groupes.map((g) => carteBoutique(g, etat.boutiques.get(g.slug) ?? 'chargement', lien)),
+    ...groupes.map((g) => carteBoutique(g, etat.boutiques.get(g.slug) ?? 'chargement', lien)),
     horsLigne ? `<button class="secondary-action" type="button" data-action="compte-articles-relire">${t('compte.reessayer')}</button>` : '',
     '</div>',
   ].join('');
@@ -628,7 +632,7 @@ export function monterCompte(main: HTMLElement, opts: OptsCompte): void {
   let commandes: readonly CommandeCompte[] = [];
   /** MON-COMPTE-PLUS — her panier and hearts as her account last answered, and
    *  each boutique as it was read (once per visit of this screen). */
-  let articles: ArticlesCompte | 'chargement' | 'echec' = 'chargement';
+  let articles: ArticlesCompte | 'chargement' | 'echec' | 'hors_ligne' = 'chargement';
   const lectures = new Map<string, LectureBoutique | 'chargement'>();
   const lien = (slug: string): string => opts.lienBoutique?.(slug) ?? '#';
   let boutique: BoutiquePorte | 'attente' | undefined = opts.boutique !== undefined ? 'attente' : undefined;
@@ -730,7 +734,7 @@ export function monterCompte(main: HTMLElement, opts: OptsCompte): void {
       if (ici === null) continue;
       ici.outerHTML = renderArticles(
         liste,
-        articles === 'chargement' || articles === 'echec' ? articles : { groupes: grouperArticles(articles[liste]), boutiques: lectures },
+        typeof articles === 'string' ? articles : { groupes: grouperArticles(articles[liste]), boutiques: lectures },
         lien,
       );
     }
@@ -754,8 +758,14 @@ export function monterCompte(main: HTMLElement, opts: OptsCompte): void {
     if (g === undefined || main.querySelector('[data-role="compte-panier"]') === null) return;
     const r = await port.articles(g.session);
     if (main.querySelector('[data-role="compte-panier"]') === null) return;
+    if (r.kind === 'session_perdue') {
+      // Her session ended elsewhere: as her profile says it (verifier minor 2).
+      oublierSessions(opts.local, opts.onglet);
+      afficher('connexion', { note: t('compte.refus.session') });
+      return;
+    }
     if (r.kind !== 'ok') {
-      articles = 'echec';
+      articles = r.kind === 'hors_ligne' ? 'hors_ligne' : 'echec';
       poserArticles();
       return;
     }

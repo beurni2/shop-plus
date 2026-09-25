@@ -16,7 +16,7 @@ import { observerPanier, paniersDuTelephone, resetPanierCache, retirerDuPanier, 
  * boutique, never a price, kept in her account. This pins what a walk cannot
  * see — the exact bytes the account door receives, the owed-changes queue,
  * the write-through's rules, the stores' observers and the lists' markup; the
- * screens themselves are WALKED in e2e/mon-compte-plus.spec.ts.
+ * screens themselves are WALKED in e2e/compte.spec.ts (the MON-COMPTE-PLUS walks).
  */
 
 const memoire = (): Storage => {
@@ -85,7 +85,7 @@ describe('what the phone owes her account', () => {
   const du = (pid: string, action: 'ajouter' | 'retirer' = 'ajouter', session = SESSION) =>
     ({ liste: 'panier' as const, action, slug: 'aicha-4821', pid, session });
 
-  it('one entry per article and list — the last change wins and moves to the end — at most fifty', () => {
+  it('one entry per article and list — the last change wins and moves to the end — at most a hundred (fifty per list)', () => {
     const local = memoire();
     garderSession(local, { session: SESSION, prenom: 'Awa' });
     retenirArticle(local, undefined, du('pv-1'));
@@ -93,10 +93,10 @@ describe('what the phone owes her account', () => {
     retenirArticle(local, undefined, du('pv-1', 'retirer'));
     retenirArticle(local, undefined, { ...du('pv-1'), liste: 'favoris' });
     expect(articlesDus(local, undefined).map((d) => `${d.liste}:${d.action}:${d.pid}`)).toEqual(['panier:ajouter:pv-2', 'panier:retirer:pv-1', 'favoris:ajouter:pv-1']);
-    for (let i = 0; i < 60; i += 1) retenirArticle(local, undefined, du(`pv-n${i}`));
+    for (let i = 0; i < 110; i += 1) retenirArticle(local, undefined, du(`pv-n${i}`));
     const dus = articlesDus(local, undefined);
-    expect(dus).toHaveLength(50);
-    expect(dus[49]!.pid).toBe('pv-n59');
+    expect(dus).toHaveLength(100);
+    expect(dus[99]!.pid).toBe('pv-n109');
   });
 
   it('kept where her session lives; forgotten when she signs out; a sent change leaves, a newer one stays', () => {
@@ -212,6 +212,74 @@ describe('the write-through — her taps reach her account, a guest\'s never', (
     expect(envois).toHaveLength(1);
     expect(apres.envois).toEqual([]);
     expect(articlesDus(local, undefined)).toEqual([]);
+  });
+
+  it('the book unable to open at all (accounts_unavailable) keeps it owed too (verifier minor 3)', async () => {
+    const local = memoire();
+    garderSession(local, { session: SESSION, prenom: 'Awa' });
+    const { port } = livre(() => ({ kind: 'refus', reason: 'accounts_unavailable' }));
+    creerSynchroArticles(port, local, memoire()).noter('panier', 'aicha-4821', 'pv-1', true);
+    await attendre();
+    expect(articlesDus(local, undefined).map((d) => d.pid)).toEqual(['pv-1']);
+  });
+
+  it('a phone whose store refuses every write still tells her account, while the page lives (verifier minor 4)', async () => {
+    const refuse = memoire();
+    refuse.setItem = () => { throw new Error('QuotaExceededError'); };
+    garderSession(refuse, { session: SESSION, prenom: 'Awa' });
+    const { envois, port } = livre();
+    creerSynchroArticles(port, refuse, memoire()).noter('favoris', 'aicha-4821', 'pv-1', true);
+    await attendre();
+    expect(envois).toEqual([{ session: SESSION, ops: [{ liste: 'favoris', action: 'ajouter', slug: 'aicha-4821', pid: 'pv-1' }] }]);
+  });
+
+  it('more than one call carries: sent fifty at a time until nothing is owed, never dropped (verifier MAJOR 1)', async () => {
+    const local = memoire();
+    garderSession(local, { session: SESSION, prenom: 'Awa' });
+    const { envois, port } = livre();
+    creerSynchroArticles(port, local, memoire()).joindre({
+      panier: Array.from({ length: 60 }, (_, i) => ({ slug: 'aicha-4821', pid: `pv-p${i}` })),
+      favoris: Array.from({ length: 50 }, (_, i) => ({ slug: 'aicha-4821', pid: `pv-f${i}` })),
+    });
+    await attendre();
+    await attendre();
+    expect(envois.map((e) => (e.ops as unknown[]).length)).toEqual([50, 50]);
+    const ops = envois.flatMap((e) => e.ops as { liste: string; pid: string }[]);
+    // Fifty per list, the book's own bound: the phone's newest fifty of her panier, all fifty hearts.
+    expect(ops.filter((o) => o.liste === 'panier').map((o) => o.pid)).toEqual(Array.from({ length: 50 }, (_, i) => `pv-p${i + 10}`));
+    expect(ops.filter((o) => o.liste === 'favoris')).toHaveLength(50);
+    expect(articlesDus(local, undefined)).toEqual([]);
+  });
+
+  it('a shared phone: what was kept while an account was signed in never joins the next account; a guest\'s taps do (verifier BLOCKER)', async () => {
+    const local = memoire();
+    const telephone = { panier: [] as { slug: string; pid: string }[], favoris: [] as { slug: string; pid: string }[] };
+    // Awa, signed in, keeps pv-awa and likes pv-coeur; then signs out.
+    garderSession(local, { session: SESSION, prenom: 'Awa' });
+    const awa = livre();
+    const s1 = creerSynchroArticles(awa.port, local, memoire());
+    s1.noter('panier', 'aicha-4821', 'pv-awa', true);
+    s1.noter('favoris', 'aicha-4821', 'pv-coeur', true);
+    telephone.panier.push({ slug: 'aicha-4821', pid: 'pv-awa' });
+    telephone.favoris.push({ slug: 'aicha-4821', pid: 'pv-coeur' });
+    await attendre();
+    oublierSessions(local, memoire());
+    // As a guest, someone keeps pv-invitee; then Mariam signs in.
+    const s2 = creerSynchroArticles(livre().port, local, memoire());
+    s2.noter('panier', 'aicha-4821', 'pv-invitee', true);
+    telephone.panier.push({ slug: 'aicha-4821', pid: 'pv-invitee' });
+    garderSession(local, { session: SESSION_2, prenom: 'Mariam' });
+    const mariam = livre();
+    creerSynchroArticles(mariam.port, local, memoire()).joindre(telephone);
+    await attendre();
+    expect(mariam.envois).toEqual([{ session: SESSION_2, ops: [{ liste: 'panier', action: 'ajouter', slug: 'aicha-4821', pid: 'pv-invitee' }] }]);
+    // Joined once is the account's: signing in again sends nothing more.
+    oublierSessions(local, memoire());
+    garderSession(local, { session: SESSION, prenom: 'Awa' });
+    const encore = livre();
+    creerSynchroArticles(encore.port, local, memoire()).joindre(telephone);
+    await attendre();
+    expect(encore.envois).toEqual([]);
   });
 
   it('signing in joins what this phone already kept, as additions', async () => {
@@ -334,6 +402,9 @@ describe('« Mon panier » and « Mes coups de cœur » — by boutique, never a
     expect(renderArticles('panier', 'chargement')).toContain('aria-busy="true"');
     const echec = renderArticles('favoris', 'echec');
     expect(echec).toContain('data-role="compte-favoris-echec"');
+    expect(echec, 'not every failure is the network').toContain('Vos articles ne s’affichent pas pour le moment.');
+    expect(renderArticles('favoris', 'hors_ligne')).toContain('Pas de réseau pour le moment.');
+    expect(renderArticles('favoris', 'hors_ligne')).toContain('data-action="compte-articles-relire"');
     expect(echec).toContain('data-action="compte-articles-relire"');
     const vide = { groupes: [], boutiques: new Map() };
     expect(renderArticles('panier', vide)).toContain('Votre panier est vide.');
@@ -345,6 +416,7 @@ describe('« Mon panier » and « Mes coups de cœur » — by boutique, never a
     expect(etats({ pause: 'Chez Aïcha' })).toContain('Boutique en pause pour le moment.');
     expect(etats({ pause: 'Chez Aïcha' }), 'a paused boutique sells nothing: no way in').not.toContain('compte-voir-chez');
     expect(etats('introuvable')).not.toContain('compte-boutique');
+    expect(etats('introuvable'), 'every boutique gone: an empty list, said so').toContain('Votre panier est vide.');
     expect(etats({ ...aicha, produits: [] })).toContain('Ces articles ne sont plus en vente dans cette boutique.');
   });
 

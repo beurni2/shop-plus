@@ -209,10 +209,10 @@ export function marquerDecidee(onglet: Stockage, orderId: string): void {
  * session, in the same store, with the session that saw it — and forgotten when
  * she signs out. One entry per article and list: the last change wins, so the
  * queue is what her account must end up holding, in the order she did it. At
- * most fifty, the book's own bound for one call.
+ * most a hundred — fifty per list, the book's own bound — sent fifty to a call.
  */
 const CLE_ARTICLES = 'sp-articles-dus:v1';
-const ARTICLES_DUS_MAX = 50;
+export const ARTICLES_DUS_MAX = 100;
 const SLUG_OK = /^[a-z0-9-]{1,64}$/;
 const PID_OK = /^[A-Za-z0-9][A-Za-z0-9_-]{0,191}$/;
 
@@ -248,7 +248,7 @@ function ecrireArticlesDus(s: Stockage, dus: readonly ArticleDu[]): void {
     if (dus.length === 0) s?.removeItem(CLE_ARTICLES);
     else s?.setItem(CLE_ARTICLES, JSON.stringify(dus.map((d) => ({ liste: d.liste, action: d.action, slug: d.slug, pid: d.pid, session: d.session }))));
   } catch {
-    /* the store refused — this change reaches her account only while the page lives */
+    /* the store refused — the caller keeps the change in the page (retenirArticle says so) */
   }
 }
 
@@ -260,9 +260,53 @@ export function articleValide(slug: string, pid: string): boolean {
   return SLUG_OK.test(slug) && PID_OK.test(pid);
 }
 
-export function retenirArticle(local: Stockage, onglet: Stockage, d: ArticleDu): void {
+/** Kept beside her session; false when the store refused it (the caller then keeps it in the page). */
+export function retenirArticle(local: Stockage, onglet: Stockage, d: ArticleDu): boolean {
   const s = sessionGardee(local) !== undefined ? local : onglet;
   ecrireArticlesDus(s, [...lireArticlesDus(s).filter((x) => !memeArticle(x, d)), d].slice(-ARTICLES_DUS_MAX));
+  return lireArticlesDus(s).some((x) => memeChangement(x, d));
+}
+
+/** The same change to the same article, owed the same session. */
+export const memeChangement = (a: ArticleDu, b: ArticleDu): boolean =>
+  memeArticle(a, b) && a.action === b.action && a.session === b.session;
+
+/**
+ * MON-COMPTE-PLUS (verifier BLOCKER) — WHICH OF THE PHONE'S ARTICLES ALREADY
+ * BELONG TO AN ACCOUNT. The panier and the hearts are the phone's, whoever is
+ * signed in; what was kept or liked while an account was signed in was told to
+ * THAT account. Signing in joins only what no account holds yet — never what
+ * someone else kept on a shared phone. A boutique, a product and a list per
+ * entry, nothing about who.
+ */
+const CLE_AU_COMPTE = 'sp-articles-au-compte:v1';
+const cleAuCompte = (liste: string, slug: string, pid: string): string => `${liste}|${slug}|${pid}`;
+
+function lireAuCompte(local: Stockage): Set<string> {
+  try {
+    const lu = JSON.parse(local?.getItem(CLE_AU_COMPTE) ?? '[]') as unknown;
+    return new Set(Array.isArray(lu) ? lu.filter((x): x is string => typeof x === 'string') : []);
+  } catch {
+    return new Set();
+  }
+}
+
+export function auCompte(local: Stockage, liste: string, slug: string, pid: string): boolean {
+  return lireAuCompte(local).has(cleAuCompte(liste, slug, pid));
+}
+
+export function marquerAuCompte(local: Stockage, liste: string, slug: string, pid: string, oui: boolean): void {
+  const set = lireAuCompte(local);
+  const cle = cleAuCompte(liste, slug, pid);
+  if (set.has(cle) === oui) return;
+  if (oui) set.add(cle);
+  else set.delete(cle);
+  try {
+    if (set.size === 0) local?.removeItem(CLE_AU_COMPTE);
+    else local?.setItem(CLE_AU_COMPTE, JSON.stringify([...set]));
+  } catch {
+    /* the store refused — the phone cannot remember it; nothing is sent because of it */
+  }
 }
 
 export function articlesDus(local: Stockage, onglet: Stockage): readonly ArticleDu[] {
@@ -273,7 +317,7 @@ export function articlesDus(local: Stockage, onglet: Stockage): readonly Article
 export function oublierArticles(local: Stockage, onglet: Stockage, envoyes: readonly ArticleDu[]): void {
   for (const s of [local, onglet]) {
     const dus = lireArticlesDus(s);
-    const reste = dus.filter((x) => !envoyes.some((e) => memeArticle(x, e) && e.action === x.action && e.session === x.session));
+    const reste = dus.filter((x) => !envoyes.some((e) => memeChangement(x, e)));
     if (reste.length !== dus.length) ecrireArticlesDus(s, reste);
   }
 }

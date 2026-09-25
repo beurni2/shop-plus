@@ -4074,6 +4074,12 @@
   "screenClass": "status"
  },
  {
+  "key": "compte.articles.indisponible",
+  "fr": "Vos articles ne s’affichent pas pour le moment. Ils restent gardés.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
   "key": "compte.articles.boutique_hors_ligne",
   "fr": "Cette boutique ne répond pas pour le moment.",
   "register": "neutral",

@@ -64,6 +64,7 @@ import { favorisSitues, observerFavoris } from './vitrine/favorites';
 import { vignette } from './vitrine/render';
 import { sessionActive } from './compte/garde';
 import { icon } from './icons';
+import { iconBag } from './vitrine/icons';
 import type { StorefrontProfilePort } from './vitrine/profile';
 
 /**
@@ -1338,7 +1339,7 @@ if (app) {
       label.textContent = t('cl.panier.reentree');
       const pastille = document.createElement('span');
       pastille.className = 'bande-pastille';
-      pastille.innerHTML = icon('colis', 'bande-glyphe');
+      pastille.innerHTML = iconBag(18, 'currentColor', 1.9);
       const compte = document.createElement('span');
       compte.className = 'ma-commande-ref';
       compte.textContent = String(paye.articles.length);
