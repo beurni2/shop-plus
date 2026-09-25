@@ -1240,7 +1240,7 @@ export default {
      * auth). Signup and login carry their body verbatim — the book's own
      * allowlist refuses a smuggled field. Every answer is `private, no-store`.
      */
-    const porteCliente = ['/buyer/signup', '/buyer/login', '/buyer/profile', '/buyer/logout', '/buyer/recover', '/buyer/orders', '/buyer/delete'];
+    const porteCliente = ['/buyer/signup', '/buyer/login', '/buyer/profile', '/buyer/logout', '/buyer/recover', '/buyer/orders', '/buyer/articles', '/buyer/delete'];
     if (porteCliente.includes(pathname)) {
       if (request.method === 'OPTIONS') return checkoutPreflight();
       const prive = { headers: { 'Cache-Control': 'private, no-store' } };
@@ -1250,7 +1250,7 @@ export default {
       }
       const livre = env.COMPTES_CLIENTES.get(env.COMPTES_CLIENTES.idFromName(BUYER_ACCOUNTS_NAME));
       let corps: string;
-      if (pathname === '/buyer/profile' || pathname === '/buyer/logout' || pathname === '/buyer/orders' || pathname === '/buyer/delete') {
+      if (pathname === '/buyer/profile' || pathname === '/buyer/logout' || pathname === '/buyer/orders' || pathname === '/buyer/articles' || pathname === '/buyer/delete') {
         const auth = request.headers.get('Authorization') ?? '';
         const session = auth.startsWith('Bearer ') ? auth.slice('Bearer '.length) : '';
         const body = (await request.json().catch(() => ({}))) as unknown;

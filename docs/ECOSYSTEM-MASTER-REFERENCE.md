@@ -283,7 +283,7 @@ Every product card leads with **her net earning**, not the price.
 > Robe wax · Prix client **11 500 FCFA** · **Vous gagnez 2 000 FCFA net**
 
 **Options per product:** choose it · adjust markup (M) · see the seller's tier and reliability · see stock · see delivery eligibility.
-**SP-I05 (amended 2026-09-17, founder):** **no cross-reseller discovery** — a buyer reaches a store only through that reseller's signed link or QR; no buyer surface lists, searches, or ranks stores or products across resellers. The platform never turns her customers into a commodity pool other resellers can fish in, and never lets a buyer she brought shop around for a cheaper markup.
+**SP-I05 (amended 2026-09-17, founder):** **no cross-reseller discovery** — a buyer reaches a store only through that reseller's signed link or QR; no buyer surface lists, searches, or ranks stores or products across resellers. The platform never turns her customers into a commodity pool other resellers can fish in, and never lets a buyer she brought shop around for a cheaper markup. *(Founder ruling 2026-09-25: a signed-in buyer's own « Mon compte » may show the articles she kept or liked in boutiques she entered through their links, by boutique and never with a price — her own shelf, not discovery; Shop+ Build Spec SP-I05, §7 SP6.)*
 **SP-I03:** she sees a *product*, never the supplier's identity or contact. (One bounded exception exists — the diaspora **Enseigne** trust projection — and it is out of scope for now.)
 
 ### SP3 — Listing & storefront *(« Ma vitrine »)*

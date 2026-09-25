@@ -53,6 +53,8 @@ const SESSION_PREFIX = 'session:'; // session:{sha256(token)} → SessionRow
 const SESSION_INDEX_PREFIX = 'sessions-of:'; // sessions-of:{accountId}:{sha256(token)} → issuedAt
 const ECHECS_PREFIX = 'echecs:'; // echecs:{sha256(cleAcheteur(phone))} · echecs:mdp:{accountId} · echecs:rec:{sha256(key)} → LoginFailures
 const COMMANDES_PREFIX = 'commandes:'; // commandes:{accountId} → CommandeLiee[] (newest first)
+const PANIER_PREFIX = 'panier:'; // panier:{accountId} → ArticleGarde[] (newest first)
+const FAVORIS_PREFIX = 'favoris:'; // favoris:{accountId} → ArticleGarde[] (newest first)
 
 /** COMPTE-CLIENTE-2 — a recovery code the founder mints lives this long. */
 export const RECUPERATION_VIE_MS = 24 * 60 * 60 * 1000;
@@ -68,6 +70,24 @@ export interface CommandeLiee {
   readonly buyerRef: string;
   readonly at: string;
 }
+
+/**
+ * MON-COMPTE-PLUS (canon 3.24.0, SP6 « third ruling », SP-I05) — an article she
+ * put in her panier or liked, as a boutique and a product: never a price, never
+ * a name, never anything an order reads. « Mon compte » shows them by boutique,
+ * from any phone. Each list keeps her last fifty — the bound of « Mes
+ * commandes » — newest first, once each.
+ */
+export interface ArticleGarde {
+  readonly slug: string;
+  readonly pid: string;
+  readonly at: string;
+}
+export const ARTICLES_MAX = COMMANDES_MAX;
+/** The shapes the wish list already holds a boutique and a product to (wishlist-core.ts). */
+const SLUG_ARTICLE = /^[a-z0-9-]{1,64}$/;
+const PID_ARTICLE = /^[A-Za-z0-9][A-Za-z0-9_-]{0,191}$/;
+const LISTES_ARTICLES = { panier: PANIER_PREFIX, favoris: FAVORIS_PREFIX } as const;
 
 /** Her names are hers to write — long enough for « Ouédraogo-Kaboré », short
  *  enough that a name is not a document. */
@@ -419,7 +439,10 @@ export class BuyerAccountsDO {
       await this.effacerAutresSessions(maj.accountId, '');
       const { session, ecritures } = await this.minterSession(maj.accountId);
       await this.state.storage.put(ecritures);
-      await this.state.storage.delete([cleEchecs, `${ECHECS_PREFIX}${hashTel}`, `${ECHECS_PREFIX}mdp:${maj.accountId}`, `${COMMANDES_PREFIX}${maj.accountId}`]);
+      await this.state.storage.delete([
+        cleEchecs, `${ECHECS_PREFIX}${hashTel}`, `${ECHECS_PREFIX}mdp:${maj.accountId}`, `${COMMANDES_PREFIX}${maj.accountId}`,
+        `${PANIER_PREFIX}${maj.accountId}`, `${FAVORIS_PREFIX}${maj.accountId}`,
+      ]);
       return Response.json({ ...profil(maj), session });
     }
 
@@ -463,6 +486,62 @@ export class BuyerAccountsDO {
     }
 
     /**
+     * MON-COMPTE-PLUS — HER PANIER AND HER HEARTS, KEPT WITH HER ACCOUNT. The app
+     * sends what changed on a phone while she was signed in — in order, each an
+     * `ajouter` or a `retirer` of one boutique's product in one list — and reads
+     * both lists back. A body with only `session` reads them. Every operation
+     * is checked before anything is written: one bad one refuses the call.
+     */
+    if (pathname === '/articles') {
+      const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
+      if (body === null || typeof body !== 'object' || Array.isArray(body)) return refus('malformed', 400);
+      for (const key of Object.keys(body)) {
+        if (!['session', 'operations'].includes(key)) return refus('unknown_field', 400, key);
+      }
+      const operations: { liste: keyof typeof LISTES_ARTICLES; ajouter: boolean; slug: string; pid: string }[] = [];
+      if (body['operations'] !== undefined) {
+        const brut = body['operations'];
+        if (!Array.isArray(brut) || brut.length > ARTICLES_MAX) return refus('bad_field', 400, 'operations');
+        for (const o of brut) {
+          const op = o !== null && typeof o === 'object' && !Array.isArray(o) ? (o as Record<string, unknown>) : null;
+          const liste = op?.['liste'];
+          const action = op?.['action'];
+          const slug = op?.['slug'];
+          const pid = op?.['pid'];
+          if (
+            op === null || Object.keys(op).some((k) => !['liste', 'action', 'slug', 'pid'].includes(k)) ||
+            (liste !== 'panier' && liste !== 'favoris') || (action !== 'ajouter' && action !== 'retirer') ||
+            typeof slug !== 'string' || !SLUG_ARTICLE.test(slug) || typeof pid !== 'string' || !PID_ARTICLE.test(pid)
+          ) {
+            return refus('bad_field', 400, 'operations');
+          }
+          operations.push({ liste, ajouter: action === 'ajouter', slug, pid });
+        }
+      }
+      const resolue = await this.resoudreSession(body['session']);
+      if (resolue === null) return refus('no_session', 401);
+      const id = resolue.record.accountId;
+      const listes = {
+        panier: (await this.state.storage.get<ArticleGarde[]>(`${PANIER_PREFIX}${id}`)) ?? [],
+        favoris: (await this.state.storage.get<ArticleGarde[]>(`${FAVORIS_PREFIX}${id}`)) ?? [],
+      };
+      const changees = new Set<keyof typeof LISTES_ARTICLES>();
+      const at = new Date().toISOString();
+      for (const op of operations) {
+        const avant = listes[op.liste];
+        const present = avant.some((a) => a.slug === op.slug && a.pid === op.pid);
+        if (op.ajouter && !present) listes[op.liste] = [{ slug: op.slug, pid: op.pid, at }, ...avant].slice(0, ARTICLES_MAX);
+        else if (!op.ajouter && present) listes[op.liste] = avant.filter((a) => !(a.slug === op.slug && a.pid === op.pid));
+        else continue;
+        changees.add(op.liste);
+      }
+      if (changees.size > 0) {
+        await this.state.storage.put(Object.fromEntries([...changees].map((l) => [`${LISTES_ARTICLES[l]}${id}`, listes[l]])));
+      }
+      return Response.json({ ok: true, panier: listes.panier, favoris: listes.favoris });
+    }
+
+    /**
      * « SUPPRIMER MON COMPTE » — her account, every session, her order list and
      * her counters go, and her number is free again. Her orders themselves
      * are not touched: they live on the service, owed their delivery.
@@ -488,6 +567,8 @@ export class BuyerAccountsDO {
         `${COMPTE_PREFIX}${record.accountId}`,
         `${TEL_PREFIX}${hashTel}`,
         `${COMMANDES_PREFIX}${record.accountId}`,
+        `${PANIER_PREFIX}${record.accountId}`,
+        `${FAVORIS_PREFIX}${record.accountId}`,
         cleEchecs,
         `${ECHECS_PREFIX}${hashTel}`,
         `${ECHECS_PREFIX}rec:${hashTel}`,

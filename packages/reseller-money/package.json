@@ -17,7 +17,7 @@
     "test": "vitest run"
   },
   "devDependencies": {
-    "@platform/contracts": "git+https://github.com/beurni2/platform-contracts.git#abc9f9cb3eaf534b4077258377054488b207422e&path:packages/contracts",
+    "@platform/contracts": "git+https://github.com/beurni2/platform-contracts.git#635be1bcdf5ec0d9c190396306ad068956849242&path:packages/contracts",
     "typescript": "^5.9.2",
     "vitest": "^3.2.4"
   }
