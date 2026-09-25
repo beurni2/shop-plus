@@ -98,11 +98,6 @@ export function retirerDuPanier(slug: string, pids: readonly string[]): void {
   for (const pid of avant) if (pids.includes(pid)) observateur?.(slug, pid, false);
 }
 
-/** Every boutique's panier on this phone — what signing in joins to her account. */
-export function paniersDuTelephone(): readonly { readonly slug: string; readonly pid: string }[] {
-  return [...load()].flatMap(([slug, pids]) => pids.map((pid) => ({ slug, pid })));
-}
-
 /** Test seam: forget the cache so a fresh load re-reads storage. */
 export function resetPanierCache(): void {
   mem = null;

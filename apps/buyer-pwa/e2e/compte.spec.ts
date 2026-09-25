@@ -1303,7 +1303,7 @@ test('MON-COMPTE-PLUS — signed in, a heart or a panier tap in a boutique is ke
   expect(erreurs).toEqual([]);
 });
 
-test('MON-COMPTE-PLUS — a guest\'s taps reach nobody; what she kept joins her account the moment she signs in', async ({ page }) => {
+test('MON-COMPTE-SEULE — a guest\'s taps reach nobody, and signing in joins none of them: her account holds only what she keeps while signed in (founder ruling)', async ({ page }) => {
   const livre = new Livre();
   livre.comptes.set('70123456', { firstName: 'Awa', lastName: 'Ouédraogo', phone: '70 12 34 56', password: 'grain-de-nere' });
   const erreurs = await ouvrir(page, livre, '/?/v/aicha-4821', () => deuxBoutiques(page));
@@ -1320,11 +1320,17 @@ test('MON-COMPTE-PLUS — a guest\'s taps reach nobody; what she kept joins her 
   await champ(page, 'phone').pressSequentially('70123456');
   await champ(page, 'password').fill('grain-de-nere');
   await action(page, 'compte-connecter').click();
-  await expect.poll(() => livre.articles.get('70123456')).toEqual({ panier: [art('aicha-4821', 'p1')], favoris: [art('aicha-4821', 'p2')] });
   await expect(bande(page).locator('.bande-nom')).toHaveText('Awa');
+  await page.waitForTimeout(600);
+  expect(livre.appels.filter((c) => c.chemin === 'articles' && Array.isArray(c.corps['operations'])), 'what the phone kept as a guest joined her account').toEqual([]);
+  // Now signed in, what she keeps IS hers: the other article, kept now, reaches her account alone.
+  await expect(page.locator('.vt-root[data-etat="ready"]')).toBeVisible();
+  await auPanier(page, 'p2').click();
+  await expect.poll(() => livre.articles.get('70123456')).toEqual({ panier: [art('aicha-4821', 'p2')], favoris: [] });
   await bande(page).click();
-  await expect(page.locator('[data-role="compte-panier"]')).toContainText('Bazin riche brodé');
-  await expect(page.locator('[data-role="compte-favoris"]')).toContainText('Pagne wax hollandais');
+  await expect(page.locator('[data-role="compte-panier"]')).toContainText('Pagne wax hollandais');
+  await expect(page.locator('[data-role="compte-panier"]')).not.toContainText('Bazin');
+  await expect(page.locator('[data-role="compte-favoris-vide"]')).toBeVisible();
   expect(erreurs).toEqual([]);
 });
 

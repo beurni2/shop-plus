@@ -271,44 +271,6 @@ export function retenirArticle(local: Stockage, onglet: Stockage, d: ArticleDu):
 export const memeChangement = (a: ArticleDu, b: ArticleDu): boolean =>
   memeArticle(a, b) && a.action === b.action && a.session === b.session;
 
-/**
- * MON-COMPTE-PLUS (verifier BLOCKER) — WHICH OF THE PHONE'S ARTICLES ALREADY
- * BELONG TO AN ACCOUNT. The panier and the hearts are the phone's, whoever is
- * signed in; what was kept or liked while an account was signed in was told to
- * THAT account. Signing in joins only what no account holds yet — never what
- * someone else kept on a shared phone. A boutique, a product and a list per
- * entry, nothing about who.
- */
-const CLE_AU_COMPTE = 'sp-articles-au-compte:v1';
-const cleAuCompte = (liste: string, slug: string, pid: string): string => `${liste}|${slug}|${pid}`;
-
-function lireAuCompte(local: Stockage): Set<string> {
-  try {
-    const lu = JSON.parse(local?.getItem(CLE_AU_COMPTE) ?? '[]') as unknown;
-    return new Set(Array.isArray(lu) ? lu.filter((x): x is string => typeof x === 'string') : []);
-  } catch {
-    return new Set();
-  }
-}
-
-export function auCompte(local: Stockage, liste: string, slug: string, pid: string): boolean {
-  return lireAuCompte(local).has(cleAuCompte(liste, slug, pid));
-}
-
-export function marquerAuCompte(local: Stockage, liste: string, slug: string, pid: string, oui: boolean): void {
-  const set = lireAuCompte(local);
-  const cle = cleAuCompte(liste, slug, pid);
-  if (set.has(cle) === oui) return;
-  if (oui) set.add(cle);
-  else set.delete(cle);
-  try {
-    if (set.size === 0) local?.removeItem(CLE_AU_COMPTE);
-    else local?.setItem(CLE_AU_COMPTE, JSON.stringify([...set]));
-  } catch {
-    /* the store refused — the phone cannot remember it; nothing is sent because of it */
-  }
-}
-
 export function articlesDus(local: Stockage, onglet: Stockage): readonly ArticleDu[] {
   return [...lireArticlesDus(local), ...lireArticlesDus(onglet)];
 }

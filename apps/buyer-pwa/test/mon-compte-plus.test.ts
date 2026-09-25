@@ -7,8 +7,8 @@ import { articlesDus, articleValide, garderSession, oublierArticles, oublierSess
 import { creerSynchroArticles } from '../src/compte/articles';
 import { grouperArticles, renderArticles, renderProfil, type LectureBoutique } from '../src/compte/ecrans';
 import { COMPTE_STYLES } from '../src/compte/styles';
-import { favorisSitues, observerFavoris, resetFavoritesCache, situerFavoris, toggleFavorite } from '../src/vitrine/favorites';
-import { observerPanier, paniersDuTelephone, resetPanierCache, retirerDuPanier, togglePanier } from '../src/vitrine/panier';
+import { observerFavoris, resetFavoritesCache, toggleFavorite } from '../src/vitrine/favorites';
+import { observerPanier, panierOf, resetPanierCache, retirerDuPanier, togglePanier } from '../src/vitrine/panier';
 
 /**
  * MON-COMPTE-PLUS (founder 2026-09-25, canon 3.24.0 — SP-I05, SP6 third
@@ -135,7 +135,7 @@ describe('the write-through — her taps reach her account, a guest\'s never', (
     const { envois, port } = livre();
     const s = creerSynchroArticles(port, local, memoire());
     s.noter('panier', 'aicha-4821', 'pv-1', true);
-    s.joindre({ panier: [{ slug: 'aicha-4821', pid: 'pv-2' }], favoris: [] });
+    s.noter('favoris', 'aicha-4821', 'pv-2', true);
     await attendre();
     expect(envois).toEqual([]);
     expect(articlesDus(local, undefined)).toEqual([]);
@@ -236,69 +236,48 @@ describe('the write-through — her taps reach her account, a guest\'s never', (
   it('more than one call carries: sent fifty at a time until nothing is owed, never dropped (verifier MAJOR 1)', async () => {
     const local = memoire();
     garderSession(local, { session: SESSION, prenom: 'Awa' });
-    const { envois, port } = livre();
-    creerSynchroArticles(port, local, memoire()).joindre({
-      panier: Array.from({ length: 60 }, (_, i) => ({ slug: 'aicha-4821', pid: `pv-p${i}` })),
-      favoris: Array.from({ length: 50 }, (_, i) => ({ slug: 'aicha-4821', pid: `pv-f${i}` })),
-    });
+    let reseau = false;
+    const { envois, port } = livre(() => (reseau ? { kind: 'ok', value: { panier: [], favoris: [] } } : { kind: 'hors_ligne' }));
+    const s = creerSynchroArticles(port, local, memoire());
+    // A hundred changes made with no network: fifty in her panier, fifty hearts.
+    for (let i = 0; i < 50; i += 1) s.noter('panier', 'aicha-4821', `pv-p${i}`, true);
+    for (let i = 0; i < 50; i += 1) s.noter('favoris', 'aicha-4821', `pv-f${i}`, true);
+    await attendre();
+    expect(articlesDus(local, undefined)).toHaveLength(100);
+    reseau = true;
+    const avant = envois.length;
+    s.envoyer();
     await attendre();
     await attendre();
-    expect(envois.map((e) => (e.ops as unknown[]).length)).toEqual([50, 50]);
-    const ops = envois.flatMap((e) => e.ops as { liste: string; pid: string }[]);
-    // Fifty per list, the book's own bound: the phone's newest fifty of her panier, all fifty hearts.
-    expect(ops.filter((o) => o.liste === 'panier').map((o) => o.pid)).toEqual(Array.from({ length: 50 }, (_, i) => `pv-p${i + 10}`));
+    const apres = envois.slice(avant);
+    expect(apres.map((e) => (e.ops as unknown[]).length)).toEqual([50, 50]);
+    const ops = apres.flatMap((e) => e.ops as { liste: string; pid: string }[]);
+    expect(ops.filter((o) => o.liste === 'panier').map((o) => o.pid)).toEqual(Array.from({ length: 50 }, (_, i) => `pv-p${i}`));
     expect(ops.filter((o) => o.liste === 'favoris')).toHaveLength(50);
     expect(articlesDus(local, undefined)).toEqual([]);
   });
 
-  it('a shared phone: what was kept while an account was signed in never joins the next account; a guest\'s taps do (verifier BLOCKER)', async () => {
+  it('signing in joins NOTHING the phone kept before — a guest\'s taps and another account\'s alike (founder ruling, canon 3.25.0)', async () => {
     const local = memoire();
-    const telephone = { panier: [] as { slug: string; pid: string }[], favoris: [] as { slug: string; pid: string }[] };
-    // Awa, signed in, keeps pv-awa and likes pv-coeur; then signs out.
+    // A guest keeps and likes: nothing is owed to anyone.
+    const invitee = livre();
+    const s1 = creerSynchroArticles(invitee.port, local, memoire());
+    s1.noter('panier', 'aicha-4821', 'pv-invitee', true);
+    s1.noter('favoris', 'aicha-4821', 'pv-coeur', true);
+    await attendre();
+    expect(articlesDus(local, undefined)).toEqual([]);
+    // Awa signs in: nothing is sent — the synchro has no road that takes the phone's lists.
     garderSession(local, { session: SESSION, prenom: 'Awa' });
     const awa = livre();
-    const s1 = creerSynchroArticles(awa.port, local, memoire());
-    s1.noter('panier', 'aicha-4821', 'pv-awa', true);
-    s1.noter('favoris', 'aicha-4821', 'pv-coeur', true);
-    telephone.panier.push({ slug: 'aicha-4821', pid: 'pv-awa' });
-    telephone.favoris.push({ slug: 'aicha-4821', pid: 'pv-coeur' });
+    const s2 = creerSynchroArticles(awa.port, local, memoire());
+    s2.envoyer();
     await attendre();
-    oublierSessions(local, memoire());
-    // As a guest, someone keeps pv-invitee; then Mariam signs in.
-    const s2 = creerSynchroArticles(livre().port, local, memoire());
-    s2.noter('panier', 'aicha-4821', 'pv-invitee', true);
-    telephone.panier.push({ slug: 'aicha-4821', pid: 'pv-invitee' });
-    garderSession(local, { session: SESSION_2, prenom: 'Mariam' });
-    const mariam = livre();
-    creerSynchroArticles(mariam.port, local, memoire()).joindre(telephone);
+    expect(awa.envois).toEqual([]);
+    expect(Object.keys(s2).sort()).toEqual(['envoyer', 'noter']);
+    // What she keeps while signed in is hers.
+    s2.noter('panier', 'aicha-4821', 'pv-awa', true);
     await attendre();
-    expect(mariam.envois).toEqual([{ session: SESSION_2, ops: [{ liste: 'panier', action: 'ajouter', slug: 'aicha-4821', pid: 'pv-invitee' }] }]);
-    // Joined once is the account's: signing in again sends nothing more.
-    oublierSessions(local, memoire());
-    garderSession(local, { session: SESSION, prenom: 'Awa' });
-    const encore = livre();
-    creerSynchroArticles(encore.port, local, memoire()).joindre(telephone);
-    await attendre();
-    expect(encore.envois).toEqual([]);
-  });
-
-  it('signing in joins what this phone already kept, as additions', async () => {
-    const local = memoire();
-    garderSession(local, { session: SESSION, prenom: 'Awa' });
-    const { envois, port } = livre();
-    creerSynchroArticles(port, local, memoire()).joindre({
-      panier: [{ slug: 'aicha-4821', pid: 'pv-1' }, { slug: 'mariam-1203', pid: 'pv-2' }],
-      favoris: [{ slug: 'aicha-4821', pid: 'pv-3' }, { slug: 'Pas Valide', pid: 'pv-4' }],
-    });
-    await attendre();
-    expect(envois).toEqual([{
-      session: SESSION,
-      ops: [
-        { liste: 'panier', action: 'ajouter', slug: 'aicha-4821', pid: 'pv-1' },
-        { liste: 'panier', action: 'ajouter', slug: 'mariam-1203', pid: 'pv-2' },
-        { liste: 'favoris', action: 'ajouter', slug: 'aicha-4821', pid: 'pv-3' },
-      ],
-    }]);
+    expect(awa.envois).toEqual([{ session: SESSION, ops: [{ liste: 'panier', action: 'ajouter', slug: 'aicha-4821', pid: 'pv-awa' }] }]);
   });
 });
 
@@ -322,7 +301,8 @@ describe('the phone\'s own stores tell her account what changed', () => {
     togglePanier('aicha-4821', 'pv-1');
     retirerDuPanier('aicha-4821', ['pv-2', 'pv-absent']);
     expect(vus).toEqual(['aicha-4821/pv-1/true', 'aicha-4821/pv-2/true', 'mariam-1203/pv-1/true', 'aicha-4821/pv-1/false', 'aicha-4821/pv-2/false']);
-    expect(paniersDuTelephone()).toEqual([{ slug: 'mariam-1203', pid: 'pv-1' }]);
+    expect(panierOf('aicha-4821')).toEqual([]);
+    expect(panierOf('mariam-1203')).toEqual(['pv-1']);
   });
 
   it('the heart learns the boutique it was tapped in; off, it names the boutique it was kept under', () => {
@@ -331,16 +311,15 @@ describe('the phone\'s own stores tell her account what changed', () => {
     toggleFavorite('pv-1', 'aicha-4821');
     toggleFavorite('pv-1', 'mariam-1203');
     expect(vus).toEqual(['aicha-4821/pv-1/true', 'aicha-4821/pv-1/false']);
-    // A heart from before this law has no boutique: nothing to tell, until a
-    // boutique she opens lists it.
-    toggleFavorite('pv-ancien');
-    expect(favorisSitues()).toEqual([]);
-    situerFavoris('mariam-1203', ['pv-ancien', 'pv-autre']);
-    situerFavoris('aicha-4821', ['pv-ancien']);
-    expect(vus.slice(2)).toEqual(['mariam-1203/pv-ancien/true']);
-    expect(favorisSitues()).toEqual([{ slug: 'mariam-1203', pid: 'pv-ancien' }]);
+    // Where she hearted it survives a reload: un-hearting after one still names it.
+    toggleFavorite('pv-2', 'aicha-4821');
     resetFavoritesCache();
-    expect(favorisSitues(), 'where she hearted it survives a reload').toEqual([{ slug: 'mariam-1203', pid: 'pv-ancien' }]);
+    toggleFavorite('pv-2');
+    expect(vus.slice(2)).toEqual(['aicha-4821/pv-2/true', 'aicha-4821/pv-2/false']);
+    // A heart from before this law has no boutique: nothing to tell, ever.
+    toggleFavorite('pv-ancien');
+    toggleFavorite('pv-ancien');
+    expect(vus).toHaveLength(4);
   });
 });
 

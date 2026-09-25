@@ -1,7 +1,6 @@
 import type { ComptePort } from './port';
 import {
-  articlesDus, articleValide, auCompte, marquerAuCompte, memeChangement, oublierArticles, retenirArticle, sessionActive,
-  ARTICLES_DUS_MAX, type ArticleDu,
+  articlesDus, articleValide, memeChangement, oublierArticles, retenirArticle, sessionActive, ARTICLES_DUS_MAX, type ArticleDu,
 } from './garde';
 
 /**
@@ -18,28 +17,26 @@ import {
  *              off, on this phone. Signed out: nothing is sent (a guest's taps
  *              are the phone's alone). Signed in: kept as owed, beside her
  *              session, then sent.
- *   joindre  — she just signed in (or up, or back in): what this phone kept
- *              while NO account was signed in joins her account — the standard
- *              « your panier stays yours when you sign in ». What was kept
- *              under an account already went to that account, and never joins
- *              another one (a shared phone: verifier BLOCKER).
  *   envoyer  — what is owed goes, under the session that saw it, fifty to a
  *              call until none is left; no network, or the book unable to
  *              answer, keeps it owed for the next try (the next change, or her
  *              next visit). A session ended since drops it: never re-aimed at
  *              whoever is signed in now.
  *
+ * Signing in joins NOTHING the phone kept before (founder ruling 2026-09-25,
+ * canon 3.25.0 — « what was saved while nobody was signed in should not join
+ * the next person who signs in »): her account holds only what she keeps or
+ * likes while signed in.
+ *
  * Only a boutique and a product ever travel — never a price, never a name.
  */
 export interface SynchroArticles {
   noter(liste: 'panier' | 'favoris', slug: string, pid: string, present: boolean): void;
-  joindre(articles: { readonly panier: readonly { slug: string; pid: string }[]; readonly favoris: readonly { slug: string; pid: string }[] }): void;
   envoyer(): void;
 }
 
-/** The book's own bounds: fifty operations to a call, fifty articles per list. */
+/** The book's own bound: fifty operations to a call. */
 const PAR_APPEL = 50;
-const PAR_LISTE = 50;
 
 export function creerSynchroArticles(port: ComptePort, local: Storage | undefined, onglet: Storage | undefined): SynchroArticles {
   let enVol = false;
@@ -73,8 +70,8 @@ export function creerSynchroArticles(port: ComptePort, local: Storage | undefine
         const garder = r.kind === 'hors_ligne' ||
           (r.kind === 'refus' && (r.reason === 'indisponible' || r.reason === 'accounts_unavailable'));
         if (!garder) oublier(lot);
-        // More owed than one call carries, or a change made while this was
-        // out: it goes now — unless the network is the problem, in which case
+        // More owed than one call carries (many changes made offline), or a
+        // change made while this was out: it goes now — unless the network is the problem, in which case
         // the next change or visit tries again.
         const relancer = !garder && (encore || siens.length > lot.length);
         encore = false;
@@ -99,24 +96,7 @@ export function creerSynchroArticles(port: ComptePort, local: Storage | undefine
 
   return {
     noter(liste, slug, pid, present) {
-      const signee = sessionActive(local, onglet) !== undefined;
-      // Kept while an account is signed in ⇒ that account's; a guest's tap, or
-      // a removal, belongs to no account.
-      marquerAuCompte(local, liste, slug, pid, signee && present);
       if (retenir(liste, slug, pid, present)) envoyer();
-    },
-    joindre(articles) {
-      let un = false;
-      for (const liste of ['panier', 'favoris'] as const) {
-        const libres = articles[liste].filter((a) => !auCompte(local, liste, a.slug, a.pid)).slice(-PAR_LISTE);
-        for (const a of libres) {
-          if (retenir(liste, a.slug, a.pid, true)) {
-            marquerAuCompte(local, liste, a.slug, a.pid, true);
-            un = true;
-          }
-        }
-      }
-      if (un) envoyer();
     },
     envoyer,
   };

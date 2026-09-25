@@ -82,8 +82,6 @@ export interface OptsCompte {
   readonly lireBoutique?: (slug: string) => Promise<LectureBoutique>;
   /** MON-COMPTE-PLUS — the address of a boutique's own vitrine (« Voir chez … »). */
   readonly lienBoutique?: (slug: string) => string;
-  /** MON-COMPTE-PLUS — she just signed in, up or back in: what this phone kept joins her account. */
-  readonly apresConnexion?: () => void;
 }
 
 /**
@@ -829,8 +827,6 @@ export function monterCompte(main: HTMLElement, opts: OptsCompte): void {
     const resterIci = main.querySelector<HTMLInputElement>('[data-role="compte-rester"]')?.checked !== false;
     oublierSessions(opts.local, opts.onglet);
     garderSession(resterIci ? opts.local : opts.onglet, { session: sessionNeuve, prenom: p.firstName, telephone: p.phone });
-    // MON-COMPTE-PLUS — what this phone kept joins her account.
-    opts.apresConnexion?.();
     opts.versBoutique();
   };
 

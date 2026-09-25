@@ -33,18 +33,16 @@ export interface OptsEntree {
   readonly boutique?: Promise<BoutiquePorte | undefined>;
   /** « Mes commandes » — open one order's tracking. */
   readonly ouvrirSuivi?: (orderId: string, buyerRef: string) => void;
-  /** MON-COMPTE-PLUS — « Mon panier » / « Mes coups de cœur »: read a boutique,
-   *  link back into it, and join this phone's lists when she signs in. */
+  /** MON-COMPTE-PLUS — « Mon panier » / « Mes coups de cœur »: read a boutique
+   *  and link back into it. */
   readonly lireBoutique?: (slug: string) => Promise<LectureBoutique>;
   readonly lienBoutique?: (slug: string) => string;
-  readonly apresConnexion?: () => void;
 }
 
 /** What « Mon compte » needs beyond her session, handed down unchanged. */
-const plus = (o: Pick<OptsEntree, 'lireBoutique' | 'lienBoutique' | 'apresConnexion'>) => ({
+const plus = (o: Pick<OptsEntree, 'lireBoutique' | 'lienBoutique'>) => ({
   ...(o.lireBoutique !== undefined ? { lireBoutique: o.lireBoutique } : {}),
   ...(o.lienBoutique !== undefined ? { lienBoutique: o.lienBoutique } : {}),
-  ...(o.apresConnexion !== undefined ? { apresConnexion: o.apresConnexion } : {}),
 });
 
 /**

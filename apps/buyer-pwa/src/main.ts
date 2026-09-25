@@ -59,8 +59,8 @@ import { resolveComptePort } from './compte/port';
 import { creerRattacheur, lierLesCommandesDues, monterBandeCompte, monterEntreeCompte } from './compte/entree';
 import { creerSynchroArticles } from './compte/articles';
 import type { LectureBoutique } from './compte/ecrans';
-import { observerPanier, paniersDuTelephone } from './vitrine/panier';
-import { favorisSitues, observerFavoris } from './vitrine/favorites';
+import { observerPanier } from './vitrine/panier';
+import { observerFavoris } from './vitrine/favorites';
 import { vignette } from './vitrine/render';
 import { sessionActive } from './compte/garde';
 import { icon } from './icons';
@@ -705,9 +705,6 @@ if (app) {
   const comptePlus = {
     lireBoutique: lireBoutiqueCompte,
     lienBoutique: (slug: string) => vitrineHref(window.location.pathname, slug),
-    ...(synchroArticles !== undefined
-      ? { apresConnexion: () => synchroArticles.joindre({ panier: paniersDuTelephone(), favoris: favorisSitues() }) }
-      : {}),
   };
 
   // VITRINE (redesign — HANDOFF §5). Reached by the canon /v/{slug} path

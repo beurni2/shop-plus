@@ -43,8 +43,9 @@ export function isFavorite(pid: string): boolean {
  * MON-COMPTE-PLUS (canon 3.24.0) — WHERE she hearted it. The heart stays one
  * global « gardé » per product on this phone; her account keeps each heart
  * as a boutique and a product, so « Mon compte » shows it under the boutique
- * she tapped it in. Kept beside the set, never inside it: a heart from before
- * this law has no boutique until she next opens one that lists it.
+ * she tapped it in. Kept beside the set, never inside it. Only a heart she
+ * taps while signed in reaches her account (canon 3.25.0): a heart from before
+ * this law, or from a guest, stays the phone's alone.
  */
 const BOUTIQUES_KEY = 'shopplus.favoris-boutiques.v1';
 let boutiques: Map<string, string> | null = null;
@@ -99,27 +100,6 @@ export function toggleFavorite(pid: string, slug?: string): boolean {
   const ou = on ? map.get(pid) : avant;
   if (ou !== undefined) observateur?.(ou, pid, on);
   return on;
-}
-
-/** The hearts whose boutique is known — what her account can show. */
-export function favorisSitues(): readonly { readonly slug: string; readonly pid: string }[] {
-  const map = loadBoutiques();
-  return [...load()].flatMap((pid) => {
-    const slug = map.get(pid);
-    return slug !== undefined ? [{ slug, pid }] : [];
-  });
-}
-
-/** A boutique she opened lists these products: a heart with no boutique yet
- *  takes this one, and her account is told. */
-export function situerFavoris(slug: string, pids: readonly string[]): void {
-  const set = load();
-  const map = loadBoutiques();
-  const neufs = pids.filter((pid) => set.has(pid) && !map.has(pid));
-  if (neufs.length === 0 || slug === '') return;
-  for (const pid of neufs) map.set(pid, slug);
-  persistBoutiques(map);
-  for (const pid of neufs) observateur?.(slug, pid, true);
 }
 
 /** Test seam: forget the cache so a fresh load re-reads storage. */

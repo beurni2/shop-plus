@@ -13,7 +13,7 @@
  * attribution (the existing journey spine is ENTERED, never modified).
  */
 
-import { isFavorite, situerFavoris, toggleFavorite } from './favorites';
+import { isFavorite, toggleFavorite } from './favorites';
 import { inPanier, togglePanier } from './panier';
 import { t } from '../i18n';
 import { deployBaseFromPath, recordVitrineArrival, signedHref, vitrineHref } from '../vitrine-link';
@@ -589,9 +589,6 @@ export function mountVitrine(
                 entete,
               );
         dernierPret = showable === 0 ? null : { sf: sf!, described };
-        // MON-COMPTE-PLUS — a heart from before her account kept boutiques
-        // takes this boutique if it lists that product.
-        if (described !== undefined) situerFavoris(sf!.slug, described.map((p) => p.pid));
         // VIDEO-PRODUIT V-1e — the scroll-play observer mounts over the nodes
         // just rendered; no video hero on the page ⇒ it mounts nothing.
         demonteVideos = mountVideoScroll(root);
