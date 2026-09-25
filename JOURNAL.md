@@ -1,6 +1,42 @@
 # JOURNAL — shop-plus
 Continuity ledger per CTO charter §6/§6bis. Every entry is evidence-grounded.
 
+## 2026-09-25 · MON-COMPTE-SEULE (founder ruling) — signing in joins nothing the phone kept before · canon 3.25.0 · ON THE BRANCH, awaiting the founder's word
+
+**Founder ruling (2026-09-25).** Told the live shared-phone rule (« what someone saves while signed in stays in her own account; only what was saved while nobody was signed in joins the next person who signs in »), he answered: « what was saved while nobody was signed in should not joins the next person who signs in. »
+
+**Governing text.** Canon 3.25.0 (`aba11c1`), Shop-Plus-Build-Spec §7 SP6 « Account, third ruling »: her account keeps only what she keeps or likes while signed in; what a phone kept while no one was signed in joins no account, neither hers nor whoever signs in next. French Voice §10.5 — no sentence promises what the app does not do. 2026-08-10 — the walk red first.
+
+**What was there (read before writing).** Live at `0360f3b`: at sign-in, up or back in, `entrer` called an `apresConnexion` hook that ran `SynchroArticles.joindre` over the phone's whole panier and its hearts, skipping only what the « au compte » marks said an account already held; an old heart with no boutique learnt one — and was told to her account — when a boutique she opened listed it (`situerFavoris`).
+
+**Red first.** The guest walk rewritten for the ruling (a guest keeps p1 and hearts p2, signs in; nothing may reach her account; what she keeps after, p2, alone does) — red on `0360f3b`'s code (« what the phone kept as a guest joined her account »), green after.
+
+**What changed (`a6b274f`, `d652f66`).**
+- Repin to `aba11c1` (3.25.0): pins, `pnpm-workspace.yaml`, lockfile, `/docs` copy; drift-check OK.
+- **The join is gone, and everything that served it:** `joindre`, the `apresConnexion` hook (`ecrans`, `entree`, `main`), the « au compte » marks (`garde`), `paniersDuTelephone`, `favorisSitues`, `situerFavoris` and its call in `flows`. The marks the live build wrote to the lasting store are removed from the phone when the app starts.
+- **Unchanged:** what she keeps or likes while signed in still reaches her account exactly as before — write-through, owed offline, fifty to a call, an ended session dropped, sign-out forgets.
+- **What she reads:** sign-up and sign-in say « Ce que vous gardez avant de vous connecter reste sur ce téléphone. »; the empty « Mon panier » / « Mes coups de cœur » say « pendant que votre compte est ouvert » (copy-lint 690 / 0).
+- **Nothing else changed:** the Worker's code, money, orders, the checkout, any contract shape.
+
+**Evidence.**
+- **Walks:** the account file 50 / 50 at `a6b274f` and at `d652f66`, incl. the rewritten guest walk (red first) and the shared-phone walk.
+- **Unit:** buyer app 1398 / 1398 (`test/mon-compte-plus.test.ts` 24: signing in joins nothing — a guest's taps and another account's alike, and the synchro has no road that takes the phone's lists · offline changes still sent fifty to a call · the stale marks removed · the four sentences on their screens); typecheck green; copy-lint 690 / 0; drift-check 3.25.0 OK.
+- **Mutations** on the code this touched (committed first; anchor exactly once before and gone after; byte-checked restore): P5 no network drops the owed (re-aimed at the current line) · P6 owed under an ended session re-aimed (re-aimed) · P7 the heart never learns its boutique · F2 the rest past one call dropped · F3 « accounts_unavailable » drops the owed · F4 a refusing store loses the change — **6 / 6 KILLED** (at `a6b274f`). The removed join has no mutation: no code path is left to mutate; the walk, red on the old code, is its proof.
+- **Gate board:** at `a6b274f` one gate red — the checkout core's `reservation-do.e2e` « two concurrent confirms » timed out at 5 s under the board's parallel load (this build only changed that package's version pin; alone it passes 3 / 3); everything else green, Playwright 265 passed. At `d652f66`: **ALL GATES GREEN, 115 sections, EXIT 0 (Playwright 265 passed).**
+
+**Verifier.** ONE fresh-context pass at `a6b274f`, given the ruling, the canon text, the diff and the DoD (no Playwright — the board held the ports). It ran unit (1397), typecheck, copy-lint, drift-check — all green — and confirmed every road to the join is gone. **0 BLOCKER, 2 MAJOR, 4 MINOR — handled once in `d652f66`, never re-inspected:**
+- **MAJOR 1 — « Mon compte » and the boutique on the same phone now disagree, and the empty lines invited a tap that removes the heart.** Fixed in words: the empty lines say « pendant que votre compte est ouvert », and sign-in, like sign-up, says what stays on the phone. Unit on all four lines.
+- **MAJOR 2 — live accounts already hold guest articles the live build joined** (hours old; the book keeps only boutique, product and when, so nothing tells a joined article from a kept one). Production data: **put to the founder**, not changed (§7).
+- **MINOR 1 — a change the live build queued offline for its join is still sent** once. Same data, same question to the founder.
+- **MINOR 2 — the stale marks on phones:** removed at start.
+- **MINOR 3 — the deploy must include the Worker** (it is repinned to 3.25.0; the drift check would turn red without it): in the ask.
+- **MINOR 4 — the new sentences were not asserted:** now they are. The old-heart case stays unit-level only (the code it guarded is deleted).
+
+**Still open.**
+- **For the founder:** what to do with the guest articles the live build already joined into accounts today (recommendation: leave them — hours old, only in the account of whoever signed in on that phone, never priced, removable by her; clearing all lists would also erase what she kept while signed in).
+- Still his from before: whether signing in should fill a second phone's panier and hearts from her account · the SMS/WhatsApp provider · whether a recovered number keeps its name and orders · a support number on the recovery screen · the data-protection declaration.
+- **Deploy needs:** the buyer app (its own preview deploy) and a Worker redeploy (version only — no Worker code changed); canon 3.25.0 merged to platform-contracts `main`.
+
 ## 2026-09-25 · MON-COMPTE-PLUS (founder order) — her panier and her coups de cœur in « Mon compte », by boutique, never a price, kept with her account; every account screen and the bands redesigned · canon 3.24.0 · MERGED AND DEPLOYED 2026-09-25 on the founder's « Go »
 
 **MERGED AND DEPLOYED (founder: « Go », 2026-09-25).** `main` fast-forwarded `2ba436e → 0360f3b` (ancestry verified before the push). Worker changed (the account book's articles door): **storefront-deploy 113 (id 36094440658) `success`**; buyer app **pwa-preview 498 (id 36094432773) `success`**; on `0360f3b`: ci 710 · expo-preview 531 — green. service-canon-drift 397 ran red at the push, as it is built to, because the deploy was still owed (main pinned 3.24.0, the live Worker still spoke 3.23.0); re-run after the deploy, 398 `success`. Canon 3.24.0 merged to platform-contracts `main` (`359161f → 4b8be8f`, ci 151 green).
