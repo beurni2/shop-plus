@@ -428,8 +428,8 @@ export class BuyerAccountsDO {
       // may choose otherwise): the founder cannot tell « she forgot » from « a
       // stranger signed up with her number » or « a recycled SIM », so nothing
       // the previous holder left passes to whoever holds the number now — not
-      // their names or email, and above all not the order list, whose read
-      // tokens open tracking and, at the door, the drop code.
+      // their names or email, their panier or hearts, and above all not the
+      // order list, whose read tokens open tracking and, at the door, the drop code.
       const { recoveryHash: _code, recoveryExpiresAt: _fin, email: _email, ...reste } = record;
       const maj: BuyerAccountRecord = {
         ...reste, firstName, lastName, phone, createdAt: new Date().toISOString(),
@@ -542,8 +542,8 @@ export class BuyerAccountsDO {
     }
 
     /**
-     * « SUPPRIMER MON COMPTE » — her account, every session, her order list and
-     * her counters go, and her number is free again. Her orders themselves
+     * « SUPPRIMER MON COMPTE » — her account, every session, her order list,
+     * her panier and hearts, and her counters go, and her number is free again. Her orders themselves
      * are not touched: they live on the service, owed their delivery.
      */
     if (pathname === '/delete') {

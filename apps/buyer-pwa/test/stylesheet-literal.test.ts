@@ -24,6 +24,7 @@ describe('the stylesheet modules stay parseable', () => {
   const FILES = [
     ['vitrine', 'styles.ts'],
     ['cliente', 'styles.ts'],
+    ['compte', 'styles.ts'],
   ] as const;
 
   it('each stylesheet holds EXACTLY the two backticks that open and close it', () => {

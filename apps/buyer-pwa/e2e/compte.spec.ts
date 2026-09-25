@@ -20,7 +20,13 @@ import { expect, test, type Page, type Route } from '@playwright/test';
  * recovery code (`codes`, set by the walk as the founder's console would mint
  * it) is spent once and ends every session; `bad_code` for every wrong way;
  * « Mes commandes » adds once each, newest first, for the Bearer's account;
- * delete needs the password and frees the number. What it does NOT mirror,
+ * delete needs the password and frees the number. MON-COMPTE-PLUS (canon
+ * 3.24.0): « articles » keeps her panier and her hearts as a boutique and a
+ * product each — only `operations` in the body, each exactly a known list, a
+ * known action, a lowercase slug and a plain product id, at most fifty, all
+ * checked before any is applied (`bad_field operations` otherwise); added
+ * once, newest first, fifty per list; removed if there; erased by delete and
+ * by recovery (comptes-clientes-3.e2e proves the real book). What it does NOT mirror,
  * stated: the password hashing, the throttles, the idle life, the code's 24 h
  * life and the address ceilings — the real book's, tested there
  * (comptes-clientes*.e2e). The storefront read is scripted like every boutique
@@ -44,6 +50,16 @@ const BOUTIQUE = {
 };
 
 interface Compte { firstName: string; lastName: string; phone: string; email?: string; password: string }
+interface Article { slug: string; pid: string; at: string }
+const OP_CLES = ['action', 'liste', 'pid', 'slug'];
+const opValide = (o: unknown): o is { liste: 'panier' | 'favoris'; action: 'ajouter' | 'retirer'; slug: string; pid: string } => {
+  if (o === null || typeof o !== 'object' || Array.isArray(o)) return false;
+  const r = o as Record<string, unknown>;
+  return Object.keys(r).sort().join() === OP_CLES.join() &&
+    (r['liste'] === 'panier' || r['liste'] === 'favoris') && (r['action'] === 'ajouter' || r['action'] === 'retirer') &&
+    typeof r['slug'] === 'string' && /^[a-z0-9-]{1,64}$/.test(r['slug']) &&
+    typeof r['pid'] === 'string' && /^[A-Za-z0-9][A-Za-z0-9_-]{0,191}$/.test(r['pid']);
+};
 
 const cle = (phone: string): string => {
   const d = phone.replace(/\D/g, '');
@@ -56,6 +72,8 @@ class Livre {
   /** COMPTE-CLIENTE-2 — the founder's live recovery codes, by phone key. */
   codes = new Map<string, string>();
   commandes = new Map<string, { orderId: string; buyerRef: string; at: string }[]>();
+  /** MON-COMPTE-PLUS — her panier and her hearts, by phone key. */
+  articles = new Map<string, { panier: Article[]; favoris: Article[] }>();
   sessions = new Map<string, string>();
   appels: { chemin: string; corps: Record<string, unknown>; bearer: string | null }[] = [];
   horsLigne = false;
@@ -114,6 +132,7 @@ class Livre {
       if (c === undefined || attendu === undefined || lu !== attendu) return json(401, { ok: false, reason: 'bad_code' });
       this.codes.delete(k);
       this.commandes.delete(k);
+      this.articles.delete(k);
       const neuf: Compte = { firstName: String(corps['firstName']).trim(), lastName: String(corps['lastName']).trim(), phone: String(corps['phone']).trim(), password: String(corps['newPassword']) };
       this.comptes.set(k, neuf);
       for (const [s, kk] of [...this.sessions]) if (kk === k) this.sessions.delete(s);
@@ -127,6 +146,7 @@ class Livre {
         if (corps['currentPassword'] !== c.password) return json(401, { ok: false, reason: 'bad_password' });
         this.comptes.delete(k);
         this.commandes.delete(k);
+        this.articles.delete(k);
         for (const [s, kk] of [...this.sessions]) if (kk === k) this.sessions.delete(s);
         return json(200, { ok: true });
       }
@@ -137,6 +157,25 @@ class Livre {
       const liste = [...neuves.reverse(), ...avant].slice(0, 50);
       this.commandes.set(k, liste);
       return json(200, { ok: true, commandes: liste });
+    }
+    if (chemin === 'articles') {
+      const k = bearer !== null ? this.sessions.get(bearer) : undefined;
+      if (k === undefined || !this.comptes.has(k)) return json(401, { ok: false, reason: 'no_session' });
+      const autre = Object.keys(corps).find((c) => c !== 'operations');
+      if (autre !== undefined) return json(400, { ok: false, reason: 'unknown_field', field: autre });
+      const ops = corps['operations'];
+      if (ops !== undefined && (!Array.isArray(ops) || ops.length > 50 || !ops.every(opValide))) {
+        return json(400, { ok: false, reason: 'bad_field', field: 'operations' });
+      }
+      const listes = this.articles.get(k) ?? { panier: [], favoris: [] };
+      for (const o of (ops ?? []) as { liste: 'panier' | 'favoris'; action: string; slug: string; pid: string }[]) {
+        const l = listes[o.liste];
+        const i = l.findIndex((a) => a.slug === o.slug && a.pid === o.pid);
+        if (o.action === 'ajouter' && i === -1) listes[o.liste] = [{ slug: o.slug, pid: o.pid, at: '2026-09-25T08:00:00.000Z' }, ...l].slice(0, 50);
+        if (o.action === 'retirer' && i !== -1) listes[o.liste] = l.filter((_, j) => j !== i);
+      }
+      this.articles.set(k, listes);
+      return json(200, { ok: true, panier: listes.panier, favoris: listes.favoris });
     }
     if (chemin === 'profile') {
       const k = bearer !== null ? this.sessions.get(bearer) : undefined;
@@ -1171,5 +1210,162 @@ test('BANDE-PAYEE — a band whose answer lands late stays off a screen she alre
   await page.waitForTimeout(300);
   await expect(page.locator('[data-role="ma-commande"]')).toHaveCount(0);
   await expect(page.locator('[data-screen="MES-ARTICLES"]')).toBeVisible();
+  expect(erreurs).toEqual([]);
+});
+
+/* ═══ MON-COMPTE-PLUS — her panier and her coups de cœur in « Mon compte » ═══
+ *
+ * Founder, 2026-09-25: « in their mon compte … see the products they added to
+ * their cart from different resellers, and … products they liked » — « by
+ * boutique, no prices », « in her account » (canon 3.24.0). Walked on the real
+ * port: two boutiques, each read by its own slug as the page reads it. */
+
+const BOUTIQUE_AICHA = {
+  ...BOUTIQUE,
+  curatedItems: ['p1', 'p2'],
+  products: [...BOUTIQUE.products, { pid: 'p2', name: 'Pagne wax hollandais', priceFcfa: 8_500, inStock: true, assetRefs: [] }],
+};
+const BOUTIQUE_MARIAM = {
+  id: 'sf-e2e-compte-2', slug: 'mariam-1203', resellerId: 'rs-e2e-compte-2', name: 'Mariam Style', zone: 'Bobo-Dioulasso',
+  discoverable: true, createdAt: '2026-09-01T00:00:00.000Z', updatedAt: '2026-09-01T00:00:00.000Z',
+  curatedItems: ['m1'], products: [{ pid: 'm1', name: 'Sac en raphia', priceFcfa: 15_000, inStock: true, assetRefs: [] }],
+};
+const deuxBoutiques = async (page: Page): Promise<void> => {
+  await page.route('**/api/s/**', (route) => {
+    const slug = decodeURIComponent(new URL(route.request().url()).pathname.split('/').pop() ?? '');
+    const b = slug === 'mariam-1203' ? BOUTIQUE_MARIAM : slug === 'aicha-4821' ? BOUTIQUE_AICHA : undefined;
+    return b === undefined
+      ? route.fulfill({ status: 404, contentType: 'application/json', body: '{"ok":false,"reason":"not_found"}' })
+      : route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(b) });
+  });
+};
+const art = (slug: string, pid: string): Article => ({ slug, pid, at: '2026-09-25T08:00:00.000Z' });
+const coeur = (page: Page, pid: string) => page.locator(`.vt-root [data-action="favori"][data-pid="${pid}"]`).first();
+const auPanier = (page: Page, pid: string) => page.locator(`.vt-root [data-action="panier"][data-pid="${pid}"]`).first();
+
+test('MON-COMPTE-PLUS — « Mon compte » shows her panier and her coups de cœur by boutique, never a price, and « Voir chez … » opens that boutique', async ({ page }) => {
+  const livre = new Livre();
+  await dejaConnectee(page, livre);
+  livre.articles.set('70123456', { panier: [art('mariam-1203', 'm1'), art('aicha-4821', 'p1')], favoris: [art('aicha-4821', 'p2')] });
+  const erreurs = await ouvrir(page, livre, '/?/v/aicha-4821', () => deuxBoutiques(page));
+  await expect(boutique(page)).toContainText('Chez Aïcha Mode');
+  // The band: her initial in its round, « Mon compte » above her first name.
+  await expect(bande(page).locator('.bande-pastille')).toHaveText('A');
+  await expect(bande(page).locator('.bande-surtitre')).toHaveText('Mon compte');
+  await expect(bande(page).locator('.bande-nom')).toHaveText('Awa');
+  await bande(page).click();
+  const panier = page.locator('[data-role="compte-panier"]');
+  await expect(panier.locator('article.compte-boutique')).toHaveCount(2);
+  await expect(panier.locator('[data-boutique="mariam-1203"]')).toContainText('Mariam Style');
+  await expect(panier.locator('[data-boutique="mariam-1203"]')).toContainText('Sac en raphia');
+  await expect(panier.locator('[data-boutique="aicha-4821"]')).toContainText('Bazin riche brodé');
+  await expect(panier.locator('[data-boutique="aicha-4821"]'), 'only what SHE kept').not.toContainText('Pagne');
+  const favoris = page.locator('[data-role="compte-favoris"]');
+  await expect(favoris.locator('article.compte-boutique')).toHaveCount(1);
+  await expect(favoris).toContainText('Pagne wax hollandais');
+  // Never a price — not in the lists, not anywhere on « Mon compte ».
+  expect(await page.locator('[data-screen="compte-profil"]').innerText()).not.toMatch(/FCFA|12\s?000|15\s?000|8\s?500/);
+  // The way in is that boutique alone — the same address her boutique's own
+  // link carries. This preview server has no Pages fallback for a deep path, so
+  // the host's (proven on the emulator by deploy-base.spec) is stood in for.
+  const voir = panier.locator('[data-boutique="mariam-1203"] [data-role="compte-voir-chez"]');
+  await expect(voir).toHaveAttribute('href', '/v/mariam-1203');
+  await expect(voir).toContainText('Voir chez Mariam Style');
+  await page.route('**/v/mariam-1203', (route) => route.fulfill({ status: 302, headers: { location: '/?/v/mariam-1203' } }));
+  await voir.click();
+  await expect(boutique(page)).toContainText('Mariam Style');
+  await expect(bande(page)).toContainText('Awa');
+  expect(erreurs).toEqual([]);
+});
+
+test('MON-COMPTE-PLUS — signed in, a heart or a panier tap in a boutique is kept in her account, as a boutique and a product only; untapped, it leaves', async ({ page }) => {
+  const livre = new Livre();
+  await dejaConnectee(page, livre);
+  const erreurs = await ouvrir(page, livre, '/?/v/aicha-4821', () => deuxBoutiques(page));
+  await expect(page.locator('.vt-root[data-etat="ready"]')).toBeVisible();
+  await coeur(page, 'p1').click();
+  await auPanier(page, 'p2').click();
+  await expect.poll(() => livre.articles.get('70123456')).toEqual({ panier: [art('aicha-4821', 'p2')], favoris: [art('aicha-4821', 'p1')] });
+  const envois = livre.appels.filter((c) => c.chemin === 'articles');
+  expect(envois.length).toBeGreaterThan(0);
+  for (const c of envois) expect(JSON.stringify(c.corps), 'a price or a name travelled').not.toMatch(/prix|price|12000|8500|Bazin|Pagne/i);
+  await bande(page).click();
+  await expect(page.locator('[data-role="compte-favoris"]')).toContainText('Bazin riche brodé');
+  await expect(page.locator('[data-role="compte-panier"]')).toContainText('Pagne wax hollandais');
+  // Back in her boutique, she changes her mind on the heart.
+  await action(page, 'compte-boutique').click();
+  await expect(page.locator('.vt-root[data-etat="ready"]')).toBeVisible();
+  await coeur(page, 'p1').click();
+  await expect.poll(() => livre.articles.get('70123456')?.favoris).toEqual([]);
+  await bande(page).click();
+  await expect(page.locator('[data-role="compte-favoris-vide"]')).toBeVisible();
+  await expect(page.locator('[data-role="compte-panier"]')).toContainText('Pagne wax hollandais');
+  expect(erreurs).toEqual([]);
+});
+
+test('MON-COMPTE-PLUS — a guest\'s taps reach nobody; what she kept joins her account the moment she signs in', async ({ page }) => {
+  const livre = new Livre();
+  livre.comptes.set('70123456', { firstName: 'Awa', lastName: 'Ouédraogo', phone: '70 12 34 56', password: 'grain-de-nere' });
+  const erreurs = await ouvrir(page, livre, '/?/v/aicha-4821', () => deuxBoutiques(page));
+  await action(page, 'compte-invitee').click();
+  await expect(page.locator('.vt-root[data-etat="ready"]')).toBeVisible();
+  await auPanier(page, 'p1').click();
+  await coeur(page, 'p2').click();
+  await page.waitForTimeout(400);
+  expect(livre.appels.filter((c) => c.chemin === 'articles'), 'a guest\'s taps went to an account').toEqual([]);
+  // The guest's band says what it opens.
+  await expect(bande(page).locator('.bande-nom')).toHaveText('Se connecter');
+  await bande(page).click();
+  await action(page, 'compte-vers-connexion').click();
+  await champ(page, 'phone').pressSequentially('70123456');
+  await champ(page, 'password').fill('grain-de-nere');
+  await action(page, 'compte-connecter').click();
+  await expect.poll(() => livre.articles.get('70123456')).toEqual({ panier: [art('aicha-4821', 'p1')], favoris: [art('aicha-4821', 'p2')] });
+  await expect(bande(page).locator('.bande-nom')).toHaveText('Awa');
+  await bande(page).click();
+  await expect(page.locator('[data-role="compte-panier"]')).toContainText('Bazin riche brodé');
+  await expect(page.locator('[data-role="compte-favoris"]')).toContainText('Pagne wax hollandais');
+  expect(erreurs).toEqual([]);
+});
+
+test('MON-COMPTE-PLUS — a heart tapped with no network stays owed on her phone and reaches her account on her next visit', async ({ page }) => {
+  const livre = new Livre();
+  await dejaConnectee(page, livre);
+  const erreurs = await ouvrir(page, livre, '/?/v/aicha-4821', () => deuxBoutiques(page));
+  await expect(page.locator('.vt-root[data-etat="ready"]')).toBeVisible();
+  const coupe = (route: Route) => route.abort('internetdisconnected');
+  await page.route('**/api/buyer/articles', coupe);
+  await coeur(page, 'p1').click();
+  await expect.poll(async () => (await garde(page, 'sp-articles-dus:v1')) ?? '').toContain('"pid":"p1"');
+  expect(livre.articles.get('70123456')).toBeUndefined();
+  await page.unroute('**/api/buyer/articles', coupe);
+  // Her next visit (a /v/ reload has no fallback on this preview server).
+  await page.goto('/?/v/aicha-4821');
+  await expect.poll(() => livre.articles.get('70123456')?.favoris).toEqual([art('aicha-4821', 'p1')]);
+  await expect.poll(async () => (await garde(page, 'sp-articles-dus:v1')) ?? '').toBe('');
+  expect(erreurs).toEqual([]);
+});
+
+test('MON-COMPTE-PLUS — her lists, read by themselves, fail with a way out: « Réessayer » reads them again', async ({ page }) => {
+  const livre = new Livre();
+  await dejaConnectee(page, livre);
+  let lectures = 0;
+  const erreurs = await ouvrir(page, livre, '/?/v/aicha-4821', async () => {
+    await deuxBoutiques(page);
+    await page.route('**/api/buyer/articles', (route) => {
+      lectures += 1;
+      return lectures === 1
+        ? route.fulfill({ status: 503, contentType: 'application/json', body: '{"ok":false,"reason":"indisponible"}' })
+        : livre.servir(route);
+    });
+  });
+  await bande(page).click();
+  await expect(page.locator('[data-role="compte-panier-echec"]')).toBeVisible();
+  // Her infos never hide behind a failed list.
+  await expect(page.locator('[data-info="firstName"]')).toHaveText('Awa');
+  await action(page, 'compte-articles-relire').first().click();
+  await expect(page.locator('[data-role="compte-panier-vide"]')).toBeVisible();
+  await expect(page.locator('[data-role="compte-favoris-vide"]')).toBeVisible();
+  expect(lectures).toBe(2);
   expect(erreurs).toEqual([]);
 });

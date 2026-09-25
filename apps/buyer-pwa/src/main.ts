@@ -48,6 +48,7 @@ import { fetchClienteQuote, MODES_WIRE, type QuoteBase, type QuoteFetch } from '
 import { LISTE_TOKEN, resolveListePort } from './vitrine/liste';
 import { productFromSeed, seedProduct } from './vitrine/catalog';
 import { CLIENTE_STYLES } from './cliente/styles';
+import { COMPTE_STYLES } from './compte/styles';
 import { VITRINE_THEMES, type VitrineThemeKey } from './vitrine/themes';
 // The Faso Premium face substrate (six @font-face, WO-FP STEP 0) — injected as
 // raw CSS so './fonts/…' stays document-relative (the Archivo pattern; correct
@@ -56,6 +57,11 @@ import fontsCss from './fonts.css?raw';
 import { monterRacine } from './racine-view';
 import { resolveComptePort } from './compte/port';
 import { creerRattacheur, lierLesCommandesDues, monterBandeCompte, monterEntreeCompte } from './compte/entree';
+import { creerSynchroArticles } from './compte/articles';
+import type { LectureBoutique } from './compte/ecrans';
+import { observerPanier, paniersDuTelephone } from './vitrine/panier';
+import { favorisSitues, observerFavoris } from './vitrine/favorites';
+import { vignette } from './vitrine/render';
 import { sessionActive } from './compte/garde';
 import { icon } from './icons';
 import type { StorefrontProfilePort } from './vitrine/profile';
@@ -539,173 +545,6 @@ style.textContent = `
   .racine-input[aria-invalid="true"] { border-color: var(--c-danger); }
   .racine-refus { margin: 0; font-size: var(--t-caption); color: var(--c-danger); line-height: ${type.scale.caption.lh}; }
   .racine-pied { margin: 0; font-size: var(--t-caption); color: var(--c-muted); line-height: ${type.scale.caption.lh}; }
-
-  /* COMPTE-CLIENTE — her account screens: the shell's own field, button and
-     band vocabulary; one primary per screen, every other road a full button. */
-  .compte { display: grid; gap: var(--sp-lg); }
-  .compte-titre { margin: 0; font-size: var(--t-titleLG); font-weight: ${type.scale.titleLG.wght}; line-height: ${type.scale.titleLG.lh}; color: var(--c-ink); }
-  .compte-sous { margin: 0; font-size: var(--t-body); color: var(--c-body); line-height: ${type.scale.body.lh}; }
-  .compte-note { margin: 0; padding: var(--sp-md); background: var(--c-sand); color: var(--c-ink); font-size: var(--t-body); line-height: ${type.scale.body.lh}; }
-  .compte-actions { display: grid; gap: var(--sp-md); }
-  .compte-form { display: grid; gap: var(--sp-md); }
-  .compte-form [type="submit"][disabled] { opacity: var(--disabled-opacity); }
-  .compte-saisie { display: flex; gap: var(--sp-sm); }
-  .compte-input { flex: 1; min-width: 0; font-family: inherit; }
-  .compte-input[aria-invalid="true"] { border-color: var(--c-danger); }
-  .compte-voir { flex: none; }
-  .compte-aide { margin: 0; font-size: var(--t-caption); color: var(--c-muted); line-height: ${type.scale.caption.lh}; }
-  .compte-champ-refus { margin: 0; font-size: var(--t-caption); color: var(--c-danger); line-height: ${type.scale.caption.lh}; }
-  .compte-alerte { margin: 0; display: grid; gap: var(--sp-sm); font-size: var(--t-body); color: var(--c-danger); line-height: ${type.scale.body.lh}; }
-  .compte-prive { margin: 0; font-size: var(--t-caption); color: var(--c-body); line-height: ${type.scale.caption.lh}; }
-  .compte-infos { margin: 0; display: grid; gap: var(--sp-md); }
-  .compte-info { display: grid; gap: var(--sp-xs); padding-bottom: var(--sp-sm); border-bottom: var(--hair-mid) solid var(--c-hairline); }
-  .compte-info dt { font-size: var(--t-labelXS); font-weight: ${type.scale.labelXS.wght}; letter-spacing: var(--ls-labelXS); text-transform: uppercase; color: var(--c-muted); }
-  .compte-info dd, .compte-fixe { margin: 0; font-size: var(--t-row); font-weight: ${type.scale.bodyStrong.wght}; color: var(--c-ink); overflow-wrap: anywhere; }
-  .compte-info dd.compte-vide { font-weight: ${type.scale.body.wght}; color: var(--c-muted); }
-  /* COMPTE-CLIENTE-2 — the layer « Mon compte » opens over a product or a
-     payment: the page stays mounted under it, and nothing behind it scrolls. */
-  .compte-voile { position: fixed; inset: 0; z-index: 50; overflow-y: auto; background: var(--c-paper); }
-  body.compte-voile-ouvert { overflow: hidden; }
-  .compte-rester { display: flex; align-items: center; gap: var(--sp-sm); min-height: var(--touch); font-size: var(--t-body); color: var(--c-ink); }
-  .compte-rester input { width: var(--icon-sm); height: var(--icon-sm); margin: 0; flex: none; }
-  .compte-sous-titre { margin: 0; font-size: var(--t-title); font-weight: ${type.scale.title.wght}; color: var(--c-ink); }
-  .compte-commandes { display: grid; gap: var(--sp-sm); }
-  .compte-commande {
-    min-height: var(--touch); display: flex; align-items: center; justify-content: space-between; gap: var(--sp-sm);
-    border: var(--hair-mid) solid var(--c-hairlineStrong); background: var(--c-paper); color: var(--c-ink);
-    font-family: inherit; font-size: var(--t-body); padding: var(--sp-sm) var(--sp-md); text-align: left; cursor: pointer;
-  }
-  .compte-commande:active { opacity: var(--pressed-opacity); }
-  .compte-commande-ref { font-size: var(--t-caption); color: var(--c-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  /* PORTE-BELLE (founder, 2026-09-24: « very beautiful, and more structured »)
-     — the doors wear HER boutique: the head in her habillage (the same --vt-*
-     the boutique paints, set by applyTheme), a quiet sand placeholder while
-     it is read, the plain Shop+ ink when no boutique stands behind them. Then
-     one card of three true reasons, one primary, and the guest road as a
-     full-width button (a full road, never a whisper). */
-  .porte {
-    gap: var(--sp-lg);
-    /* The two faces her boutique and the checkout use, named once here as the
-       checkout names them (cliente/styles --cld / --clt). */
-    --cld: 'Bricolage Grotesque', 'Archivo', system-ui, sans-serif;
-    --clt: 'Instrument Sans', 'Archivo', system-ui, sans-serif;
-  }
-  .porte-tete {
-    margin: calc(var(--sp-lg) * -1) calc(var(--sp-lg) * -1) 0;
-    padding: var(--sp-lg);
-    display: grid; justify-items: start; gap: var(--sp-sm);
-    background: var(--vt-deep, var(--c-ink)); color: var(--vt-on, var(--c-onInk));
-    border-bottom: var(--theme-strip) solid var(--vt-accent, var(--c-themeStrip));
-  }
-  .porte-tete[data-etat="attente"] { background: var(--c-sand); color: var(--c-ink); border-bottom-color: var(--c-hairline); }
-  .porte-identite { display: flex; align-items: center; gap: var(--sp-md); min-width: 0; }
-  .porte-avatar {
-    position: relative; flex: none; display: inline-grid; place-items: center;
-    width: var(--touch); height: var(--touch);
-    border-radius: var(--r-pill);
-    border: var(--hair-strong) solid var(--vt-on, var(--c-onInk));
-    background: var(--vt-soft, var(--c-sand)); color: var(--vt-deep, var(--c-ink));
-    font-family: var(--cld);
-    font-size: var(--t-title); font-weight: ${type.scale.display.wght};
-  }
-  .porte-avatar-attente { border-color: var(--c-hairline); background: var(--c-paper); }
-  .porte-tete[data-etat="attente"] .porte-ligne-attente { background: var(--c-paper); }
-  .porte-avatar-img { width: 100%; height: 100%; object-fit: cover; display: block; border-radius: inherit; }
-  .porte-avatar-bulle {
-    position: absolute; right: calc(var(--sp-xs) * -1); bottom: calc(var(--sp-xs) * -1);
-    width: calc(var(--icon-sm) + var(--sp-xs)); height: calc(var(--icon-sm) + var(--sp-xs));
-    border-radius: var(--r-pill);
-    display: grid; place-items: center;
-    background: var(--vt-accent, var(--c-success)); color: var(--vt-on, var(--c-onInk));
-    border: var(--hair-strong) solid var(--vt-deep, var(--c-ink));
-  }
-  .porte-bulle-glyphe { width: var(--sp-md); height: var(--sp-md); }
-  .porte-ligne-attente { width: 45%; }
-  .porte-verifiee {
-    margin: 0; min-width: 0;
-    font-size: var(--t-labelXS); font-weight: ${type.scale.labelXS.wght};
-    letter-spacing: var(--ls-labelXS); text-transform: uppercase;
-    color: var(--vt-soft, var(--c-onInk));
-  }
-  .porte-titre {
-    margin: 0; color: inherit; text-wrap: balance;
-    font-family: var(--cld);
-    font-size: var(--t-display); font-weight: ${type.scale.display.wght}; line-height: ${type.scale.display.lh};
-  }
-  .porte-sous {
-    margin: 0; color: inherit;
-    font-family: var(--clt);
-    font-size: var(--t-body); line-height: ${type.scale.body.lh};
-  }
-  .porte-atouts {
-    display: grid; gap: var(--sp-md); padding: var(--sp-lg);
-    background: var(--c-surfaceMuted); border: var(--hair-mid) solid var(--c-hairline);
-  }
-  .porte-atouts-titre {
-    margin: 0; font-size: var(--t-labelXS); font-weight: ${type.scale.labelXS.wght};
-    letter-spacing: var(--ls-labelXS); text-transform: uppercase; color: var(--c-muted);
-  }
-  .porte-atouts-liste { margin: 0; padding: 0; list-style: none; display: grid; gap: var(--sp-md); }
-  .porte-atout { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: var(--sp-md); }
-  .porte-atout-icone {
-    display: grid; place-items: center;
-    width: calc(var(--touch) * 0.8); height: calc(var(--touch) * 0.8);
-    border-radius: var(--r-pill);
-    background: var(--vt-soft, var(--c-sand)); color: var(--vt-deep, var(--c-ink));
-  }
-  .porte-atout-glyphe { width: var(--icon); height: var(--icon); }
-  .porte-atout-mots { display: grid; min-width: 0; }
-  .porte-atout-titre { font-size: var(--t-row); font-weight: ${type.scale.bodyStrong.wght}; line-height: ${type.scale.row.lh}; color: var(--c-ink); }
-  .porte-atout-texte { font-size: var(--t-caption); line-height: ${type.scale.caption.lh}; color: var(--c-body); }
-  .porte-actions { display: grid; gap: var(--sp-md); }
-  .porte .primary-action, .porte .secondary-action, .porte-invitee {
-    width: 100%; min-height: calc(var(--touch) + var(--sp-xs)); border-radius: var(--r-button);
-  }
-  .porte .primary-action { background: var(--vt-deep, var(--c-ink)); color: var(--vt-on, var(--c-onInk)); }
-  .porte .secondary-action { border-color: var(--c-ink); }
-  .porte-ou {
-    margin: 0; display: flex; align-items: center; gap: var(--sp-md);
-    font-size: var(--t-labelXS); font-weight: ${type.scale.labelXS.wght};
-    letter-spacing: var(--ls-labelXS); text-transform: uppercase; color: var(--c-muted);
-  }
-  .porte-ou::before, .porte-ou::after { content: ''; flex: 1; border-top: 1px solid var(--c-hairline); }
-  .porte-invitee {
-    border: 0; background: var(--c-sand); color: var(--c-ink); cursor: pointer;
-    font-family: inherit; font-size: var(--t-label); font-weight: ${type.scale.label.wght};
-    letter-spacing: var(--ls-label); text-transform: uppercase;
-    padding: var(--sp-sm) var(--sp-lg);
-  }
-  .porte .secondary-action:active, .porte-invitee:active { opacity: var(--pressed-opacity); }
-  .porte .compte-prive { text-align: center; }
-  .porte-invitee-note { margin: 0; text-align: center; font-size: var(--t-caption); line-height: ${type.scale.caption.lh}; color: var(--c-muted); }
-  @media (prefers-reduced-motion: no-preference) {
-    .porte-tete[data-etat="boutique"] > * { animation: porte-arrivee var(--motion-standard) ease-out both; }
-    @keyframes porte-arrivee { from { opacity: 0; transform: translateY(var(--sp-xs)); } }
-  }
-
-  /* VRAI-SUIVI — « Ma commande », the quiet way back to a live order. Chrome,
-     not content: a full-width sand band at the head of the shell, token-driven, one
-     line, no new nav system. */
-  .ma-commande {
-    width: 100%;
-    display: flex; align-items: center; justify-content: space-between; gap: var(--sp-sm);
-    min-height: var(--touch);
-    border: 0; border-bottom: var(--hair-mid) solid var(--c-hairlineStrong);
-    background: var(--c-sand); color: var(--c-ink);
-    font-family: inherit;
-    font-size: var(--t-label); font-weight: ${type.scale.label.wght};
-    letter-spacing: var(--ls-label); text-transform: uppercase;
-    padding: var(--sp-sm) var(--sp-lg);
-    text-align: left; cursor: pointer;
-  }
-  .ma-commande:active { opacity: var(--pressed-opacity); }
-  .ma-commande .ma-commande-suivre { display: inline-flex; align-items: center; gap: var(--sp-xs); color: var(--c-ink); font-weight: ${type.scale.labelXS.wght}; text-transform: uppercase; }
-  .ma-commande-chevron { width: var(--icon-sm); height: var(--icon-sm); flex: none; }
-  .ma-commande-ref {
-    font-size: var(--t-labelXS); color: var(--c-muted);
-    letter-spacing: var(--ls-labelXS); text-transform: none;
-    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  }
 `;
 document.head.appendChild(style);
 
@@ -718,6 +557,13 @@ const clienteStyle = document.createElement('style');
 clienteStyle.setAttribute('data-cliente', '');
 clienteStyle.textContent = CLIENTE_STYLES;
 document.head.appendChild(clienteStyle);
+
+// MON-COMPTE-PLUS — her account screens, the doors and the bands at the head
+// of the shell, on Faso Premium (its own compte/ and porte/ and band classes).
+const compteStyle = document.createElement('style');
+compteStyle.setAttribute('data-compte', '');
+compteStyle.textContent = COMPTE_STYLES;
+document.head.appendChild(compteStyle);
 
 /** Validate a harness `theme` param against the closed §1.2 set (default indigo).
  *  THEMES-8b — DERIVED from the record, never a second hand-typed list: this
@@ -738,6 +584,34 @@ function sessionStorageOrUndefined(): Storage | undefined {
     return window.sessionStorage;
   } catch {
     return undefined;
+  }
+}
+
+/**
+ * MON-COMPTE-PLUS — one boutique of her lists, as « Mon compte » shows it: the
+ * public boutique read (the same one her boutique page makes; it records no
+ * arrival), mapped to its name, look and each product's name, vignette and
+ * stock. The price the read carries is dropped HERE and goes no further.
+ */
+async function lireBoutiqueCompte(slug: string): Promise<LectureBoutique> {
+  try {
+    const r = await resolveStorefrontPort().resolve(slug);
+    if (r === undefined) return 'introuvable';
+    const sf = r.storefront;
+    const portrait = sf.avatar.mode === 'photo' && sf.avatar.url ? sf.avatar.url : undefined;
+    const cadrage = portrait !== undefined ? focusPosition(sf.avatar.focus) : undefined;
+    return {
+      nom: sf.name, lieu: sf.zone, theme: sf.theme,
+      ...(portrait !== undefined ? { portrait } : {}),
+      ...(cadrage !== undefined ? { cadrage } : {}),
+      produits: (r.products ?? []).map((p) => {
+        const photo = p.assetRefs.find((ref) => ref !== '');
+        return { pid: p.pid, nom: p.name, disponible: p.inStock, ...(photo !== undefined ? { photo: vignette(photo) } : {}) };
+      }),
+    };
+  } catch (e) {
+    if (e instanceof VitrinePause) return { pause: e.nom };
+    return 'hors_ligne';
   }
 }
 
@@ -810,6 +684,30 @@ if (app) {
   // (The retired `?demo-achat=` S1–S7 param is read by NOTHING — un-generatable.)
   const clienteDemo = params.get('demo-cliente');
   const CLIENTE_ECRANS: readonly ClienteEcran[] = ['C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'C7', 'C8', 'C9'];
+
+  /**
+   * MON-COMPTE-PLUS (founder 2026-09-25, canon 3.24.0) — while she is signed
+   * in, what changes in her panier and her hearts on this phone is also kept
+   * with her account (and what is still owed from an earlier visit goes now);
+   * « Mon compte » reads each boutique of her lists for its name, look and
+   * products — never a price — and links back into that boutique alone.
+   */
+  const comptePortArticles = clienteDemo === null ? resolveComptePort() : undefined;
+  const synchroArticles = comptePortArticles !== undefined
+    ? creerSynchroArticles(comptePortArticles, localStorageOrUndefined(), sessionStorageOrUndefined())
+    : undefined;
+  if (synchroArticles !== undefined) {
+    observerPanier((slug, pid, present) => synchroArticles.noter('panier', slug, pid, present));
+    observerFavoris((slug, pid, present) => synchroArticles.noter('favoris', slug, pid, present));
+    synchroArticles.envoyer();
+  }
+  const comptePlus = {
+    lireBoutique: lireBoutiqueCompte,
+    lienBoutique: (slug: string) => vitrineHref(window.location.pathname, slug),
+    ...(synchroArticles !== undefined
+      ? { apresConnexion: () => synchroArticles.joindre({ panier: paniersDuTelephone(), favoris: favorisSitues() }) }
+      : {}),
+  };
 
   // VITRINE (redesign — HANDOFF §5). Reached by the canon /v/{slug} path
   // (restored by the 404.html SPA-fallback before boot); the ?demo-vitrine*
@@ -919,6 +817,7 @@ if (app) {
           local: localStorageOrUndefined(),
           onglet: sessionStorageOrUndefined(),
           ouvrirSuivi: suiviDepuisCompte,
+          ...comptePlus,
         });
       }
       // THE SIGNED OFFER — the pixel-for-pixel PWA CLIENTE C1 (Édition Indigo),
@@ -1329,6 +1228,7 @@ if (app) {
           };
         }).catch(() => undefined),
         ouvrirSuivi: suiviDepuisCompte,
+        ...comptePlus,
       });
     }
   } else {
@@ -1385,12 +1285,15 @@ if (app) {
       suiviBtn.setAttribute('data-role', 'ma-commande');
       const suiviLabel = document.createElement('span');
       suiviLabel.textContent = SUIVI.reentree;
+      const suiviPastille = document.createElement('span');
+      suiviPastille.className = 'bande-pastille';
+      suiviPastille.innerHTML = icon('colis', 'bande-glyphe');
       const suiviRef = document.createElement('span');
       suiviRef.className = 'ma-commande-ref ma-commande-suivre';
       suiviRef.setAttribute('data-role', 'ma-commande-suivre');
       suiviRef.textContent = t('bande.suivre');
       suiviRef.insertAdjacentHTML('beforeend', icon('chevron', 'ma-commande-chevron'));
-      suiviBtn.append(suiviLabel, suiviRef);
+      suiviBtn.append(suiviPastille, suiviLabel, suiviRef);
       suiviBtn.addEventListener('click', () => ouvrirSuivi(gardeeSure.orderId, gardeeSure.buyerRef));
       // BANDEAUX-RETIRÉS — this band was inserted AFTER the ribbon object; with
       // the ribbon gone it takes the ribbon's place at the head of the shell,
@@ -1433,10 +1336,13 @@ if (app) {
       btn.setAttribute('data-role', 'mes-articles');
       const label = document.createElement('span');
       label.textContent = t('cl.panier.reentree');
+      const pastille = document.createElement('span');
+      pastille.className = 'bande-pastille';
+      pastille.innerHTML = icon('colis', 'bande-glyphe');
       const compte = document.createElement('span');
       compte.className = 'ma-commande-ref';
       compte.textContent = String(paye.articles.length);
-      btn.append(label, compte);
+      btn.append(pastille, label, compte);
       btn.addEventListener('click', () => {
         shellRemplace = true;
         for (const child of Array.from(app.children)) child.remove();

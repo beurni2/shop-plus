@@ -106,6 +106,7 @@ export function oublierSessions(local: Stockage, onglet: Stockage): void {
   for (const s of [local, onglet]) {
     try {
       s?.removeItem(CLE_LIENS);
+      s?.removeItem(CLE_ARTICLES);
     } catch {
       /* nothing more to forget than the store will let go */
     }
@@ -199,6 +200,81 @@ export function marquerDecidee(onglet: Stockage, orderId: string): void {
     onglet?.setItem(CLE_DECIDEES, JSON.stringify([orderId, ...lireDecidees(onglet).filter((x) => x !== orderId)].slice(0, LIENS_MAX)));
   } catch {
     /* the store refused — the page that made the order still knows */
+  }
+}
+
+/**
+ * MON-COMPTE-PLUS (canon 3.24.0) — WHAT CHANGED IN HER PANIER OR HER HEARTS ON
+ * THIS PHONE, NOT YET TOLD TO HER ACCOUNT. Kept like the owed links: beside her
+ * session, in the same store, with the session that saw it — and forgotten when
+ * she signs out. One entry per article and list: the last change wins, so the
+ * queue is what her account must end up holding, in the order she did it. At
+ * most fifty, the book's own bound for one call.
+ */
+const CLE_ARTICLES = 'sp-articles-dus:v1';
+const ARTICLES_DUS_MAX = 50;
+const SLUG_OK = /^[a-z0-9-]{1,64}$/;
+const PID_OK = /^[A-Za-z0-9][A-Za-z0-9_-]{0,191}$/;
+
+export interface ArticleDu {
+  readonly liste: 'panier' | 'favoris';
+  readonly action: 'ajouter' | 'retirer';
+  readonly slug: string;
+  readonly pid: string;
+  readonly session: string;
+}
+
+function lireArticlesDus(s: Stockage): ArticleDu[] {
+  try {
+    const lu = JSON.parse(s?.getItem(CLE_ARTICLES) ?? '[]') as unknown;
+    if (!Array.isArray(lu)) return [];
+    return lu.flatMap((x: unknown) => {
+      const o = x !== null && typeof x === 'object' ? (x as Record<string, unknown>) : {};
+      const liste = o['liste'];
+      const action = o['action'];
+      return (liste === 'panier' || liste === 'favoris') && (action === 'ajouter' || action === 'retirer') &&
+        typeof o['slug'] === 'string' && SLUG_OK.test(o['slug']) && typeof o['pid'] === 'string' && PID_OK.test(o['pid']) &&
+        typeof o['session'] === 'string' && SESSION.test(o['session'])
+        ? [{ liste, action, slug: o['slug'], pid: o['pid'], session: o['session'] }]
+        : [];
+    });
+  } catch {
+    return [];
+  }
+}
+
+function ecrireArticlesDus(s: Stockage, dus: readonly ArticleDu[]): void {
+  try {
+    if (dus.length === 0) s?.removeItem(CLE_ARTICLES);
+    else s?.setItem(CLE_ARTICLES, JSON.stringify(dus.map((d) => ({ liste: d.liste, action: d.action, slug: d.slug, pid: d.pid, session: d.session }))));
+  } catch {
+    /* the store refused — this change reaches her account only while the page lives */
+  }
+}
+
+const memeArticle = (a: ArticleDu, b: { liste: string; slug: string; pid: string }): boolean =>
+  a.liste === b.liste && a.slug === b.slug && a.pid === b.pid;
+
+/** Only a boutique and a product that the book will take are ever kept. */
+export function articleValide(slug: string, pid: string): boolean {
+  return SLUG_OK.test(slug) && PID_OK.test(pid);
+}
+
+export function retenirArticle(local: Stockage, onglet: Stockage, d: ArticleDu): void {
+  const s = sessionGardee(local) !== undefined ? local : onglet;
+  ecrireArticlesDus(s, [...lireArticlesDus(s).filter((x) => !memeArticle(x, d)), d].slice(-ARTICLES_DUS_MAX));
+}
+
+export function articlesDus(local: Stockage, onglet: Stockage): readonly ArticleDu[] {
+  return [...lireArticlesDus(local), ...lireArticlesDus(onglet)];
+}
+
+/** Told: those exact changes leave the queue (a newer change to the same article stays). */
+export function oublierArticles(local: Stockage, onglet: Stockage, envoyes: readonly ArticleDu[]): void {
+  for (const s of [local, onglet]) {
+    const dus = lireArticlesDus(s);
+    const reste = dus.filter((x) => !envoyes.some((e) => memeArticle(x, e) && e.action === x.action && e.session === x.session));
+    if (reste.length !== dus.length) ecrireArticlesDus(s, reste);
   }
 }
 

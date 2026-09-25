@@ -1,8 +1,10 @@
 import { t } from '../i18n';
+import { icon } from '../icons';
+import { grandTeintIcon } from '../grand-teint-icons';
 import { verdictBande, type OrderOutcome } from '../cliente/quote-port';
 import type { ComptePort } from './port';
 import { decidee, estInvitee, liensDus, marquerDecidee, oublierLien, retenirLien, sessionActive, type LienDu } from './garde';
-import { monterCompte, type BoutiquePorte, type EcranCompte } from './ecrans';
+import { monterCompte, type BoutiquePorte, type EcranCompte, type LectureBoutique } from './ecrans';
 
 /**
  * ═══ COMPTE-CLIENTE — THE BOUTIQUE'S FRONT STEP ═══
@@ -31,20 +33,49 @@ export interface OptsEntree {
   readonly boutique?: Promise<BoutiquePorte | undefined>;
   /** « Mes commandes » — open one order's tracking. */
   readonly ouvrirSuivi?: (orderId: string, buyerRef: string) => void;
+  /** MON-COMPTE-PLUS — « Mon panier » / « Mes coups de cœur »: read a boutique,
+   *  link back into it, and join this phone's lists when she signs in. */
+  readonly lireBoutique?: (slug: string) => Promise<LectureBoutique>;
+  readonly lienBoutique?: (slug: string) => string;
+  readonly apresConnexion?: () => void;
 }
 
-/** The band, for her name or for a guest — text only, her name is a server byte. */
+/** What « Mon compte » needs beyond her session, handed down unchanged. */
+const plus = (o: Pick<OptsEntree, 'lireBoutique' | 'lienBoutique' | 'apresConnexion'>) => ({
+  ...(o.lireBoutique !== undefined ? { lireBoutique: o.lireBoutique } : {}),
+  ...(o.lienBoutique !== undefined ? { lienBoutique: o.lienBoutique } : {}),
+  ...(o.apresConnexion !== undefined ? { apresConnexion: o.apresConnexion } : {}),
+});
+
+/**
+ * The band, for her name or for a guest (MON-COMPTE-PLUS, founder: « make it
+ * more professional and well structured »): her initial in a round — or the
+ * person glyph for a guest — « Mon compte » above her first name or « Se
+ * connecter », and the arrow that says it opens. Her name is a server byte:
+ * text only, never markup.
+ */
 function bande(prenom: string | undefined, ouvrir: (ecran: EcranCompte) => void): HTMLButtonElement {
   const b = document.createElement('button');
   b.type = 'button';
-  b.className = 'ma-commande';
+  b.className = 'ma-commande bande-compte';
   b.setAttribute('data-role', 'mon-compte');
-  const label = document.createElement('span');
-  label.textContent = t('compte.bande.titre');
-  const droite = document.createElement('span');
-  droite.className = 'ma-commande-ref';
-  droite.textContent = prenom ?? t('compte.bande.invitee');
-  b.append(label, droite);
+  const pastille = document.createElement('span');
+  pastille.className = 'bande-pastille';
+  pastille.setAttribute('aria-hidden', 'true');
+  if (prenom !== undefined && prenom !== '') pastille.textContent = prenom.charAt(0).toUpperCase();
+  else pastille.innerHTML = grandTeintIcon.profil(18);
+  if (prenom === undefined) b.setAttribute('data-invitee', '');
+  const mots = document.createElement('span');
+  mots.className = 'bande-mots';
+  const surtitre = document.createElement('span');
+  surtitre.className = 'bande-surtitre';
+  surtitre.textContent = t('compte.bande.titre');
+  const nom = document.createElement('span');
+  nom.className = 'ma-commande-ref bande-nom';
+  nom.textContent = prenom ?? t('compte.bande.invitee');
+  mots.append(surtitre, nom);
+  b.append(pastille, mots);
+  b.insertAdjacentHTML('beforeend', icon('chevron', 'ma-commande-chevron'));
   b.addEventListener('click', () => ouvrir(prenom !== undefined ? 'profil' : 'porte'));
   return b;
 }
@@ -74,6 +105,7 @@ export function monterEntreeCompte(app: HTMLElement, opts: OptsEntree): void {
       port: opts.port, local: opts.local, onglet: opts.onglet, ecran, versBoutique: suivre,
       ...(opts.boutique !== undefined ? { boutique: opts.boutique } : {}),
       ...(opts.ouvrirSuivi !== undefined ? { ouvrirSuivi: opts.ouvrirSuivi } : {}),
+      ...plus(opts),
     });
   };
 
@@ -145,6 +177,7 @@ export function monterBandeCompte(
     monterCompte(main, {
       port: opts.port, local: opts.local, onglet: opts.onglet, ecran, versBoutique: fermer, enCalque: true,
       ...(opts.ouvrirSuivi !== undefined ? { ouvrirSuivi: (orderId: string, buyerRef: string) => { fermer(); opts.ouvrirSuivi?.(orderId, buyerRef); } } : {}),
+      ...plus(opts),
     });
   };
   function poser(): void {

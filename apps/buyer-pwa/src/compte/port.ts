@@ -52,6 +52,24 @@ export interface CommandeCompte {
   readonly at: string;
 }
 
+/** MON-COMPTE-PLUS (canon 3.24.0) — an article of her panier or her hearts,
+ *  as her account keeps it: a boutique, a product, and when. */
+export interface ArticleCompte {
+  readonly slug: string;
+  readonly pid: string;
+  readonly at: string;
+}
+export interface ArticlesCompte {
+  readonly panier: readonly ArticleCompte[];
+  readonly favoris: readonly ArticleCompte[];
+}
+export interface OperationArticle {
+  readonly liste: 'panier' | 'favoris';
+  readonly action: 'ajouter' | 'retirer';
+  readonly slug: string;
+  readonly pid: string;
+}
+
 export interface ComptePort {
   inscrire(i: Inscription): Promise<Resultat<{ profil: ProfilCliente; session: string }>>;
   connecter(phone: string, password: string): Promise<Resultat<{ profil: ProfilCliente; session: string }>>;
@@ -64,6 +82,27 @@ export interface ComptePort {
   /** « Mes commandes » — read, or add then read (at most ten added at once). */
   commandes(session: string, ajouter?: readonly { readonly orderId: string; readonly buyerRef: string }[]): Promise<Resultat<readonly CommandeCompte[]>>;
   supprimer(session: string, currentPassword: string): Promise<Resultat<true>>;
+  /** MON-COMPTE-PLUS — her panier and hearts: read, or change then read (fifty at most at once). */
+  articles(session: string, operations?: readonly OperationArticle[]): Promise<Resultat<ArticlesCompte>>;
+}
+
+function lireListeArticles(brut: unknown): ArticleCompte[] | undefined {
+  if (!Array.isArray(brut)) return undefined;
+  const out: ArticleCompte[] = [];
+  for (const a of brut) {
+    const o = a as Record<string, unknown> | null;
+    const slug = texte(o?.['slug']);
+    const pid = texte(o?.['pid']);
+    const at = texte(o?.['at']);
+    if (slug !== undefined && pid !== undefined && at !== undefined) out.push({ slug, pid, at });
+  }
+  return out;
+}
+
+function lireArticles(body: Record<string, unknown>): ArticlesCompte | undefined {
+  const panier = lireListeArticles(body['panier']);
+  const favoris = lireListeArticles(body['favoris']);
+  return panier === undefined || favoris === undefined ? undefined : { panier, favoris };
 }
 
 function lireCommandes(body: Record<string, unknown>): readonly CommandeCompte[] | undefined {
@@ -169,6 +208,12 @@ export function httpComptePort(base: string): ComptePort {
         ? { ajouter: ajouter.slice(0, 10).map((c) => ({ orderId: c.orderId, buyerRef: c.buyerRef })) }
         : {};
       return lire(await appeler('orders', corps, session, LECTURE_PROFIL_TIMEOUT_MS), lireCommandes);
+    },
+    async articles(session, operations) {
+      const corps = operations !== undefined && operations.length > 0
+        ? { operations: operations.slice(0, 50).map((o) => ({ liste: o.liste, action: o.action, slug: o.slug, pid: o.pid })) }
+        : {};
+      return lire(await appeler('articles', corps, session, LECTURE_PROFIL_TIMEOUT_MS), lireArticles);
     },
     async supprimer(session, currentPassword) {
       return lire(await appeler('delete', { currentPassword }, session), () => true as const);

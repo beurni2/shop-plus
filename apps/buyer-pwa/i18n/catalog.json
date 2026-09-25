@@ -4014,6 +4014,102 @@
   "screenClass": "label"
  },
  {
+  "key": "compte.profil.bonjour",
+  "fr": "Bonjour, {prenom}",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "compte.profil.infos",
+  "fr": "Mes infos",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "compte.inscription.sous",
+  "fr": "Vos commandes, votre panier et vos coups de cœur vous suivent sur tous vos téléphones.",
+  "register": "selling",
+  "screenClass": "status"
+ },
+ {
+  "key": "compte.connexion.sous",
+  "fr": "Bon retour parmi nous.",
+  "register": "selling",
+  "screenClass": "status"
+ },
+ {
+  "key": "compte.favoris.titre",
+  "fr": "Mes coups de cœur",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "compte.panier.vide",
+  "fr": "Votre panier est vide.",
+  "register": "selling",
+  "screenClass": "status"
+ },
+ {
+  "key": "compte.panier.vide_sous",
+  "fr": "Ajoutez un article dans une boutique : il vous attendra ici.",
+  "register": "selling",
+  "screenClass": "status"
+ },
+ {
+  "key": "compte.favoris.vide",
+  "fr": "Pas encore de coup de cœur.",
+  "register": "selling",
+  "screenClass": "status"
+ },
+ {
+  "key": "compte.favoris.vide_sous",
+  "fr": "Touchez le cœur d’un article dans une boutique : il vous attendra ici.",
+  "register": "selling",
+  "screenClass": "status"
+ },
+ {
+  "key": "compte.articles.echec",
+  "fr": "Pas de réseau pour le moment. Vos articles restent gardés.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "compte.articles.boutique_hors_ligne",
+  "fr": "Cette boutique ne répond pas pour le moment.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "compte.articles.pause",
+  "fr": "Boutique en pause pour le moment.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "compte.articles.plus_en_vente",
+  "fr": "Ces articles ne sont plus en vente dans cette boutique.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "compte.articles.voir_chez",
+  "fr": "Voir chez {boutique}",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "compte.articles.un",
+  "fr": "1 article",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "compte.articles.plusieurs",
+  "fr": "{n} articles",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
   "key": "compte.supprimer.ouvrir",
   "fr": "Supprimer mon compte",
   "register": "neutral",
@@ -4027,7 +4123,7 @@
  },
  {
   "key": "compte.supprimer.explique",
-  "fr": "Votre nom, votre email, votre mot de passe et votre liste de commandes seront effacés. Vos commandes en cours continuent : elles seront livrées.",
+  "fr": "Votre nom, votre email, votre mot de passe et votre liste de commandes seront effacés. Les articles gardés dans votre compte aussi. Vos commandes en cours continuent : elles seront livrées.",
   "register": "neutral",
   "screenClass": "status"
  },

@@ -2,9 +2,11 @@ import { t, tf } from '../i18n';
 import { esc } from '../format';
 import { caretApresChiffres, telEnPaires } from '../cliente/telephone';
 import { referenceCourte } from '../cliente/screens';
-import type { CommandeCompte, ComptePort, Echec, ProfilCliente } from './port';
+import type { ArticleCompte, ArticlesCompte, CommandeCompte, ComptePort, Echec, ProfilCliente } from './port';
 import { garderSession, marquerInvitee, oublierSessions, rafraichirSession, sessionActive } from './garde';
 import { icon } from '../icons';
+import { iconBack, iconBag, iconChevron, iconHeart, iconShieldCheck } from '../vitrine/icons';
+import { grandTeintIcon } from '../grand-teint-icons';
 import { applyTheme, type VitrineThemeKey } from '../vitrine/themes';
 
 /**
@@ -40,6 +42,15 @@ import { applyTheme, type VitrineThemeKey } from '../vitrine/themes';
  *   téléphone » — unticked, she is signed in for this tab only (a phone that
  *   restores its tabs may keep that tab open; « Me déconnecter » always ends it).
  *
+ * MON-COMPTE-PLUS (founder 2026-09-25, canon 3.24.0 — SP-I05, SP6 third ruling):
+ *   profil       — also « Mon panier » and « Mes coups de cœur »: the articles
+ *                  she kept or liked, by boutique, each under that boutique's
+ *                  own name and look, photo and name, NEVER a price, with
+ *                  « Voir chez … » back into that boutique alone. And every
+ *                  account screen redesigned (« more beautiful … very
+ *                  professional »): the Faso Premium family, one card per
+ *                  purpose, an icon with every title.
+ *
  * Every act is one request on a tap, never queued: nothing about her account
  * is « done » until the service said so. A refusal keeps what she typed and
  * says, in one sentence, what to do. Server bytes reach the page escaped, and
@@ -66,7 +77,32 @@ export interface OptsCompte {
   /** Opened as a layer over a product or a payment: « Retour » goes back to
    *  that page, not to a boutique. */
   readonly enCalque?: boolean;
+  /** MON-COMPTE-PLUS — one boutique, read for « Mon compte »: its name, look
+   *  and products (the public boutique read; never a price reaches the page). */
+  readonly lireBoutique?: (slug: string) => Promise<LectureBoutique>;
+  /** MON-COMPTE-PLUS — the address of a boutique's own vitrine (« Voir chez … »). */
+  readonly lienBoutique?: (slug: string) => string;
+  /** MON-COMPTE-PLUS — she just signed in, up or back in: what this phone kept joins her account. */
+  readonly apresConnexion?: () => void;
 }
+
+/**
+ * MON-COMPTE-PLUS — a boutique as « Mon compte » shows her articles in it: the
+ * same public bytes as her doors (name, city, look, portrait) and, per
+ * product, its name, its photo and whether it is in stock. No price field
+ * exists here, so none can reach the page (SP-I05: never two resellers'
+ * prices on one screen).
+ */
+export interface ProduitCompte {
+  readonly pid: string;
+  readonly nom: string;
+  readonly photo?: string;
+  readonly disponible: boolean;
+}
+export interface BoutiqueCompte extends BoutiquePorte {
+  readonly produits: readonly ProduitCompte[];
+}
+export type LectureBoutique = BoutiqueCompte | { readonly pause: string } | 'hors_ligne' | 'introuvable';
 
 const NOM_MAX = 60;
 
@@ -124,10 +160,19 @@ function phraseRefus(e: Echec): { champ?: string; texte: string } {
 
 /* ─────────────────────────────── renderers ─────────────────────────────── */
 
-const prive = (): string => `<p class="compte-prive" data-role="compte-prive">${t('compte.prive')}</p>`;
+/** The privacy line, with the shield the boutique's trust row wears. */
+const prive = (): string =>
+  `<div class="compte-prive-bloc">${iconShieldCheck(18, 'currentColor', 1.9)}<p class="compte-prive" data-role="compte-prive">${t('compte.prive')}</p></div>`;
 const alerte = (): string => '<p class="compte-alerte" data-role="compte-alerte" role="alert" hidden></p>';
+/** Back, as an arrow AND its word (icon + word, never icon alone). */
 const retour = (action: string, libelle: string): string =>
-  `<button class="link-quiet back-step" type="button" data-action="${action}">${libelle}</button>`;
+  `<button class="link-quiet back-step" type="button" data-action="${action}">${iconBack(18, 'currentColor', 2)}<span>${libelle}</span></button>`;
+/** A screen's head: its glyph in a soft round, its title, one line of why. */
+const entete = (glyphe: string, titre: string, sous?: string): string =>
+  `<header class="compte-entete"><span class="compte-entete-icone" aria-hidden="true">${glyphe}</span>` +
+  `<h2 class="compte-titre">${titre}</h2>${sous !== undefined ? `<p class="compte-sous">${sous}</p>` : ''}</header>`;
+const glyphe = (nom: string): string => icon(nom, 'compte-entete-glyphe');
+const personne = (): string => grandTeintIcon.profil(22);
 
 function champ(o: {
   cle: string; label: string; type: string; autocomplete: string; valeur?: string;
@@ -256,10 +301,10 @@ function peindrePorte(section: Element | null, b: BoutiquePorte | 'attente' | un
 
 export function renderInscription(): string {
   return [
-    '<section class="compte" data-screen="compte-inscription">',
+    '<section class="compte compte-ecran" data-screen="compte-inscription">',
     retour('compte-vers-porte', t('retour')),
-    `<h2 class="compte-titre">${t('compte.inscription.titre')}</h2>`,
-    '<form class="compte-form" data-role="compte-form" novalidate>',
+    entete(personne(), t('compte.inscription.titre'), t('compte.inscription.sous')),
+    '<form class="compte-form compte-carte" data-role="compte-form" novalidate>',
     champ({ cle: 'firstName', label: t('compte.label.prenom'), type: 'text', autocomplete: 'given-name' }),
     champ({ cle: 'lastName', label: t('compte.label.nom'), type: 'text', autocomplete: 'family-name' }),
     champ({ cle: 'phone', label: t('compte.label.telephone'), type: 'tel', autocomplete: 'tel', inputmode: 'tel', placeholder: t('compte.telephone_exemple') }),
@@ -277,11 +322,11 @@ export function renderInscription(): string {
 
 export function renderConnexion(note?: string, telephone?: string): string {
   return [
-    '<section class="compte" data-screen="compte-connexion">',
+    '<section class="compte compte-ecran" data-screen="compte-connexion">',
     retour('compte-vers-porte', t('retour')),
-    `<h2 class="compte-titre">${t('compte.connexion.titre')}</h2>`,
+    entete(glyphe('cle'), t('compte.connexion.titre'), t('compte.connexion.sous')),
     note !== undefined ? `<p class="compte-note" data-role="compte-note">${note}</p>` : '',
-    '<form class="compte-form" data-role="compte-form" novalidate>',
+    '<form class="compte-form compte-carte" data-role="compte-form" novalidate>',
     champ({ cle: 'phone', label: t('compte.label.telephone'), type: 'tel', autocomplete: 'tel', inputmode: 'tel', placeholder: t('compte.telephone_exemple'), ...(telephone !== undefined ? { valeur: telephone } : {}) }),
     champ({ cle: 'password', label: t('compte.label.mot_de_passe'), type: 'password', autocomplete: 'current-password', mdp: true }),
     rester(),
@@ -294,17 +339,25 @@ export function renderConnexion(note?: string, telephone?: string): string {
   ].join('');
 }
 
+/** Her initials, for the round at the head of her account — letters, escaped. */
+const initiales = (p: ProfilCliente): string => `${p.firstName.charAt(0)}${p.lastName.charAt(0)}`.toUpperCase();
+
+/** A titled block of « Mon compte »: its glyph beside the words (icon + word). */
+const bloc = (role: string, glypheHtml: string, titre: string, contenu: string): string =>
+  `<section class="compte-bloc" data-role="${role}"><h3 class="compte-sous-titre"><span class="compte-sous-titre-icone" aria-hidden="true">${glypheHtml}</span>${titre}</h3>${contenu}</section>`;
+
 /** Her profile: while it is read, the read's failure (no network, or the
- *  service refused), or her infos. */
+ *  service refused), or her infos — and, MON-COMPTE-PLUS, her orders, her
+ *  panier and her coups de cœur, each in its own block. */
 export function renderProfil(etat: ProfilCliente | 'chargement' | 'hors_ligne' | 'indisponible', note?: string, enCalque = false): string {
   const tete = [
-    '<section class="compte" data-screen="compte-profil">',
+    '<section class="compte compte-ecran compte-profil" data-screen="compte-profil">',
     retour('compte-boutique', enCalque ? t('retour') : t('compte.profil.retour')),
     `<h2 class="compte-titre">${t('compte.profil.titre')}</h2>`,
     note !== undefined ? `<p class="compte-note" data-role="compte-note">${note}</p>` : '',
   ];
   if (etat === 'chargement') {
-    return [...tete, '<div class="compte-infos" data-role="compte-chargement" aria-busy="true">',
+    return [...tete, '<div class="compte-carte compte-infos" data-role="compte-chargement" aria-busy="true">',
       '<span class="skeleton-line skeleton-line-wide"></span><span class="skeleton-line skeleton-line-mid"></span>',
       '<span class="skeleton-line skeleton-line-wide"></span></div>', '</section>'].join('');
   }
@@ -320,21 +373,29 @@ export function renderProfil(etat: ProfilCliente | 'chargement' | 'hors_ligne' |
     `<div class="compte-info"><dt>${label}</dt><dd data-info="${cle}"${vide ? ' class="compte-vide"' : ''}>${valeur}</dd></div>`;
   return [
     ...tete,
+    '<div class="compte-carte compte-identite">',
+    '<div class="compte-identite-tete">',
+    `<span class="compte-avatar" aria-hidden="true">${esc(initiales(etat))}</span>`,
+    `<p class="compte-bonjour">${tf('compte.profil.bonjour', { prenom: esc(etat.firstName) })}</p>`,
+    '</div>',
+    `<p class="compte-infos-titre">${t('compte.profil.infos')}</p>`,
     '<dl class="compte-infos">',
     ligne('firstName', t('compte.label.prenom'), esc(etat.firstName)),
     ligne('lastName', t('compte.label.nom'), esc(etat.lastName)),
     ligne('phone', t('compte.label.telephone'), esc(etat.phone)),
     etat.email !== undefined ? ligne('email', t('compte.label.email_court'), esc(etat.email)) : ligne('email', t('compte.label.email_court'), t('compte.profil.sans_email'), true),
     '</dl>',
-    prive(),
-    '<div class="compte-actions">',
     `<button class="primary-action" type="button" data-action="compte-vers-modifier">${t('compte.profil.modifier')}</button>`,
-    `<button class="secondary-action" type="button" data-action="compte-vers-mot-de-passe">${t('compte.profil.mot_de_passe')}</button>`,
-    `<button class="secondary-action" type="button" data-action="compte-deconnecter">${t('compte.profil.deconnecter')}</button>`,
     '</div>',
-    `<h3 class="compte-sous-titre">${t('compte.commandes.titre')}</h3>`,
-    renderCommandes('chargement'),
-    `<button class="secondary-action problem-path" type="button" data-action="compte-vers-supprimer">${t('compte.supprimer.ouvrir')}</button>`,
+    prive(),
+    bloc('compte-bloc-commandes', icon('colis', 'compte-bloc-glyphe'), t('compte.commandes.titre'), renderCommandes('chargement')),
+    bloc('compte-bloc-panier', iconBag(20, 'currentColor', 1.9), t('vit.panier_titre'), renderArticles('panier', 'chargement')),
+    bloc('compte-bloc-favoris', iconHeart(20, 'currentColor', 1.9), t('compte.favoris.titre'), renderArticles('favoris', 'chargement')),
+    '<div class="compte-carte compte-reglages">',
+    `<button class="secondary-action compte-ligne" type="button" data-action="compte-vers-mot-de-passe">${icon('cadenas', 'compte-ligne-glyphe')}<span class="compte-ligne-mots">${t('compte.profil.mot_de_passe')}</span>${iconChevron(18, 'currentColor', 2)}</button>`,
+    `<button class="secondary-action compte-ligne" type="button" data-action="compte-deconnecter">${icon('reprendre', 'compte-ligne-glyphe')}<span class="compte-ligne-mots">${t('compte.profil.deconnecter')}</span></button>`,
+    '</div>',
+    `<button class="secondary-action problem-path compte-supprimer-lien" type="button" data-action="compte-vers-supprimer">${t('compte.supprimer.ouvrir')}</button>`,
     '</section>',
   ].join('');
 }
@@ -362,25 +423,138 @@ export function renderCommandes(etat: readonly CommandeCompte[] | 'chargement' |
     ].join('');
   }
   if (etat.length === 0) {
-    return `<div class="compte-commandes" data-role="compte-commandes"><p class="compte-sous" data-role="compte-commandes-vide">${t('compte.commandes.vide')}</p></div>`;
+    return `<div class="compte-commandes" data-role="compte-commandes"><p class="compte-sous compte-vide-ligne" data-role="compte-commandes-vide">${t('compte.commandes.vide')}</p></div>`;
   }
   return [
     '<div class="compte-commandes" data-role="compte-commandes">',
     ...etat.map((c) =>
       `<button class="compte-commande" type="button" data-action="compte-suivre" data-order="${esc(c.orderId)}">` +
-      `<span>${tf('compte.commandes.ligne', { date: dateCourte(c.at) })}</span><span class="compte-commande-ref">${esc(tf('cl.c7.reference', { ref: referenceCourte(c.orderId) }))}</span></button>`),
+      `<span class="compte-commande-icone" aria-hidden="true">${icon('colis', 'compte-commande-glyphe')}</span>` +
+      `<span class="compte-commande-mots"><span class="compte-commande-date">${tf('compte.commandes.ligne', { date: dateCourte(c.at) })}</span>` +
+      `<span class="compte-commande-ref">${esc(tf('cl.c7.reference', { ref: referenceCourte(c.orderId) }))}</span></span>` +
+      `${iconChevron(18, 'currentColor', 2)}</button>`),
+    '</div>',
+  ].join('');
+}
+
+/* ─────────────── MON-COMPTE-PLUS — her panier and her coups de cœur ─────────────── */
+
+export interface GroupeArticles {
+  readonly slug: string;
+  readonly pids: readonly string[];
+}
+
+/** Her articles by boutique, the boutique she touched last first, each
+ *  boutique's articles newest first — the order she kept them, nothing ranked. */
+export function grouperArticles(articles: readonly ArticleCompte[]): GroupeArticles[] {
+  const groupes = new Map<string, string[]>();
+  for (const a of articles) {
+    const g = groupes.get(a.slug);
+    if (g === undefined) groupes.set(a.slug, [a.pid]);
+    else if (!g.includes(a.pid)) g.push(a.pid);
+  }
+  return [...groupes].map(([slug, pids]) => ({ slug, pids }));
+}
+
+export type EtatArticles =
+  | 'chargement'
+  | 'echec'
+  | { readonly groupes: readonly GroupeArticles[]; readonly boutiques: ReadonlyMap<string, LectureBoutique | 'chargement'> };
+
+const avatarBoutique = (b: BoutiquePorte): string => {
+  const cadrage = b.cadrage !== undefined ? ` style="object-position:${esc(b.cadrage)}"` : '';
+  return b.portrait !== undefined
+    ? `<span class="compte-boutique-avatar"><img src="${esc(b.portrait)}" alt="${t('vit.avatar_alt')}" decoding="async" loading="lazy"${cadrage}></span>`
+    : `<span class="compte-boutique-avatar" aria-hidden="true">${esc(nomAccueil(b.nom).charAt(0).toUpperCase())}</span>`;
+};
+
+/** One boutique's card: her articles there — photo, name, stock — and the
+ *  one way back into that boutique alone. NEVER a price (SP-I05). */
+function carteBoutique(g: GroupeArticles, lecture: LectureBoutique | 'chargement', lien: (slug: string) => string): string {
+  const slug = esc(g.slug);
+  if (lecture === 'introuvable') return '';
+  if (lecture === 'chargement') {
+    return `<article class="compte-boutique" data-boutique="${slug}" aria-busy="true"><span class="skeleton-line skeleton-line-mid"></span><span class="skeleton-line skeleton-line-wide"></span></article>`;
+  }
+  if (lecture === 'hors_ligne') {
+    return `<article class="compte-boutique compte-boutique-muette" data-boutique="${slug}"><p class="compte-sous">${t('compte.articles.boutique_hors_ligne')}</p></article>`;
+  }
+  if ('pause' in lecture) {
+    return [
+      `<article class="compte-boutique compte-boutique-muette" data-boutique="${slug}">`,
+      `<header class="compte-boutique-tete"><span class="compte-boutique-avatar" aria-hidden="true">${esc(nomAccueil(lecture.pause).charAt(0).toUpperCase())}</span>`,
+      `<span class="compte-boutique-mots"><span class="compte-boutique-nom">${esc(lecture.pause)}</span><span class="compte-boutique-lieu">${t('compte.articles.pause')}</span></span></header>`,
+      '</article>',
+    ].join('');
+  }
+  const produits = g.pids.flatMap((pid) => {
+    const p = lecture.produits.find((x) => x.pid === pid);
+    return p !== undefined ? [p] : [];
+  });
+  const nombre = produits.length === 1 ? t('compte.articles.un') : tf('compte.articles.plusieurs', { n: String(produits.length) });
+  return [
+    `<article class="compte-boutique" data-boutique="${slug}" data-theme="${esc(lecture.theme)}">`,
+    '<header class="compte-boutique-tete">',
+    avatarBoutique(lecture),
+    `<span class="compte-boutique-mots"><span class="compte-boutique-nom">${esc(lecture.nom)}</span>`,
+    lecture.lieu !== '' ? `<span class="compte-boutique-lieu">${t('vit.verifiee')} ${esc(lecture.lieu)}</span>` : '',
+    '</span>',
+    produits.length > 0 ? `<span class="compte-boutique-nombre">${nombre}</span>` : '',
+    '</header>',
+    produits.length > 0
+      ? `<ul class="compte-produits">${produits.map((p) =>
+        `<li class="compte-produit" data-pid="${esc(p.pid)}"${p.disponible ? '' : ' data-epuise=""'}>` +
+        `<span class="compte-produit-art">${p.photo !== undefined ? `<img src="${esc(p.photo)}" alt="" decoding="async" loading="lazy">` : iconBag(22, 'currentColor', 1.6)}</span>` +
+        `<span class="compte-produit-nom">${esc(p.nom)}</span>` +
+        (p.disponible ? '' : `<span class="compte-produit-epuise">${t('vit.epuise')}</span>`) +
+        '</li>').join('')}</ul>`
+      : `<p class="compte-sous">${t('compte.articles.plus_en_vente')}</p>`,
+    `<a class="compte-voir-chez" data-role="compte-voir-chez" href="${esc(lien(g.slug))}"><span>${tf('compte.articles.voir_chez', { boutique: esc(nomAccueil(lecture.nom)) })}</span>${iconChevron(18, 'currentColor', 2)}</a>`,
+    '</article>',
+  ].join('');
+}
+
+/** « Mon panier » or « Mes coups de cœur »: while read, its failure, empty
+ *  (with the true next step), or her articles by boutique. */
+export function renderArticles(liste: 'panier' | 'favoris', etat: EtatArticles, lien: (slug: string) => string = () => '#'): string {
+  const role = `compte-${liste}`;
+  if (etat === 'chargement') {
+    return `<div class="compte-articles" data-role="${role}" aria-busy="true"><span class="skeleton-line skeleton-line-wide"></span><span class="skeleton-line skeleton-line-mid"></span></div>`;
+  }
+  if (etat === 'echec') {
+    return [
+      `<div class="compte-articles" data-role="${role}">`,
+      `<p class="compte-sous" data-role="${role}-echec">${t('compte.articles.echec')}</p>`,
+      `<button class="secondary-action" type="button" data-action="compte-articles-relire">${t('compte.reessayer')}</button>`,
+      '</div>',
+    ].join('');
+  }
+  if (etat.groupes.length === 0) {
+    return [
+      `<div class="compte-articles" data-role="${role}">`,
+      `<div class="compte-vide-bloc" data-role="${role}-vide">`,
+      `<span class="compte-vide-icone" aria-hidden="true">${liste === 'panier' ? iconBag(22, 'currentColor', 1.9) : iconHeart(22, 'currentColor', 1.9)}</span>`,
+      `<p class="compte-vide-titre">${liste === 'panier' ? t('compte.panier.vide') : t('compte.favoris.vide')}</p>`,
+      `<p class="compte-sous">${liste === 'panier' ? t('compte.panier.vide_sous') : t('compte.favoris.vide_sous')}</p>`,
+      '</div></div>',
+    ].join('');
+  }
+  const horsLigne = etat.groupes.some((g) => etat.boutiques.get(g.slug) === 'hors_ligne');
+  return [
+    `<div class="compte-articles" data-role="${role}">`,
+    ...etat.groupes.map((g) => carteBoutique(g, etat.boutiques.get(g.slug) ?? 'chargement', lien)),
+    horsLigne ? `<button class="secondary-action" type="button" data-action="compte-articles-relire">${t('compte.reessayer')}</button>` : '',
     '</div>',
   ].join('');
 }
 
 export function renderRecuperation(telephone?: string): string {
   return [
-    '<section class="compte" data-screen="compte-recuperation">',
+    '<section class="compte compte-ecran" data-screen="compte-recuperation">',
     retour('compte-vers-connexion', t('retour')),
-    `<h2 class="compte-titre">${t('compte.recup.titre')}</h2>`,
-    `<p class="compte-sous">${t('compte.recup.comment')}</p>`,
-    `<p class="compte-sous" data-role="compte-recup-neuf">${t('compte.recup.neuf')}</p>`,
-    '<form class="compte-form" data-role="compte-form" novalidate>',
+    entete(glyphe('reprendre'), t('compte.recup.titre'), t('compte.recup.comment')),
+    `<p class="compte-note compte-note-douce" data-role="compte-recup-neuf">${t('compte.recup.neuf')}</p>`,
+    '<form class="compte-form compte-carte" data-role="compte-form" novalidate>',
     champ({ cle: 'phone', label: t('compte.label.telephone'), type: 'tel', autocomplete: 'tel', inputmode: 'tel', placeholder: t('compte.telephone_exemple'), ...(telephone !== undefined ? { valeur: telephone } : {}) }),
     champ({ cle: 'code', label: t('compte.label.code'), type: 'text', autocomplete: 'one-time-code', placeholder: t('compte.code_exemple') }),
     champ({ cle: 'firstName', label: t('compte.label.prenom'), type: 'text', autocomplete: 'given-name' }),
@@ -396,11 +570,10 @@ export function renderRecuperation(telephone?: string): string {
 
 export function renderSupprimer(): string {
   return [
-    '<section class="compte" data-screen="compte-supprimer">',
+    '<section class="compte compte-ecran compte-danger" data-screen="compte-supprimer">',
     retour('compte-vers-profil', t('compte.annuler')),
-    `<h2 class="compte-titre">${t('compte.supprimer.titre')}</h2>`,
-    `<p class="compte-sous">${t('compte.supprimer.explique')}</p>`,
-    '<form class="compte-form" data-role="compte-form" novalidate>',
+    entete(glyphe('alerte'), t('compte.supprimer.titre'), t('compte.supprimer.explique')),
+    '<form class="compte-form compte-carte" data-role="compte-form" novalidate>',
     champ({ cle: 'currentPassword', label: t('compte.label.mot_de_passe'), type: 'password', autocomplete: 'current-password', mdp: true }),
     alerte(),
     `<button class="primary-action problem-path" type="submit" data-action="compte-supprimer">${t('compte.supprimer.envoyer')}</button>`,
@@ -411,10 +584,10 @@ export function renderSupprimer(): string {
 
 export function renderModifier(p: ProfilCliente): string {
   return [
-    '<section class="compte" data-screen="compte-modifier">',
+    '<section class="compte compte-ecran" data-screen="compte-modifier">',
     retour('compte-vers-profil', t('compte.annuler')),
-    `<h2 class="compte-titre">${t('compte.modifier.titre')}</h2>`,
-    '<form class="compte-form" data-role="compte-form" novalidate>',
+    entete(personne(), t('compte.modifier.titre')),
+    '<form class="compte-form compte-carte" data-role="compte-form" novalidate>',
     champ({ cle: 'firstName', label: t('compte.label.prenom'), type: 'text', autocomplete: 'given-name', valeur: p.firstName }),
     champ({ cle: 'lastName', label: t('compte.label.nom'), type: 'text', autocomplete: 'family-name', valeur: p.lastName }),
     champ({ cle: 'email', label: t('compte.label.email'), type: 'email', autocomplete: 'email', inputmode: 'email', valeur: p.email ?? '' }),
@@ -432,13 +605,12 @@ export function renderModifier(p: ProfilCliente): string {
 
 export function renderMotDePasse(): string {
   return [
-    '<section class="compte" data-screen="compte-mot-de-passe">',
+    '<section class="compte compte-ecran" data-screen="compte-mot-de-passe">',
     retour('compte-vers-profil', t('compte.annuler')),
-    `<h2 class="compte-titre">${t('compte.mdp.titre')}</h2>`,
-    '<form class="compte-form" data-role="compte-form" novalidate>',
+    entete(glyphe('cadenas'), t('compte.mdp.titre'), t('compte.mdp.autres')),
+    '<form class="compte-form compte-carte" data-role="compte-form" novalidate>',
     champ({ cle: 'currentPassword', label: t('compte.label.mot_actuel'), type: 'password', autocomplete: 'current-password', mdp: true }),
     champ({ cle: 'newPassword', label: t('compte.label.mot_nouveau'), type: 'password', autocomplete: 'new-password', aide: t('compte.aide.mot_de_passe'), mdp: true }),
-    `<p class="compte-sous">${t('compte.mdp.autres')}</p>`,
     alerte(),
     `<button class="primary-action" type="submit" data-action="compte-changer-mdp">${t('compte.mdp.envoyer')}</button>`,
     '</form>',
@@ -454,6 +626,11 @@ export function monterCompte(main: HTMLElement, opts: OptsCompte): void {
   let enCours = false;
   /** « Mes commandes » as last read: her read tokens live HERE, never in the page. */
   let commandes: readonly CommandeCompte[] = [];
+  /** MON-COMPTE-PLUS — her panier and hearts as her account last answered, and
+   *  each boutique as it was read (once per visit of this screen). */
+  let articles: ArticlesCompte | 'chargement' | 'echec' = 'chargement';
+  const lectures = new Map<string, LectureBoutique | 'chargement'>();
+  const lien = (slug: string): string => opts.lienBoutique?.(slug) ?? '#';
   let boutique: BoutiquePorte | 'attente' | undefined = opts.boutique !== undefined ? 'attente' : undefined;
   const session = () => sessionActive(opts.local, opts.onglet);
 
@@ -529,9 +706,73 @@ export function monterCompte(main: HTMLElement, opts: OptsCompte): void {
       : ecran === 'mot-de-passe' ? renderMotDePasse()
       : renderProfil(profil ?? 'chargement', extra.note, opts.enCalque === true);
     cablerTelephone();
-    if (ecran === 'porte') peindrePorte(main.querySelector('[data-screen="compte-porte"]'), boutique);
+    // Her boutique's look carries from its doors to the forms they open.
+    if (ecran === 'porte' || ecran === 'inscription' || ecran === 'connexion' || ecran === 'recuperation') {
+      peindrePorte(main.querySelector('[data-screen]'), boutique);
+    }
     if (ecran === 'profil' && profil === null) void lireProfil(extra.note);
-    else if (ecran === 'profil') void lireCommandes();
+    else if (ecran === 'profil') {
+      void lireCommandes();
+      void lireArticles();
+    }
+  };
+
+  /** Each boutique card in that boutique's own look (the --vt-* its page wears). */
+  const peindreBoutiques = (): void => {
+    for (const carte of main.querySelectorAll<HTMLElement>('.compte-boutique[data-theme]')) {
+      applyTheme(carte, carte.getAttribute('data-theme') as VitrineThemeKey);
+    }
+  };
+
+  const poserArticles = (): void => {
+    for (const liste of ['panier', 'favoris'] as const) {
+      const ici = main.querySelector(`[data-role="compte-${liste}"]`);
+      if (ici === null) continue;
+      ici.outerHTML = renderArticles(
+        liste,
+        articles === 'chargement' || articles === 'echec' ? articles : { groupes: grouperArticles(articles[liste]), boutiques: lectures },
+        lien,
+      );
+    }
+    peindreBoutiques();
+  };
+
+  const lireUneBoutique = async (slug: string): Promise<LectureBoutique> => {
+    if (opts.lireBoutique === undefined) return 'introuvable';
+    try {
+      return await opts.lireBoutique(slug);
+    } catch {
+      return 'hors_ligne';
+    }
+  };
+
+  /** MON-COMPTE-PLUS — her lists from her account, then each boutique in them,
+   *  three at a time, each card landing as its boutique answers. A boutique
+   *  that did not answer keeps its place and says so, with « Réessayer ». */
+  const lireArticles = async (): Promise<void> => {
+    const g = session();
+    if (g === undefined || main.querySelector('[data-role="compte-panier"]') === null) return;
+    const r = await port.articles(g.session);
+    if (main.querySelector('[data-role="compte-panier"]') === null) return;
+    if (r.kind !== 'ok') {
+      articles = 'echec';
+      poserArticles();
+      return;
+    }
+    articles = r.value;
+    const aLire = [...new Set([...r.value.panier, ...r.value.favoris].map((a) => a.slug))]
+      .filter((slug) => { const l = lectures.get(slug); return l === undefined || l === 'hors_ligne'; });
+    for (const slug of aLire) lectures.set(slug, 'chargement');
+    poserArticles();
+    const file = [...aLire];
+    const suivant = async (): Promise<void> => {
+      const slug = file.shift();
+      if (slug === undefined) return;
+      lectures.set(slug, await lireUneBoutique(slug));
+      if (main.querySelector('[data-role="compte-panier"]') !== null) poserArticles();
+      await suivant();
+    };
+    await Promise.all([suivant(), suivant(), suivant()]);
   };
 
   /** « Mes commandes » is read with her profile, into its own slot: a failed
@@ -561,6 +802,7 @@ export function monterCompte(main: HTMLElement, opts: OptsCompte): void {
       rafraichirSession(opts.local, opts.onglet, { session: g.session, prenom: r.value.firstName, telephone: r.value.phone });
       main.innerHTML = renderProfil(r.value, note, opts.enCalque === true);
       void lireCommandes();
+      void lireArticles();
       return;
     }
     if (r.kind === 'session_perdue') {
@@ -577,6 +819,8 @@ export function monterCompte(main: HTMLElement, opts: OptsCompte): void {
     const resterIci = main.querySelector<HTMLInputElement>('[data-role="compte-rester"]')?.checked !== false;
     oublierSessions(opts.local, opts.onglet);
     garderSession(resterIci ? opts.local : opts.onglet, { session: sessionNeuve, prenom: p.firstName, telephone: p.phone });
+    // MON-COMPTE-PLUS — what this phone kept joins her account.
+    opts.apresConnexion?.();
     opts.versBoutique();
   };
 
@@ -610,6 +854,11 @@ export function monterCompte(main: HTMLElement, opts: OptsCompte): void {
         void lireCommandes();
         break;
       }
+      case 'compte-articles-relire':
+        articles = 'chargement';
+        poserArticles();
+        void lireArticles();
+        break;
       case 'compte-suivre': {
         const c = commandes.find((x) => x.orderId === el.getAttribute('data-order'));
         if (c !== undefined) opts.ouvrirSuivi?.(c.orderId, c.buyerRef);
@@ -711,6 +960,7 @@ export function monterCompte(main: HTMLElement, opts: OptsCompte): void {
       rafraichirSession(opts.local, opts.onglet, { session: g.session, prenom: r.value.firstName, telephone: r.value.phone });
       main.innerHTML = renderProfil(r.value, note, opts.enCalque === true);
       void lireCommandes();
+      void lireArticles();
       return;
     }
     if (r.kind === 'session_perdue') {
@@ -789,6 +1039,10 @@ export function monterCompte(main: HTMLElement, opts: OptsCompte): void {
   // doors below never waited for it.
   const poserBoutique = (b: BoutiquePorte | undefined): void => {
     boutique = b !== undefined && b.nom !== '' ? b : undefined;
+    const ecran = main.querySelector('[data-screen]');
+    if (['compte-inscription', 'compte-connexion', 'compte-recuperation'].includes(ecran?.getAttribute('data-screen') ?? '')) {
+      peindrePorte(ecran, boutique);
+    }
     const tete = main.querySelector('[data-role="porte-tete"]');
     if (tete === null) return;
     tete.outerHTML = renderPorteTete(boutique);

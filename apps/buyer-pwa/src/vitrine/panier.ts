@@ -2,8 +2,9 @@
  * PANIER — continuity without an account (founder order 2026-08-22: what she
  * does on a boutique — gardés, panier — is still there when she comes back).
  *
- * The favorites.ts law applies whole: device-local, no account, no backend,
- * no sync claim — « dans votre panier » means on HER phone. Guarded against
+ * The favorites.ts law applies whole: device-local, no account needed —
+ * « dans votre panier » means on HER phone, and, when she is signed in, in
+ * her account too (MON-COMPTE-PLUS, observerPanier below). Guarded against
  * an absent or throwing localStorage; a failed persist degrades to
  * session-only, never to a crash or a lying chip.
  *
@@ -51,6 +52,14 @@ function persist(map: Map<string, string[]>): void {
   }
 }
 
+/** MON-COMPTE-PLUS (canon 3.24.0) — told of every article that enters or
+ *  leaves a boutique's panier: her account's write-through. */
+type Observateur = (slug: string, pid: string, present: boolean) => void;
+let observateur: Observateur | null = null;
+export function observerPanier(fn: Observateur | null): void {
+  observateur = fn;
+}
+
 /** The boutique's saved list, in the order she added. */
 export function panierOf(slug: string): readonly string[] {
   return load().get(slug) ?? [];
@@ -69,6 +78,7 @@ export function togglePanier(slug: string, pid: string): boolean {
   if (next.length === 0) map.delete(slug);
   else map.set(slug, next);
   persist(map);
+  observateur?.(slug, pid, on);
   return on;
 }
 
@@ -80,10 +90,17 @@ export function togglePanier(slug: string, pid: string): boolean {
  */
 export function retirerDuPanier(slug: string, pids: readonly string[]): void {
   const map = load();
-  const next = (map.get(slug) ?? []).filter((p) => !pids.includes(p));
+  const avant = map.get(slug) ?? [];
+  const next = avant.filter((p) => !pids.includes(p));
   if (next.length === 0) map.delete(slug);
   else map.set(slug, next);
   persist(map);
+  for (const pid of avant) if (pids.includes(pid)) observateur?.(slug, pid, false);
+}
+
+/** Every boutique's panier on this phone — what signing in joins to her account. */
+export function paniersDuTelephone(): readonly { readonly slug: string; readonly pid: string }[] {
+  return [...load()].flatMap(([slug, pids]) => pids.map((pid) => ({ slug, pid })));
 }
 
 /** Test seam: forget the cache so a fresh load re-reads storage. */
