@@ -1,7 +1,9 @@
 # JOURNAL — shop-plus
 Continuity ledger per CTO charter §6/§6bis. Every entry is evidence-grounded.
 
-## 2026-09-25 · MON-COMPTE-PLUS (founder order) — her panier and her coups de cœur in « Mon compte », by boutique, never a price, kept with her account; every account screen and the bands redesigned · canon 3.24.0 · ON THE BRANCH, awaiting the founder's word
+## 2026-09-25 · MON-COMPTE-PLUS (founder order) — her panier and her coups de cœur in « Mon compte », by boutique, never a price, kept with her account; every account screen and the bands redesigned · canon 3.24.0 · MERGED AND DEPLOYED 2026-09-25 on the founder's « Go »
+
+**MERGED AND DEPLOYED (founder: « Go », 2026-09-25).** `main` fast-forwarded `2ba436e → 0360f3b` (ancestry verified before the push). Worker changed (the account book's articles door): **storefront-deploy 113 (id 36094440658) `success`**; buyer app **pwa-preview 498 (id 36094432773) `success`**; on `0360f3b`: ci 710 · expo-preview 531 — green. service-canon-drift 397 ran red at the push, as it is built to, because the deploy was still owed (main pinned 3.24.0, the live Worker still spoke 3.23.0); re-run after the deploy, 398 `success`. Canon 3.24.0 merged to platform-contracts `main` (`359161f → 4b8be8f`, ci 151 green).
 
 **Founder order (2026-09-25).** « For buyers who created an account, in their mon compte, I want them to be able to see the products they added to their cart from different resellers, and be able to see products they liked. Also change the looking of this screen and all screens of the account creation flow, make them look more beautiful and more nicer and very professional. Also change the mon compte bar where I tap to go on the profile make it more professional and well structured and nice. » His two choices: « By boutique, no prices » and « In her account ».
 
