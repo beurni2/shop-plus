@@ -39,6 +39,13 @@ export interface SynchroArticles {
 const PAR_APPEL = 50;
 
 export function creerSynchroArticles(port: ComptePort, local: Storage | undefined, onglet: Storage | undefined): SynchroArticles {
+  // The sign-in join is gone (canon 3.25.0), and with it the marks it kept on
+  // the phone: the build that had them wrote them to the lasting store.
+  try {
+    local?.removeItem('sp-articles-au-compte:v1');
+  } catch {
+    /* a store that refuses has nothing of it to hold */
+  }
   let enVol = false;
   let encore = false;
   /** What the store refused to keep (storage blocked): owed while this page lives. */

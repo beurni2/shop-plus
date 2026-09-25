@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { httpComptePort } from '../src/compte/port';
 import { articlesDus, articleValide, garderSession, oublierArticles, oublierSessions, retenirArticle } from '../src/compte/garde';
 import { creerSynchroArticles } from '../src/compte/articles';
-import { grouperArticles, renderArticles, renderProfil, type LectureBoutique } from '../src/compte/ecrans';
+import { grouperArticles, renderArticles, renderConnexion, renderInscription, renderProfil, type LectureBoutique } from '../src/compte/ecrans';
 import { COMPTE_STYLES } from '../src/compte/styles';
 import { observerFavoris, resetFavoritesCache, toggleFavorite } from '../src/vitrine/favorites';
 import { observerPanier, panierOf, resetPanierCache, retirerDuPanier, togglePanier } from '../src/vitrine/panier';
@@ -259,6 +259,10 @@ describe('the write-through — her taps reach her account, a guest\'s never', (
 
   it('signing in joins NOTHING the phone kept before — a guest\'s taps and another account\'s alike (founder ruling, canon 3.25.0)', async () => {
     const local = memoire();
+    // The marks the previous build kept for its join are gone from the phone.
+    local.setItem('sp-articles-au-compte:v1', JSON.stringify(['panier|aicha-4821|pv-1']));
+    creerSynchroArticles(livre().port, local, memoire());
+    expect(local.getItem('sp-articles-au-compte:v1')).toBeNull();
     // A guest keeps and likes: nothing is owed to anyone.
     const invitee = livre();
     const s1 = creerSynchroArticles(invitee.port, local, memoire());
@@ -408,6 +412,14 @@ describe('« Mon panier » and « Mes coups de cœur » — by boutique, never a
     expect(html).toContain('Mes coups de cœur');
     expect(html).toContain('Bonjour, Awa');
     expect(html.match(/class="primary-action/g)).toHaveLength(1);
+  });
+
+  it('what she reads matches the rule: kept before signing in stays on the phone; the empty lists say « while your account is open » (canon 3.25.0)', () => {
+    expect(renderInscription()).toContain('Ce que vous gardez avant de vous connecter reste sur ce téléphone.');
+    expect(renderConnexion()).toContain('Ce que vous gardez avant de vous connecter reste sur ce téléphone.');
+    const vide = { groupes: [], boutiques: new Map() };
+    expect(renderArticles('panier', vide)).toContain('pendant que votre compte est ouvert');
+    expect(renderArticles('favoris', vide)).toContain('pendant que votre compte est ouvert');
   });
 });
 

@@ -4033,7 +4033,7 @@
  },
  {
   "key": "compte.connexion.sous",
-  "fr": "Bon retour parmi nous.",
+  "fr": "Bon retour parmi nous. Ce que vous gardez avant de vous connecter reste sur ce téléphone.",
   "register": "selling",
   "screenClass": "status"
  },
@@ -4051,7 +4051,7 @@
  },
  {
   "key": "compte.panier.vide_sous",
-  "fr": "Ajoutez un article dans une boutique : il vous attendra ici.",
+  "fr": "Ajoutez un article dans une boutique pendant que votre compte est ouvert : il vous attendra ici.",
   "register": "selling",
   "screenClass": "status"
  },
@@ -4063,7 +4063,7 @@
  },
  {
   "key": "compte.favoris.vide_sous",
-  "fr": "Touchez le cœur d’un article dans une boutique : il vous attendra ici.",
+  "fr": "Touchez le cœur d’un article pendant que votre compte est ouvert : il vous attendra ici.",
   "register": "selling",
   "screenClass": "status"
  },
