@@ -1,7 +1,9 @@
 # JOURNAL — shop-plus
 Continuity ledger per CTO charter §6/§6bis. Every entry is evidence-grounded.
 
-## 2026-09-25 · MON-COMPTE-SEULE (founder ruling) — signing in joins nothing the phone kept before · canon 3.25.0 · ON THE BRANCH, awaiting the founder's word
+## 2026-09-25 · MON-COMPTE-SEULE (founder ruling) — signing in joins nothing the phone kept before · canon 3.25.0 · MERGED AND DEPLOYED 2026-09-25 on the founder's « Go, leave »
+
+**MERGED AND DEPLOYED (founder: « Go, leave », 2026-09-25).** `main` fast-forwarded `0360f3b → a15b5e7` (ancestry verified before the push). Worker redeployed for the version only (no Worker code changed): **storefront-deploy 114 (id 36168816765) `success`**; buyer app **pwa-preview 499 (id 36168813638) `success`**; on `a15b5e7`: ci 711 · expo-preview 532 — green. service-canon-drift 400 ran red at the push, as built, the deploy still owed; re-run after it, 401 `success`. Canon 3.25.0 merged to platform-contracts `main` (`4b8be8f → 6f446a4`, ci 152 green). **« leave »:** the guest articles the previous live build joined into accounts today stay as they are — no data change was made.
 
 **Founder ruling (2026-09-25).** Told the live shared-phone rule (« what someone saves while signed in stays in her own account; only what was saved while nobody was signed in joins the next person who signs in »), he answered: « what was saved while nobody was signed in should not joins the next person who signs in. »
 
@@ -33,7 +35,7 @@ Continuity ledger per CTO charter §6/§6bis. Every entry is evidence-grounded.
 - **MINOR 4 — the new sentences were not asserted:** now they are. The old-heart case stays unit-level only (the code it guarded is deleted).
 
 **Still open.**
-- **For the founder:** what to do with the guest articles the live build already joined into accounts today (recommendation: leave them — hours old, only in the account of whoever signed in on that phone, never priced, removable by her; clearing all lists would also erase what she kept while signed in).
+- ~~What to do with the guest articles the live build already joined today~~ — **decided « leave »** (founder, 2026-09-25): no data change.
 - Still his from before: whether signing in should fill a second phone's panier and hearts from her account · the SMS/WhatsApp provider · whether a recovered number keeps its name and orders · a support number on the recovery screen · the data-protection declaration.
 - **Deploy needs:** the buyer app (its own preview deploy) and a Worker redeploy (version only — no Worker code changed); canon 3.25.0 merged to platform-contracts `main`.
 
