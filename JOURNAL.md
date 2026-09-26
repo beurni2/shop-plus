@@ -1,6 +1,13 @@
 # JOURNAL — shop-plus
 Continuity ledger per CTO charter §6/§6bis. Every entry is evidence-grounded.
 
+## 2026-09-26 · NUMERO-FICTIF-1 (Boutik+ AUDIT-B+2 slice 4: F-92) — the real-looking phone number leaves the current tree · ON THE BRANCH, awaiting the founder's word (not merged, not deployed)
+
+**Founder order (2026-09-26).** « go » on slice 4 of the Boutik+ AUDIT-B+2 plan. F-92: the TEL-PAIRES order of 2026-08-09 quoted an 8-digit Burkina mobile number with a valid prefix; it was reused on 29 lines here (and 11 in boutik-plus). Whose number it is was asked and not answered, so the safest default applies: whoever it belongs to, it should not be published.
+
+- **Now:** the tests use the repos' synthetic `70 12 34 56` (the C3 field's own placeholder), every derived value recomputed — the country-code pairing `+22670123456 → +22 67 01 23 45 6`, the middle edit `701923456 → 70 19 23 45 6` with the caret still at 5, the partials `70 12` / `70 12 3`, `cleAcheteur` identity on both spellings. His quoted order keeps its words with the number as `[numéro retiré, F-92]`, in the two source comments, the e2e comment and the two JOURNAL lines. No product code changed; no history rewrite (the number stays in past commits — rewriting public history is his call).
+- **Proof:** `telephone-paires.test.ts` 8/8; the C3 TEL-PAIRES Playwright walk (real keystrokes) green with the new digits. **Board:** the first run ended red on ONE unrelated Playwright test (`checkout-real.spec.ts:615`, SP3.3c retry) while three boards and a verifier shared the machine; alone it passed 3/3 (the slice's verifier: 4/4); the full board rerun: **ALL GATES GREEN, Playwright 265/265.**
+
 ## 2026-09-25 · MON-COMPTE-SEULE (founder ruling) — signing in joins nothing the phone kept before · canon 3.25.0 · MERGED AND DEPLOYED 2026-09-25 on the founder's « Go, leave »
 
 **MERGED AND DEPLOYED (founder: « Go, leave », 2026-09-25).** `main` fast-forwarded `0360f3b → a15b5e7` (ancestry verified before the push). Worker redeployed for the version only (no Worker code changed): **storefront-deploy 114 (id 36168816765) `success`**; buyer app **pwa-preview 499 (id 36168813638) `success`**; on `a15b5e7`: ci 711 · expo-preview 532 — green. service-canon-drift 400 ran red at the push, as built, the deploy still owed; re-run after it, 401 `success`. Canon 3.25.0 merged to platform-contracts `main` (`4b8be8f → 6f446a4`, ci 152 green). **« leave »:** the guest articles the previous live build joined into accounts today stay as they are — no data change was made.
