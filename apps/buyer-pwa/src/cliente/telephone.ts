@@ -1,13 +1,13 @@
 /**
  * TEL-PAIRES (founder order 2026-08-09) — « on the phone make spaced after 2
- * numbers like this 76 16 02 55 ». The C3 field's own placeholder has said
+ * numbers like this [numéro retiré, F-92] ». The C3 field's own placeholder has said
  * « Ex. : 70 12 34 56 » since BC-1b; this makes the field DO what its example
  * shows, as she types.
  *
  * The spaced string rides the order verbatim — safe by construction: the wire
  * bound is length ≤ 32 (order-do `readBuyerContact`), and buyer IDENTITY is
  * keyed by `cleAcheteur`, which strips every non-digit before keying — so
- * « 76 16 02 55 » and « 76160255 » name the same buyer and the same ladder.
+ * « 70 12 34 56 » and « 70123456 » name the same buyer and the same ladder.
  * A leading « + » is HERS and survives; every other non-digit is dropped; the
  * cap is 15 RAW digits (E.164's ceiling including country code). NOTE the
  * bound is not identical to `cleAcheteur`'s: that one strips a 00/226 prefix
