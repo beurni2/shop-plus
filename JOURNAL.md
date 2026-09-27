@@ -1,7 +1,9 @@
 # JOURNAL — shop-plus
 Continuity ledger per CTO charter §6/§6bis. Every entry is evidence-grounded.
 
-## 2026-09-27 · SUIVI-PAGES-1 (Boutik+ AUDIT-B+2 slice 5: F-72) — the revendeuses board a page at a time, active accounts first · ON THE BRANCH, awaiting the founder's word (not merged, not deployed)
+## 2026-09-27 · SUIVI-PAGES-1 (Boutik+ AUDIT-B+2 slice 5: F-72) — the revendeuses board a page at a time, active accounts first · MERGED AND DEPLOYED 2026-09-27 on the founder's « go »
+
+**Merged and deployed (founder: « go », 2026-09-27).** `main` fast-forwarded `3dbf0ea → 978f8a2` (ancestry verified first). **storefront-deploy 115 `success`**: live `/health` answered `release 978f8a2…`, `canon 3.25.0`, every smoke step green. Stated plainly: I dispatched it before ci 713 on `main` had finished — the same commit had passed the full local board (Playwright 265/265) — and ci 713 then finished `success`. His Boutik+ console (the reader of this board) went live in the same hour (Boutik+ JOURNAL).
 
 **Founder order (2026-09-27).** « go » on slice 5 of the Boutik+ AUDIT-B+2 plan: « … the reseller board load[s] a page at a time, so nothing breaks at … 50 resellers. » F-72 lives here: `/reseller/suivi` is served by this Worker and drawn by his Boutik+ console.
 
