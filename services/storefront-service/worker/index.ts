@@ -1391,6 +1391,12 @@ export default {
       if (env.COMPTES === undefined || env.RESELLER === undefined) {
         return withDispatchCors(Response.json({ ok: false, reason: 'accounts_unavailable' }, { status: 503 }));
       }
+      const q = new URL(request.url).searchParams;
+      if (q.get('paged') === '1') {
+        const answer = await suiviPagine(env, env.COMPTES, env.RESELLER, q.get('cursor'));
+        answer.headers.set('Cache-Control', 'private, no-store');
+        return withDispatchCors(answer);
+      }
       /**
        * DURCISSEMENT-SERVICE-1 (AUDIT-SHOP-2 F-28) — ONE BUDGET FOR EVERY
        * SUBREQUEST THIS HANDLER MAKES. The roster read and the feed read used
@@ -2382,6 +2388,108 @@ const MAX_FEED_FANOUT = 40;
  * the environment can shorten her page but can never raise the ceiling above
  * the subrequest budget.
  */
+/**
+ * SUIVI-PAGES-1 (AUDIT-B+2 F-72) — THE REVENDEUSES BOARD, ONE PAGE PER REQUEST.
+ *
+ * The whole-board read kept the NEWEST 50 accounts (pending sign-ups
+ * included — and the public sign-up is limited per address only), so the
+ * oldest accounts, the ones with sales, fell off with no flag; and its one
+ * budget ran out around 38 lifetime sales. A page spends the SAME budget —
+ * the roster, the feed, then one read per order — and says where to resume:
+ * `next` is `{accountId}~{rows already read}`, so a page may stop in the
+ * middle of one account's sales and the next page picks up exactly there.
+ *
+ * ACTIVE ACCOUNTS FIRST (then paused, then still waiting), oldest first
+ * within each: the budget goes to the accounts that sell. Every line is a
+ * PART: the console sums an account's lines across pages; `suite` says more
+ * of that account's sales are on the next page, and `incomplet` that a sale
+ * could not be read at all (never fixed by paging — said on her row).
+ * A cursor whose account left the roster answers 409 `curseur_perdu`: the
+ * console starts again rather than guess.
+ */
+async function suiviPagine(
+  env: Env,
+  comptesNs: DurableObjectNamespace,
+  feedNs: DurableObjectNamespace,
+  cursor: string | null,
+): Promise<Response> {
+  let budget = feedFanoutMax(env);
+  budget -= 1; // the roster
+  const listRes = await comptesNs.get(comptesNs.idFromName(RESELLER_ACCOUNTS_NAME)).fetch(new Request('https://do/accounts'));
+  const list = (await listRes.json().catch(() => null)) as
+    | { ok?: boolean; accounts?: { accountId: string; name: string; state: string; createdAt?: string }[] }
+    | null;
+  if (list?.ok !== true || !Array.isArray(list.accounts)) {
+    return Response.json({ ok: false, reason: 'unreadable' }, { status: 502 });
+  }
+  const rang = (s: string): number => (s === 'active' ? 0 : s === 'paused' ? 1 : 2);
+  const ordre = [...list.accounts].sort(
+    (a, b) => rang(a.state) - rang(b.state) || ((a.createdAt ?? '') < (b.createdAt ?? '') ? -1 : (a.createdAt ?? '') > (b.createdAt ?? '') ? 1 : 0) || (a.accountId < b.accountId ? -1 : 1),
+  );
+  let debut = 0;
+  let deja = 0;
+  if (cursor !== null && cursor !== '') {
+    const at = cursor.lastIndexOf('~');
+    const id = at < 0 ? cursor : cursor.slice(0, at);
+    const n = at < 0 ? 0 : Number(cursor.slice(at + 1));
+    debut = ordre.findIndex((a) => a.accountId === id);
+    if (debut < 0 || !Number.isInteger(n) || n < 0) return Response.json({ ok: false, reason: 'curseur_perdu' }, { status: 409 });
+    deja = n;
+  }
+  // the feed answers at most 50 accounts per read
+  const lot = ordre.slice(debut, debut + 50);
+  budget -= 1; // the feed, ONE read for every account of this page
+  const feuille = await feedNs.get(feedNs.idFromName(RESELLER_FEED_NAME))
+    .fetch(new Request('https://do/rows-for-many', { method: 'POST', body: JSON.stringify({ resellerIds: lot.map((a) => a.accountId) }) }))
+    .then((r) => r.json() as Promise<{ ok?: boolean; rows?: Record<string, { orderId: string }[]> }>)
+    .catch(() => null);
+  // A page is whole or it fails: a board half-read here would be served as the truth there.
+  if (feuille?.ok !== true || feuille.rows === undefined) return Response.json({ ok: false, reason: 'unreadable' }, { status: 502 });
+
+  const lignes: unknown[] = [];
+  let next: string | undefined;
+  for (let k = 0; k < lot.length; k += 1) {
+    const acc = lot[k]!;
+    const rows = feuille.rows[acc.accountId];
+    if (!Array.isArray(rows)) {
+      lignes.push({ accountId: acc.accountId, name: acc.name, state: acc.state, ventes: 0, netFcfa: 0, incomplet: true });
+      continue;
+    }
+    const depart = k === 0 ? deja : 0;
+    let lu = depart;
+    let net = 0;
+    let ventes = 0;
+    let incomplet = false;
+    while (lu < rows.length && budget > 0) {
+      budget -= 1;
+      const row = rows[lu]!;
+      lu += 1;
+      try {
+        const res = await env.ORDER.get(env.ORDER.idFromName(row.orderId)).fetch(
+          new Request(`https://do/entry/reseller/${encodeURIComponent(acc.accountId)}`),
+        );
+        const projected = projectVente((await res.json().catch(() => null)) as Record<string, unknown> | null);
+        if (projected === null) { incomplet = true; continue; }
+        const p = projected as { state?: unknown; resellerNet?: unknown };
+        if (p.state === 'confirmed' && typeof p.resellerNet === 'number') {
+          net += p.resellerNet;
+          ventes += 1;
+        }
+      } catch {
+        incomplet = true;
+      }
+    }
+    const reste = lu < rows.length;
+    // An account this page could not even start is left to the next page whole.
+    if (!(reste && lu === depart)) {
+      lignes.push({ accountId: acc.accountId, name: acc.name, state: acc.state, ventes, netFcfa: net, incomplet, ...(reste ? { suite: true } : {}) });
+    }
+    if (reste) { next = `${acc.accountId}~${lu}`; break; }
+  }
+  if (next === undefined && debut + lot.length < ordre.length) next = `${ordre[debut + lot.length]!.accountId}~0`;
+  return Response.json({ ok: true, lignes, total: ordre.length, ...(next !== undefined ? { next } : {}) });
+}
+
 function feedFanoutMax(env: Env): number {
   const raw = Number((env as { FEED_FANOUT_MAX?: string }).FEED_FANOUT_MAX);
   if (!Number.isInteger(raw) || raw < 1) return MAX_FEED_FANOUT;

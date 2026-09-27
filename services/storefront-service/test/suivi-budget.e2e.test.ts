@@ -178,3 +178,135 @@ describe('DURCISSEMENT-SERVICE-1 (F-28) — the suivi pays its roster and feed r
     }
   });
 });
+
+
+/** A SECOND confirmed sale on an account the helper above already made. */
+async function uneVenteDePlus(accountId: string, n: string, k: number): Promise<void> {
+  const q = await mf.dispatchFetch('http://c/checkout/quote', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ slug: `suivi-${n}`, pid: 'pv-suivi-1', paymentMode: 'FULL_PREPAY', zoneTo: 'Ouagadougou', attributionResellerId: accountId, requestKey: `rk-suivi-${n}-bis${k}-${'x'.repeat(10)}` }),
+  });
+  const qText = await q.text();
+  const quoteId = (safeJson(qText) as { quoteId?: string }).quoteId;
+  if (q.status !== 200 || quoteId === undefined) throw new Error(`setup: quote ${q.status} ${qText}`);
+  await mf.dispatchFetch(`http://c/checkout/quote/${encodeURIComponent(quoteId)}/reserve`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ commandId: `cmd-res-${n}-${k}`, holderRef: `h-${n}-${k}` }),
+  });
+  const o = await mf.dispatchFetch('http://c/checkout/order', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ quoteId, holderRef: `h-${n}-${k}`, commandId: `cmd-ord-${n}-${k}` }),
+  });
+  const oText = await o.text();
+  if (o.status !== 200) throw new Error(`setup: order ${o.status} ${oText}`);
+  const amount = (safeJson(oText) as { amountPaidAtCheckout: number }).amountPaidAtCheckout;
+  const orderId = `ord-${quoteId}`;
+  const ns = await mf.getDurableObjectNamespace('ORDER');
+  const audit = (await (await ns.get(ns.idFromName(orderId)).fetch('https://do/entry/audit')).json()) as { legKeys?: Record<string, string> };
+  const attemptId = audit.legKeys?.['checkout'];
+  if (attemptId === undefined) throw new Error('setup: no checkout leg key');
+  const provider = new MockPaymentProvider({});
+  provider.initiateCharge({ orderId, paymentAttemptId: attemptId, amount, correlationId: `corr-${orderId}`, requestedAtIso: T0 });
+  const hook = await mf.dispatchFetch('http://c/checkout/webhook/payment', { method: 'POST', headers: signed, body: JSON.stringify(provider.webhookDeliveryPlan()[0]!.event) });
+  if (hook.status !== 200) throw new Error(`setup: webhook ${hook.status} ${await hook.text()}`);
+}
+
+/**
+ * SUIVI-PAGES-1 (AUDIT-B+2 F-72) — THE BOARD IN PAGES.
+ *
+ * Before: past 50 accounts the oldest — the ones with sales — fell off the
+ * board with no flag (the roster read newest first, pending sign-ups
+ * included, and the public sign-up is limited per address only), and the one
+ * read budget ran out around 38 lifetime sales, so rows were ranked on counts
+ * nobody finished reading.
+ *
+ * Now a console that asks with `?paged=1` gets ONE page per request, inside
+ * the same budget, and a `next` cursor that can resume in the MIDDLE of an
+ * account's sales. Active accounts come first, so the budget goes to the
+ * accounts that sell. With no `paged` the answer is the old one, for a
+ * console page still cached on his phone. Budget 3 here: each page reads ONE
+ * order.
+ */
+describe('SUIVI-PAGES-1 (F-72) — the board a page at a time, active accounts first', () => {
+  async function pages(): Promise<{ lignes: { accountId: string; state: string; ventes: number; netFcfa: number; incomplet: boolean; suite?: boolean }[]; total: number[]; appels: number }> {
+    const lignes: { accountId: string; state: string; ventes: number; netFcfa: number; incomplet: boolean; suite?: boolean }[] = [];
+    const total: number[] = [];
+    let cursor: string | undefined;
+    for (let appels = 1; appels <= 20; appels += 1) {
+      const res = await mf.dispatchFetch(`http://c/reseller/suivi?paged=1${cursor === undefined ? '' : `&cursor=${encodeURIComponent(cursor)}`}`, { headers: cleC });
+      expect(res.status).toBe(200);
+      const body = safeJson(await res.text()) as { lignes: typeof lignes; total: number; next?: string };
+      lignes.push(...body.lignes);
+      total.push(body.total);
+      if (body.next === undefined) return { lignes, total, appels };
+      cursor = body.next;
+    }
+    throw new Error('the pages never ended');
+  }
+
+  it('every account is reached and every sale read, one order per page — a page stops IN THE MIDDLE of one account and the next resumes there — the active accounts before the waiting one', async () => {
+    // the first account admitted above gets a second sale: with one order
+    // per page, her two sales can only be read across two pages
+    const avant = safeJson(await (await mf.dispatchFetch('http://c/reseller/accounts', { headers: cleC })).text()) as { accounts: { accountId: string; name: string; createdAt: string }[] };
+    const premiere = [...avant.accounts].sort((x, y) => (x.createdAt < y.createdAt ? -1 : 1))[0]!;
+    await uneVenteDePlus(premiere.accountId, '0001', 1);
+
+    // a third reseller who signed up and was never admitted: she must not
+    // spend the budget before the accounts that sell
+    const attente = await mf.dispatchFetch('http://c/reseller/signup', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Mariam en attente', email: 'attente@example.bf', phone: '+226 70 99 99 00', password: 'grain-de-nere-77' }),
+    });
+    expect(attente.status).toBe(200);
+    const enAttente = (safeJson(await attente.text()) as { accountId: string }).accountId;
+
+    const { lignes, total } = await pages();
+    const ordre = [...new Set(lignes.map((l) => l.accountId))];
+    expect(ordre.at(-1), 'the waiting account comes last').toBe(enAttente);
+    expect(total.every((t) => t === ordre.length), 'every page says how many accounts there are').toBe(true);
+    // summed per account, the pages give every sale, complete
+    const somme = new Map<string, { ventes: number; netFcfa: number; incomplet: boolean }>();
+    for (const l of lignes) {
+      const s = somme.get(l.accountId) ?? { ventes: 0, netFcfa: 0, incomplet: false };
+      somme.set(l.accountId, { ventes: s.ventes + l.ventes, netFcfa: s.netFcfa + l.netFcfa, incomplet: s.incomplet || l.incomplet });
+    }
+    const vendeuses = [...somme.entries()].filter(([id]) => id !== enAttente);
+    expect(vendeuses).toHaveLength(2);
+    expect(somme.get(premiere.accountId), 'her two sales, joined across the pages').toEqual({ ventes: 2, netFcfa: 5_000, incomplet: false });
+    for (const [id, s] of vendeuses) if (id !== premiere.accountId) expect(s).toEqual({ ventes: 1, netFcfa: 2_500, incomplet: false });
+    // her first page said « more of her on the next page »
+    expect(lignes.find((l) => l.accountId === premiere.accountId)?.suite).toBe(true);
+    expect(somme.get(enAttente)).toEqual({ ventes: 0, netFcfa: 0, incomplet: false });
+  });
+
+  it('past 50 accounts (the feed answers 50 per read) the pages carry on to the 51st and beyond — nobody falls off the board', async () => {
+    // fifty more sign-ups, written straight into the accounts book: the public
+    // door limits sign-ups per address, and every Miniflare call comes from one
+    const ns = await mf.getDurableObjectNamespace('COMPTES');
+    const book = ns.get(ns.idFromName('reseller-accounts'));
+    for (let i = 0; i < 50; i += 1) {
+      const r = await book.fetch('https://do/signup', {
+        method: 'POST',
+        body: JSON.stringify({ name: `Inscrite ${i}`, email: `inscrite${i}@example.bf`, phone: `+226 71 ${String(i).padStart(2, '0')} 00 00`, password: 'grain-de-nere-77' }),
+      });
+      expect(r.status, await r.clone().text()).toBe(200);
+    }
+    const { lignes, total, appels } = await pages();
+    const vus = new Set(lignes.map((l) => l.accountId));
+    expect(total.at(-1)).toBeGreaterThan(50);
+    expect(vus.size, 'every account on the roster reached the board').toBe(total.at(-1));
+    expect(appels, 'the 51st account needed a page of its own').toBeGreaterThan(1);
+  }, 60_000);
+
+  it('with no `paged` the board is the old answer: one read, no next, no total', async () => {
+    const res = await mf.dispatchFetch('http://c/reseller/suivi', { headers: cleC });
+    const body = safeJson(await res.text()) as { lignes: unknown[]; next?: unknown; total?: unknown };
+    expect(body.next).toBeUndefined();
+    expect(body.total).toBeUndefined();
+    expect(Array.isArray(body.lignes)).toBe(true);
+  });
+
+  it('a cursor naming an account that is not on the roster answers 409 curseur_perdu — the console starts again', async () => {
+    const res = await mf.dispatchFetch('http://c/reseller/suivi?paged=1&cursor=rs-personne~0', { headers: cleC });
+    expect(res.status).toBe(409);
+    expect(safeJson(await res.text())).toMatchObject({ ok: false, reason: 'curseur_perdu' });
+  });
+});
