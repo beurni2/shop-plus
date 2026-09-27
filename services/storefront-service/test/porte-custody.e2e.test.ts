@@ -934,6 +934,11 @@ describe('REMBOURSEMENT-1 — pay at the door, once Séra has refused the parcel
     const res = await refus(o.orderId, { family: 'return', reason_code: 'change_of_mind', fault_class: 'buyer', fee_retained: true });
     expect(res.status).toBe(200);
     expect((await vue(o.orderId))['remboursement']).toEqual({ etat: 'rien', montant: 0, fraisGardes: 1_000, motif: 'retour' });
+    // the founder's dispatch list says the same, in its own words
+    // (REPONSES-ENREGISTREES-1: the Boutik+ console copies this row)
+    const liste = await mf.dispatchFetch('http://c/checkout/dispatch', { headers: { Authorization: `Bearer ${OPS_SECRET}` } });
+    const ligne = ((await liste.json()) as { orders: { orderId: string; remboursement: unknown }[] }).orders.find((x) => x.orderId === o.orderId);
+    expect(ligne?.remboursement).toEqual({ etat: 'rien' });
     const charge = await mf.dispatchFetch(`http://c/checkout/order/${encodeURIComponent(o.orderId)}/door-charge`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ holderRef: 'holder-0901', commandId: 'cmd-door-0901' }),

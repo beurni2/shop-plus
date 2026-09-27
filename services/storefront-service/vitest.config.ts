@@ -15,5 +15,7 @@ export default defineConfig({
     // `npx vitest run` never tests a stale `dist/worker/*.mjs` the way the
     // `pretest` hook (which fires only on `pnpm test`) allowed. See global-setup.ts.
     globalSetup: ['./test/global-setup.ts'],
+    // REPONSES-ENREGISTREES-1 — inert unless REPONSES_RELEVE is set (see the file).
+    setupFiles: ['./test/reponses-releve.ts'],
   },
 });

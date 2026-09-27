@@ -77,6 +77,11 @@ describe('COMPTE-CLIENTE-2 — the founder\'s recovery code', () => {
     const aucun = await code(numero());
     expect(aucun.res.status).toBe(404);
     expect(aucun.body).toEqual({ ok: false, reason: 'no_account' });
+    // an incomplete number is refused BY NAME, before any account is looked for
+    // (REPONSES-ENREGISTREES-1: the Boutik+ console copies this answer)
+    const court = await code('70 12');
+    expect(court.res.status).toBe(400);
+    expect(court.body).toEqual({ ok: false, reason: 'bad_field', field: 'phone' });
   });
 
   it('takes her back in: new password, every other phone out, the old password dead, the code spent', async () => {

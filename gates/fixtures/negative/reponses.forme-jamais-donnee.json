@@ -1,0 +1,21 @@
+[
+  {
+    "producteur": "shop-plus",
+    "methode": "POST",
+    "chemin": "/checkout/dispatch/:orderId/refusal",
+    "formes": [
+      {
+        "statut": 200,
+        "corps": {
+          "t": "objet",
+          "cles": {
+            "escalated": { "t": "boolean" },
+            "ok": { "t": "mot", "v": true },
+            "record": { "t": "objet", "cles": {} },
+            "rung": { "t": "mot", "v": "standard" }
+          }
+        }
+      }
+    ]
+  }
+]

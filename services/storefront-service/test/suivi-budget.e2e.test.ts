@@ -345,4 +345,17 @@ describe('SUIVI-PAGES-1 (F-72) — the board a page at a time, active accounts f
     expect(res.status).toBe(409);
     expect(safeJson(await res.text())).toMatchObject({ ok: false, reason: 'curseur_perdu' });
   });
+
+  it('a paused reseller stays on the founder’s board, her line marked `paused` — the pause is shown, never a disappearance (REPONSES-ENREGISTREES-1: the Boutik+ console copies this line)', async () => {
+    const liste = safeJson(await (await mf.dispatchFetch('http://c/reseller/accounts', { headers: cleC })).text()) as { accounts: { accountId: string; state: string }[] };
+    const active = liste.accounts.find((x) => x.state === 'active')!;
+    const pause = await mf.dispatchFetch('http://c/reseller/accounts/pause', {
+      method: 'POST', headers: { ...cleC, 'Content-Type': 'application/json' }, body: JSON.stringify({ accountId: active.accountId }),
+    });
+    expect(pause.status, await pause.clone().text()).toBe(200);
+    const { lignes } = await pages();
+    const siennes = lignes.filter((l) => l.accountId === active.accountId);
+    expect(siennes.length, 'still on the board').toBeGreaterThan(0);
+    expect(siennes.every((l) => l.state === 'paused')).toBe(true);
+  });
 });

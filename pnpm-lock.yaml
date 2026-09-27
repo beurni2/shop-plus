@@ -318,6 +318,9 @@ importers:
       '@cloudflare/workers-types':
         specifier: ^4.20250705.0
         version: 4.20260702.1
+      '@platform/recorded-answers':
+        specifier: git+https://github.com/beurni2/platform-contracts.git#ced137161c4f0b5d950ba5eb71cfc2c5366ee37e&path:packages/recorded-answers
+        version: https://codeload.github.com/beurni2/platform-contracts/tar.gz/ced137161c4f0b5d950ba5eb71cfc2c5366ee37e#path:packages/recorded-answers
       esbuild:
         specifier: ^0.25.5
         version: 0.25.12
@@ -1597,6 +1600,10 @@ packages:
 
   '@platform/kernel-types@https://codeload.github.com/beurni2/platform-contracts/tar.gz/aba11c1305edeeef132698bdf4908e1a37188104#path:packages/kernel-types':
     resolution: {path: packages/kernel-types, tarball: https://codeload.github.com/beurni2/platform-contracts/tar.gz/aba11c1305edeeef132698bdf4908e1a37188104}
+    version: 3.25.0
+
+  '@platform/recorded-answers@https://codeload.github.com/beurni2/platform-contracts/tar.gz/ced137161c4f0b5d950ba5eb71cfc2c5366ee37e#path:packages/recorded-answers':
+    resolution: {path: packages/recorded-answers, tarball: https://codeload.github.com/beurni2/platform-contracts/tar.gz/ced137161c4f0b5d950ba5eb71cfc2c5366ee37e}
     version: 3.25.0
 
   '@platform/taxonomy@https://codeload.github.com/beurni2/platform-contracts/tar.gz/1fb7649d981521329b5ad041ec52c89728981b14#path:packages/taxonomy':
@@ -5033,6 +5040,8 @@ snapshots:
   '@platform/kernel-types@https://codeload.github.com/beurni2/platform-contracts/tar.gz/aba11c1305edeeef132698bdf4908e1a37188104#path:packages/kernel-types':
     dependencies:
       zod: 4.4.3
+
+  '@platform/recorded-answers@https://codeload.github.com/beurni2/platform-contracts/tar.gz/ced137161c4f0b5d950ba5eb71cfc2c5366ee37e#path:packages/recorded-answers': {}
 
   '@platform/taxonomy@https://codeload.github.com/beurni2/platform-contracts/tar.gz/1fb7649d981521329b5ad041ec52c89728981b14#path:packages/taxonomy': {}
 
