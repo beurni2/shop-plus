@@ -1,7 +1,9 @@
 # JOURNAL — shop-plus
 Continuity ledger per CTO charter §6/§6bis. Every entry is evidence-grounded.
 
-## 2026-09-26 · NUMERO-FICTIF-1 (Boutik+ AUDIT-B+2 slice 4: F-92) — the real-looking phone number leaves the current tree · ON THE BRANCH, awaiting the founder's word (not merged, not deployed)
+## 2026-09-26 · NUMERO-FICTIF-1 (Boutik+ AUDIT-B+2 slice 4: F-92) — the real-looking phone number leaves the current tree · MERGED 2026-09-27 on the founder's « go » (nothing to deploy)
+
+**Merged (founder: « go », 2026-09-27).** `main` fast-forwarded `a15b5e7 → 3dbf0ea` (ancestry verified first). Tests and notes only, so no deploy: ci 712 (the full board, Playwright included) green on `3dbf0ea`, as are pwa-preview 500, expo-preview 533 and service-canon-drift 403.
 
 **Founder order (2026-09-26).** « go » on slice 4 of the Boutik+ AUDIT-B+2 plan. F-92: the TEL-PAIRES order of 2026-08-09 quoted an 8-digit Burkina mobile number with a valid prefix; it was reused on 29 lines here (and 11 in boutik-plus). Whose number it is was asked and not answered, so the safest default applies: whoever it belongs to, it should not be published.
 
