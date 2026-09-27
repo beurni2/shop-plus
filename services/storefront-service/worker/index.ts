@@ -2396,8 +2396,16 @@ const MAX_FEED_FANOUT = 40;
  * oldest accounts, the ones with sales, fell off with no flag; and its one
  * budget ran out around 38 lifetime sales. A page spends the SAME budget —
  * the roster, the feed, then one read per order — and says where to resume:
- * `next` is `{accountId}~{rows already read}`, so a page may stop in the
+ * `next` is `{accountId}~{the last sale read}`, so a page may stop in the
  * middle of one account's sales and the next page picks up exactly there.
+ *
+ * HER SALES ARE READ OLDEST FIRST AND THE CURSOR NAMES A SALE, NEVER A
+ * POSITION (the slice's verifier, MAJOR 1). The feed answers newest first, so
+ * a sale confirmed between two pages landed at position 0 and pushed every
+ * other one down: a position-cursor re-read the sale page one had read and
+ * never read the new one — a wrong total shown as a whole row. Oldest first,
+ * a new sale lands AFTER the cursor and is read once; a cursor sale that is
+ * gone answers 409 like a lost account.
  *
  * ACTIVE ACCOUNTS FIRST (then paused, then still waiting), oldest first
  * within each: the budget goes to the accounts that sell. Every line is a
@@ -2427,14 +2435,13 @@ async function suiviPagine(
     (a, b) => rang(a.state) - rang(b.state) || ((a.createdAt ?? '') < (b.createdAt ?? '') ? -1 : (a.createdAt ?? '') > (b.createdAt ?? '') ? 1 : 0) || (a.accountId < b.accountId ? -1 : 1),
   );
   let debut = 0;
-  let deja = 0;
+  let apres = '';
   if (cursor !== null && cursor !== '') {
-    const at = cursor.lastIndexOf('~');
+    const at = cursor.indexOf('~');
     const id = at < 0 ? cursor : cursor.slice(0, at);
-    const n = at < 0 ? 0 : Number(cursor.slice(at + 1));
+    apres = at < 0 ? '' : cursor.slice(at + 1);
     debut = ordre.findIndex((a) => a.accountId === id);
-    if (debut < 0 || !Number.isInteger(n) || n < 0) return Response.json({ ok: false, reason: 'curseur_perdu' }, { status: 409 });
-    deja = n;
+    if (debut < 0) return Response.json({ ok: false, reason: 'curseur_perdu' }, { status: 409 });
   }
   // the feed answers at most 50 accounts per read
   const lot = ordre.slice(debut, debut + 50);
@@ -2450,12 +2457,18 @@ async function suiviPagine(
   let next: string | undefined;
   for (let k = 0; k < lot.length; k += 1) {
     const acc = lot[k]!;
-    const rows = feuille.rows[acc.accountId];
-    if (!Array.isArray(rows)) {
+    const recues = feuille.rows[acc.accountId];
+    if (!Array.isArray(recues)) {
       lignes.push({ accountId: acc.accountId, name: acc.name, state: acc.state, ventes: 0, netFcfa: 0, incomplet: true });
       continue;
     }
-    const depart = k === 0 ? deja : 0;
+    const rows = [...recues].reverse(); // oldest first — see the note above
+    let depart = 0;
+    if (k === 0 && apres !== '') {
+      const i = rows.findIndex((r) => r.orderId === apres);
+      if (i < 0) return Response.json({ ok: false, reason: 'curseur_perdu' }, { status: 409 });
+      depart = i + 1;
+    }
     let lu = depart;
     let net = 0;
     let ventes = 0;
@@ -2484,9 +2497,9 @@ async function suiviPagine(
     if (!(reste && lu === depart)) {
       lignes.push({ accountId: acc.accountId, name: acc.name, state: acc.state, ventes, netFcfa: net, incomplet, ...(reste ? { suite: true } : {}) });
     }
-    if (reste) { next = `${acc.accountId}~${lu}`; break; }
+    if (reste) { next = `${acc.accountId}~${lu > 0 ? rows[lu - 1]!.orderId : ''}`; break; }
   }
-  if (next === undefined && debut + lot.length < ordre.length) next = `${ordre[debut + lot.length]!.accountId}~0`;
+  if (next === undefined && debut + lot.length < ordre.length) next = `${ordre[debut + lot.length]!.accountId}~`;
   return Response.json({ ok: true, lignes, total: ordre.length, ...(next !== undefined ? { next } : {}) });
 }
 

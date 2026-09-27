@@ -277,6 +277,34 @@ describe('SUIVI-PAGES-1 (F-72) — the board a page at a time, active accounts f
     expect(somme.get(enAttente)).toEqual({ ventes: 0, netFcfa: 0, incomplet: false });
   });
 
+  it('a sale that lands BETWEEN two pages is read once, never twice: the cursor names the last sale read, not a position', async () => {
+    const liste = safeJson(await (await mf.dispatchFetch('http://c/reseller/accounts', { headers: cleC })).text()) as { accounts: { accountId: string; createdAt: string; state: string }[] };
+    const premiere = [...liste.accounts].filter((x) => x.state === 'active').sort((x, y) => (x.createdAt < y.createdAt ? -1 : 1))[0]!;
+    const somme = { ventes: 0, incomplet: false };
+    let cursor: string | undefined;
+    for (let page = 1; page <= 20; page += 1) {
+      const res = await mf.dispatchFetch(`http://c/reseller/suivi?paged=1${cursor === undefined ? '' : `&cursor=${encodeURIComponent(cursor)}`}`, { headers: cleC });
+      const body = safeJson(await res.text()) as { lignes: { accountId: string; ventes: number; incomplet: boolean }[]; next?: string };
+      for (const l of body.lignes.filter((x) => x.accountId === premiere.accountId)) {
+        somme.ventes += l.ventes;
+        somme.incomplet ||= l.incomplet;
+      }
+      if (page === 1) {
+        // her first sale is read; now a NEW row lands for her. It names an
+        // order the book cannot read, so the board shows whether it was reached.
+        const ns = await mf.getDurableObjectNamespace('RESELLER');
+        const r = await ns.get(ns.idFromName('reseller-feed')).fetch('https://do/register', {
+          method: 'POST', body: JSON.stringify({ resellerId: premiere.accountId, orderId: 'ord-arrivee-entre-deux-pages' }),
+        });
+        expect(r.status).toBe(200);
+      }
+      if (body.next === undefined) break;
+      cursor = body.next;
+    }
+    expect(somme.ventes, 'her two real sales, each read once — a position cursor read one of them twice').toBe(2);
+    expect(somme.incomplet, 'the row that arrived mid-read WAS reached (unreadable here by construction)').toBe(true);
+  });
+
   it('past 50 accounts (the feed answers 50 per read) the pages carry on to the 51st and beyond — nobody falls off the board', async () => {
     // fifty more sign-ups, written straight into the accounts book: the public
     // door limits sign-ups per address, and every Miniflare call comes from one
@@ -305,7 +333,15 @@ describe('SUIVI-PAGES-1 (F-72) — the board a page at a time, active accounts f
   });
 
   it('a cursor naming an account that is not on the roster answers 409 curseur_perdu — the console starts again', async () => {
-    const res = await mf.dispatchFetch('http://c/reseller/suivi?paged=1&cursor=rs-personne~0', { headers: cleC });
+    const res = await mf.dispatchFetch('http://c/reseller/suivi?paged=1&cursor=rs-personne~', { headers: cleC });
+    expect(res.status).toBe(409);
+    expect(safeJson(await res.text())).toMatchObject({ ok: false, reason: 'curseur_perdu' });
+  });
+
+  it('a cursor naming a sale that is no longer in her list answers 409 too — never a guess from her first sale', async () => {
+    const liste = safeJson(await (await mf.dispatchFetch('http://c/reseller/accounts', { headers: cleC })).text()) as { accounts: { accountId: string; state: string }[] };
+    const active = liste.accounts.find((x) => x.state === 'active')!;
+    const res = await mf.dispatchFetch(`http://c/reseller/suivi?paged=1&cursor=${encodeURIComponent(`${active.accountId}~ord-qui-nexiste-plus`)}`, { headers: cleC });
     expect(res.status).toBe(409);
     expect(safeJson(await res.text())).toMatchObject({ ok: false, reason: 'curseur_perdu' });
   });
