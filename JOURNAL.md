@@ -1,7 +1,9 @@
 # JOURNAL — shop-plus
 Continuity ledger per CTO charter §6/§6bis. Every entry is evidence-grounded.
 
-## 2026-09-27 · REPONSES-ENREGISTREES-1 (Boutik+ AUDIT-B+2 F-82) — Shop+ proves the answers Boutik+'s walks may copy · ON THE BRANCH, awaiting the founder's word (not merged, not deployed — nothing here deploys)
+## 2026-09-27 · REPONSES-ENREGISTREES-1 (Boutik+ AUDIT-B+2 F-82) — Shop+ proves the answers Boutik+'s walks may copy · MERGED 2026-09-28 on the founder's « go » (nothing here deploys)
+
+**Merged (founder: « go, sign 500 KB for the console », 2026-09-28 — the « go » on Boutik+ items 10–12).** `main` fast-forwarded `978f8a2 → 9571a6a` (ancestry verified first). **ci 714 green** on `9571a6a` (≈ 20 min, the certify step's second pass included). Nothing deploys: the package is a test devDependency of the storefront service, never in its runtime graph. The `colis.e2e` timing weakness below stays open.
 
 **Founder order (2026-09-27).** « all three » — item 12: « Recorded stand-ins …: yes, the lighter way. Shop+ takes the shared test package, so there is no rules-version jump. That proves our copies behave like the real ones. »
 
