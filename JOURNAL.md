@@ -1,6 +1,14 @@
 # JOURNAL — shop-plus
 Continuity ledger per CTO charter §6/§6bis. Every entry is evidence-grounded.
 
+## 2026-09-29 · Boutik+ RETOUR-RAYON-1 (AUDIT-B+2 F-36) — the refusal relay's Boutik+ stand-ins answer what the real door now answers · MERGED 2026-09-29 on the founder's « go » (nothing here deploys)
+
+**Founder ruling (2026-09-28).** « back on sale when supplier confirms it » — built in Boutik+ (its JOURNAL holds the slice). Boutik+'s refused-course intake no longer restocks a refusal at the buyer's DOOR: it answers `restock_on_return` (buyer / payment_provider fault), `no_restock` + faultClass (any other), `restocked` only for a refusal AT PICKUP; the unit goes back on sale when the supplier confirms the return code.
+
+- **Here, tests only (0db6353).** The three Boutik+ stand-ins that answered `restocked` to every refusal — `livraison-boutik.e2e` (the one certified against the real door, now modelling the pickup / door split and the policy), `related-party.e2e`, `pause-vente.e2e` — give the real door's answers. Shop+'s relay reads only `res.ok`, so nothing it does changes; its refund road from the same Séra fact is untouched.
+- **Proof.** Storefront suite 906 / 906; the Shop+ gate board **ALL GATES GREEN**; **ci 716 green** on `0db6353`.
+- **Merged.** `main` `309d896 → 0db6353`. Nothing to deploy.
+
 ## 2026-09-27 · REPONSES-ENREGISTREES-1 (Boutik+ AUDIT-B+2 F-82) — Shop+ proves the answers Boutik+'s walks may copy · MERGED 2026-09-28 on the founder's « go » (nothing here deploys)
 
 **Merged (founder: « go, sign 500 KB for the console », 2026-09-28 — the « go » on Boutik+ items 10–12).** `main` fast-forwarded `978f8a2 → 9571a6a` (ancestry verified first). **ci 714 green** on `9571a6a` (≈ 20 min, the certify step's second pass included). Nothing deploys: the package is a test devDependency of the storefront service, never in its runtime graph. The `colis.e2e` timing weakness below stays open.
