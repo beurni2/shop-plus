@@ -141,8 +141,11 @@ function makeMf(persistDir: string, extraBindings: Record<string, string> = {}):
           // `handleRefusedIntake`, its own e2e pins these bounds): canonical
           // PlatformEventSchema parse, name `delivery.refused.v1`, order_id
           // bounded at 256 — else 400; an order its book never registered is
-          // 200 `unknown_order` ON PURPOSE (the wire must not wedge); the
-          // restock itself is marker-idempotent per order behind this answer.
+          // 200 `unknown_order` ON PURPOSE (the wire must not wedge). Boutik+
+          // RETOUR-RAYON-1 (founder ruling 2026-09-28): a refusal at the DOOR
+          // moves no stock — the unit waits for the supplier's return code
+          // (`restock_on_return`, or `no_restock` for a fault that never sends
+          // it home); only a refusal AT PICKUP restocks behind this answer.
           const parsed = PlatformEventSchema.safeParse(body);
           const p = parsed.success ? (parsed.data.payload as Record<string, unknown>) : null;
           const orderId = p?.['order_id'];
@@ -153,7 +156,11 @@ function makeMf(persistDir: string, extraBindings: Record<string, string> = {}):
             return answer(400, { ok: false, reason: 'event_not_canonical' });
           }
           if (!registered.has(orderId)) return answer(200, { ok: true, status: 'unknown_order' });
-          return answer(200, { ok: true, status: 'restocked' });
+          const rentre = p['fault_class'] === 'buyer' || p['fault_class'] === 'payment_provider';
+          if (p['rejection'] === 'pickup_refusal') return answer(200, { ok: true, status: rentre ? 'restocked' : 'no_restock' });
+          return answer(200, rentre
+            ? { ok: true, status: 'restock_on_return' }
+            : { ok: true, status: 'no_restock', faultClass: typeof p['fault_class'] === 'string' ? p['fault_class'] : null });
         }
         const single = /^\/supply-projection\/([^/]+)$/.exec(path);
         if (single) {

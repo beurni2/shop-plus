@@ -95,7 +95,8 @@ function makeMf(): Miniflare {
           return Response.json({ ok: true, status: 'delivered', deliveredAt: new Date().toISOString() });
         }
         if (request.method === 'POST' && path === '/fulfillment/delivery-refused') {
-          return Response.json({ ok: true, status: 'restocked' });
+          // Boutik+ RETOUR-RAYON-1: a door refusal waits for the supplier's return code.
+          return Response.json({ ok: true, status: 'restock_on_return' });
         }
         const single = /^\/supply-projection\/([^/]+)$/.exec(path);
         if (single) {
