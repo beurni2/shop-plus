@@ -1,6 +1,24 @@
 # JOURNAL — shop-plus
 Continuity ledger per CTO charter §6/§6bis. Every entry is evidence-grounded.
 
+## 2026-09-30 · CODES-RETIRES-1 (Boutik+ AUDIT-B+2 F-73, founder ruling « Retire them ») — the old `SP-` feed codes open nothing and are made nowhere · on the branch, NOT merged, NOT deployed
+
+**Founder ruling (2026-09-30), verbatim.** « No live pages should show any test mode banner. Retire them. Keep the rank number » — « Retire them » answers F-73's held question: the feed codes he minted by hand before reseller accounts still read a reseller's sales, a paused reseller's included.
+
+**What moved.**
+- **Worker (`worker/index.ts`).** The four founder doors are gone: `POST /reseller/code`, `/reseller/code/revoke`, `/reseller/code/reveal`, `GET /reseller/codes`. Even on key C they now answer exactly as a door that never existed (this Worker: GET → 404, POST → 401 `{"error":"unauthorized"}`). `GET /reseller/ventes` accepts ONLY her account session (`resoudreCompte`): paused → 403 `access_paused`, pending → 403 `access_required`, anything else → the one uniform 401. Her rows are read through the id-keyed `/rows`.
+- **Feed book (`worker/reseller-feed-do.ts`).** `/code/mint`, `/code/revoke`, `/code/reveal`, `/codes`, `/mine` and their helpers removed; `/register`, `/rows`, `/rows-for-many` unchanged. Records the old mint left in storage (`codehash:*`, `resellercode:*` — the latter holds the plaintext) are NOT wiped: nothing reads them any more. A wipe is a production-data change: his call.
+- **Tests.** New `test/codes-retires.e2e.test.ts` on the real built Worker (miniflare): the old records are written into the SAME persisted store the Worker then opens (a stand-in object of the same class name, run first — this miniflare has no storage accessor), the precondition asks the book that her row is really there, then the old code gets the 401, and her account session still gets her sales (control). `dispatch.e2e` and `accounts.e2e` rewritten off the code road (doors driven with account sessions; the mint-matrix, code CORS, inventory, re-mint and CODE-REVU feed-code tests removed with the road).
+- **Canon repin** `@platform/recorded-answers` `d66b6bf → e2e1584`: Shop+'s recorded answers no longer list the two retired doors.
+
+**Evidence.** Red first: the codes-retires file failed on the old Worker (the doors minted and listed; the old code read her sales). Touched suites on the rebuilt bundle: codes-retires 3 · dispatch 39 · accounts 30 — **72/72 green**. Shop+ board on the final tree: **ALL GATES GREEN** (storefront-service 904, reseller app 854, buyer PWA 1 398; the recorded answers certified door by door on the workerd suites, 527 tests). Mutations (all KILLED, anchors matched once, restored byte-identical, bundle rebuilt): S1 a retired founder door answers again · S2 an old code opens her sales again · S3 a code door re-added past the founder-key gate — caught only because the test now also asks with her session (the verifier's note). The full list of 12 is in Boutik+'s journal.
+
+**Verifier — ONE fresh-context pass.** Recorded in Boutik+'s journal: no blocker, no major. Here: the dead `withOpsCors`/`opsPreflight` removed, two stale comments corrected, the doors test now asks with an admitted session too. NOT changed, by scope: the reseller app's `access/gate.ts`, `sales/code-store.ts` comments and `test/feed.test.ts` fake still speak of the old codes (the app was not touched).
+
+**Not changed.** Money rules, contract shapes, migrations. The reseller app still reads an old code file left on phones from before accounts (`src/sales/code-store.ts`): with the entrance armed she reaches nothing without a signed-in account, and that old code now opens nothing — inert, left as it was. The buyer PWA's device-testing address `?demo-cliente=` still labels its demo code « Code de démonstration » — reached only by that typed address, not a page the app leads anyone to; his call whether harness addresses should leave the live bundle.
+
+---
+
 ## 2026-09-30 · Boutik+ CONSOLE-VRAIE-1 (LE SUIVI) MERGED AND DEPLOYED on the founder's « go »
 
 `main` fast-forwarded `87bbca2 → 993cf22` (ancestry verified) after the canon's `main` reached `bae6d88`; **ci 719 green** on `993cf22`. Worker changed (`/reseller/suivi` counts a held commission apart as `misesDeCote`): **storefront-deploy 116 `success`**, the live `/health` read back in the job: release `993cf22…`, canon 3.25.0, custody armed (all four wires), PBKDF2 at 100 000; every smoke step green. On `993cf22`: service-canon-drift 414 · pwa-preview 507 · expo-preview 540 — green (the buyer and reseller apps did not change). Deployed BEFORE the Boutik+ console that reads the field (Boutik+ journal).

@@ -10,20 +10,22 @@
  * ═══ WHY THIS NEEDS A REAL CREDENTIAL, AND WHY THAT IS NOT OPTIONAL ═══
  *
  * A reseller's id is `rs-{4 digits}` (`identity/mint.ts`) — NINE THOUSAND
- * values, journalled as thin the day it was written. A feed gated by « send
- * me your resellerId » would therefore hand any reseller every other
- * reseller's economics after a few thousand guesses: her net plus her
- * displayed price yields the supplier's base by subtraction, which is the
- * exact leak SP-I03 and the `/listings*` gate exist to prevent. The
- * repo's own standing note says it plainly: « Real per-reseller identity is a
- * HARD GATE before any reseller other than the founder onboards. »
+ * values. A feed gated by « send me your resellerId » would therefore hand
+ * any reseller every other reseller's economics after a few thousand guesses:
+ * her net plus her displayed price yields the supplier's base by subtraction,
+ * which is the exact leak SP-I03 and the `/listings*` gate exist to prevent.
  *
- * So this object carries the SAME personal-code door the supplier surface
- * runs on (READINESS-WIRE-1b-i, founder-approved, released and verified
- * twice): 80 bits of CSPRNG, grouped for human handover, stored ONLY as its
- * SHA-256, one active code per reseller, re-mint replaces (which is also
- * revocation), every refusal one uniform 401. The code IS the identity — the
- * resellerId is DERIVED from it server-side and never claimed by a body.
+ * So the identity is never claimed by a body: the ROUTER resolves HER ACCOUNT
+ * SESSION (RESELLER-ACCOUNTS-1b) to her account id, refuses a paused or
+ * pending account by name, and only then asks this object for her rows by id.
+ *
+ * CODES-RETIRES-1 (founder ruling 2026-09-30, « Retire them ») — this object
+ * used to carry its own personal-code door (`SP-` codes the founder minted by
+ * hand, `/code/*`, `/codes`, `/mine`). Accounts replaced them: the reseller
+ * app had no field to type one, yet a code still read her sales, one minted
+ * for a paused reseller included. The doors are gone. Records a past mint
+ * left in storage (`codehash:*`, `resellercode:*`) are NOT wiped — nothing
+ * reads them any more, so they open nothing.
  *
  * ═══ WHAT THE FEED CAN HONESTLY SAY TODAY (and what it must not) ═══
  *
@@ -49,14 +51,7 @@
  */
 
 export const RESELLER_FEED_NAME = 'reseller-feed';
-const CODEHASH_PREFIX = 'codehash:';
-const RESELLERCODE_PREFIX = 'resellercode:';
 const ROW_PREFIX = 'row:';
-
-export interface ResellerCodeRecord {
-  readonly resellerId: string;
-  readonly mintedAt: string;
-}
 
 /** One confirmed sale, as the INDEX holds it: ids and a clock, nothing more.
  *  Every fact the reseller reads is fetched from the order's own object at
@@ -66,120 +61,11 @@ interface FeedRow {
   readonly at: string;
 }
 
-async function sha256Hex(value: string): Promise<string> {
-  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
-  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
-}
-
-/** RFC-4648-ish base32 (no padding) over CSPRNG bytes, grouped for handover.
- *  `SP-` for Shop+, as the supplier's is `BF-` — one look tells her which
- *  door a code opens. */
-function mintResellerCode(): string {
-  const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
-  const bytes = crypto.getRandomValues(new Uint8Array(10)); // 80 bits
-  let bits = 0;
-  let acc = 0;
-  let out = '';
-  for (const b of bytes) {
-    acc = (acc << 8) | b;
-    bits += 8;
-    while (bits >= 5) {
-      out += ALPHABET[(acc >>> (bits - 5)) & 31];
-      bits -= 5;
-    }
-  }
-  return `SP-${out.slice(0, 4)}-${out.slice(4, 8)}-${out.slice(8, 12)}-${out.slice(12, 16)}`;
-}
-
 export class ResellerFeedDO {
   constructor(private readonly state: DurableObjectState) {}
 
-  /** Hash the presented code and look it up — a miss, a non-string and a
-   *  revoked code are all the SAME null (one uniform 401 upstream, never an
-   *  oracle). No secret-dependent comparison exists: the hash is the key. */
-  private async resolveCode(presented: unknown): Promise<ResellerCodeRecord | null> {
-    if (typeof presented !== 'string' || presented === '') return null;
-    const record = await this.state.storage.get<ResellerCodeRecord>(`${CODEHASH_PREFIX}${await sha256Hex(presented)}`);
-    return record ?? null;
-  }
-
   async fetch(request: Request): Promise<Response> {
     const { pathname } = new URL(request.url);
-
-    /** THE FOUNDER MINTS a personal code (his ops credential gates it at the
-     *  router). ONE active code per reseller: re-mint atomically replaces, so
-     *  the previous code dies at that instant — which is also the revocation
-     *  story. The plaintext appears in THIS response once and is never stored. */
-    if (request.method === 'POST' && pathname === '/code/mint') {
-      const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
-      const resellerId = body?.['resellerId'];
-      // The 128 cap MATCHES `/register` below (verifier M2): without it a
-      // mint could create a code for an id no row can ever name, i.e. a
-      // permanent key that opens an eternally empty feed.
-      if (
-        typeof resellerId !== 'string' || resellerId === '' || resellerId.length > 128 ||
-        Object.keys(body ?? {}).length !== 1
-      ) {
-        return Response.json({ ok: false, reason: 'malformed' }, { status: 400 });
-      }
-      const code = mintResellerCode();
-      const hash = await sha256Hex(code);
-      const mintedAt = new Date().toISOString();
-      const previous = await this.state.storage.get<{ hash: string }>(`${RESELLERCODE_PREFIX}${resellerId}`);
-      if (previous !== undefined) await this.state.storage.delete(`${CODEHASH_PREFIX}${previous.hash}`);
-      await this.state.storage.put({
-        // CODE-REVU (founder ruling 2026-08-09, all code desks): the
-        // plaintext is KEPT on the founder-side pointer so /code/reveal can
-        // show it back — key-C-gated at the router; the code door still
-        // verifies on the hash and the /codes allowlist never carries it.
-        [`${CODEHASH_PREFIX}${hash}`]: { resellerId, mintedAt } satisfies ResellerCodeRecord,
-        [`${RESELLERCODE_PREFIX}${resellerId}`]: { hash, mintedAt, code },
-      });
-      return Response.json({ ok: true, code, resellerId, mintedAt });
-    }
-
-    /** REVOKE — the founder cuts a reseller's feed off. Idempotent. */
-    if (request.method === 'POST' && pathname === '/code/revoke') {
-      const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
-      const resellerId = body?.['resellerId'];
-      if (typeof resellerId !== 'string' || resellerId === '' || Object.keys(body ?? {}).length !== 1) {
-        return Response.json({ ok: false, reason: 'malformed' }, { status: 400 });
-      }
-      const existing = await this.state.storage.get<{ hash: string }>(`${RESELLERCODE_PREFIX}${resellerId}`);
-      if (existing === undefined) return Response.json({ ok: true, status: 'no_code' });
-      await this.state.storage.delete([`${CODEHASH_PREFIX}${existing.hash}`, `${RESELLERCODE_PREFIX}${resellerId}`]);
-      return Response.json({ ok: true, status: 'revoked' });
-    }
-
-    /** CODE-REVU — the founder REREADS a feed code already given. Pre-ruling
-     *  codes exist only as hashes and answer `code_anterieur`, honestly. */
-    if (request.method === 'POST' && pathname === '/code/reveal') {
-      const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
-      const resellerId = body?.['resellerId'];
-      if (typeof resellerId !== 'string' || resellerId === '' || Object.keys(body ?? {}).length !== 1) {
-        return Response.json({ ok: false, reason: 'malformed' }, { status: 400 });
-      }
-      const pointer = await this.state.storage.get<{ mintedAt: string; code?: string }>(
-        `${RESELLERCODE_PREFIX}${resellerId}`,
-      );
-      if (pointer === undefined) return Response.json({ ok: false, reason: 'no_code' }, { status: 404 });
-      if (pointer.code === undefined) return Response.json({ ok: false, reason: 'code_anterieur' }, { status: 409 });
-      return Response.json({ ok: true, code: pointer.code, resellerId, mintedAt: pointer.mintedAt });
-    }
-
-    /** THE INVENTORY — who holds a feed door, since when. `{resellerId,
-     *  mintedAt}` ONLY: the stored hash never leaves this object. */
-    if (request.method === 'GET' && pathname === '/codes') {
-      const entries = await this.state.storage.list<{ mintedAt: string; code?: string }>({ prefix: RESELLERCODE_PREFIX });
-      const codes = [...entries.entries()]
-        .map(([key, v]) => ({
-          resellerId: key.slice(RESELLERCODE_PREFIX.length),
-          mintedAt: v.mintedAt,
-          revelable: v.code !== undefined,
-        }))
-        .sort((a, b) => (a.resellerId < b.resellerId ? -1 : 1));
-      return Response.json({ ok: true, codes });
-    }
 
     /** REGISTER a confirmed sale into ITS reseller's index. Written by the
      *  OrderDO at the confirm transition — the same instant the outbox is
@@ -198,7 +84,7 @@ export class ResellerFeedDO {
       }
       // VERIFIER M1 — the id is ESCAPED into the key. Unescaped, the pair
       // (`rs-AAA`, `BBB:ord-x`) built the same key as (`rs-AAA:BBB`, `ord-x`),
-      // so a code minted for `rs-AAA:BBB` listed another reseller's row — a
+      // so a list asked for `rs-AAA:BBB` held another reseller's row — a
       // real breach of the first lock, contained end-to-end only by the
       // order's second check. `encodeURIComponent` makes the boundary exact.
       const key = `${ROW_PREFIX}${encodeURIComponent(resellerId)}:${orderId}`;
@@ -208,28 +94,13 @@ export class ResellerFeedDO {
       return Response.json({ ok: true, status: 'registered' });
     }
 
-    /** HER OWN LIST — the code is the identity; only HER rows leave, newest
-     *  first. The router fans out from these ids to each order's own
-     *  reseller projection. */
-    if (request.method === 'POST' && pathname === '/mine') {
-      const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
-      const resolved = await this.resolveCode(body?.['code']);
-      if (resolved === null) return Response.json({ ok: false, reason: 'unauthorized' }, { status: 401 });
-      const rows = await this.state.storage.list<FeedRow>({ prefix: `${ROW_PREFIX}${encodeURIComponent(resolved.resellerId)}:` });
-      const orders = [...rows.values()]
-        .sort((a, b) => (a.at < b.at ? 1 : -1))
-        .map((r) => ({ orderId: r.orderId, at: r.at }));
-      return Response.json({ ok: true, resellerId: resolved.resellerId, orders });
-    }
-
     /**
-     * RESELLER-ACCOUNTS-1b — the SAME projection keyed by id, for callers the
-     * ROUTER has already authenticated: a session resolved to this accountId
+     * RESELLER-ACCOUNTS-1b — HER LIST, keyed by id, for callers the ROUTER
+     * has already authenticated: a session resolved to this accountId
      * (accounts are minted in the rs-{4 digits} shape the feed already
      * speaks), or the founder's key-C suivi read. INTERNAL ONLY — a DO fetch
      * is reachable solely from the composition root, exactly like /register;
-     * no external path leads here, so this is not a second door around the
-     * code book, it is the code book's projection behind someone else's auth.
+     * no external path leads here. Newest first.
      */
     if (request.method === 'POST' && pathname === '/rows') {
       const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;

@@ -251,8 +251,9 @@ export function egaleConstante(a: string, b: string): boolean {
   return diff === 0;
 }
 
-/** Same base32-over-CSPRNG mint the feed codes use; its own prefix so one look
- *  says which door a code opens (SP- feed · SPA- admission · SPS- session). */
+/** Base32 over CSPRNG, with its own prefix so one look says which door a code
+ *  opens (SPA- admission · SPS- session; the old SP- feed codes are retired,
+ *  CODES-RETIRES-1). */
 export function mintToken(prefix: string): string {
   const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
   const bytes = crypto.getRandomValues(new Uint8Array(10)); // 80 bits
@@ -883,7 +884,8 @@ export class ResellerAccountsDO {
 /**
  * THE RESOLUTION EVERY AUTHENTICATED READ MAKES (index.ts): a Bearer that is a
  * SESSION resolves here to {accountId, state}. `undefined` = not a session
- * (the caller may then try the legacy feed-code book); a resolved-but-not-
+ * (no other credential opens her reads: the old feed codes are retired,
+ * CODES-RETIRES-1); a resolved-but-not-
  * ACTIVE account is returned WITH its state so the route can refuse BY NAME
  * (`access_paused` / `access_required`) — the enforcement the founder approved.
  */

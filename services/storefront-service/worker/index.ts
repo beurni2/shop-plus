@@ -92,8 +92,9 @@ interface Env extends WriteAuthEnv {
    *  clocks, so the founder's dispatch read can find the per-order objects.
    *  Holds no contact and no money. */
   DISPATCH: DurableObjectNamespace;
-  /** RF-1a — the reseller feed (one singleton): her personal-code door and
-   *  her index of CONFIRMED sales. Holds no franc: every figure is read from
+  /** RF-1a — the reseller feed (one singleton): her index of CONFIRMED
+   *  sales, read with her account session (the old personal codes are
+   *  retired, CODES-RETIRES-1). Holds no franc: every figure is read from
    *  the order's own object at read time. */
   RESELLER: DurableObjectNamespace;
   /** SP6.3 — the §6.4 buyer-refusal ladder, one instance per buyer key. */
@@ -1165,32 +1166,26 @@ export default {
       if (env.RESELLER === undefined) return withResellerCors(unauthorized());
       const feed = env.RESELLER.get(env.RESELLER.idFromName(RESELLER_FEED_NAME));
       /**
-       * RESELLER-ACCOUNTS-1b — a SESSION opens this read too. Tried first
-       * (its prefix is unambiguous); a resolved-but-not-active account is
-       * refused BY NAME — the founder's pause must read as a pause, never as
-       * a network fault or a bad credential. The legacy feed-code path is
-       * untouched underneath: the founder's own code keeps working.
+       * RESELLER-ACCOUNTS-1b — HER ACCOUNT SESSION opens this read, and
+       * nothing else does. A resolved-but-not-active account is refused BY
+       * NAME — the founder's pause must read as a pause, never as a network
+       * fault or a bad credential. CODES-RETIRES-1 (founder ruling
+       * 2026-09-30): the old `SP-` feed codes are retired, so anything that is
+       * not an active session is the one uniform 401.
        */
       type MineShape = { ok?: boolean; resellerId?: string; orders?: { orderId: string }[] } | null;
-      let mine: MineShape = null;
       const compte = await resoudreCompte(env, code);
-      if (compte !== undefined) {
-        if (compte.state === 'paused') {
-          return withResellerCors(Response.json({ ok: false, reason: 'access_paused' }, { status: 403 }));
-        }
-        if (compte.state === 'pending_access') {
-          return withResellerCors(Response.json({ ok: false, reason: 'access_required' }, { status: 403 }));
-        }
-        const rowsRes = await feed.fetch(
-          new Request('https://do/rows', { method: 'POST', body: JSON.stringify({ resellerId: compte.accountId }) }),
-        );
-        mine = (await rowsRes.json().catch(() => null)) as MineShape;
-      } else {
-        const mineRes = await feed.fetch(
-          new Request('https://do/mine', { method: 'POST', body: JSON.stringify({ code }) }),
-        );
-        mine = (await mineRes.json().catch(() => null)) as MineShape;
+      if (compte === undefined) return withResellerCors(unauthorized());
+      if (compte.state === 'paused') {
+        return withResellerCors(Response.json({ ok: false, reason: 'access_paused' }, { status: 403 }));
       }
+      if (compte.state === 'pending_access') {
+        return withResellerCors(Response.json({ ok: false, reason: 'access_required' }, { status: 403 }));
+      }
+      const rowsRes = await feed.fetch(
+        new Request('https://do/rows', { method: 'POST', body: JSON.stringify({ resellerId: compte.accountId }) }),
+      );
+      const mine = (await rowsRes.json().catch(() => null)) as MineShape;
       if (mine?.ok !== true || typeof mine.resellerId !== 'string' || !Array.isArray(mine.orders)) {
         return withResellerCors(unauthorized());
       }
@@ -1459,46 +1454,6 @@ export default {
       const answer = Response.json({ ok: true, lignes });
       answer.headers.set('Cache-Control', 'private, no-store');
       return withDispatchCors(answer);
-    }
-
-    /** RF-1a — the founder MINTS and REVOKES a reseller's feed code. His own
-     *  credential (value C, the same one his dispatch read uses — same
-     *  person, same Worker, same class of act); the body crosses VERBATIM so
-     *  the object's exact-key check refuses a smuggled field rather than
-     *  this layer silently stripping it. */
-    if (pathname === '/reseller/code' || pathname === '/reseller/code/revoke' || pathname === '/reseller/code/reveal') {
-      if (request.method === 'OPTIONS') return opsPreflight('POST');
-      if (request.method !== 'POST') return withOpsCors(unauthorized());
-      const refused = await rejectUnauthorizedOpsRead(request, env);
-      if (refused) return withOpsCors(refused);
-      if (env.RESELLER === undefined) return withOpsCors(unauthorized());
-      const body = await request.text();
-      const feed = env.RESELLER.get(env.RESELLER.idFromName(RESELLER_FEED_NAME));
-      return withOpsCors(
-        await feed.fetch(
-          new Request(
-            pathname === '/reseller/code'
-              ? 'https://do/code/mint'
-              : pathname === '/reseller/code/revoke'
-                ? 'https://do/code/revoke'
-                : 'https://do/code/reveal', {
-            method: 'POST',
-            body,
-          }),
-        ),
-      );
-    }
-
-    /** RF-1a — the founder's inventory of feed doors. Same credential. */
-    if (pathname === '/reseller/codes') {
-      if (request.method === 'OPTIONS') return opsPreflight('GET');
-      if (request.method !== 'GET') return withOpsCors(unauthorized());
-      const refused = await rejectUnauthorizedOpsRead(request, env);
-      if (refused) return withOpsCors(refused);
-      if (env.RESELLER === undefined) return withOpsCors(unauthorized());
-      return withOpsCors(
-        await env.RESELLER.get(env.RESELLER.idFromName(RESELLER_FEED_NAME)).fetch(new Request('https://do/codes')),
-      );
     }
 
     /**
@@ -2185,8 +2140,8 @@ export default {
 /**
  * RESELLER-AUTH-1 — the caller's ACTIVE session, or nobody. Only an `SPS-`
  * bearer is consulted: key C and the progress secret ride the same header on
- * routes answered above this gate, and a legacy `SP-` feed code is a door, not
- * an identity. Pending and paused accounts resolve to nobody — the state the
+ * routes answered above this gate (the old `SP-` feed codes are retired,
+ * CODES-RETIRES-1). Pending and paused accounts resolve to nobody — the state the
  * founder set outranks the credential she holds, here as on every read.
  */
 async function sessionActive(request: Request, env: Env): Promise<{ accountId: string } | undefined> {
@@ -2577,32 +2532,6 @@ function lienProcheValide(
   if (typeof contestee !== 'boolean') return undefined;
   if (resolution !== undefined && resolution !== 'clear' && resolution !== 'violation') return undefined;
   return { outcome, signals: signals as string[], contestee, ...(resolution !== undefined ? { resolution } : {}) };
-}
-
-/**
- * RF-1a (verifier B4) — the founder's FEED-CODE routes answer his console,
- * the same reader and the same exact-origin discipline his dispatch read got
- * one screen earlier. Without this they were curl-only, and their fall-through
- * 404 was stamped with the BUYER PWA's origin.
- */
-function withOpsCors(res: Response): Response {
-  const headers = new Headers(res.headers);
-  headers.set('Access-Control-Allow-Origin', DISPATCH_CORS_ORIGIN);
-  headers.set('Vary', 'Origin');
-  headers.set('Cache-Control', 'private, no-store');
-  return new Response(res.body, { status: res.status, statusText: res.statusText, headers });
-}
-
-function opsPreflight(methods: string): Response {
-  return new Response(null, {
-    status: 204,
-    headers: {
-      'Access-Control-Allow-Origin': DISPATCH_CORS_ORIGIN,
-      'Access-Control-Allow-Methods': methods,
-      'Access-Control-Allow-Headers': 'Accept, Authorization, Content-Type',
-      'Access-Control-Max-Age': '86400',
-    },
-  });
 }
 
 function withDispatchCors(res: Response): Response {

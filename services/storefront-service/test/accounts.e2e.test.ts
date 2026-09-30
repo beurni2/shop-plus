@@ -484,45 +484,6 @@ describe('CODE-REVU (founder ruling 2026-08-09) — the founder rereads an UNCON
   });
 });
 
-describe('CODE-REVU — the reseller FEED code rereads too, same law', () => {
-  it('mint → /reseller/codes says revelable (never the code) → reveal answers the same bytes → revoke kills the reread', async () => {
-    const minted = await mf.dispatchFetch('http://c/reseller/code', {
-      method: 'POST',
-      headers: { ...cleC, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ resellerId: 'rev-revu-1' }),
-    });
-    expect(minted.status).toBe(200);
-    const code = (safeJson(await minted.text()) as { code: string }).code;
-
-    const liste = await mf.dispatchFetch('http://c/reseller/codes', { headers: cleC });
-    const listeText = await liste.text();
-    const rows = (safeJson(listeText) as { codes: Record<string, unknown>[] }).codes;
-    expect(rows.find((r) => r['resellerId'] === 'rev-revu-1')).toMatchObject({ revelable: true });
-    expect(listeText.includes(code)).toBe(false);
-
-    const revu = await mf.dispatchFetch('http://c/reseller/code/reveal', {
-      method: 'POST',
-      headers: { ...cleC, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ resellerId: 'rev-revu-1' }),
-    });
-    expect(revu.status).toBe(200);
-    expect((safeJson(await revu.text()) as { code: string }).code).toBe(code);
-
-    const coupe = await mf.dispatchFetch('http://c/reseller/code/revoke', {
-      method: 'POST',
-      headers: { ...cleC, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ resellerId: 'rev-revu-1' }),
-    });
-    expect(coupe.status).toBe(200);
-    const mort = await mf.dispatchFetch('http://c/reseller/code/reveal', {
-      method: 'POST',
-      headers: { ...cleC, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ resellerId: 'rev-revu-1' }),
-    });
-    expect(mort.status).toBe(404);
-  });
-});
-
 /**
  * ═══ CONTACT-WHATSAPP-1 (founder order 2026-08-23) — THE NUMBER REACHES HER
  * BOUTIQUE, and leaves it with her ═══

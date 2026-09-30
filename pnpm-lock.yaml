@@ -319,8 +319,8 @@ importers:
         specifier: ^4.20250705.0
         version: 4.20260702.1
       '@platform/recorded-answers':
-        specifier: git+https://github.com/beurni2/platform-contracts.git#d66b6bff1eab78021465caf2b3ce580e93e1e882&path:packages/recorded-answers
-        version: https://codeload.github.com/beurni2/platform-contracts/tar.gz/d66b6bff1eab78021465caf2b3ce580e93e1e882#path:packages/recorded-answers
+        specifier: git+https://github.com/beurni2/platform-contracts.git#e2e1584bd9fc3645ccdb08897c3f30d01ac4df6f&path:packages/recorded-answers
+        version: https://codeload.github.com/beurni2/platform-contracts/tar.gz/e2e1584bd9fc3645ccdb08897c3f30d01ac4df6f#path:packages/recorded-answers
       esbuild:
         specifier: ^0.25.5
         version: 0.25.12
@@ -1602,8 +1602,8 @@ packages:
     resolution: {path: packages/kernel-types, tarball: https://codeload.github.com/beurni2/platform-contracts/tar.gz/aba11c1305edeeef132698bdf4908e1a37188104}
     version: 3.25.0
 
-  '@platform/recorded-answers@https://codeload.github.com/beurni2/platform-contracts/tar.gz/d66b6bff1eab78021465caf2b3ce580e93e1e882#path:packages/recorded-answers':
-    resolution: {path: packages/recorded-answers, tarball: https://codeload.github.com/beurni2/platform-contracts/tar.gz/d66b6bff1eab78021465caf2b3ce580e93e1e882}
+  '@platform/recorded-answers@https://codeload.github.com/beurni2/platform-contracts/tar.gz/e2e1584bd9fc3645ccdb08897c3f30d01ac4df6f#path:packages/recorded-answers':
+    resolution: {path: packages/recorded-answers, tarball: https://codeload.github.com/beurni2/platform-contracts/tar.gz/e2e1584bd9fc3645ccdb08897c3f30d01ac4df6f}
     version: 3.26.0
 
   '@platform/taxonomy@https://codeload.github.com/beurni2/platform-contracts/tar.gz/1fb7649d981521329b5ad041ec52c89728981b14#path:packages/taxonomy':
@@ -5041,7 +5041,7 @@ snapshots:
     dependencies:
       zod: 4.4.3
 
-  '@platform/recorded-answers@https://codeload.github.com/beurni2/platform-contracts/tar.gz/d66b6bff1eab78021465caf2b3ce580e93e1e882#path:packages/recorded-answers': {}
+  '@platform/recorded-answers@https://codeload.github.com/beurni2/platform-contracts/tar.gz/e2e1584bd9fc3645ccdb08897c3f30d01ac4df6f#path:packages/recorded-answers': {}
 
   '@platform/taxonomy@https://codeload.github.com/beurni2/platform-contracts/tar.gz/1fb7649d981521329b5ad041ec52c89728981b14#path:packages/taxonomy': {}
 
