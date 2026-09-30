@@ -2502,25 +2502,27 @@ async function suiviPagine(
  * `lienRetenu`). The board counted it as a sale and as a net, and ranked her
  * up for it. It is now counted apart, copied not recomputed (SP-I04), and the
  * key is ABSENT when there is none — never a zero standing in for nothing.
+ * `misesDeCote` is her book's own word (« mis de côté le temps d'une
+ * vérification »): Boutik+ bans « retenue » as seller-debit vocabulary.
  */
 function compteSuivi(): { ajouter: (p: Record<string, unknown>) => void; champs: () => Record<string, unknown> } {
   let ventes = 0;
   let net = 0;
-  let retenues = 0;
-  let netRetenu = 0;
+  let misesDeCote = 0;
+  let netMisDeCote = 0;
   return {
     ajouter(p) {
       if (p['state'] !== 'confirmed' || typeof p['resellerNet'] !== 'number') return;
       const lien = p['lienProche'] as { resolution?: unknown } | undefined;
       if (lien !== undefined && lien.resolution !== 'clear') {
-        retenues += 1;
-        netRetenu += p['resellerNet'];
+        misesDeCote += 1;
+        netMisDeCote += p['resellerNet'];
         return;
       }
       ventes += 1;
       net += p['resellerNet'];
     },
-    champs: () => ({ ventes, netFcfa: net, ...(retenues > 0 ? { retenues: { n: retenues, netFcfa: netRetenu } } : {}) }),
+    champs: () => ({ ventes, netFcfa: net, ...(misesDeCote > 0 ? { misesDeCote: { n: misesDeCote, netFcfa: netMisDeCote } } : {}) }),
   };
 }
 

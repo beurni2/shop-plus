@@ -408,22 +408,22 @@ describe('RELATED-PARTY-1 — §6.5 on the real Worker: her own number voids the
     expect(safeJson(await tard.text())['reason']).toBe('already_resolved');
   });
 
-  it('LE SUIVI (Boutik+ AUDIT-B+2 F-71): the founder\'s board applies HER book\'s rule — a held commission is neither a sale nor a net, it is counted apart (`retenues`), and a violation keeps it there', async () => {
+  it('LE SUIVI (Boutik+ AUDIT-B+2 F-71): the founder\'s board applies HER book\'s rule — a held commission is neither a sale nor a net, it is counted apart (`misesDeCote`), and a violation keeps it there', async () => {
     const S = await seance(mf, 'rp7');
-    const retenue = await commandePayee(S, '0007', commeTape(await sonNumero(S)));
+    const miseDeCote = await commandePayee(S, '0007', commeTape(await sonNumero(S)));
     const propre = await commandePayee(S, '0008', '70 99 88 77');
-    expect((await livree(retenue)).status).toBe(200);
+    expect((await livree(miseDeCote)).status).toBe(200);
     expect((await livree(propre)).status).toBe(200);
-    const netRetenue = Number((await saLigne(S, retenue))?.['resellerNet']);
+    const netMisDeCote = Number((await saLigne(S, miseDeCote))?.['resellerNet']);
     const netPropre = Number((await saLigne(S, propre))?.['resellerNet']);
-    expect(netRetenue > 0 && netPropre > 0).toBe(true);
+    expect(netMisDeCote > 0 && netPropre > 0).toBe(true);
 
     /** Her row on the paged board, its parts summed across pages as the console sums them. */
-    const saRangee = async (): Promise<{ ventes: number; netFcfa: number; retenues: { n: number; netFcfa: number } | undefined }> => {
+    const saRangee = async (): Promise<{ ventes: number; netFcfa: number; misesDeCote: { n: number; netFcfa: number } | undefined }> => {
       let cursor: string | undefined;
       let ventes = 0;
       let net = 0;
-      let retenues: { n: number; netFcfa: number } | undefined;
+      let misesDeCote: { n: number; netFcfa: number } | undefined;
       for (let page = 0; page < 20; page += 1) {
         const res = await mf.dispatchFetch(`http://c/reseller/suivi?paged=1${cursor === undefined ? '' : `&cursor=${encodeURIComponent(cursor)}`}`, { headers: cleC });
         expect(res.status).toBe(200);
@@ -432,21 +432,21 @@ describe('RELATED-PARTY-1 — §6.5 on the real Worker: her own number voids the
           if (l['accountId'] !== S.accountId) continue;
           ventes += Number(l['ventes']);
           net += Number(l['netFcfa']);
-          const r = l['retenues'] as { n: number; netFcfa: number } | undefined;
-          if (r !== undefined) retenues = { n: (retenues?.n ?? 0) + r.n, netFcfa: (retenues?.netFcfa ?? 0) + r.netFcfa };
+          const r = l['misesDeCote'] as { n: number; netFcfa: number } | undefined;
+          if (r !== undefined) misesDeCote = { n: (misesDeCote?.n ?? 0) + r.n, netFcfa: (misesDeCote?.netFcfa ?? 0) + r.netFcfa };
         }
         if (body.next === undefined) break;
         cursor = body.next;
       }
-      return { ventes, netFcfa: net, retenues };
+      return { ventes, netFcfa: net, misesDeCote };
     };
 
     // Her gains book: one sale Held, one Locked. The board says the same.
-    expect(await saRangee()).toEqual({ ventes: 1, netFcfa: netPropre, retenues: { n: 1, netFcfa: netRetenue } });
+    expect(await saRangee()).toEqual({ ventes: 1, netFcfa: netPropre, misesDeCote: { n: 1, netFcfa: netMisDeCote } });
 
     // « on violation → the commission stays with the platform »: still apart.
-    expect((await trancher(retenue, 'violation')).status).toBe(200);
-    expect(await saRangee()).toEqual({ ventes: 1, netFcfa: netPropre, retenues: { n: 1, netFcfa: netRetenue } });
+    expect((await trancher(miseDeCote, 'violation')).status).toBe(200);
+    expect(await saRangee()).toEqual({ ventes: 1, netFcfa: netPropre, misesDeCote: { n: 1, netFcfa: netMisDeCote } });
   });
 
   it('LE SUIVI (F-71): a CLEARED hold is ordinary money again — a sale and a net, nothing apart', async () => {
@@ -460,7 +460,7 @@ describe('RELATED-PARTY-1 — §6.5 on the real Worker: her own number voids the
     const sienne = (body.lignes ?? []).find((l) => l['accountId'] === S.accountId);
     expect(sienne?.['ventes']).toBe(1);
     expect(sienne?.['netFcfa']).toBe(net);
-    expect(sienne !== undefined && 'retenues' in sienne, 'no held part: the key is absent, never zero').toBe(false);
+    expect(sienne !== undefined && 'misesDeCote' in sienne, 'no held part: the key is absent, never zero').toBe(false);
   });
 
   it('SÉRA\'S REDELIVERY of the delivery signal is a duplicate and decides nothing twice', async () => {
