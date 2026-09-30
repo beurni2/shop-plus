@@ -1,6 +1,15 @@
 # JOURNAL — shop-plus
 Continuity ledger per CTO charter §6/§6bis. Every entry is evidence-grounded.
 
+## 2026-09-30 · CODES-RETIRES-1 MERGED AND DEPLOYED on the founder's « go »
+
+**Founder order (2026-09-30).** « go » — on the report of the entry below.
+- **Merged** `main` `eedf9f6 → a1723a2` (fast-forward), **ci 721 green** (service-canon-drift 416, pwa-preview 509, expo-preview 542 green — the reseller app and buyer PWA are unchanged by this change).
+- **Deployed AFTER the Boutik+ console** (web-deploy 87, whose live page no longer asks for old codes): **storefront-deploy 117 green** — Worker deployed, « Assert the live Worker speaks the canon this job bundled » green, the three smokes green (checkout answers by name, the buyer's tile road, the password hash count).
+- **Live now:** the four founder code doors are gone; `GET /reseller/ventes` opens only for an account session. Old code records stay in storage, inert — a wipe is his call.
+
+---
+
 ## 2026-09-30 · CODES-RETIRES-1 (Boutik+ AUDIT-B+2 F-73, founder ruling « Retire them ») — the old `SP-` feed codes open nothing and are made nowhere · on the branch, NOT merged, NOT deployed
 
 **Founder ruling (2026-09-30), verbatim.** « No live pages should show any test mode banner. Retire them. Keep the rank number » — « Retire them » answers F-73's held question: the feed codes he minted by hand before reseller accounts still read a reseller's sales, a paused reseller's included.
