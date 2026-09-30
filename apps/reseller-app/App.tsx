@@ -1953,8 +1953,8 @@ export default function App() {
     setCompteErreurKey(raisonKey);
     setCompte(null);
   };
-  /** A 401 on her money feed is a REASON TO ASK, never the verdict: the feed
-   *  door also refuses the legacy code road, so the session read decides. */
+  /** A 401 on her money feed is a REASON TO ASK, never the verdict: the
+   *  session read is the door that says whether her session has ended. */
   const verifierSession = async (): Promise<void> => {
     if (compteService === null) return;
     const bearer = await accessCodeStore.read();

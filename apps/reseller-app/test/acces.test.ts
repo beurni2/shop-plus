@@ -157,10 +157,10 @@ describe('ACCESS-GATE-1 — disarmed is not open', () => {
     expect(feed).toMatch(/if \(res\.status === 401\) return \{ ok: false, reason: 'unauthorized' \}/);
   });
 
-  it('the stored code survives the rename — a reseller who typed one before this slice is not shown a door again', () => {
+  it('CODES-EFFACES-1 — the old code file is no longer read: only the session file is (the walk rendu-ancien-code proves nothing leaves)', () => {
     const store = readFileSync(join(appDir, 'src/sales/code-store.ts'), 'utf8');
-    expect(store).toContain("'reseller-feed-code.v1.txt'"); // the old name, still read
-    expect(store).toContain("'reseller-access-code.v1.txt'"); // the new one, written
-    expect(store).toMatch(/lire\(file\) \?\? lire\(ancien\)/); // new first, old as fallback
+    expect(store).toContain("'reseller-access-code.v1.txt'"); // the session file, read and written
+    expect(store).not.toMatch(/new File\([^)]*reseller-feed-code/); // the retired file is never opened
+    expect(store).not.toMatch(/\?\? lire\(/); // no fallback read of any other file
   });
 });

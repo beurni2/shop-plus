@@ -6,7 +6,7 @@ import { HttpOfferSource, OFFERS_ROUTE } from '../src/vitrine/offers';
 /**
  * RESELLER-AUTH-1 (AUDIT-SHOP-1 slice a2a) — the supply read rides her session
  * exactly as the storefront adapter does: an `SPS-` bearer is presented as
- * `Authorization: Bearer`, a legacy `SP-` feed code is not. ACCES-ARME-2 — the
+ * `Authorization: Bearer`, an old, retired `SP-` code is not. ACCES-ARME-2 — the
  * session is the ONLY credential: a device with no store sends none at all.
  */
 
@@ -36,7 +36,7 @@ describe('HttpOfferSource — the session on the supply read', () => {
     expect(Object.keys(h).sort()).toEqual(['Accept', 'Authorization']);
   });
 
-  it('a legacy SP- code, no store, or a store that throws: no Authorization header — and no credential of any other name', async () => {
+  it('anything that is not a session (an old, retired SP- code included), no store, or a store that throws: no Authorization header — and no credential of any other name', async () => {
     const calls = stubFetch();
     await new HttpOfferSource('https://sf.example.dev', async () => 'SP-AAAA-BBBB-CCCC-DDDD').list();
     await new HttpOfferSource('https://sf.example.dev').list();

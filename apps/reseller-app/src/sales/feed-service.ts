@@ -77,8 +77,9 @@ export type FeedResult =
   | { readonly ok: false; readonly reason: 'unauthorized' | 'unreachable' | 'malformed' };
 
 export interface ResellerFeedPort {
-  /** `code` is her personal `SP-…` code. It is a PARAMETER, never a field of
-   *  this object, so it cannot be captured at construction and logged. */
+  /** `code` is her account session (`SPS-…`). It is a PARAMETER, never a
+   *  field of this object, so it cannot be captured at construction and
+   *  logged. */
   mesVentes(code: string): Promise<FeedResult>;
   /** RELATED-PARTY-1 — her one sentence on one held sale, riding the same code. */
   contester(code: string, orderId: string, texte: string): Promise<ContestResult>;

@@ -152,7 +152,7 @@ describe('HttpStorefrontService — the request the app WOULD send', () => {
       }
     });
 
-    it('a legacy SP- feed code is a door, not an identity: it is NOT presented; no store means no header — byte-identical to before', async () => {
+    it('only a session is an identity: an old, retired SP- code is NOT presented; no store means no header — byte-identical to before', async () => {
       const calls = stubFetch(200, { status: 'created', storefront: { slug: 'boutik-0007' } });
       await new HttpStorefrontService('https://sf.example.dev', async () => 'SP-AAAA-BBBB-CCCC-DDDD').create(CMD);
       await new HttpStorefrontService('https://sf.example.dev').create(CMD);

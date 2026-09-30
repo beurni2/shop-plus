@@ -400,8 +400,8 @@ export class HttpStorefrontService implements StorefrontServicePort {
   private async headers(extra?: Record<string, string>): Promise<Record<string, string>> {
     const bearer = await this.lireBearer().catch(() => null);
     return {
-      // Only a SESSION is an identity: a legacy `SP-` feed code opens the feed
-      // door and nothing else, so it is not presented here.
+      // Only a SESSION is an identity: anything else in the store (nothing
+      // else is written there today) is not presented here.
       ...(bearer !== null && bearer.startsWith('SPS-') ? { Authorization: `Bearer ${bearer}` } : {}),
       ...extra,
     };

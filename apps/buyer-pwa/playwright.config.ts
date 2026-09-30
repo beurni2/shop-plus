@@ -63,9 +63,11 @@ export default defineConfig({
       //
       // It builds into `.artifacts/` (gitignored, and excluded from the gate
       // source scans) so it can never be mistaken for the shipped bundle, and
-      // costs no lockfile change.
+      // costs no lockfile change. It also carries the deploy's PROFILE
+      // (CODES-EFFACES-1): `profil-publie.spec.ts` walks the published site's
+      // answer to the testing address here.
       command:
-        'VITE_STOREFRONT_BASE=http://127.0.0.1:9099/api pnpm exec vite build --outDir .artifacts/dist-real --emptyOutDir' +
+        'VITE_STOREFRONT_BASE=http://127.0.0.1:9099/api VITE_PROFILE=production pnpm exec vite build --outDir .artifacts/dist-real --emptyOutDir' +
         ' && pnpm exec vite preview --outDir .artifacts/dist-real --port 4175 --strictPort --host 127.0.0.1',
       url: 'http://127.0.0.1:4175',
       reuseExistingServer: false,

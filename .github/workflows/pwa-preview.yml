@@ -99,6 +99,11 @@ jobs:
       - name: Payload budget gate on THE deploy build (< 300 KB compressed, PERF-BUDGETS)
         env:
           VITE_STOREFRONT_BASE: https://storefront-service.ilboudobernard2.workers.dev
+          # CODES-EFFACES-1 (founder order 2026-09-30) — the site buyers' links
+          # open never answers the `?demo-cliente=` testing address (a demo
+          # order with a « Code de démonstration »): on this profile it is an
+          # ordinary visit. Unset elsewhere keeps the harness for local walks.
+          VITE_PROFILE: 'production'
         run: node scripts/gates/pwa-payload-budget.mjs
       # BUG 2 — the deploy ships dist AS-IS. The old redirect-wrapper (a fresh
       # index.html that meta-refreshed to app.html) CLOBBERED the SPA restore:

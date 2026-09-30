@@ -29,25 +29,25 @@
  * it. The code was also the only thing that identified her, so the app knew who
  * she was ONLY on the two screens that happened to ask.
  *
- * Now there is ONE code. It is an ACCESS code: minted on the founder's console,
- * handed to a new reseller, typed once at the entrance. Everything inside — her
- * feed, her gains, her home screen — rides that single credential. Nothing
- * inside the app ever asks for a code again.
+ * Now there is ONE door, at the entrance: her account, then the one-time
+ * admission code the founder minted for it. Everything inside — her feed, her
+ * gains, her home screen — rides her account SESSION. Nothing inside the app
+ * ever asks for a code again.
  *
- * ═══ THE CODE IS STILL THE IDENTITY, AND THAT PROPERTY IS UNCHANGED ═══
+ * ═══ THE SESSION IS THE IDENTITY, AND THE SERVER DERIVES IT ═══
  *
- * `reseller-feed-do.ts` derives `resellerId` from the code SERVER-SIDE and
- * never accepts one claimed by a body — because `rs-{4 digits}` is nine
+ * The router resolves HER ACCOUNT SESSION to her account id SERVER-SIDE and
+ * never accepts an id claimed by a body — because `rs-{4 digits}` is nine
  * thousand values, and a feed that trusted a claimed id would hand any reseller
- * every other reseller's economics. Moving the prompt to the entrance changes
- * WHERE she types it, not what the server trusts. **The money read stays
- * authenticated no matter what this flag says.**
+ * every other reseller's economics. (The founder-minted `SP-` feed codes that
+ * once did this job are retired and erased — CODES-RETIRES-1, CODES-EFFACES-1.)
+ * **The money read stays authenticated no matter what this flag says.**
  *
  * ═══ « OFF FOR NOW » IS A CLIENT DECISION, NEVER A SERVER ONE ═══
  *
  * `EXPO_PUBLIC_ACCESS_GATE` decides whether the app ASKS. It cannot and does
  * not open `GET /reseller/ventes`, which still refuses every request without a
- * valid code. That separation is deliberate and is the only way a flag like
+ * valid session. That separation is deliberate and is the only way a flag like
  * this is safe to ship disarmed: a flag that also opened the server would be an
  * unauthenticated money-read living in production behind a value someone
  * forgets to flip back.
@@ -57,13 +57,13 @@
  * connected » state. That is not a failure — it is the truth about an app that
  * has not been told who is holding it.
  *
- * ═══ WHY A STORED CODE IS NOT RE-VERIFIED AT LAUNCH ═══
+ * ═══ WHY THE LAST-KNOWN ACCOUNT STATE IS NOT RE-VERIFIED BEFORE OPENING ═══
  *
- * The gate opens on a code being PRESENT, not on a round-trip proving it still
- * works. Verifying at launch would mean a dead network is a dead app, and this
- * app is offline-first by law (Ten Laws #7) on phones whose data drops for
- * hours. A revoked code therefore still opens the shell — and then every read
- * behind it refuses, honestly and by name, which is where a revocation belongs.
+ * The gate opens on her account's LAST-KNOWN state, not on a round-trip proving
+ * it still holds. Verifying first would mean a dead network is a dead app, and
+ * this app is offline-first by law (Ten Laws #7) on phones whose data drops for
+ * hours. An ended session therefore still opens the shell — and then the
+ * session read ends it by name (SESSION-VIE-1), which is where that belongs.
  * The gate is onboarding, not authorization; authorization is the server's, and
  * it never moved.
  */
@@ -95,14 +95,14 @@ export type Acces =
 /**
  * The whole rule, pure and total.
  *
- * IT TAKES A BOOLEAN, NEVER THE CODE. The gate's only question is « does this
- * device hold one », so the credential itself has no reason to reach this
- * function and does not. A decision that cannot see a secret cannot leak one,
- * and cannot be tempted into comparing one.
+ * IT NEVER TAKES THE CREDENTIAL. The gate's only question is « what does this
+ * device last know of her account », so her session has no reason to reach
+ * this function and does not. A decision that cannot see a secret cannot leak
+ * one, and cannot be tempted into comparing one.
  *
  * `undefined` means the durable store has not answered yet. It is its own
- * state rather than folded into « no code », because flashing the entrance for
- * one frame at every launch — to a reseller who typed her code weeks ago — is
+ * state rather than folded into « no account », because flashing the entrance
+ * for one frame at every launch — to a reseller admitted weeks ago — is
  * exactly the kind of thing that makes an app feel untrustworthy on a slow
  * phone.
  */

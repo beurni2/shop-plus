@@ -120,7 +120,7 @@ describe('RF-1b — the door, over a real fetch surface', () => {
     }
   };
 
-  it('sends her code as a Bearer and NOTHING else — no key, no resellerId in the body', async () => {
+  it('sends her session as a Bearer and NOTHING else — no key, no resellerId in the body', async () => {
     let seenUrl = '';
     let seenInit: RequestInit | undefined;
     await withFetch(
@@ -130,23 +130,23 @@ describe('RF-1b — the door, over a real fetch surface', () => {
         return new Response(JSON.stringify({ ok: true, ventes: [] }), { status: 200 });
       }) as unknown as typeof fetch,
       async () => {
-        const res = await new HttpResellerFeed('https://api.example/').mesVentes('SP-AAAA-BBBB-CCCC-DDDD');
+        const res = await new HttpResellerFeed('https://api.example/').mesVentes('SPS-AAAA-BBBB-CCCC-DDDD');
         expect(res.ok).toBe(true);
       },
     );
     expect(seenUrl).toBe('https://api.example/reseller/ventes');
     const headers = seenInit?.headers as Record<string, string>;
-    expect(headers['Authorization']).toBe('Bearer SP-AAAA-BBBB-CCCC-DDDD');
-    // the identity is DERIVED server-side from the code — the client never claims it
+    expect(headers['Authorization']).toBe('Bearer SPS-AAAA-BBBB-CCCC-DDDD');
+    // the identity is DERIVED server-side from the session — the client never claims it
     expect(JSON.stringify(seenInit ?? {}).includes('resellerId')).toBe(false);
     expect(seenInit?.method ?? 'GET').toBe('GET');
   });
 
-  it('a 401 is ONE refusal — the client never distinguishes "no such code" from "wrong code"', async () => {
+  it('a 401 is ONE refusal — the client never distinguishes "no such session" from "ended session"', async () => {
     await withFetch(
       (async () => new Response('{"error":"unauthorized"}', { status: 401 })) as unknown as typeof fetch,
       async () => {
-        expect(await new HttpResellerFeed('https://api.example').mesVentes('SP-nope')).toEqual({
+        expect(await new HttpResellerFeed('https://api.example').mesVentes('SPS-nope')).toEqual({
           ok: false,
           reason: 'unauthorized',
         });
@@ -160,7 +160,7 @@ describe('RF-1b — the door, over a real fetch surface', () => {
         throw new Error('network down');
       }) as unknown as typeof fetch,
       async () => {
-        expect(await new HttpResellerFeed('https://api.example').mesVentes('SP-x')).toEqual({
+        expect(await new HttpResellerFeed('https://api.example').mesVentes('SPS-x')).toEqual({
           ok: false,
           reason: 'unreachable',
         });
@@ -172,7 +172,7 @@ describe('RF-1b — the door, over a real fetch surface', () => {
     await withFetch(
       (async () => new Response(JSON.stringify({ ok: true, ventes: 'not an array' }), { status: 200 })) as unknown as typeof fetch,
       async () => {
-        expect((await new HttpResellerFeed('https://api.example').mesVentes('SP-x')).ok).toBe(false);
+        expect((await new HttpResellerFeed('https://api.example').mesVentes('SPS-x')).ok).toBe(false);
       },
     );
     await withFetch(
@@ -181,7 +181,7 @@ describe('RF-1b — the door, over a real fetch surface', () => {
           status: 200,
         })) as unknown as typeof fetch,
       async () => {
-        const res = await new HttpResellerFeed('https://api.example').mesVentes('SP-x');
+        const res = await new HttpResellerFeed('https://api.example').mesVentes('SPS-x');
         if (!res.ok) throw new Error('expected ok');
         expect(res.ventes.length).toBe(1);
       },
@@ -221,7 +221,7 @@ describe('RF-1b (verifier B3) — a partial feed is never presented as a complet
     globalThis.fetch = (async () =>
       new Response(JSON.stringify({ ok: true, ventes: [], incomplet: true }), { status: 200 })) as unknown as typeof fetch;
     try {
-      const res = await new HttpResellerFeed('https://api.example').mesVentes('SP-x');
+      const res = await new HttpResellerFeed('https://api.example').mesVentes('SPS-x');
       if (!res.ok) throw new Error('expected ok');
       expect(res.incomplet).toBe(true);
       expect(vueDesVentes(res.ventes, res.incomplet)).toEqual({ kind: 'empty', incomplet: true, nonConfirmees: 0 });
@@ -237,7 +237,7 @@ describe('RF-1b (verifier B3) — a partial feed is never presented as a complet
         status: 200,
       })) as unknown as typeof fetch;
     try {
-      const res = await new HttpResellerFeed('https://api.example').mesVentes('SP-x');
+      const res = await new HttpResellerFeed('https://api.example').mesVentes('SPS-x');
       if (!res.ok) throw new Error('expected ok');
       expect(res.ventes.length).toBe(1);
       expect(res.incomplet, 'a dropped row must be declared').toBe(true);
@@ -255,7 +255,7 @@ describe('RF-1b (verifier B3) — a partial feed is never presented as a complet
     globalThis.fetch = (async () =>
       new Response(JSON.stringify({ ok: true, ventes: [row()], incomplet: true }), { status: 200 })) as unknown as typeof fetch;
     try {
-      const res = await new HttpResellerFeed('https://api.example').mesVentes('SP-x');
+      const res = await new HttpResellerFeed('https://api.example').mesVentes('SPS-x');
       if (!res.ok) throw new Error('expected ok');
       const vue = vueDesVentes(res.ventes, res.incomplet);
       if (vue.kind !== 'ready') throw new Error('expected ready');
@@ -283,7 +283,7 @@ describe('RF-1b (verifier B3) — a partial feed is never presented as a complet
     globalThis.fetch = (async () =>
       new Response(JSON.stringify({ ok: true, ventes: [row()], incomplet: false }), { status: 200 })) as unknown as typeof fetch;
     try {
-      const res = await new HttpResellerFeed('https://api.example').mesVentes('SP-x');
+      const res = await new HttpResellerFeed('https://api.example').mesVentes('SPS-x');
       if (!res.ok) throw new Error('expected ok');
       expect(res.incomplet).toBe(false);
       const vue = vueDesVentes(res.ventes, res.incomplet);

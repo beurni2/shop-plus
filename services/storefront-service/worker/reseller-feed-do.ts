@@ -23,9 +23,15 @@
  * used to carry its own personal-code door (`SP-` codes the founder minted by
  * hand, `/code/*`, `/codes`, `/mine`). Accounts replaced them: the reseller
  * app had no field to type one, yet a code still read her sales, one minted
- * for a paused reseller included. The doors are gone. Records a past mint
- * left in storage (`codehash:*`, `resellercode:*`) are NOT wiped — nothing
- * reads them any more, so they open nothing.
+ * for a paused reseller included. The doors are gone.
+ *
+ * CODES-EFFACES-1 (founder order 2026-09-30: « erase the old codes still
+ * stored on shop+ server ») — and so are the records a past mint left:
+ * `codehash:*` (the hash door) and `resellercode:*` (the founder-side pointer,
+ * which kept each code IN CLEAR). The object erases them itself the first
+ * time it wakes after this deploy, before it answers anything, and writes one
+ * receipt (`purge:codes-retires`: when, how many) so a later wake does not
+ * list again. The sale rows (`row:*`) are her index and are never touched.
  *
  * ═══ WHAT THE FEED CAN HONESTLY SAY TODAY (and what it must not) ═══
  *
@@ -52,6 +58,24 @@
 
 export const RESELLER_FEED_NAME = 'reseller-feed';
 const ROW_PREFIX = 'row:';
+/** What the retired `SP-` mint wrote — erased, never written again. */
+const RETIRED_PREFIXES = ['codehash:', 'resellercode:'] as const;
+const PURGE_RECEIPT = 'purge:codes-retires';
+/** The most keys one storage delete accepts. */
+const DELETE_BATCH = 128;
+
+async function effacerAnciensCodes(storage: DurableObjectStorage): Promise<void> {
+  if ((await storage.get(PURGE_RECEIPT)) !== undefined) return;
+  let erased = 0;
+  for (const prefix of RETIRED_PREFIXES) {
+    for (;;) {
+      const keys = [...(await storage.list({ prefix, limit: DELETE_BATCH })).keys()];
+      if (keys.length === 0) break;
+      erased += await storage.delete(keys);
+    }
+  }
+  await storage.put(PURGE_RECEIPT, { at: new Date().toISOString(), erased });
+}
 
 /** One confirmed sale, as the INDEX holds it: ids and a clock, nothing more.
  *  Every fact the reseller reads is fetched from the order's own object at
@@ -62,7 +86,10 @@ interface FeedRow {
 }
 
 export class ResellerFeedDO {
-  constructor(private readonly state: DurableObjectState) {}
+  constructor(private readonly state: DurableObjectState) {
+    // Before the first request is served (blockConcurrencyWhile holds them).
+    void state.blockConcurrencyWhile(() => effacerAnciensCodes(state.storage));
+  }
 
   async fetch(request: Request): Promise<Response> {
     const { pathname } = new URL(request.url);

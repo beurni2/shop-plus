@@ -17,8 +17,9 @@ import { OPS_SECRET, cleC, seance } from './seance';
  *
  * · the four founder doors that minted, listed, reread and cut them are
  *   gone: even on his key they answer as a door that never existed;
- * · a code minted BEFORE the retirement (still in the book's storage — it is
- *   not wiped) opens NOTHING: her sales answer the one uniform 401;
+ * · a code minted BEFORE the retirement opens NOTHING: her sales answer the
+ *   one uniform 401 (and the book erases its record on waking —
+ *   CODES-EFFACES-1, proven in codes-effaces.e2e);
  * · her account session still opens her own sales (the control).
  */
 
@@ -131,7 +132,7 @@ describe('CODES-RETIRES-1 — the old feed codes open nothing and are made nowhe
     }
   });
 
-  it('a code minted BEFORE the retirement, still in the book, opens NOTHING — her sales answer the one 401', async () => {
+  it('a code minted BEFORE the retirement opens NOTHING — her sales answer the one 401', async () => {
     // Precondition: the old records really are in the store this Worker reads
     // — the row her id owns comes back through the id-keyed projection.
     const ns = await mf.getDurableObjectNamespace('RESELLER');

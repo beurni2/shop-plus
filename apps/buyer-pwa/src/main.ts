@@ -683,7 +683,11 @@ if (app) {
   // habillages (C2 mounts C1 with the sheet open). `?demo-cliente=<C1..C9>&theme=&stock=out&voix=0&offline=1&b=indisponible&micro=refuse&demo=0&etat=loading&conf=&revealed=1&prix=&frais=`.
   // (`prix`/`frais` = what the mock quote service is asked to price — `harnessFrancs`.)
   // (The retired `?demo-achat=` S1–S7 param is read by NOTHING — un-generatable.)
-  const clienteDemo = params.get('demo-cliente');
+  // CODES-EFFACES-1 (founder order 2026-09-30) — the harness walks a demo order
+  // with a demonstration code, so the site real links open never answers it:
+  // the deploy builds with VITE_PROFILE 'production' (pwa-preview.yml), and
+  // there the address is an ordinary visit. Unset (local runs, tests) keeps it.
+  const clienteDemo = import.meta.env.VITE_PROFILE === 'production' ? null : params.get('demo-cliente');
   const CLIENTE_ECRANS: readonly ClienteEcran[] = ['C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'C7', 'C8', 'C9'];
 
   /**
