@@ -1,21 +1,22 @@
 /**
- * RF-1c — the live wiring for « Mes ventes »: her code, her feed, her states.
+ * RF-1c — the live wiring for « Mes ventes »: her session, her feed, her states.
  *
  * Everything DECIDABLE lives in `feed-model.ts` and `feed-screen.ts`, which are
  * pure and exhaustively tested. This module owns only the two things a hook
- * must own — the durable code on her device, and when to fetch — so that no
+ * must own — the durable credential on her device, and when to fetch — so that no
  * rendering decision hides inside an effect.
  *
- * HER CODE NEVER ENTERS THE BUNDLE. It is typed once, stored in the same
- * document directory the reseller identity uses (durable across app-kill,
- * reboot and an EAS republish), and sent as a Bearer. The only value read from
- * the environment is the base URL.
+ * HER CREDENTIAL NEVER ENTERS THE BUNDLE. It is her account SESSION (`SPS-…`),
+ * written by the entrance at sign-up or sign-in, stored in the same document
+ * directory the reseller identity uses (durable across app-kill, reboot and an
+ * EAS republish), and sent as a Bearer. The only value read from the
+ * environment is the base URL. (The founder-minted `SP-` feed codes this hook
+ * was first built for are retired and erased — CODES-RETIRES-1,
+ * CODES-EFFACES-1.)
  *
- * ACCESS-GATE-1 — AND IT IS TYPED AT THE ENTRANCE, NEVER HERE. This hook still
- * owns the credential and still exposes `ouvrir`, because verifying a code IS
- * one feed read and there is no second route that could validate one. What
- * changed is WHO calls it: the access screen, once, instead of two walls in the
- * middle of the app. `codePresent` is what the gate reads.
+ * ACCESS-GATE-1 — NOTHING IS TYPED HERE. This hook owns the credential and
+ * exposes `ouvrir`, which the app calls with her session once her account is
+ * active (sign-in, admission). `codePresent` is what the gate reads.
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -25,7 +26,7 @@ import { ecranDesVentes, type VentesEcran } from './feed-screen';
 import { vueDesGains, type GainsVue } from './gains-model';
 import { ecranDesGains, type GainsEcran } from './gains-screen';
 
-/** Where her code lives between sessions. Injected so tests never touch native. */
+/** Where her session lives between launches. Injected so tests never touch native. */
 export interface CodeStore {
   read(): Promise<string | null>;
   write(code: string): Promise<void>;
@@ -45,23 +46,23 @@ export interface VentesReelles {
    * first rung is precisely the sales that are not confirmed yet.
    */
   readonly gains: GainsEcran;
-  /** Submit a code typed at the ENTRANCE. Persists it only once it opens. */
+  /** Read her feed with the session the entrance just got. Persists it only once it opens. */
   readonly ouvrir: (code: string) => Promise<void>;
   readonly recharger: () => Promise<void>;
   /** RELATED-PARTY-1 — her one sentence on one held sale; on success the feed is re-read so her words show. */
   readonly contester: (orderId: string, texte: string) => Promise<ContestResult>;
   /**
-   * ACCESS-GATE-1 — does this device hold a code?
+   * ACCESS-GATE-1 — does this device hold a session?
    *
    * `undefined` while the durable store is still answering, and the gate MUST
    * treat that as « do not know yet » rather than « no »: flashing the entrance
-   * for one frame at every launch, to a reseller who typed her code weeks ago,
+   * for one frame at every launch, to a reseller who signed in weeks ago,
    * is how an app stops feeling trustworthy on a slow phone.
    */
   readonly codePresent: boolean | undefined;
-  /** TRUE while the entrance is verifying a typed code — one feed read. */
+  /** TRUE while `ouvrir` is reading her feed with a new session — one feed read. */
   readonly verification: boolean;
-  /** The last typed code was refused by the server (401). */
+  /** The last session was refused by the feed (401) — a reason to ask the session read, never the verdict. */
   readonly refuse: boolean;
 }
 
@@ -109,9 +110,9 @@ export function useVentesReelles(store: CodeStore, port: ResellerFeedPort | null
     [port],
   );
 
-  // On mount: open with the stored code if she has one, else show the door.
+  // On mount: open with the stored session if she has one, else show the door.
   // NOTE the empty dependency list is deliberate — this runs once, and every
-  // later read goes through `ouvrir`/`recharger`, which carry the code
+  // later read goes through `ouvrir`/`recharger`, which carry the session
   // explicitly rather than through a dependency React may skip.
   useEffect(() => {
     let alive = true;
@@ -119,7 +120,7 @@ export function useVentesReelles(store: CodeStore, port: ResellerFeedPort | null
       if (port === null) {
         // NO FEED CONFIGURED. The gate must still resolve — leaving it on
         // « lecture » forever would be a permanent spinner instead of a
-        // sentence — so it resolves to « no code », and the entrance says
+        // sentence — so it resolves to « no session », and the entrance says
         // plainly that the app is not connected rather than offering an input
         // that could never succeed.
         setCodePresent(false);
@@ -133,9 +134,9 @@ export function useVentesReelles(store: CodeStore, port: ResellerFeedPort | null
         setGains({ kind: 'verrouille' });
         return;
       }
-      // A STORED CODE MEANS THE GATE OPENS NOW, before the read answers. The
+      // A STORED SESSION MEANS THE GATE OPENS NOW, before the read answers. The
       // shell must not wait on the network to let her in (Ten Laws #7); if the
-      // code has since been revoked, the read below says so honestly.
+      // session has since ended, the read below says so honestly.
       setCodePresent(true);
       await lire(stored);
     })();
@@ -156,7 +157,7 @@ export function useVentesReelles(store: CodeStore, port: ResellerFeedPort | null
       setVerification(true);
       await lire(trimmed);
       setVerification(false);
-      // PERSISTED ONLY AFTER IT OPENED. Storing a refused code would greet her
+      // PERSISTED ONLY AFTER IT OPENED. Storing a refused session would greet her
       // with a refusal on every launch until she found where to clear it.
       if (code.current === trimmed) await store.write(trimmed).catch(() => undefined);
     },

@@ -14,8 +14,9 @@ import { resetFiles } from './doubles/expo-file-system';
  * at every launch: a dead credential leaving the phone for a refusal.
  *
  * The walk mounts the real app on a phone that holds ONLY the old file and
- * asks the wire: the entrance is there and its door is pressable, and no
- * request carries the old code. The CONTROL mounts a signed-in phone: her
+ * asks the wire: the entrance is there, she signs up through it and reaches
+ * the next step (the admission screen), and no request — header or body —
+ * carries the old code. The CONTROL mounts a signed-in phone: her
  * sales read does leave, riding her session — so « nothing left the phone »
  * above is a measurement of this wire, not a deaf one.
  *
@@ -27,6 +28,7 @@ const ANCIEN_CODE = 'SP-ABCD-EFGH-IJKL-MNOP';
 const SESSION = 'SPS-AAAA-BBBB-CCCC-DDDD';
 const COMPTE = { accountId: 'rs-7777', name: 'Awa Traoré', state: 'active' } as const;
 const PORTE_COMPTE = 'Créer mon compte';
+const PORTE_ADMISSION = 'Encore un pas';
 
 const routes: Route[] = [
   (path) =>
@@ -36,6 +38,14 @@ const routes: Route[] = [
   (path) => (path === '/storefronts' ? { status: 200, json: [] as never } : null),
   (path) => (/^\/storefronts\/[^/]+$/.test(path) ? { status: 404, json: { error: 'not_found' } } : null),
   (path) => (path === '/reseller/session' ? { status: 200, json: { ok: true, ...COMPTE } } : null),
+  // signup — the REAL door's 200 (reseller-accounts-do.ts:307), as rendu-entree-armee fakes it
+  (path, body) =>
+    path === '/reseller/signup'
+      ? {
+          status: 200,
+          json: { ok: true, accountId: COMPTE.accountId, name: (body?.['name'] as string) ?? '', state: 'pending_access', session: SESSION },
+        }
+      : null,
   (path) => (path === '/reseller/ventes' ? { status: 200, json: { ok: true, ventes: [], incomplet: false } } : null),
 ];
 
@@ -57,7 +67,7 @@ afterEach(() => {
 });
 
 describe('CODES-EFFACES-1 — an old code left on the phone opens nothing and leaves nothing', () => {
-  it('a phone holding only the old code file: the entrance stands, « Créer mon compte » is pressable, and no request carries the old code', async () => {
+  it('a phone holding only the old code file: the entrance stands, she signs up through it to the next step, and no request carries the old code', async () => {
     await ecrire('reseller-feed-code.v1.txt', ANCIEN_CODE);
     const fils = wire(routes);
     const screen = await mountApp();
@@ -65,15 +75,22 @@ describe('CODES-EFFACES-1 — an old code left on the phone opens nothing and le
 
     expect(screen.shows(PORTE_COMPTE), `on screen: ${JSON.stringify(screen.texts())}`).toBe(true);
     expect(screen.canPress('Opportunités'), 'the app shell must stay behind the entrance').toBe(false);
-    // Her next step is reachable: the entrance's own button, once she has filled it.
+    expect(fils.calls.filter((c) => c.path === '/reseller/ventes').length, 'no sales read without a session').toBe(0);
+    // Her next step is reachable: the entrance's own button, filled and pressed.
     await screen.type('Awa Traoré', 'Votre nom');
     await screen.type('70 00 00 00', 'Votre numéro WhatsApp');
     await screen.type('awa@example.bf', 'Votre email');
     await screen.type('motdepasse', 'Votre mot de passe (8 lettres ou plus)');
     expect(screen.canPress(PORTE_COMPTE), 'the entrance door must be pressable').toBe(true);
-    const porteuses = fils.calls.filter((c) => c.auth !== null && c.auth.includes(ANCIEN_CODE));
+    await screen.press(PORTE_COMPTE);
+    await screen.settle();
+    expect(fils.calls.some((c) => c.path === '/reseller/signup'), 'the signup must have left the phone').toBe(true);
+    expect(screen.shows(PORTE_ADMISSION), `after signup: ${JSON.stringify(screen.texts())}`).toBe(true);
+
+    const porteuses = fils.calls.filter(
+      (c) => (c.auth !== null && c.auth.includes(ANCIEN_CODE)) || JSON.stringify(c.body ?? null).includes(ANCIEN_CODE),
+    );
     expect(porteuses.map((c) => c.path), 'the old code left the phone').toEqual([]);
-    expect(fils.calls.filter((c) => c.path === '/reseller/ventes').length, 'no sales read without a session').toBe(0);
     screen.unmount();
   });
 

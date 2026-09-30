@@ -17,9 +17,13 @@ import { OPS_SECRET, cleC, seance } from './seance';
  *
  * · the four founder doors that minted, listed, reread and cut them are
  *   gone: even on his key they answer as a door that never existed;
- * · a code minted BEFORE the retirement opens NOTHING: her sales answer the
- *   one uniform 401 (and the book erases its record on waking —
- *   CODES-EFFACES-1, proven in codes-effaces.e2e);
+ * · a code minted BEFORE the retirement opens NOTHING, with its records
+ *   still in the store: her sales answer the one uniform 401. (The book
+ *   erases such records once, on its first wake after the deploy —
+ *   CODES-EFFACES-1, proven in codes-effaces.e2e. So this file wakes the book
+ *   FIRST, lets that erase run and leave its receipt, and only then writes the
+ *   old code: the refusal is measured with the records present, and the store
+ *   is asked at the end that the erase never ran a second time.)
  * · her account session still opens her own sales (the control).
  */
 
@@ -65,10 +69,31 @@ async function laisserUnAncienCode(): Promise<void> {
   await avant.dispose();
 }
 
-let mf: Miniflare;
-beforeAll(async () => {
-  await laisserUnAncienCode();
-  mf = new Miniflare({
+/** The store, listed whole by a stand-in of the same class — the real book has
+ *  no door that lists its storage, and none is added for a test. */
+async function lireLeMagasin(): Promise<Record<string, unknown>> {
+  const lecteur = new Miniflare({
+    modules: true,
+    script: `
+      export class ResellerFeedDO {
+        constructor(state) { this.state = state; }
+        async fetch() { return Response.json(Object.fromEntries(await this.state.storage.list())); }
+      }
+      export default {
+        async fetch(request, env) { return env.RESELLER.get(env.RESELLER.idFromName('reseller-feed')).fetch(request); }
+      };`,
+    durableObjects: { RESELLER: 'ResellerFeedDO' },
+    durableObjectsPersist: persist,
+  });
+  try {
+    return (await (await lecteur.dispatchFetch('http://lire/')).json()) as Record<string, unknown>;
+  } finally {
+    await lecteur.dispose();
+  }
+}
+
+function leVraiWorker(): Miniflare {
+  return new Miniflare({
     modules: true,
     scriptPath: SCRIPT,
     durableObjects: {
@@ -87,9 +112,25 @@ beforeAll(async () => {
       CHECKOUT_OPS_SECRET: OPS_SECRET,
     },
   });
+}
+
+let mf: Miniflare;
+let ferme = false;
+beforeAll(async () => {
+  // THE DEPLOY'S FIRST WAKE: the real book opens on an empty store, runs its
+  // one erase and writes the receipt. Only then is the old code written.
+  const premier = leVraiWorker();
+  const ns = await premier.getDurableObjectNamespace('RESELLER');
+  await (await ns.get(ns.idFromName('reseller-feed')).fetch('https://do/rows', {
+    method: 'POST',
+    body: JSON.stringify({ resellerId: 'rs-0001' }),
+  })).text();
+  await premier.dispose();
+  await laisserUnAncienCode();
+  mf = leVraiWorker();
 });
 afterAll(async () => {
-  await mf.dispose();
+  if (!ferme) await mf.dispose();
   rmSync(persist, { recursive: true, force: true });
 });
 
@@ -154,5 +195,14 @@ describe('CODES-RETIRES-1 — the old feed codes open nothing and are made nowhe
     const body = (await res.json()) as { ok?: boolean; ventes?: unknown[] };
     expect(body.ok).toBe(true);
     expect(Array.isArray(body.ventes)).toBe(true);
+  });
+
+  it('the old records were in the store the whole time the door refused them — the erase ran once, before they were written, and never again', async () => {
+    await mf.dispose();
+    ferme = true;
+    const magasin = await lireLeMagasin();
+    expect(magasin[`codehash:${sha256(ANCIEN)}`], 'the hash record was present while the 401 was measured').toBeDefined();
+    expect(magasin[`resellercode:${ANCIENNE_ID}`], 'the pointer record was present while the 401 was measured').toBeDefined();
+    expect(magasin['purge:codes-retires'], 'the first wake left its receipt, and no later wake rewrote it').toMatchObject({ erased: 0 });
   });
 });
