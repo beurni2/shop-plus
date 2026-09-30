@@ -1,6 +1,16 @@
 # JOURNAL — shop-plus
 Continuity ledger per CTO charter §6/§6bis. Every entry is evidence-grounded.
 
+## 2026-09-30 · Boutik+ LISTER-VRAI-1 (AUDIT-B+2 F-90) — the copy-lint refuses the banned words in every form · i18n repinned · on the branch, NOT merged (nothing here deploys)
+
+**Why here.** §10.5 hard rule 2 bans « séquestre » / "escrow" from every customer string, but the lint matched one spelling: « séquestrées », « escrowed » and « conformément aux » passed. The canon list gained eleven inflections (platform-contracts `280485c`, widened on the Boutik+ verifier pass to « séquestration(s) » and the common verb forms — `cfff2c5`), measured first against all 2 946 strings of the seven catalogs of the three apps — zero hits, so no Shop+ copy is refused.
+
+**What moved.** `@platform/i18n` `a418ca4 → 280485c → cfff2c5` (`a6d5a98`, `6767c35`) in the root manifest and the three app manifests (buyer PWA, reseller app, reseller kit); lockfile; `gates/fixtures/negative/catalog.inflections.json` + its board line — the fixture's ONLY violations are the new forms, and it PASSES under `a418ca4` (measured), so a pin regression turns this board red. Nothing else in the app code changed. **One test budget (`b41cd06`):** `rendu-marge`'s first walk — the file's cold mount of the whole reseller app — ran out of the 5 s default twice under full-board load (never alone, 16/16 each time run by itself); it gets the house 20 s budget of the other full-app walks (`rendu-file-attente`), assertions unchanged.
+
+**Evidence.** copy-lint (under `cfff2c5`): buyer PWA 690 · reseller app 576 · reseller kit 22 entries, 0 violations; the new fixture and the F12 fixture both fail as required; `CI=true pnpm install --frozen-lockfile` exit 0; gate board `bash scripts/run-gates.sh` on `b41cd06`: **ALL GATES GREEN**.
+
+---
+
 ## 2026-09-29 · Boutik+ RETOUR-RAYON-1 (AUDIT-B+2 F-36) — the refusal relay's Boutik+ stand-ins answer what the real door now answers · MERGED 2026-09-29 on the founder's « go » (nothing here deploys)
 
 **Founder ruling (2026-09-28).** « back on sale when supplier confirms it » — built in Boutik+ (its JOURNAL holds the slice). Boutik+'s refused-course intake no longer restocks a refusal at the buyer's DOOR: it answers `restock_on_return` (buyer / payment_provider fault), `no_restock` + faultClass (any other), `restocked` only for a refusal AT PICKUP; the unit goes back on sale when the supplier confirms the return code.
