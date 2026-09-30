@@ -1,6 +1,18 @@
 # JOURNAL — shop-plus
 Continuity ledger per CTO charter §6/§6bis. Every entry is evidence-grounded.
 
+## 2026-09-30 · Boutik+ CONSOLE-VRAIE-1 (AUDIT-B+2 F-71) — LE SUIVI: a commission §6.5 holds is counted apart on the founder's reseller board · on the branch, NOT merged, NOT deployed
+
+**What moved.** `/reseller/suivi` (both the whole and the paged read, one helper `compteSuivi()`) now applies her own gains book's rule: a confirmed sale whose commission §6.5 holds (`lienProche` present and not cleared — under review, or a violation whose commission stays with the platform) is neither a sale nor a net; it is counted apart as `misesDeCote: { n, netFcfa }`, the key ABSENT when there is none. Copied, never recomputed (SP-I04). A cleared hold is ordinary money again. Before, the board counted it as a sale and a net and ranked her up for it (audit measure: `ventes=2 net=5000` against her book's Locked 1 / Held 1).
+
+**The name.** First shipped on the branch as `retenues` (`c939ca9`); Boutik+'s money-word tripwire (B+I-12) bans « retenue » in its code and copy, so the field became `misesDeCote` — her book's own words, « mis de côté le temps d'une vérification » (`21da428`). My explanatory comment then named « seller-debit » and tripped this repo's twin gate; reworded (`56004c2`).
+
+**Evidence.** Seam tests on the real Worker (`related-party.e2e.test.ts`, 8 green): one held + one clean sale → `{ ventes: 1, netFcfa: clean, misesDeCote: { n: 1, netFcfa: held } }` summed across pages as the console sums them; a violation ruling keeps it apart; a cleared hold is a sale and the key is absent. Recorded answers re-recorded by this repo's own record run (531 green) into canon `d66b6bf`; repinned. Gate board on the final tree `56004c2`: **ALL GATES GREEN** (the run before it was red on the one comment above, nothing else; service 908, reseller app 854, buyer app 1 398 tests; the recorded answers certified door by door). Mutations (in Boutik+'s run): M20 held counted as a sale → KILLED; M21 empty held count sent → KILLED.
+
+**Not changed.** Money rules, shapes, migrations. The board's rank numbers (his call, held). The old SP- code road (F-73's server half, his call, held).
+
+---
+
 ## 2026-09-30 · Boutik+ LISTER-VRAI-1 (F-90 repin) MERGED on the founder's « go » (nothing here deploys)
 
 `main` fast-forwarded `0db6353 → e185b10` (ancestry verified), after the canon's `main` reached `cfff2c5`; **ci 717 green** and service-canon-drift 411 green on `e185b10`.
