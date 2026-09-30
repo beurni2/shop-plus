@@ -64,7 +64,7 @@ onlyBuiltDependencies:
 #                          transitive (Grand Teint API); the four manifests
 #                          that name it now name this same sha.
 #   @platform/i18n         NOT overridden — pinned directly in every manifest
-#                          to 280485c (Boutik+ AUDIT-B+2 F-90, 2026-09-30: the
+#                          to cfff2c5 (Boutik+ AUDIT-B+2 F-90, 2026-09-30: the
 #                          banned words in every form, on top of the F12
 #                          administrative-register stems it had at a418ca4).
 #                          gates/fixtures/negative/catalog.inflections.json
