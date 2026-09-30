@@ -141,7 +141,7 @@ describe('MARGE-EXACTE — the Opportunité fiche', () => {
     ).toBe(true);
     expect(screen.shows(F('10 800')), 'the old step-100 snap is still rounding her figure').toBe(false);
     screen.unmount();
-  });
+  }, 20_000); // the file's first test pays the whole app's cold mount — the house budget for a full-app walk (rendu-file-attente)
 
   it('the slider is gone, and the field alone still works', async () => {
     wire(service([]));
