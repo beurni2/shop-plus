@@ -64,8 +64,11 @@ onlyBuiltDependencies:
 #                          transitive (Grand Teint API); the four manifests
 #                          that name it now name this same sha.
 #   @platform/i18n         NOT overridden — pinned directly in every manifest
-#                          to a418ca4 → 3.12.0 (the copy-lint with the F12
-#                          administrative-register stems).
+#                          to 280485c (Boutik+ AUDIT-B+2 F-90, 2026-09-30: the
+#                          banned words in every form, on top of the F12
+#                          administrative-register stems it had at a418ca4).
+#                          gates/fixtures/negative/catalog.inflections.json
+#                          fails ONLY under this pin.
 overrides:
   "@platform/kernel-types": "git+https://github.com/beurni2/platform-contracts.git#aba11c1305edeeef132698bdf4908e1a37188104&path:packages/kernel-types"
   "@platform/contracts": "git+https://github.com/beurni2/platform-contracts.git#aba11c1305edeeef132698bdf4908e1a37188104&path:packages/contracts"
