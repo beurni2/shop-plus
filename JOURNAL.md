@@ -1,6 +1,12 @@
 # JOURNAL — shop-plus
 Continuity ledger per CTO charter §6/§6bis. Every entry is evidence-grounded.
 
+## 2026-09-30 · Boutik+ CONSOLE-VRAIE-1 (LE SUIVI) MERGED AND DEPLOYED on the founder's « go »
+
+`main` fast-forwarded `87bbca2 → 993cf22` (ancestry verified) after the canon's `main` reached `bae6d88`; **ci 719 green** on `993cf22`. Worker changed (`/reseller/suivi` counts a held commission apart as `misesDeCote`): **storefront-deploy 116 `success`**, the live `/health` read back in the job: release `993cf22…`, canon 3.25.0, custody armed (all four wires), PBKDF2 at 100 000; every smoke step green. On `993cf22`: service-canon-drift 414 · pwa-preview 507 · expo-preview 540 — green (the buyer and reseller apps did not change). Deployed BEFORE the Boutik+ console that reads the field (Boutik+ journal).
+
+---
+
 ## 2026-09-30 · Boutik+ CONSOLE-VRAIE-1 (AUDIT-B+2 F-71) — LE SUIVI: a commission §6.5 holds is counted apart on the founder's reseller board · on the branch, NOT merged, NOT deployed
 
 **What moved.** `/reseller/suivi` (both the whole and the paged read, one helper `compteSuivi()`) now applies her own gains book's rule: a confirmed sale whose commission §6.5 holds (`lienProche` present and not cleared — under review, or a violation whose commission stays with the platform) is neither a sale nor a net; it is counted apart as `misesDeCote: { n, netFcfa }`, the key ABSENT when there is none. Copied, never recomputed (SP-I04). A cleared hold is ordinary money again. Before, the board counted it as a sale and a net and ranked her up for it (audit measure: `ventes=2 net=5000` against her book's Locked 1 / Held 1).
