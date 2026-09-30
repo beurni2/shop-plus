@@ -1378,7 +1378,8 @@ export default {
     /**
      * LE SUIVI — every account, its confirmed sales and its net, in one read.
      * Key C. The counts are EXACT COUNTS and the francs are COPIES of frozen
-     * quote nets summed (SP-I04's law, same as the gains ladder) — no score,
+     * quote nets summed (SP-I04's law, and the gains ladder's §6.5 hold rule —
+     * `compteSuivi`, Boutik+ AUDIT-B+2 F-71) — no score,
      * no rank is computed anywhere; the console sorts by the count it shows.
      * Fan-out bounded and HONEST: what could not be read within the budget is
      * counted and declared per row (`incomplet`), never silently dropped.
@@ -1436,8 +1437,7 @@ export default {
           lignes.push({ accountId: acc.accountId, name: acc.name, state: acc.state, ventes: 0, netFcfa: 0, incomplet: true });
           continue;
         }
-        let net = 0;
-        let lues = 0;
+        const compte = compteSuivi();
         let incomplet = false;
         for (const row of rows) {
           if (budget <= 0) { incomplet = true; break; }
@@ -1449,16 +1449,12 @@ export default {
             const v = (await res.json().catch(() => null)) as Record<string, unknown> | null;
             const projected = projectVente(v);
             if (projected === null) { incomplet = true; continue; }
-            const p = projected as { state?: unknown; resellerNet?: unknown };
-            if (p.state === 'confirmed' && typeof p.resellerNet === 'number') {
-              net += p.resellerNet;
-              lues += 1;
-            }
+            compte.ajouter(projected);
           } catch {
             incomplet = true;
           }
         }
-        lignes.push({ accountId: acc.accountId, name: acc.name, state: acc.state, ventes: lues, netFcfa: net, incomplet });
+        lignes.push({ accountId: acc.accountId, name: acc.name, state: acc.state, ...compte.champs(), incomplet });
       }
       const answer = Response.json({ ok: true, lignes });
       answer.headers.set('Cache-Control', 'private, no-store');
@@ -2470,8 +2466,7 @@ async function suiviPagine(
       depart = i + 1;
     }
     let lu = depart;
-    let net = 0;
-    let ventes = 0;
+    const compte = compteSuivi();
     let incomplet = false;
     while (lu < rows.length && budget > 0) {
       budget -= 1;
@@ -2483,11 +2478,7 @@ async function suiviPagine(
         );
         const projected = projectVente((await res.json().catch(() => null)) as Record<string, unknown> | null);
         if (projected === null) { incomplet = true; continue; }
-        const p = projected as { state?: unknown; resellerNet?: unknown };
-        if (p.state === 'confirmed' && typeof p.resellerNet === 'number') {
-          net += p.resellerNet;
-          ventes += 1;
-        }
+        compte.ajouter(projected);
       } catch {
         incomplet = true;
       }
@@ -2495,12 +2486,42 @@ async function suiviPagine(
     const reste = lu < rows.length;
     // An account this page could not even start is left to the next page whole.
     if (!(reste && lu === depart)) {
-      lignes.push({ accountId: acc.accountId, name: acc.name, state: acc.state, ventes, netFcfa: net, incomplet, ...(reste ? { suite: true } : {}) });
+      lignes.push({ accountId: acc.accountId, name: acc.name, state: acc.state, ...compte.champs(), incomplet, ...(reste ? { suite: true } : {}) });
     }
     if (reste) { next = `${acc.accountId}~${lu > 0 ? rows[lu - 1]!.orderId : ''}`; break; }
   }
   if (next === undefined && debut + lot.length < ordre.length) next = `${ordre[debut + lot.length]!.accountId}~`;
   return Response.json({ ok: true, lignes, total: ordre.length, ...(next !== undefined ? { next } : {}) });
+}
+
+/**
+ * LE SUIVI (Boutik+ AUDIT-B+2 F-71) — HER BOOK'S RULE, on the founder's board.
+ * A confirmed sale whose commission §6.5 holds (`lienProche`, not cleared —
+ * under review, or a violation whose commission stays with the platform) is
+ * on her `Held` rung, never her locked money (`reseller-app gains-model.ts`
+ * `lienRetenu`). The board counted it as a sale and as a net, and ranked her
+ * up for it. It is now counted apart, copied not recomputed (SP-I04), and the
+ * key is ABSENT when there is none — never a zero standing in for nothing.
+ */
+function compteSuivi(): { ajouter: (p: Record<string, unknown>) => void; champs: () => Record<string, unknown> } {
+  let ventes = 0;
+  let net = 0;
+  let retenues = 0;
+  let netRetenu = 0;
+  return {
+    ajouter(p) {
+      if (p['state'] !== 'confirmed' || typeof p['resellerNet'] !== 'number') return;
+      const lien = p['lienProche'] as { resolution?: unknown } | undefined;
+      if (lien !== undefined && lien.resolution !== 'clear') {
+        retenues += 1;
+        netRetenu += p['resellerNet'];
+        return;
+      }
+      ventes += 1;
+      net += p['resellerNet'];
+    },
+    champs: () => ({ ventes, netFcfa: net, ...(retenues > 0 ? { retenues: { n: retenues, netFcfa: netRetenu } } : {}) }),
+  };
 }
 
 function feedFanoutMax(env: Env): number {
