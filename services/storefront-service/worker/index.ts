@@ -2503,7 +2503,7 @@ async function suiviPagine(
  * up for it. It is now counted apart, copied not recomputed (SP-I04), and the
  * key is ABSENT when there is none — never a zero standing in for nothing.
  * `misesDeCote` is her book's own word (« mis de côté le temps d'une
- * vérification »): Boutik+ bans « retenue » as seller-debit vocabulary.
+ * vérification »), the word the founder's console shows too.
  */
 function compteSuivi(): { ajouter: (p: Record<string, unknown>) => void; champs: () => Record<string, unknown> } {
   let ventes = 0;
