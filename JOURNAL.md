@@ -1,6 +1,17 @@
 # JOURNAL — shop-plus
 Continuity ledger per CTO charter §6/§6bis. Every entry is evidence-grounded.
 
+## 2026-09-30 · CODES-EFFACES-1 MERGED AND DEPLOYED on the founder's « go »
+
+**Founder order (2026-09-30).** « Go » — on the report of the entry below.
+- **Merged** `main` `e604b97 → f7bd183` (fast-forward, ancestry verified). **ci 723 green**, service-canon-drift 418 green.
+- **Buyer site** — pwa-preview 511 green (build with `VITE_PROFILE: 'production'`, Pages deploy). Proof from here: the live site and the Pages artifact are both unreachable from this sandbox (proxy 403), so the deploy step was rebuilt locally at `f7bd183` with the step's own env: the same entry fingerprint `index-CovGfGBV.js` as the published build, and **0** occurrences of `demo-cliente` in it; CONTROL, the same commit built without the profile: `index-D4mEUtyr.js`, **1** occurrence.
+- **Reseller app** — expo-preview 544 green (the EAS preview update published).
+- **Worker** — **storefront-deploy 118 green**: deployed; « Assert the live Worker speaks the canon this job bundled » read back release `f7bd183…`, canon 3.25.0; custody armed (all four wires); the three smokes green (checkout refuses by name, the tile road, PBKDF2 at 100 000).
+- **The erase** runs on the feed book's first wake under this release — the next reseller sales read or the next order that registers a row. None of the deploy's smokes wakes that book, and no door lists its storage, so the erase is not read back from here; the proof stays the e2e on the built Worker (entry below).
+
+---
+
 ## 2026-09-30 · CODES-EFFACES-1 (founder order) — the old `SP-` code records are erased, the reseller app no longer reads or sends an old code, the published buyer site no longer answers the testing address · on the branch, NOT merged, NOT deployed
 
 **Founder order (2026-09-30), verbatim.** « erase the old codes still stored on shop+ server. fix the The reseller app's own help text still mentions the old codes and the hidden testing address in the buyer app still shows « Code de démonstration ». » — this is his word on the production-data change CODES-RETIRES-1 held for him (§7).
