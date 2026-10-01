@@ -16,12 +16,13 @@ import { monterCompte, type BoutiquePorte, type EcranCompte, type LectureBoutiqu
  * shell — « Mon compte » — which opens her profile, or the doors again for a
  * guest who changes her mind.
  *
- * The order bands (« Ma commande », « Mes articles ») are hers too and are
+ * The order bands (« Ma commande », « Mes articles », and « Mes commandes »
+ * when the phone keeps two or more — COMMANDES-GARDEES-1) are hers too and are
  * never removed by this step: they stay at the head, the account band under
  * them.
  */
 
-const BANDES_COMMANDE = new Set(['ma-commande', 'mes-articles']);
+export const BANDES_COMMANDE: ReadonlySet<string> = new Set(['ma-commande', 'mes-articles', 'mes-commandes']);
 
 export interface OptsEntree {
   readonly port: ComptePort;

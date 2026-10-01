@@ -1273,6 +1273,79 @@ test('COMMANDES-GARDEES-1 — an order and a paid panier: one band « Mes comman
   expect(erreurs).toEqual([]);
 });
 
+// COMMANDES-GARDEES-1 (verifier BLOCKER) — the account step kept its own list
+// of order bands and did not know « Mes commandes »: crossing the doors, or
+// opening « Mon compte », took the band away. Written RED first.
+test('COMMANDES-GARDEES-1 — « Mes commandes » survives the doors and « Mon compte », and stays above « Mon compte »', async ({ page }) => {
+  const livre = new Livre();
+  await page.addInitScript((c) => {
+    if (sessionStorage.getItem('deux-semees') !== null) return;
+    localStorage.setItem('sp-commandes:v1', JSON.stringify([
+      { ...c, payee: true },
+      { orderId: 'ord-quote-deuxieme', buyerRef: 'REF-DEUX', at: '2026-09-23T08:00:00.000Z', payee: true },
+    ]));
+    sessionStorage.setItem('deux-semees', '1');
+  }, COMMANDE_KEPT);
+  const erreurs = await ouvrir(page, livre, '/?/v/aicha-4821', async () => {
+    await lectures(page, {});
+  });
+  const liste = page.locator('[data-role="mes-commandes"]');
+  const ordre = () => page.evaluate(() => Array.from(document.querySelector('#app')?.children ?? []).map((e) => e.getAttribute('data-role') ?? e.tagName));
+  await expect(page.locator('[data-screen="compte-porte"]')).toBeVisible();
+  await expect(liste).toContainText('2');
+  // Past the doors: the band is still there, and above « Mon compte ».
+  await action(page, 'compte-invitee').click();
+  await expect(boutique(page)).toContainText('Chez Aïcha Mode');
+  await expect(liste).toContainText('2');
+  let roles = await ordre();
+  expect(roles.indexOf('mes-commandes')).toBeGreaterThanOrEqual(0);
+  expect(roles.indexOf('mes-commandes')).toBeLessThan(roles.indexOf('mon-compte'));
+  // « Mon compte » opens the doors again, and back: still there.
+  await bande(page).click();
+  await expect(page.locator('[data-screen="compte-porte"]')).toBeVisible();
+  await expect(liste).toContainText('2');
+  await action(page, 'compte-invitee').click();
+  await expect(boutique(page)).toContainText('Chez Aïcha Mode');
+  roles = await ordre();
+  expect(roles.indexOf('mes-commandes')).toBeGreaterThanOrEqual(0);
+  expect(roles.indexOf('mes-commandes')).toBeLessThan(roles.indexOf('mon-compte'));
+  expect(erreurs).toEqual([]);
+});
+
+// COMMANDES-GARDEES-1 (verifier NOTE 1) — the panier's « paid » is written on
+// the record as it is NOW: an article another tab finished while this page's
+// read was out stays finished.
+test('COMMANDES-GARDEES-1 — a panier article finished in another tab stays finished when this page learns « paid »', async ({ page }) => {
+  const livre = new Livre();
+  await page.addInitScript((p) => {
+    if (sessionStorage.getItem('panier-seme') !== null) return;
+    localStorage.setItem('sp-paniers-payes:v1', JSON.stringify([p]));
+    sessionStorage.setItem('panier-seme', '1');
+  }, PANIER_KEPT);
+  let lacher: () => void = () => undefined;
+  const lu = new Promise<void>((ok) => { lacher = ok; });
+  let arrive = false;
+  const erreurs = await ouvrir(page, livre, '/?/v/aicha-4821', async () => {
+    await page.route('**/checkout/order/**', async (route) => {
+      const url = route.request().url();
+      if (/\/remise$/.test(url)) return route.fulfill({ status: 404, contentType: 'application/json', body: '{"ok":false}' });
+      arrive = true;
+      await lu;
+      const id = decodeURIComponent(url.split('/').pop()!);
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ orderId: id, state: 'confirmed', amountPaidAtCheckout: 13_000, amountDueAtDelivery: 0, doorLeg: 'none' }) });
+    });
+  });
+  await expect.poll(() => arrive).toBe(true);
+  // Another tab finishes the first article while this page's read is out.
+  await page.evaluate((p) => localStorage.setItem('sp-paniers-payes:v1', JSON.stringify([{ ...p, articles: p.articles.slice(1) }])), PANIER_KEPT);
+  lacher();
+  await expect.poll(() => paniersDuTel(page)).toContain('"payee":true');
+  const garde = await paniersDuTel(page);
+  expect(garde).not.toContain('ord-q-p1-A');
+  expect(garde).toContain('ord-q-p2-A');
+  expect(erreurs).toEqual([]);
+});
+
 /* ═══ MON-COMPTE-PLUS — her panier and her coups de cœur in « Mon compte » ═══
  *
  * Founder, 2026-09-25: « in their mon compte … see the products they added to

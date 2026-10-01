@@ -7,7 +7,7 @@ import {
   type QuotePort,
 } from '../src/cliente/quote-port';
 import {
-  CODE_REMISE, SUIVI, SUIVI_STEPS, codeAffiche, etapeDeSuivi, renderC10, renderC7, renderC9,
+  CODE_REMISE, SUIVI, SUIVI_STEPS, codeAffiche, etapeDeSuivi, renderC10, renderC7, renderC9, renderMesCommandes,
 } from '../src/cliente/screens';
 import { SUIVI_LIVRAISON_MS, SUIVI_PAIEMENT_MS, attenteLivraison } from '../src/cliente/flow';
 
@@ -340,6 +340,30 @@ describe('sp-commandes:v1 — every order this phone keeps, ten at most, garbage
     // …and no storage at all is the same non-event.
     expect(commandesGardees(undefined)).toEqual([]);
     expect(() => garderCommande({ orderId: 'o', buyerRef: 'r', at: ISO }, undefined)).not.toThrow();
+  });
+});
+
+describe('MES-COMMANDES — the list her phone keeps, newest first, never a token or an amount', () => {
+  const commandes = [
+    { orderId: 'ord-quote-full-1', buyerRef: 'ref-secret-1', at: '2026-09-28T08:00:00.000Z' },
+    { orderId: 'ord-quote-full-2', buyerRef: 'ref-secret-2', at: '2026-09-30T08:00:00.000Z' },
+  ];
+  const panier = (n: number) => ({ groupId: 'grp-<b>', at: '2026-09-29T08:00:00.000Z', articles: Array.from({ length: n }, () => ({})) });
+
+  it('each order and each panier, newest first, each with its own « Suivre »', () => {
+    const html = renderMesCommandes(commandes, [panier(2)]);
+    const ordre = [...html.matchAll(/data-(order|groupe)="([^"]+)"/g)].map((m) => m[2]);
+    expect(ordre).toEqual(['ord-quote-full-2', 'grp-&lt;b&gt;', 'ord-quote-full-1']);
+    expect(html).toContain('Réf. EFULL2');
+    expect(html).toContain('2 articles payés ensemble');
+    expect(html).not.toContain('ref-secret');
+    expect(html).not.toContain('<b>');
+  });
+
+  it('one article left in a panier reads in the singular (verifier minor 2)', () => {
+    const html = renderMesCommandes([], [panier(1)]);
+    expect(html).toContain('1 article payé');
+    expect(html).not.toContain('1 articles');
   });
 });
 

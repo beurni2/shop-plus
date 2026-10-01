@@ -2496,7 +2496,7 @@ export function renderMesCommandes(
       at: p.at,
       html: [
         '<div class="cl-panier-ligne" data-role="panier-garde">',
-        `<div class="cl-panier-nom"><v>${esc(tf('compte.commandes.ligne', { date: dateCourte(p.at) }))}</v> · ${esc(tf('cl.commandes.articles', { n: String(p.articles.length) }))}</div>`,
+        `<div class="cl-panier-nom"><v>${esc(tf('compte.commandes.ligne', { date: dateCourte(p.at) }))}</v> · ${esc(p.articles.length === 1 ? t('cl.commandes.un_article') : tf('cl.commandes.articles', { n: String(p.articles.length) }))}</div>`,
         `<button class="cl-panier-suivre" data-action="ouvrir-panier" data-groupe="${esc(p.groupId)}">${t('cl.panier.suivre')}</button>`,
         '</div>',
       ].join(''),

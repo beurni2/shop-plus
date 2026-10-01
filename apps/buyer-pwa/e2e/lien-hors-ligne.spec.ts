@@ -134,6 +134,27 @@ test('COMMANDES-GARDEES-1 — « Réessayer » re-runs her road and never takes 
   expect(errors).toEqual([]);
 });
 
+// …and a single paid panier's band, the third shape of the one band (verifier minor 1).
+test('COMMANDES-GARDEES-1 — « Réessayer » never takes a paid panier\'s band away', async ({ page }) => {
+  await page.addInitScript(() => {
+    if (sessionStorage.getItem('panier-seme') !== null) return;
+    localStorage.setItem('sp-paniers-payes:v1', JSON.stringify([{
+      groupId: 'grp-1', holderRef: 'h-1', at: '2026-10-01T08:00:00.000Z', slug: 'aicha-4821', payee: true,
+      articles: [{ orderId: 'ord-a', buyerRef: 'ref-a', nom: 'Bazin', pid: 'p1' }, { orderId: 'ord-b', buyerRef: 'ref-b', nom: 'Pagne', pid: 'p2' }],
+    }]));
+    sessionStorage.setItem('panier-seme', '1');
+  });
+  const errors = await ouvrir(page, 'coupe');
+  await expect(page.locator('[data-etat="horsligne"]')).toBeVisible();
+  const bande = page.locator('[data-role="mes-articles"]');
+  await expect(bande).toContainText('2');
+  await service(page, 'ok');
+  await page.locator('[data-action="reessayer"]').click();
+  await expect(page.locator('[data-screen="C1"]')).toBeVisible();
+  await expect(bande).toContainText('2');
+  expect(errors).toEqual([]);
+});
+
 test('F-52 — a 5xx is the SERVICE absent: its own sentence, the same way out; the retry reaches the offer', async ({ page }) => {
   const errors = await ouvrir(page, 'cinq-cents');
   const carte = page.locator('[data-etat="horsligne"]');

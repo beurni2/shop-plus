@@ -56,7 +56,7 @@ import { VITRINE_THEMES, type VitrineThemeKey } from './vitrine/themes';
 import fontsCss from './fonts.css?raw';
 import { monterRacine } from './racine-view';
 import { resolveComptePort } from './compte/port';
-import { creerRattacheur, lierLesCommandesDues, monterBandeCompte, monterEntreeCompte } from './compte/entree';
+import { BANDES_COMMANDE, creerRattacheur, lierLesCommandesDues, monterBandeCompte, monterEntreeCompte } from './compte/entree';
 import { creerSynchroArticles } from './compte/articles';
 import type { LectureBoutique } from './compte/ecrans';
 import { observerPanier } from './vitrine/panier';
@@ -651,8 +651,8 @@ if (app) {
         ...(porte !== undefined ? { payerALaPorte: porte } : {}),
         ...(oublier !== undefined ? { oublier } : {}),
       },
-      // « C'est terminé » cleared the key; the reload lands her on the shell
-      // with the band gone.
+      // « C'est terminé » forgot this order; the reload lands her on the shell,
+      // with the band of whatever else the phone still keeps.
       onTerminee: () => {
         window.location.reload();
       },
@@ -777,7 +777,7 @@ if (app) {
     const monterOffre = async (): Promise<void> => {
     for (const enfant of Array.from(app.children)) {
       const role = enfant.getAttribute('data-role');
-      if (role !== 'ma-commande' && role !== 'mes-commandes' && role !== 'mon-compte') enfant.remove();
+      if (!BANDES_COMMANDE.has(role ?? '') && role !== 'mon-compte') enfant.remove();
     }
     const pidParam = params.get('pid');
     const panierParam = params.get('panier');
@@ -1449,10 +1449,13 @@ if (app) {
     // The articles were paid in ONE payment, so the first article's order speaks for it.
     void resolveSuiviArticle().orderState(paye.articles[0]!.orderId).then((r) => {
       const verdict = verdictBande(r);
-      const encore = panierPaye(paye.groupId, garde)?.at === paye.at;
+      const actuel = panierPaye(paye.groupId, garde);
+      const encore = actuel?.at === paye.at;
       if (verdict === 'oublier' && encore) oublierPanierPaye(paye.groupId, garde);
       if (verdict !== 'payee') return;
-      if (encore) garderPanierPaye({ ...paye, payee: true }, garde);
+      // The record as it is NOW: an article finished in another tab since this
+      // page loaded stays finished (verifier NOTE 1).
+      if (encore && actuel !== undefined) garderPanierPaye({ ...actuel, payee: true }, garde);
       paniersPayesVus.set(paye.groupId, paye);
       poserBande();
     });

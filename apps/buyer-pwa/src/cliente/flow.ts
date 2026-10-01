@@ -149,8 +149,8 @@ export interface ClienteInit {
       readonly payer: (gardes: readonly string[], essai: number) => Promise<PorteOutcome>;
     } | undefined;
     /** PAYER-TOUT-1 — what « C'est terminé » forgets on the phone: a panier
-     *  article's own line, never the single order's slot. Absent ⇒ the single
-     *  slot, as before. */
+     *  article's own line. Absent ⇒ this order leaves the phone's order list
+     *  (COMMANDES-GARDEES-1), the others stay. */
     readonly oublier?: (() => void) | undefined;
   } | undefined;
   /**

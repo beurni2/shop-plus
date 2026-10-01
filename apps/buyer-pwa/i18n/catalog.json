@@ -3534,6 +3534,12 @@
   "screenClass": "label"
  },
  {
+  "key": "cl.commandes.un_article",
+  "fr": "1 article payé",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
   "key": "vit.panier_payer_tout",
   "fr": "Payer les {n} articles ensemble",
   "register": "selling",

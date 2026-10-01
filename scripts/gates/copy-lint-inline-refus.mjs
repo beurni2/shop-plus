@@ -269,7 +269,7 @@ const ECRANS = {
   'cl.panier.confirme_titre': M('money', L()), 'cl.panier.commandes': M('money', L(['{n}'])), 'cl.panier.suivre': M('money', L()),
   'cl.panier.reentree': M('money', L()),
   // COMMANDES-GARDEES-1 — a paid panier's row in « Mes commandes » on her phone
-  'cl.commandes.articles': M('money', L(['{n}'])),
+  'cl.commandes.articles': M('money', L(['{n}'])), 'cl.commandes.un_article': M('money', L()),
   // COLIS-FOURNISSEUR-1 — one package per supplier: « 1 livraison », and what the rider recorded at the package's door
   'cl.panier.livraison_une': M('money', L()), 'cl.panier.colis_ensemble': M('money', S(['{n}'])),
   'cl.c8.colis_titre': M('money', L()), 'cl.c8.colis_sous': M('money', S()), 'cl.c8.colis_a_payer': M('money', L()),
