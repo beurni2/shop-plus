@@ -1,6 +1,29 @@
 # JOURNAL — shop-plus
 Continuity ledger per CTO charter §6/§6bis. Every entry is evidence-grounded.
 
+## 2026-10-01 · AUDIT-4 — the whole buyer site (founder order « do an extensive full audit on the whole buyer's pwa without hitting any guardrails ») · READ-ONLY · nothing changed
+
+**What was audited.** At `a408ac2` (= `main`, deployed today): the buyer site end to end and the service roads behind it. Half A by the CTO — the money and account spine: quote, hold, order, payment state, pay-at-door, tracking and the drop code, refunds as she sees them, the panier paid together and its packages, the gift-tracking page, the buyer account (screens and the account book). Half B by ONE helper under a read-only brief — arrivals and the shell, the boutique and the product page, offline and the service worker, size and speed, accessibility, tokens and copy, and the public reads. The helper's two MAJORs were re-read in the code before reporting. No repo file changed (scratch tests copied in, run and deleted in the same command; `git status` clean); nothing live contacted. The full ledgers stay private, outside the repo.
+
+**Verdict: 0 BLOCKER · 4 MAJOR · 8 MINOR · 16 NOTE.** Sound: no amount can be sent on any buyer wire and every amount read back is checked and reconciled; every tap that can charge is idempotent; « confirmé » only on the order's own `confirmed`; the drop code withheld until every due leg is provider-confirmed and never stored; « Tout est bon » and « Un problème » side by side; the account book's passwords, sessions, throttles and recovery; the seller's signed price everywhere (tile = product page = service); no supplier, base price, commission or net on any public answer; reseller text escaped on all 43 headers; every AUDIT-3 boutique fix re-measured as real. Baselines: buyer site `tsc` clean + 1 431/1 431; service public-read suites 352/352; boutique and shell browser walks 122/122; copy-lint 700 entries, 0 violations.
+
+**Top items (plain names, no recipes).** MAJOR — a buyer who chose to pay the product at the door cannot pay once her browser tab reloaded or closed (the basket road keeps what it needs; the single-article road does not); a guest's second order erases the first one's tracking and code from her phone; a boutique whose seller chose a header style can freeze on its opening screen for ever when that style's small file stalls; the seller's cover and portrait are sent at full camera size into small boxes on every first screen. MINOR — the checkout's price can differ from the page's with no word (reachable since CHANGER-MARGE-1); the gift-tracking link carries the order's amounts; « Pas en ligne » and the founder's unpublish take nothing down (his call — it conflicts with the private-shop rule); when no article can load, 15 of 43 headers drop « Livré par Séra » / « Paiement protégé »; a link in capitals opens an empty card; three way-out buttons unreachable by keyboard, heart and bag nested in a button; the voice-note chip 36 px tall; « chez Chez Fatou ».
+
+**His calls (§7):** whether « Pas en ligne » / unpublish should close a boutique to buyers · whether « Mes commandes » on another phone may pay at a door (it puts payment authority in the account) · what « Vendeuse vérifiée » promises. **Recommended order, nothing started:** PORTE-APRES-RECHARGE-1 · COMMANDES-GARDEES-1 · ENTETE-BORNEE-1 · PHOTOS-LEGERES-1 · then one copy-and-access slice for the minors.
+
+---
+
+## 2026-10-01 · VENTES-LIVREES-2 + CHANGER-MARGE-1 MERGED AND DEPLOYED on the founder's « go »
+
+**Founder order (2026-10-01).** « go » — on the combined report of the two entries below.
+- **Worker first:** **storefront-deploy 120 green**, dispatched on the branch at `a408ac2` — the exact commit `main` was then fast-forwarded to. Read back from the live Worker: release `a408ac2`, canon 3.25.0, custody armed (all four wires); the three smokes green (checkout refuses by name, the tile road, PBKDF2 at 100 000).
+- **Merged** `main` `a2eaaeb → a408ac2` (fast-forward, ancestry verified), after the Worker was live.
+- **Buyer site** — pwa-preview 515 green. **Reseller app** — expo-preview 548 green (the EAS preview update published). service-canon-drift 422 green.
+- **ci 727:** attempt 1 FAILED on one server test — `colis.e2e` « REMBOURSEMENT-PORTE-FERMEE (verifier M1) … », `reserve 409 {"error":"already_reserved"}` — the same intermittent test that failed once on my board under REVENDEUSE-VRAIE-1 and passed on re-run; 922 of 923 server tests green in that attempt. **Attempt 2 (failed job re-run) green.** The flake predates both slices and stays open (it should be made deterministic).
+- **Not read back from here:** the delivered-count catch-up runs on the feed book's first wake under this release, and no door lists its receipt (N3, kept); the live buyer site and the app update are outside this sandbox's reach.
+
+---
+
 ## 2026-10-01 · CHANGER-MARGE-1 (founder « go 1 and 2 », item 1) — she can change the price of a product she already sells · on the branch, NOT merged, NOT deployed
 
 **Founder order (2026-10-01).** « go 1 and 2 » — item 1: « Changer ma marge » on a product she already sells. Canon SP-I19: « markup changes expire old cards (never silent edits) and require regeneration; the signed page remains the live price/stock truth ». The service already signed a new version for a new command (`listing-core.ts`: « REPUBLISH IS A NEW VERSION, NEVER A MUTATION »); the app pinned every publish to one command id (`publish-{listingId}`), so her price could never change.
