@@ -1,6 +1,22 @@
 # JOURNAL — shop-plus
 Continuity ledger per CTO charter §6/§6bis. Every entry is evidence-grounded.
 
+## 2026-10-01 · VENTES-LIVREES-2 (founder « go 1 and 2 », item 2) — every seller's older deliveries counted once · on the branch, NOT merged, NOT deployed
+
+**Founder order (2026-10-01).** « go 1 and 2 » — on my recommendation « count every seller's older deliveries once »: since VITRINE-VRAIE-1 a validated delivery is counted at once, but deliveries validated before it were counted only when the seller opened her sales, so a seller who never does still read « Nouvelle vendeuse ».
+
+**What moved.** `worker/reseller-feed-do.ts` — the one shared book (`reseller-feed`) that holds every seller's sale rows catches up by itself: on its first wake after the deploy (`blockConcurrencyWhile` only ARMS an alarm, never works inside a request) an alarm walks every `row:` key in batches (≤ 40 per alarm — the sales read's own fan-out bound; test knob `RATTRAPAGE_LOT` can only lower it), asks each order not yet marked the question her sales read asks (`/entry/reseller/{reseller}` → `livree`), and marks what is delivered through the SAME one-mark-per-order write, now one function (`marquerLivrees`) shared with `/livrees/marquer`. A receipt `rattrapage:livrees` keeps the cursor, `lignes`, `marquees`, `illisibles` and, at the end, `fin` — a later wake starts nothing. An answer that is not an existing order of hers is `illisibles` (read exactly as the sales read reads it) and left to her sales read. `SLICES.md` SP6.2 row says it.
+
+**Evidence.**
+- **Seam test on the real Worker** (`services/storefront-service/test/ventes-livrees-2.e2e.test.ts`, miniflare, batches of two): the book put back as the previous Worker left it (rows, no marks, no receipt) by a stand-in over the same store; on its first wake both sellers are counted — B, who never opens her sales, included — and the paid-but-undelivered sale is not; the receipt reads `{lignes 4, marquees 3, illisibles 0, fin}`; a restart leaves it byte-identical; a second full walk (receipt erased) marks nothing (`marquees 0`) and the counts stand; a planted row whose order does not exist, under a reseller id escaping changes, is `illisibles 1` and the walk ends. **Red first** on the old code (B stayed at 0); **3/3** now; `vitrine-vraie.e2e` 7/7 unchanged.
+- **Mutations — 7/7 KILLED** (anchors matched once, restored byte-identical, bundle rebuilt): the catch-up never starts · stops after its first batch · counts a paid undelivered sale · a mark already there counts again · both « finished » guards removed (one alone is redundant by design — the wake's and the alarm's — and survives honestly) · an unreadable order read as « not delivered ».
+- **Board** (before the verifier fixes): ALL GATES GREEN — storefront-service 920, reseller app 873, buyer 1 431, buyer walks 289. After the fixes: the whole server suite 921/921.
+- **Verifier (ONE pass, fresh context, given the spec quotes, the commit and the DoD): 0 BLOCKER · 0 MAJOR · 3 MINOR · 4 NOTE.** Handled once, not re-inspected: m1 the test now reads the receipt (it could not tell « walked again » from « did nothing »); m2 an answer that is not an existing order of hers is unreadable, as in her sales read; m3 the unreadable path and an escaped reseller id are tested; N1 the id decode moved inside the guard, so a malformed key counts unreadable instead of stalling the walk. **Kept:** N2 a row written late below the cursor (an old delivered order whose registration failed and was redelivered) is left to her sales read; N3 nothing reads the receipt on the live Worker — no logging habit exists on this server and none is added here; N4 the per-order read has no time limit (nor does the sales read's); a hung order holds one alarm until the platform's limit, then the batch is retried.
+
+**Not changed.** No price, fee, quote, order, contract shape or migration; no buyer contact, price or commission moves — the walk stores marks and a receipt only. The count is still an exact count, never a rank.
+
+---
+
 ## 2026-10-01 · VITRINE-VRAIE-1 + REVENDEUSE-VRAIE-1 MERGED AND DEPLOYED on the founder's « go »
 
 **Founder order (2026-10-01).** « go » — on the combined report of the two entries below.

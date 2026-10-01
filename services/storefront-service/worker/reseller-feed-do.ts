@@ -175,14 +175,16 @@ export class ResellerFeedDO {
     for (const [cle, ligne] of lignes) {
       const corps = cle.slice(ROW_PREFIX.length);
       if (marques.has(`${LIVREE_PREFIX}${corps}`)) continue;
-      // The reseller id is escaped into the key, so the first `:` is the boundary.
-      const resellerId = decodeURIComponent(corps.slice(0, corps.indexOf(':')));
       try {
+        // The reseller id is escaped into the key, so the first `:` is the
+        // boundary; a key that does not decode counts as unreadable, never a stalled walk.
+        const resellerId = decodeURIComponent(corps.slice(0, corps.indexOf(':')));
         const res = await ns.get(ns.idFromName(ligne.orderId)).fetch(
           new Request(`https://do/entry/reseller/${encodeURIComponent(resellerId)}`),
         );
-        const v = (await res.json().catch(() => null)) as { ok?: unknown; livree?: unknown } | null;
-        if (v === null || res.status >= 500) illisibles += 1;
+        const v = (await res.json().catch(() => null)) as { ok?: unknown; exists?: unknown; livree?: unknown } | null;
+        // Read exactly as her sales read reads it: anything but an existing order of hers is unreadable.
+        if (v === null || res.status >= 500 || v.ok !== true || v.exists !== true) illisibles += 1;
         else if (v.livree === true) parRevendeuse.set(resellerId, [...(parRevendeuse.get(resellerId) ?? []), ligne.orderId]);
       } catch {
         illisibles += 1;

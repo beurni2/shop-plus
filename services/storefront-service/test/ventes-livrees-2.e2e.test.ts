@@ -210,6 +210,38 @@ async function commeAvant(prefixes: readonly string[]): Promise<number> {
   return effaces.effaces;
 }
 
+/**
+ * The catch-up's own receipt, read through a stand-in over the same store
+ * (verifier m1: the counts alone cannot tell « walked again » from « did
+ * nothing »). `planter` first writes a sale row whose order does not exist,
+ * under a reseller id that escaping changes (verifier m3).
+ */
+async function recu(planter?: { resellerId: string; orderId: string }): Promise<Record<string, unknown> | null> {
+  await mf.dispose();
+  const lecteur = new Miniflare({
+    modules: true,
+    script: `
+      export class ResellerFeedDO {
+        constructor(state) { this.state = state; }
+        async fetch(request) {
+          const corps = await request.json();
+          if (corps.planter) {
+            const p = corps.planter;
+            await this.state.storage.put('row:' + encodeURIComponent(p.resellerId) + ':' + p.orderId, { orderId: p.orderId, at: '2026-09-01T08:00:00.000Z' });
+          }
+          return Response.json({ recu: (await this.state.storage.get('rattrapage:livrees')) ?? null });
+        }
+      }
+      export default { async fetch(request, env) { return env.RESELLER.get(env.RESELLER.idFromName('reseller-feed')).fetch(request); } };`,
+    durableObjects: { RESELLER: 'ResellerFeedDO' },
+    durableObjectsPersist: persist,
+  });
+  const lu = (await (await lecteur.dispatchFetch('http://x/', { method: 'POST', body: JSON.stringify({ planter: planter ?? null }) })).json()) as { recu: Record<string, unknown> | null };
+  await lecteur.dispose();
+  mf = nouveauMiniflare();
+  return lu.recu;
+}
+
 /** The catch-up runs by alarm: ask the ledger until it answers, within a bound. */
 async function attendre(slug: string, attendu: number): Promise<unknown> {
   let lu: unknown;
@@ -245,20 +277,44 @@ describe('VENTES-LIVREES-2 — every older delivery is counted once, for every s
     // The first read wakes the book; the catch-up then walks every row in batches of two.
     expect(await attendre(slugB, 1), 'B never read her sales: only the catch-up can count her delivery').toBe(1);
     expect(await attendre(slugA, 2), 'two delivered, one only paid').toBe(2);
+    // THE RECEIPT: every row asked, three marks written, nothing unreadable, and the end.
+    const r = await recu();
+    expect(r).toMatchObject({ lignes: 4, marquees: 3, illisibles: 0 });
+    expect(typeof r?.['fin']).toBe('string');
   }, 60_000);
 
   it('never twice: her own sales read over the caught-up book, a restart, and a second full catch-up over the marks leave the counts as they are', async () => {
     const ventes = await mf.dispatchFetch('http://c/reseller/ventes', { headers: SA.bearer });
     expect(ventes.status).toBe(200);
     expect(await compte(slugA)).toBe(2);
-    // the receipt says « done »: a plain restart starts nothing
+    // the receipt says « done »: a plain restart starts nothing — the receipt is byte-identical after a wake
+    const avant = await recu();
     expect(await commeAvant([]), 'nothing erased').toBe(0);
     expect(await compte(slugA)).toBe(2);
-    // the receipt alone erased: the catch-up walks the book again, over its own marks
+    await new Promise((r) => setTimeout(r, 500));
+    expect(await recu(), 'a finished catch-up does not walk again').toEqual(avant);
+    // the receipt alone erased: the catch-up walks the book again, over its own marks — and marks nothing new
     await commeAvant(['rattrapage:']);
     await compte(slugA); // wakes the book
-    await new Promise((r) => setTimeout(r, 1_500));
+    for (let i = 0; i < 40 && (await recu())?.['fin'] === undefined; i += 1) {
+      await compte(slugA);
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    expect(await recu()).toMatchObject({ lignes: 4, marquees: 0, illisibles: 0 });
     expect(await compte(slugA), 'a second catch-up never adds to a marked count').toBe(2);
+    expect(await compte(slugB)).toBe(1);
+  }, 60_000);
+
+  it('a row whose order cannot be read (and whose reseller id escaping changes) is counted unreadable — the walk does not stall and the counts stand', async () => {
+    await commeAvant(['rattrapage:']);
+    await recu({ resellerId: 'rs:0000 x', orderId: 'ord-fantome' });
+    await compte(slugA); // wakes the book
+    for (let i = 0; i < 40 && (await recu())?.['fin'] === undefined; i += 1) {
+      await compte(slugA);
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    expect(await recu()).toMatchObject({ lignes: 5, marquees: 0, illisibles: 1 });
+    expect(await compte(slugA)).toBe(2);
     expect(await compte(slugB)).toBe(1);
   }, 60_000);
 });
