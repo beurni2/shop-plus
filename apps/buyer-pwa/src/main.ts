@@ -1218,8 +1218,11 @@ if (app) {
     // past the bound she gets the boutique's designed offline card and
     // « Réessayer » (a reload: a hung module import is never retried in-page),
     // never a blank page.
+    // While the file comes, the boutique's own waiting frame stands.
+    const retirerAttente = monterAttenteVitrine(app as HTMLElement);
     void (async () => {
       const mod = await avantDelai(import('./affiche/poster'), ENTETE_DELAI_MS).catch(() => undefined);
+      retirerAttente();
       if (mod === undefined) {
         mountVitrine(app as HTMLElement, vitrineSlug, { etat: 'offline', raison: 'reseau', reessayer: () => window.location.reload() });
         return;

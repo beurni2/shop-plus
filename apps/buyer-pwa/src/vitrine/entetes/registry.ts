@@ -160,9 +160,10 @@ export async function loadEntete(key: EnteteKey, delaiMs: number = ENTETE_DELAI_
 }
 
 /** TEST SEAM — load every lazy style, so a suite can assert across all of them
- *  without knowing the chunk layout. Never called by the app. */
+ *  without knowing the chunk layout. Never called by the app. Unbounded: a slow
+ *  test machine must never quietly leave a style out of an « every style » check. */
 export async function loadAllEntetes(): Promise<void> {
-  await Promise.all((Object.keys(LOADERS) as EnteteKey[]).map((k) => loadEntete(k)));
+  await Promise.all((Object.keys(LOADERS) as EnteteKey[]).map((k) => loadEntete(k, 2 ** 31 - 1)));
 }
 
 /** The CSS of every style fetched so far — what `flows.ts` mounts alongside the

@@ -363,7 +363,7 @@ test.describe('issue 16 — header lines say only what is true of HER shop', () 
 });
 
 /* ═══ ENTETE-BORNEE-1 (AUDIT-4 B-01) — her header style never freezes her boutique ═══
- * 42 of the 43 header styles live in their own small file, fetched after the
+ * 28 of her header styles live in their own small file, fetched after the
  * boutique read. A failed fetch already drew the default header; a fetch that
  * neither answered nor failed (a stalled 2G socket) left the page on
  * « Ouverture de la boutique… » for ever, with nothing to press. Written RED
@@ -373,9 +373,10 @@ test.describe('ENTETE-BORNEE-1 — a header style that never arrives never freez
   test('her style file hangs: the boutique opens anyway, on the default header, with her articles', async ({ page }) => {
     const errors = await service(page, (url) => repondre(3, url, { headerStyle: 'pagne' }));
     const demandes: string[] = [];
+    const tenues: Route[] = [];
     await page.route(/\/pagne-[A-Za-z0-9_-]+\.js$/, (route) => {
       demandes.push(route.request().url());
-      // held open: neither answered nor failed
+      tenues.push(route); // held open: neither answered nor failed
     });
     await page.goto(`/?/v/${SLUG}`);
     await expect(page.locator('.vt-root[data-etat="ready"]')).toBeVisible({ timeout: 12_000 });
@@ -383,6 +384,14 @@ test.describe('ENTETE-BORNEE-1 — a header style that never arrives never freez
     expect(await pidsAffiches(page)).toEqual(['p1', 'p2', 'p3']);
     await expect(page.locator('.vt-root .pg-hero')).toHaveCount(0);
     await expect(page.locator('.vt-root')).toContainText('Chez Aïcha Mode');
+    // Her style file lands AFTER the bound (verifier minor 2): it is not
+    // swapped in under her eyes — not now, not after she taps a heart.
+    const arrivee = page.waitForResponse(/\/pagne-[A-Za-z0-9_-]+\.js$/);
+    for (const r of tenues) await r.continue();
+    await arrivee;
+    await page.locator('.vt-root [data-action="favori"]').first().click();
+    await page.waitForTimeout(500);
+    await expect(page.locator('.vt-root .pg-hero')).toHaveCount(0);
     expect(errors).toEqual([]);
   });
 

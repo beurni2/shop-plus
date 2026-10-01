@@ -66,11 +66,19 @@ test('ENTETE-BORNEE-1 — the poster file never comes: the offline card and « R
     if (pendre) return; // held open: neither answered nor failed
     return route.continue();
   });
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(String(e.message ?? e)));
   await page.goto('/?demo-vitrine=aicha-4821&affiche=qr');
+  // While it waits, a frame stands — never a blank page (verifier minor 1).
+  await expect(page.locator('.vt-root[data-etat="loading"]')).toBeVisible({ timeout: 2_000 });
   const reessayer = page.locator('[data-etat="horsligne"] [data-action="reessayer"]');
   await expect(reessayer).toBeVisible({ timeout: 12_000 });
+  await expect(page.locator('.vt-root[data-etat="loading"]')).toHaveCount(0);
   await expect(page.locator('[data-role="affiche-qr"]')).toHaveCount(0);
   pendre = false;
   await reessayer.click();
   await expect(page.locator('[data-role="affiche-qr"]')).toBeVisible();
+  // …and the waiting frame is gone once the poster stands: a sheet, not a shop.
+  await expect(page.locator('.vt-root')).toHaveCount(0);
+  expect(errors).toEqual([]);
 });
