@@ -1,7 +1,7 @@
 import { t, tf } from '../i18n';
 import { esc } from '../format';
 import { caretApresChiffres, telEnPaires } from '../cliente/telephone';
-import { referenceCourte } from '../cliente/screens';
+import { dateCourte, referenceCourte } from '../cliente/screens';
 import type { ArticleCompte, ArticlesCompte, CommandeCompte, ComptePort, Echec, ProfilCliente } from './port';
 import { garderSession, marquerInvitee, oublierSessions, rafraichirSession, sessionActive } from './garde';
 import { icon } from '../icons';
@@ -398,12 +398,6 @@ export function renderProfil(etat: ProfilCliente | 'chargement' | 'hors_ligne' |
   ].join('');
 }
 
-/** jj/mm/aaaa, digits only — no month name to translate. */
-function dateCourte(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '';
-  return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
-}
 
 /** « Mes commandes »: while read, its failure, none yet, or her orders. The
  *  order's reference is on the page (as « Ma commande » shows it); her read

@@ -3528,6 +3528,12 @@
   "screenClass": "label"
  },
  {
+  "key": "cl.commandes.articles",
+  "fr": "{n} articles payés ensemble",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
   "key": "vit.panier_payer_tout",
   "fr": "Payer les {n} articles ensemble",
   "register": "selling",

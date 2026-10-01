@@ -1066,6 +1066,10 @@ async function lectures(page: Page, etats: Record<string, string | null>): Promi
 }
 
 const garde = (page: Page, cle: string) => page.evaluate((k) => localStorage.getItem(k), cle);
+/** COMMANDES-GARDEES-1 — what the phone keeps for her orders and paid paniers:
+ *  the lists, and the one-slot records of earlier builds they still read. */
+const commandesDuTel = (page: Page) => page.evaluate(() => (localStorage.getItem('sp-commandes:v1') ?? '') + (localStorage.getItem('sp-commande:v1') ?? ''));
+const paniersDuTel = (page: Page) => page.evaluate(() => (localStorage.getItem('sp-paniers-payes:v1') ?? '') + (localStorage.getItem('sp-panier-paye:v1') ?? ''));
 
 for (const [etat, oublie] of [['payment_pending', false], ['payment_failed', true], ['cancelled', true], [null, false]] as const) {
   test(`BANDE-PAYEE — an order the service says is ${etat ?? 'unreachable'}: no « Ma commande » band${oublie ? ', and the phone forgets it' : ', and the phone keeps it for the next visit'}`, async ({ page }) => {
@@ -1085,10 +1089,10 @@ for (const [etat, oublie] of [['payment_pending', false], ['payment_failed', tru
     await expect(page.locator('[data-role="ma-commande"]'), 'a band for an order nobody paid').toHaveCount(0, { timeout: 2_000 });
     // It asked the service — and after the answer landed, still no band.
     await expect.poll(() => lus.length).toBeGreaterThan(0);
-    if (oublie) await expect.poll(() => garde(page, 'sp-commande:v1')).toBeNull();
+    if (oublie) await expect.poll(() => commandesDuTel(page)).toBe('');
     await page.waitForTimeout(500);
     await expect(page.locator('[data-role="ma-commande"]')).toHaveCount(0);
-    if (!oublie) expect(await garde(page, 'sp-commande:v1')).toContain(COMMANDE_KEPT.orderId);
+    if (!oublie) expect(await commandesDuTel(page)).toContain(COMMANDE_KEPT.orderId);
     // A failed order's door holder leaves with it; nobody else's does.
     if (oublie) await expect.poll(() => garde(page, 'sp-portes:v1')).toBe(JSON.stringify([autrePorte]));
     else expect(await garde(page, 'sp-portes:v1')).toContain(COMMANDE_KEPT.orderId);
@@ -1115,7 +1119,7 @@ test('BANDE-PAYEE — an order the service says is paid: the band stands, opens 
 
   // The next visit, offline: the phone already heard « paid » — the band
   // stands without asking, as it always did for a paid order.
-  await expect.poll(() => garde(page, 'sp-commande:v1')).toContain('"payee":true');
+  await expect.poll(() => commandesDuTel(page)).toContain('"payee":true');
   await page.unroute('**/checkout/order/**');
   await page.route('**/checkout/**', (route) => route.abort('internetdisconnected'));
   // The link reopened as the deploy's 404 page restores it (the preview server
@@ -1149,7 +1153,7 @@ for (const [etat, visible, oublie] of [['payment_pending', false, false], ['paym
     if (visible) {
       await expect(bandePanier).toContainText('2');
       // The next visit, offline: the phone already heard « paid » (verifier MAJOR).
-      await expect.poll(() => garde(page, 'sp-panier-paye:v1')).toContain('"payee":true');
+      await expect.poll(() => paniersDuTel(page)).toContain('"payee":true');
       await page.unroute('**/checkout/order/**');
       await page.route('**/checkout/**', (route) => route.abort('internetdisconnected'));
       const demandes: string[] = [];
@@ -1162,10 +1166,10 @@ for (const [etat, visible, oublie] of [['payment_pending', false, false], ['paym
     } else {
       await expect(bandePanier, 'a band for articles nobody paid').toHaveCount(0, { timeout: 2_000 });
       await expect.poll(() => lus.length).toBeGreaterThan(0);
-      if (oublie) await expect.poll(() => garde(page, 'sp-panier-paye:v1')).toBeNull();
+      if (oublie) await expect.poll(() => paniersDuTel(page)).toBe('');
       await page.waitForTimeout(500);
       await expect(bandePanier).toHaveCount(0);
-      if (!oublie) expect(await garde(page, 'sp-panier-paye:v1')).toContain('grp-bande-1');
+      if (!oublie) expect(await paniersDuTel(page)).toContain('grp-bande-1');
     }
     expect(erreurs).toEqual([]);
   });
@@ -1187,10 +1191,10 @@ test('BANDE-PAYEE — an old answer never erases the order a retry kept since (v
   await expect.poll(() => arrive).toBe(true);
   // While the first read hangs, her retry keeps the SAME order again, at a new time.
   const reessai = { ...COMMANDE_KEPT, at: '2026-09-24T08:05:00.000Z' };
-  await page.evaluate((c) => localStorage.setItem('sp-commande:v1', JSON.stringify(c)), reessai);
+  await page.evaluate((c) => localStorage.setItem('sp-commandes:v1', JSON.stringify([c])), reessai);
   lacher();
   await page.waitForTimeout(800);
-  expect(await garde(page, 'sp-commande:v1')).toContain('2026-09-24T08:05:00.000Z');
+  expect(await commandesDuTel(page)).toContain('2026-09-24T08:05:00.000Z');
   await expect(page.locator('[data-role="ma-commande"]')).toHaveCount(0);
   expect(erreurs).toEqual([]);
 });
@@ -1217,10 +1221,55 @@ test('BANDE-PAYEE — a band whose answer lands late stays off a screen she alre
   await expect(page.locator('[data-screen="MES-ARTICLES"]')).toBeVisible();
   // Only now does the other order's « paid » land.
   lacher();
-  await expect.poll(() => garde(page, 'sp-commande:v1')).toContain('"payee":true');
+  await expect.poll(() => commandesDuTel(page)).toContain('"payee":true');
   await page.waitForTimeout(300);
   await expect(page.locator('[data-role="ma-commande"]')).toHaveCount(0);
   await expect(page.locator('[data-screen="MES-ARTICLES"]')).toBeVisible();
+  expect(erreurs).toEqual([]);
+});
+
+/* ═══ COMMANDES-GARDEES-1 (AUDIT-4 A-02) — an order AND a paid panier on one phone ═══
+ * Kept by an earlier build (its one-slot records), both paid: ONE band, « Mes
+ * commandes · 2 », whose list opens each its own way — the order its
+ * tracking, the panier its articles. Written RED first: the phone used to
+ * show two bands, one per record, and only ever the newest of each. */
+test('COMMANDES-GARDEES-1 — an order and a paid panier: one band « Mes commandes · 2 », each opening its own road', async ({ page }) => {
+  const livre = new Livre();
+  await page.addInitScript(({ c, p }) => {
+    if (sessionStorage.getItem('gardees-seme') === null) {
+      localStorage.setItem('sp-commande:v1', JSON.stringify(c));
+      localStorage.setItem('sp-panier-paye:v1', JSON.stringify(p));
+      sessionStorage.setItem('gardees-seme', '1');
+    }
+  }, { c: COMMANDE_KEPT, p: PANIER_KEPT });
+  const erreurs = await ouvrir(page, livre, '/?/v/aicha-4821', async () => {
+    await lectures(page, { [COMMANDE_KEPT.orderId]: 'confirmed', 'ord-q-p1-A': 'confirmed', 'ord-q-p2-A': 'confirmed' });
+  });
+  const bandeListe = page.locator('[data-role="mes-commandes"]');
+  await expect(bandeListe).toContainText('Mes commandes');
+  await expect(bandeListe).toContainText('2');
+  await expect(page.locator('[data-role="ma-commande"]')).toHaveCount(0);
+  await expect(page.locator('[data-role="mes-articles"]')).toHaveCount(0);
+  // Both records now live in the lists; the old slots are folded in.
+  await expect.poll(() => garde(page, 'sp-commandes:v1')).toContain('"payee":true');
+  await expect.poll(() => garde(page, 'sp-paniers-payes:v1')).toContain('"payee":true');
+  expect(await garde(page, 'sp-commande:v1')).toBeNull();
+  expect(await garde(page, 'sp-panier-paye:v1')).toBeNull();
+
+  await bandeListe.click();
+  await expect(page.locator('[data-screen="MES-COMMANDES"]')).toBeVisible();
+  await expect(page.locator('[data-role="commande-gardee"]')).toHaveCount(1);
+  await expect(page.locator('[data-role="panier-garde"]')).toContainText('2 articles payés ensemble');
+  expect(await page.content()).not.toContain('REF-BANDE-PAYEE');
+  expect(await page.content()).not.toContain('REF-P1');
+  await page.locator('[data-action="ouvrir-panier"]').click();
+  await expect(page.locator('[data-screen="MES-ARTICLES"]')).toBeVisible();
+
+  await page.goto('/?/v/aicha-4821');
+  await page.locator('[data-role="mes-commandes"]').click();
+  await page.locator('[data-action="ouvrir-commande"]').click();
+  await expect(page.locator('[data-screen="C7"]')).toBeVisible();
+  await expect(page.locator('[data-screen="C7"] .cl-cmd')).toHaveText('Réf. A7F877');
   expect(erreurs).toEqual([]);
 });
 

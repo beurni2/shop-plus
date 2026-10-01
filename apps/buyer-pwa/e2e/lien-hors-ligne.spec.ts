@@ -112,6 +112,28 @@ test('F-02 — the service unreachable: the designed card, no pageerror; « Rée
   expect(errors).toEqual([]);
 });
 
+// COMMANDES-GARDEES-1 — with two orders kept, her way back is « Mes commandes »:
+// a retry clears what the road mounted, never that band.
+test('COMMANDES-GARDEES-1 — « Réessayer » re-runs her road and never takes « Mes commandes » away', async ({ page }) => {
+  await page.addInitScript(() => {
+    if (sessionStorage.getItem('commandes-semees') !== null) return;
+    localStorage.setItem('sp-commandes:v1', JSON.stringify([
+      { orderId: 'ord-a', buyerRef: 'ref-a', at: '2026-10-01T08:00:00.000Z', payee: true },
+      { orderId: 'ord-b', buyerRef: 'ref-b', at: '2026-09-30T08:00:00.000Z', payee: true },
+    ]));
+    sessionStorage.setItem('commandes-semees', '1');
+  });
+  const errors = await ouvrir(page, 'coupe');
+  await expect(page.locator('[data-etat="horsligne"]')).toBeVisible();
+  const bande = page.locator('[data-role="mes-commandes"]');
+  await expect(bande).toContainText('2');
+  await service(page, 'ok');
+  await page.locator('[data-action="reessayer"]').click();
+  await expect(page.locator('[data-screen="C1"]')).toBeVisible();
+  await expect(bande).toContainText('2');
+  expect(errors).toEqual([]);
+});
+
 test('F-52 — a 5xx is the SERVICE absent: its own sentence, the same way out; the retry reaches the offer', async ({ page }) => {
   const errors = await ouvrir(page, 'cinq-cents');
   const carte = page.locator('[data-etat="horsligne"]');

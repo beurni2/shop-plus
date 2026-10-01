@@ -1285,22 +1285,31 @@ export function forgetRequestKey(intent: QuoteIntent, storage?: Storage, portee?
   }
 }
 
-/* ──────────────────── VRAI-SUIVI — her order, kept on the phone ──────────── */
+/* ──────────────────── VRAI-SUIVI — her orders, kept on the phone ──────────── */
 
 /**
- * ═══ THE ONE ORDER THIS PHONE REMEMBERS ═══
+ * ═══ THE ORDERS THIS PHONE REMEMBERS ═══
  *
  * `localStorage` (not session — she closes the browser and comes back
- * tomorrow), ONE slot, newest wins: at pilot scale a buyer has one live order,
- * and a second `garderCommande` simply replaces the first. What is kept is the
- * MINIMUM that re-opens her tracking: the order's id, her bearer ref for the
- * remise route, and when it was stored. No amount, no product, no address —
- * nothing here is worth stealing and nothing here can price anything.
+ * tomorrow). COMMANDES-GARDEES-1 (AUDIT-4 A-02): a short list, not one slot —
+ * a guest who orders a pagne on Monday and sandals on Tuesday must still reach
+ * the pagne's tracking, and its code, when its rider comes on Wednesday. Ten
+ * at most, newest first; an order leaves on « C'est terminé » or when the
+ * service says no money moved. What is kept per order is the MINIMUM that
+ * re-opens her tracking: the order's id, her bearer ref for the remise route,
+ * and when it was stored. No amount, no product, no address — nothing here is
+ * worth stealing and nothing here can price anything.
+ *
+ * The one-slot record of earlier builds (`sp-commande:v1`) is still read, as
+ * the oldest entry, until the next write folds it in.
  *
  * EVERY function tolerates a dead or lying storage (private mode, quota, a
  * webview that throws on touch): keeping the record is best-effort, and losing
  * it costs her the shortcut, never the order — the order lives on the service.
  */
+export const COMMANDES_CLE = 'sp-commandes:v1';
+export const COMMANDES_MAX = 10;
+/** The one-slot record of earlier builds — read, never written. */
 export const COMMANDE_CLE = 'sp-commande:v1';
 
 export interface CommandeGardee {
@@ -1311,35 +1320,69 @@ export interface CommandeGardee {
   readonly payee?: true | undefined;
 }
 
-export function garderCommande(c: CommandeGardee, storage?: Storage): void {
-  if (storage === undefined) return;
+/** One record, or nothing — a record missing ANY field is nothing, so a
+ *  half-written or hand-edited entry can never mount a tracking it cannot poll. */
+function lireCommande(v: unknown): CommandeGardee | undefined {
+  if (v === null || typeof v !== 'object') return undefined;
+  const o = v as Record<string, unknown>;
+  if (!nonEmpty(o['orderId']) || !nonEmpty(o['buyerRef']) || !nonEmpty(o['at'])) return undefined;
+  return { orderId: o['orderId'], buyerRef: o['buyerRef'], at: o['at'], ...(o['payee'] === true ? { payee: true as const } : {}) };
+}
+
+/** Her kept orders, newest first. */
+export function commandesGardees(storage?: Storage): CommandeGardee[] {
+  if (storage === undefined) return [];
+  const liste: CommandeGardee[] = [];
   try {
-    // Field by field, never a spread — the same allowlist law as every wire
-    // body in this file: what is stored is exactly what is named.
-    storage.setItem(
-      COMMANDE_CLE,
-      JSON.stringify({ orderId: c.orderId, buyerRef: c.buyerRef, at: c.at, ...(c.payee === true ? { payee: true } : {}) }),
-    );
+    const v: unknown = JSON.parse(storage.getItem(COMMANDES_CLE) ?? '[]');
+    if (Array.isArray(v)) for (const e of v) { const c = lireCommande(e); if (c !== undefined && !liste.some((x) => x.orderId === c.orderId)) liste.push(c); }
   } catch {
-    /* best-effort — the order still lives on the service */
+    /* an unreadable list is no list */
+  }
+  try {
+    const raw = storage.getItem(COMMANDE_CLE);
+    const ancienne = raw === null || raw === '' ? undefined : lireCommande(JSON.parse(raw));
+    if (ancienne !== undefined && !liste.some((x) => x.orderId === ancienne.orderId)) liste.push(ancienne);
+  } catch {
+    /* an unreadable old slot is nothing */
+  }
+  return liste.slice(0, COMMANDES_MAX);
+}
+
+/** The kept order with this id, or nothing. */
+export function commandeGardee(orderId: string, storage?: Storage): CommandeGardee | undefined {
+  return commandesGardees(storage).find((c) => c.orderId === orderId);
+}
+
+function ecrireCommandes(liste: readonly CommandeGardee[], storage: Storage): void {
+  try {
+    if (liste.length === 0) storage.removeItem(COMMANDES_CLE);
+    else {
+      // Field by field, never a spread — the same allowlist law as every wire
+      // body in this file: what is stored is exactly what is named.
+      storage.setItem(
+        COMMANDES_CLE,
+        JSON.stringify(liste.slice(0, COMMANDES_MAX).map((c) => ({ orderId: c.orderId, buyerRef: c.buyerRef, at: c.at, ...(c.payee === true ? { payee: true } : {}) }))),
+      );
+    }
+    storage.removeItem(COMMANDE_CLE);
+  } catch {
+    /* best-effort — the orders still live on the service */
   }
 }
 
-/** The stored order, or nothing — a record missing ANY field is nothing, so a
- *  half-written or hand-edited slot can never mount a tracking it cannot poll. */
-export function commandeGardee(storage?: Storage): CommandeGardee | undefined {
-  if (storage === undefined) return undefined;
-  try {
-    const raw = storage.getItem(COMMANDE_CLE);
-    if (raw === null || raw === '') return undefined;
-    const v: unknown = JSON.parse(raw);
-    if (v === null || typeof v !== 'object') return undefined;
-    const o = v as Record<string, unknown>;
-    if (!nonEmpty(o['orderId']) || !nonEmpty(o['buyerRef']) || !nonEmpty(o['at'])) return undefined;
-    return { orderId: o['orderId'], buyerRef: o['buyerRef'], at: o['at'], ...(o['payee'] === true ? { payee: true as const } : {}) };
-  } catch {
-    return undefined;
-  }
+/** Keep (or update in place) one order; a new one goes first. */
+export function garderCommande(c: CommandeGardee, storage?: Storage): void {
+  if (storage === undefined) return;
+  const liste = commandesGardees(storage);
+  const i = liste.findIndex((x) => x.orderId === c.orderId);
+  ecrireCommandes(i === -1 ? [c, ...liste] : liste.map((x, j) => (j === i ? c : x)), storage);
+}
+
+/** « C'est terminé » — or no money moved: this order leaves the phone, the others stay. */
+export function oublierCommande(orderId: string, storage?: Storage): void {
+  if (storage === undefined) return;
+  ecrireCommandes(commandesGardees(storage).filter((c) => c.orderId !== orderId), storage);
 }
 
 /**
@@ -1376,9 +1419,9 @@ export function verdictBande(r: OrderOutcome): VerdictBande {
  *
  * The holder a PAY-AT-THE-DOOR order was created under, per order, so the
  * tracking she reopens on THIS phone can still start her door payment. Its
- * own small store, never the « newest wins » slot above (verifier MAJOR 1: a
- * later checkout overwrote that slot and took an earlier order's door with
- * it). Ten at most, newest first; an order leaves on « C'est terminé » or a
+ * own small store, apart from the order list above (verifier MAJOR 1: that
+ * record was one « newest wins » slot then, and a later checkout took an
+ * earlier order's door with it). Ten at most, newest first; an order leaves on « C'est terminé » or a
  * failed payment. A holder pays nothing by itself: the service only asks the
  * operator to collect, and only a signed webhook says paid. Prepaid orders
  * keep none.
@@ -1444,15 +1487,6 @@ export function porteGardee(
   };
 }
 
-/** She said « C'est terminé » — the slot clears and the shortcut goes away. */
-export function oublierCommande(storage?: Storage): void {
-  if (storage === undefined) return;
-  try {
-    storage.removeItem(COMMANDE_CLE);
-  } catch {
-    /* best-effort */
-  }
-}
 
 /** `localStorage`, or nothing — merely READING the property throws in a
  *  locked-down webview (the `sessionStorageOrUndefined` precedent, main.ts). */

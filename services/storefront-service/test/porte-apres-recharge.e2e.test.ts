@@ -168,7 +168,7 @@ describe('PORTE-APRES-RECHARGE-1 — her door after the tab died, on the real Wo
     // Verifier MAJOR 1 — she orders something else on this phone, and that
     // order fails: the newest slot moves on, then is cleared. Her door stays.
     port.garderCommande({ orderId: 'ord-plus-tard', buyerRef: 'ref-plus-tard', at: new Date().toISOString() }, telephone);
-    port.oublierCommande(telephone);
+    port.oublierCommande('ord-plus-tard', telephone);
 
     // THE TAB DIES — nothing in memory survives; a fresh port and a fresh tab.
     const payer = port.porteGardee(orderId, port.httpQuotePort('http://sf'), telephone, memoire());

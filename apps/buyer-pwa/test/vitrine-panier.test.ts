@@ -140,7 +140,14 @@ describe('PAYER-TOUT-1 — « Payer les N articles ensemble »: one button, only
     expect(pidsAPayer(SF as never, prods() as never)).toEqual(['p3']);
     const band = html().split('data-role="vitrine-panier"')[1]!.split('data-role="vitrine-a-la-une"')[0]!;
     expect(band).not.toContain('data-action="panier-payer"');
-    // Another boutique's record never hides this one's articles.
+    // COMMANDES-GARDEES-1 — a later panier in ANOTHER boutique keeps this one's record…
+    garderPanierPaye(
+      { groupId: 'grp-2', holderRef: 'h', at: 'T', slug: 'une-autre-9999', articles: [{ orderId: 'o9', buyerRef: 'r9', nom: 'X', pid: 'p1' }] },
+      localStorage,
+    );
+    expect(pidsAPayer(SF as never, prods() as never)).toEqual(['p3']);
+    // …and that other boutique's record never hides this one's articles.
+    localStorage.removeItem('sp-paniers-payes:v1');
     garderPanierPaye(
       { groupId: 'grp-2', holderRef: 'h', at: 'T', slug: 'une-autre-9999', articles: [{ orderId: 'o9', buyerRef: 'r9', nom: 'X', pid: 'p1' }] },
       localStorage,

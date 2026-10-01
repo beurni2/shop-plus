@@ -43,7 +43,6 @@ import { retirerDuPanier } from '../vitrine/panier';
 import {
   garderPanierPaye,
   oublierPanierPaye,
-  panierPaye,
   titulairePanier,
   type ArticlePaye,
   type ColisPaye,
@@ -269,7 +268,7 @@ export function creerSourcePanier(args: {
     // The phone keeps only a payment that did not fail (verifier minor 2): a
     // failed one is not hers to follow, and its record would say otherwise.
     if (g.state === 'payment_failed') {
-      if (panierPaye(args.garde)?.groupId === g.groupId) oublierPanierPaye(args.garde);
+      oublierPanierPaye(g.groupId, args.garde);
     } else if (g.commandes !== undefined) {
       garderPanierPaye(
         { groupId: g.groupId, holderRef: titulaire, at: new Date().toISOString(), slug: args.slug, articles: payes, ...(colis.length > 0 ? { colis } : {}) },

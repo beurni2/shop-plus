@@ -514,13 +514,21 @@ export function resolvePanierPort(prixParPid: ReadonlyMap<string, number>): Pani
  * WHAT THE PHONE KEEPS after a panier payment, so « Mes articles » reopens
  * each article's tracking after the tab dies: the payment's id, the holder
  * that paid it (each article's door is paid under it), and per article its
- * order, its read token and its name. ONE slot, newest wins — pilot scale,
- * the single road's own law (`sp-commande:v1`). No amount, no contact, no code.
+ * order, its read token and its name. COMMANDES-GARDEES-1 (AUDIT-4 A-02): a
+ * short list, like the single road's own (`sp-commandes:v1`) — ten paid
+ * paniers at most, newest first; a second panier never takes the first one's
+ * tracking with it. No amount, no contact, no code.
  * The boutique's slug and each article's product id ride too (both public, in
  * her link): the boutique never offers to pay again what this record names,
  * and an article leaves her panier once its own tracking reads it paid —
  * even when the tab that paid died before the operator confirmed.
+ *
+ * The one-slot record of earlier builds (`sp-panier-paye:v1`) is still read,
+ * as the oldest entry, until the next write folds it in.
  */
+export const PANIERS_PAYES_CLE = 'sp-paniers-payes:v1';
+export const PANIERS_PAYES_MAX = 10;
+/** The one-slot record of earlier builds — read, never written. */
 export const PANIER_PAYE_CLE = 'sp-panier-paye:v1';
 
 export interface ArticlePaye {
@@ -542,87 +550,122 @@ export interface PanierPaye {
   readonly payee?: true | undefined;
 }
 
-export function garderPanierPaye(p: PanierPaye, storage?: Storage): void {
-  if (storage === undefined) return;
+function lirePanier(v: unknown): PanierPaye | undefined {
+  if (v === null || typeof v !== 'object') return undefined;
+  const o = v as Record<string, unknown>;
+  if (!nonVide(o['groupId']) || !nonVide(o['holderRef']) || !nonVide(o['at']) || !Array.isArray(o['articles'])) return undefined;
+  const articles: ArticlePaye[] = [];
+  for (const a of o['articles'] as unknown[]) {
+    const x = a !== null && typeof a === 'object' ? (a as Record<string, unknown>) : {};
+    if (!nonVide(x['orderId']) || !nonVide(x['buyerRef']) || typeof x['nom'] !== 'string') return undefined;
+    articles.push({ orderId: x['orderId'], buyerRef: x['buyerRef'], nom: x['nom'], ...(nonVide(x['pid']) ? { pid: x['pid'] } : {}) });
+  }
+  if (articles.length === 0) return undefined;
+  // A record whose packages cannot be read keeps its articles, without packages.
+  const colis = lireColis(o['colis']) ?? [];
+  return {
+    groupId: o['groupId'],
+    holderRef: o['holderRef'],
+    at: o['at'],
+    ...(nonVide(o['slug']) ? { slug: o['slug'] } : {}),
+    articles,
+    ...(colis.length > 0 ? { colis } : {}),
+    ...(o['payee'] === true ? { payee: true as const } : {}),
+  };
+}
+
+/** Her paid paniers, newest first. */
+export function paniersPayes(storage?: Storage): PanierPaye[] {
+  if (storage === undefined) return [];
+  const liste: PanierPaye[] = [];
   try {
-    storage.setItem(
-      PANIER_PAYE_CLE,
-      JSON.stringify({
-        groupId: p.groupId,
-        holderRef: p.holderRef,
-        at: p.at,
-        ...(p.slug !== undefined ? { slug: p.slug } : {}),
-        articles: p.articles.map((a) => ({
-          orderId: a.orderId,
-          buyerRef: a.buyerRef,
-          nom: a.nom,
-          ...(a.pid !== undefined ? { pid: a.pid } : {}),
-        })),
-        ...(p.colis !== undefined && p.colis.length > 0
-          ? { colis: p.colis.map((c) => ({ packageId: c.packageId, orderIds: [...c.orderIds] })) }
-          : {}),
-        ...(p.payee === true ? { payee: true } : {}),
-      }),
-    );
+    const v: unknown = JSON.parse(storage.getItem(PANIERS_PAYES_CLE) ?? '[]');
+    if (Array.isArray(v)) for (const e of v) { const p = lirePanier(e); if (p !== undefined && !liste.some((x) => x.groupId === p.groupId)) liste.push(p); }
+  } catch {
+    /* an unreadable list is no list */
+  }
+  try {
+    const raw = storage.getItem(PANIER_PAYE_CLE);
+    const ancien = raw === null || raw === '' ? undefined : lirePanier(JSON.parse(raw));
+    if (ancien !== undefined && !liste.some((x) => x.groupId === ancien.groupId)) liste.push(ancien);
+  } catch {
+    /* an unreadable old slot is nothing */
+  }
+  return liste.slice(0, PANIERS_PAYES_MAX);
+}
+
+/** The kept panier paid under this payment, or nothing. */
+export function panierPaye(groupId: string, storage?: Storage): PanierPaye | undefined {
+  return paniersPayes(storage).find((p) => p.groupId === groupId);
+}
+
+function ecrirePaniers(liste: readonly PanierPaye[], storage: Storage): void {
+  try {
+    if (liste.length === 0) storage.removeItem(PANIERS_PAYES_CLE);
+    else {
+      storage.setItem(
+        PANIERS_PAYES_CLE,
+        JSON.stringify(
+          liste.slice(0, PANIERS_PAYES_MAX).map((p) => ({
+            groupId: p.groupId,
+            holderRef: p.holderRef,
+            at: p.at,
+            ...(p.slug !== undefined ? { slug: p.slug } : {}),
+            articles: p.articles.map((a) => ({
+              orderId: a.orderId,
+              buyerRef: a.buyerRef,
+              nom: a.nom,
+              ...(a.pid !== undefined ? { pid: a.pid } : {}),
+            })),
+            ...(p.colis !== undefined && p.colis.length > 0
+              ? { colis: p.colis.map((c) => ({ packageId: c.packageId, orderIds: [...c.orderIds] })) }
+              : {}),
+            ...(p.payee === true ? { payee: true } : {}),
+          })),
+        ),
+      );
+    }
+    storage.removeItem(PANIER_PAYE_CLE);
   } catch {
     /* best-effort — the orders still live on the service */
   }
 }
 
-export function panierPaye(storage?: Storage): PanierPaye | undefined {
-  if (storage === undefined) return undefined;
-  try {
-    const raw = storage.getItem(PANIER_PAYE_CLE);
-    if (raw === null || raw === '') return undefined;
-    const v = JSON.parse(raw) as Record<string, unknown>;
-    if (!nonVide(v['groupId']) || !nonVide(v['holderRef']) || !nonVide(v['at']) || !Array.isArray(v['articles'])) return undefined;
-    const articles: ArticlePaye[] = [];
-    for (const a of v['articles'] as unknown[]) {
-      const o = a !== null && typeof a === 'object' ? (a as Record<string, unknown>) : {};
-      if (!nonVide(o['orderId']) || !nonVide(o['buyerRef']) || typeof o['nom'] !== 'string') return undefined;
-      articles.push({ orderId: o['orderId'], buyerRef: o['buyerRef'], nom: o['nom'], ...(nonVide(o['pid']) ? { pid: o['pid'] } : {}) });
-    }
-    if (articles.length === 0) return undefined;
-    // A record whose packages cannot be read keeps its articles, without packages.
-    const colis = lireColis(v['colis']) ?? [];
-    return {
-      groupId: v['groupId'],
-      holderRef: v['holderRef'],
-      at: v['at'],
-      ...(nonVide(v['slug']) ? { slug: v['slug'] } : {}),
-      articles,
-      ...(colis.length > 0 ? { colis } : {}),
-      ...(v['payee'] === true ? { payee: true as const } : {}),
-    };
-  } catch {
-    return undefined;
-  }
+/** Keep (or update in place) one paid panier; a new one goes first. */
+export function garderPanierPaye(p: PanierPaye, storage?: Storage): void {
+  if (storage === undefined) return;
+  const liste = paniersPayes(storage);
+  const i = liste.findIndex((x) => x.groupId === p.groupId);
+  ecrirePaniers(i === -1 ? [p, ...liste] : liste.map((x, j) => (j === i ? p : x)), storage);
 }
 
-/** The products of this boutique the record names — never offered for payment again while it stands. */
+/** The products of this boutique any kept panier names — never offered for payment again while it stands. */
 export function pidsPayes(slug: string, storage?: Storage): ReadonlySet<string> {
-  const p = panierPaye(storage);
-  if (p === undefined || p.slug !== slug) return new Set();
-  return new Set(p.articles.flatMap((a) => (a.pid !== undefined ? [a.pid] : [])));
+  return new Set(
+    paniersPayes(storage)
+      .filter((p) => p.slug === slug)
+      .flatMap((p) => p.articles.flatMap((a) => (a.pid !== undefined ? [a.pid] : []))),
+  );
 }
 
-/** « C'est terminé » on one article: its line goes; the last one takes the slot with it. */
+/** « C'est terminé » on one article: its line goes; the last one takes its panier with it. */
 export function retirerArticlePaye(orderId: string, storage?: Storage): void {
-  const p = panierPaye(storage);
+  if (storage === undefined) return;
+  const liste = paniersPayes(storage);
+  const p = liste.find((x) => x.articles.some((a) => a.orderId === orderId));
   if (p === undefined) return;
   const reste = p.articles.filter((a) => a.orderId !== orderId);
-  if (reste.length === 0) oublierPanierPaye(storage);
   // Its package stays named: the others still travel, and are paid, as one.
-  else garderPanierPaye({ ...p, articles: reste }, storage);
+  ecrirePaniers(
+    reste.length === 0 ? liste.filter((x) => x !== p) : liste.map((x) => (x === p ? { ...p, articles: reste } : x)),
+    storage,
+  );
 }
 
-export function oublierPanierPaye(storage?: Storage): void {
+/** No money moved for this panier: it leaves the phone, the others stay. */
+export function oublierPanierPaye(groupId: string, storage?: Storage): void {
   if (storage === undefined) return;
-  try {
-    storage.removeItem(PANIER_PAYE_CLE);
-  } catch {
-    /* best-effort */
-  }
+  ecrirePaniers(paniersPayes(storage).filter((p) => p.groupId !== groupId), storage);
 }
 
 /**

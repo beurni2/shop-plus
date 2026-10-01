@@ -39,10 +39,10 @@ function monterCliente(...args: Parameters<typeof createCliente>): void {
   arreterCliente = createCliente(...args);
 }
 import { clienteProduit, clienteProduitReel, composeQuote, harnessFrancs } from './cliente/seed';
-import { commandIdFor, commandeGardee, forgetRequestKey, garderCommande, localStorageOrUndefined, oublierCommande, oublierPorte, orderCommandIdFor, porteGardee, requestKeyFor, resolveQuotePort, verdictBande, villeDe } from './cliente/quote-port';
+import { commandIdFor, commandeGardee, commandesGardees, forgetRequestKey, garderCommande, localStorageOrUndefined, oublierCommande, oublierPorte, orderCommandIdFor, porteGardee, requestKeyFor, resolveQuotePort, verdictBande, villeDe, type CommandeGardee } from './cliente/quote-port';
 import { SUIVI } from './cliente/screens';
-import { monterMesArticles, monterPanier } from './cliente/panier-montage';
-import { garderPanierPaye, oublierPanierPaye, panierPaye, resolveSuiviArticle } from './cliente/panier-port';
+import { monterMesArticles, monterMesCommandes, monterPanier } from './cliente/panier-montage';
+import { garderPanierPaye, oublierPanierPaye, panierPaye, paniersPayes, resolveSuiviArticle, type PanierPaye } from './cliente/panier-port';
 import { t } from './i18n';
 import { fetchClienteQuote, MODES_WIRE, type QuoteBase, type QuoteFetch } from './cliente/quote-model';
 import { LISTE_TOKEN, resolveListePort } from './vitrine/liste';
@@ -662,7 +662,7 @@ if (app) {
   /** « Mes commandes » → her order's tracking; the phone's shortcut is forgotten only if it is this order's. */
   const suiviDepuisCompte = (orderId: string, buyerRef: string): void =>
     ouvrirSuivi(orderId, buyerRef, () => {
-      if (commandeGardee(localStorageOrUndefined())?.orderId === orderId) oublierCommande(localStorageOrUndefined());
+      oublierCommande(orderId, localStorageOrUndefined());
     });
   /**
    * BANDEAUX-RETIRÉS (founder order 2026-08-14): « remove … the one on
@@ -777,7 +777,7 @@ if (app) {
     const monterOffre = async (): Promise<void> => {
     for (const enfant of Array.from(app.children)) {
       const role = enfant.getAttribute('data-role');
-      if (role !== 'ma-commande' && role !== 'mon-compte') enfant.remove();
+      if (role !== 'ma-commande' && role !== 'mes-commandes' && role !== 'mon-compte') enfant.remove();
     }
     const pidParam = params.get('pid');
     const panierParam = params.get('panier');
@@ -1322,8 +1322,8 @@ if (app) {
   /**
    * ═══ VRAI-SUIVI — « MA COMMANDE », THE WAY BACK TO A LIVE ORDER ═══
    *
-   * The order create stored `{orderId, buyerRef, at}` under `sp-commande:v1`
-   * (one slot, newest wins — pilot scale). When that record exists, every
+   * The order create stores `{orderId, buyerRef, at}` in the phone's order
+   * list (`sp-commandes:v1`, COMMANDES-GARDEES-1). When one exists, every
    * shell entry — the directory, a vitrine, a signed product page — carries a
    * quiet band at the head of the shell that reopens the REAL tracking: `createCliente`
    * mounted straight at C7 with a `suivi` source over the env-gated port, so
@@ -1348,103 +1348,114 @@ if (app) {
   if (comptePortShell !== undefined) {
     lierLesCommandesDues(comptePortShell, garde, sessionStorageOrUndefined(), (id) => resolveQuotePort().orderState(id));
   }
-  const gardee = clienteDemo === null ? commandeGardee(garde) : undefined;
-  if (gardee !== undefined) {
-    const gardeeSure = gardee;
-    const poserBandeCommande = (): void => {
-      const suiviBtn = document.createElement('button');
-      suiviBtn.className = 'ma-commande';
-      suiviBtn.setAttribute('data-role', 'ma-commande');
-      const suiviLabel = document.createElement('span');
-      suiviLabel.textContent = SUIVI.reentree;
-      const suiviPastille = document.createElement('span');
-      suiviPastille.className = 'bande-pastille';
-      suiviPastille.innerHTML = icon('colis', 'bande-glyphe');
-      const suiviRef = document.createElement('span');
-      suiviRef.className = 'ma-commande-ref ma-commande-suivre';
-      suiviRef.setAttribute('data-role', 'ma-commande-suivre');
-      suiviRef.textContent = t('bande.suivre');
-      suiviRef.insertAdjacentHTML('beforeend', icon('chevron', 'ma-commande-chevron'));
-      suiviBtn.append(suiviPastille, suiviLabel, suiviRef);
-      suiviBtn.addEventListener('click', () => ouvrirSuivi(gardeeSure.orderId, gardeeSure.buyerRef));
-      // BANDEAUX-RETIRÉS — this band was inserted AFTER the ribbon object; with
-      // the ribbon gone it takes the ribbon's place at the head of the shell,
-      // which is where it always rendered. `prepend` keeps that position without
-      // depending on any other element existing.
-      app.prepend(suiviBtn);
-    };
-    if (gardeeSure.payee === true) poserBandeCommande();
-    else {
-      void resolveQuotePort().orderState(gardeeSure.orderId).then((r) => {
-        const verdict = verdictBande(r);
-        // Newest wins: a checkout that kept an order since — another one, or
-        // this one again on a retry (same id, new time; verifier minor 1) —
-        // must not lose it to this older answer.
-        const actuelle = commandeGardee(garde);
-        const encore = actuelle?.orderId === gardeeSure.orderId && actuelle.at === gardeeSure.at;
-        if (verdict === 'oublier' && encore) oublierCommande(garde);
-        // Her door holder is per order, so it leaves with THIS order's failure
-        // whatever the newest slot holds now.
-        if (verdict === 'oublier') oublierPorte(gardeeSure.orderId, garde);
-        if (verdict !== 'payee') return;
-        if (encore) garderCommande({ ...gardeeSure, payee: true }, garde);
-        if (!shellRemplace) poserBandeCommande();
-      });
-    }
-  }
-
   /**
-   * PAYER-TOUT-1 — « MES ARTICLES COMMANDÉS ENSEMBLE », the same quiet band for a
-   * panier paid at once: it reopens the list, and each article's own tracking
-   * from there. Built with `textContent`, like its neighbour.
-   *
-   * BANDE-PAYEE — the same rule: the record is written on the payment's first
-   * answer, still pending. The articles were paid in ONE payment, so the first
-   * article's order speaks for it.
+   * COMMANDES-GARDEES-1 (AUDIT-4 A-02) — every order and every paid panier
+   * this phone keeps, not only the newest. ONE quiet band whatever their
+   * number: one known paid ⇒ the band of that one, exactly as before; two or
+   * more ⇒ « Mes commandes » and their count, opening the list where each one
+   * has its own way back to its tracking.
    */
-  const panierGarde = clienteDemo === null ? panierPaye(garde) : undefined;
-  if (panierGarde !== undefined) {
-    const paye = panierGarde;
-    const poserBandePanier = (): void => {
-      const btn = document.createElement('button');
-      btn.className = 'ma-commande';
+  const commandesConnues = clienteDemo === null ? commandesGardees(garde) : [];
+  const paniersConnus = clienteDemo === null ? paniersPayes(garde) : [];
+  const commandesPayees = new Map<string, CommandeGardee>(commandesConnues.filter((c) => c.payee === true).map((c) => [c.orderId, c]));
+  const paniersPayesVus = new Map<string, PanierPaye>(paniersConnus.filter((p) => p.payee === true).map((p) => [p.groupId, p]));
+  const ouvrirMesArticles = (paye: PanierPaye): void => {
+    shellRemplace = true;
+    for (const child of Array.from(app.children)) child.remove();
+    const main = document.createElement('main');
+    app.append(main);
+    monterMesArticles(main, {
+      monter: monterCliente,
+      paye,
+      session: sessionStorageOrUndefined(),
+      garde: localStorageOrUndefined(),
+      onTerminee: () => window.location.reload(),
+    });
+  };
+  const ouvrirMesCommandes = (commandes: readonly CommandeGardee[], paniers: readonly PanierPaye[]): void => {
+    shellRemplace = true;
+    for (const child of Array.from(app.children)) child.remove();
+    const main = document.createElement('main');
+    app.append(main);
+    monterMesCommandes(main, {
+      commandes,
+      paniers,
+      ouvrirCommande: (c) => ouvrirSuivi(c.orderId, c.buyerRef),
+      ouvrirPanier: ouvrirMesArticles,
+    });
+  };
+  const poserBande = (): void => {
+    // Only the order bands — « Mon compte » wears the same class and stays.
+    for (const vieille of Array.from(app.querySelectorAll(':scope > [data-role="ma-commande"], :scope > [data-role="mes-articles"], :scope > [data-role="mes-commandes"]'))) vieille.remove();
+    if (shellRemplace) return;
+    const commandes = [...commandesPayees.values()];
+    const paniers = [...paniersPayesVus.values()];
+    if (commandes.length + paniers.length === 0) return;
+    const btn = document.createElement('button');
+    btn.className = 'ma-commande';
+    const label = document.createElement('span');
+    const pastille = document.createElement('span');
+    pastille.className = 'bande-pastille';
+    const droite = document.createElement('span');
+    if (commandes.length + paniers.length >= 2) {
+      btn.setAttribute('data-role', 'mes-commandes');
+      label.textContent = t('compte.commandes.titre');
+      pastille.innerHTML = icon('colis', 'bande-glyphe');
+      droite.className = 'ma-commande-ref';
+      droite.textContent = String(commandes.length + paniers.length);
+      btn.addEventListener('click', () => ouvrirMesCommandes(commandes, paniers));
+    } else if (commandes.length === 1) {
+      const seule = commandes[0]!;
+      btn.setAttribute('data-role', 'ma-commande');
+      label.textContent = SUIVI.reentree;
+      pastille.innerHTML = icon('colis', 'bande-glyphe');
+      droite.className = 'ma-commande-ref ma-commande-suivre';
+      droite.setAttribute('data-role', 'ma-commande-suivre');
+      droite.textContent = t('bande.suivre');
+      droite.insertAdjacentHTML('beforeend', icon('chevron', 'ma-commande-chevron'));
+      btn.addEventListener('click', () => ouvrirSuivi(seule.orderId, seule.buyerRef));
+    } else {
+      const paye = paniers[0]!;
       btn.setAttribute('data-role', 'mes-articles');
-      const label = document.createElement('span');
       label.textContent = t('cl.panier.reentree');
-      const pastille = document.createElement('span');
-      pastille.className = 'bande-pastille';
       pastille.innerHTML = iconBag(18, 'currentColor', 1.9);
-      const compte = document.createElement('span');
-      compte.className = 'ma-commande-ref';
-      compte.textContent = String(paye.articles.length);
-      btn.append(pastille, label, compte);
-      btn.addEventListener('click', () => {
-        shellRemplace = true;
-        for (const child of Array.from(app.children)) child.remove();
-        const main = document.createElement('main');
-        app.append(main);
-        monterMesArticles(main, {
-          monter: monterCliente,
-          paye,
-          session: sessionStorageOrUndefined(),
-          garde: localStorageOrUndefined(),
-          onTerminee: () => window.location.reload(),
-        });
-      });
-      app.prepend(btn);
-    };
-    if (paye.payee === true) poserBandePanier();
-    else {
-      void resolveSuiviArticle().orderState(paye.articles[0]!.orderId).then((r) => {
-        const verdict = verdictBande(r);
-        const actuel = panierPaye(garde);
-        const encore = actuel?.groupId === paye.groupId && actuel.at === paye.at;
-        if (verdict === 'oublier' && encore) oublierPanierPaye(garde);
-        if (verdict !== 'payee') return;
-        if (encore) garderPanierPaye({ ...paye, payee: true }, garde);
-        if (!shellRemplace) poserBandePanier();
-      });
+      droite.className = 'ma-commande-ref';
+      droite.textContent = String(paye.articles.length);
+      btn.addEventListener('click', () => ouvrirMesArticles(paye));
     }
+    btn.append(pastille, label, droite);
+    // BANDEAUX-RETIRÉS — the band takes the ribbon's old place at the head of the shell.
+    app.prepend(btn);
+  };
+  poserBande();
+  for (const gardeeSure of commandesConnues) {
+    if (gardeeSure.payee === true) continue;
+    void resolveQuotePort().orderState(gardeeSure.orderId).then((r) => {
+      const verdict = verdictBande(r);
+      // A checkout that kept this order again since (a retry: same id, new
+      // time; verifier minor 1) must not lose it to this older answer.
+      const encore = commandeGardee(gardeeSure.orderId, garde)?.at === gardeeSure.at;
+      if (verdict === 'oublier' && encore) oublierCommande(gardeeSure.orderId, garde);
+      // Her door holder is per order, so it leaves with THIS order's failure.
+      if (verdict === 'oublier') oublierPorte(gardeeSure.orderId, garde);
+      if (verdict !== 'payee') return;
+      if (encore) garderCommande({ ...gardeeSure, payee: true }, garde);
+      commandesPayees.set(gardeeSure.orderId, gardeeSure);
+      poserBande();
+    });
+  }
+  for (const paye of paniersConnus) {
+    if (paye.payee === true) continue;
+    // The articles were paid in ONE payment, so the first article's order speaks for it.
+    void resolveSuiviArticle().orderState(paye.articles[0]!.orderId).then((r) => {
+      const verdict = verdictBande(r);
+      const encore = panierPaye(paye.groupId, garde)?.at === paye.at;
+      if (verdict === 'oublier' && encore) oublierPanierPaye(paye.groupId, garde);
+      if (verdict !== 'payee') return;
+      if (encore) garderPanierPaye({ ...paye, payee: true }, garde);
+      paniersPayesVus.set(paye.groupId, paye);
+      poserBande();
+    });
   }
 }
 

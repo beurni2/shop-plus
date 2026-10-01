@@ -2025,8 +2025,9 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
        * The CREATE (and only the create — the service's design) carries her
        * bearer ref. It is kept, and the {orderId, buyerRef, at} record lands
        * in localStorage so « Ma commande » can reopen this tracking after the
-       * tab dies. ONE slot, newest wins — pilot scale. Best-effort: a dead
-       * storage costs the shortcut, never the order.
+       * tab dies — beside every other order this phone keeps
+       * (COMMANDES-GARDEES-1). Best-effort: a dead storage costs the
+       * shortcut, never the order.
        */
       if (r.order.buyerRef !== undefined) {
         state.buyerRef = r.order.buyerRef;
@@ -2834,7 +2835,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
         // « Terminer » — the phone forgets the finished order. The order itself
         // lives on the service; only the shortcut goes away.
         if (init.suivi?.oublier !== undefined) init.suivi.oublier();
-        else oublierCommande(localStorageOrUndefined());
+        else if (state.orderId !== null) oublierCommande(state.orderId, localStorageOrUndefined());
         if (state.orderId !== null) oublierPorte(state.orderId, localStorageOrUndefined());
         state.termineeVue = true;
         if (init.onTerminee !== undefined) {

@@ -59,7 +59,7 @@ describe('BANDEAUX-RETIRÉS — the sandbox ribbon no longer renders anywhere', 
      */
     const code = main.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
     expect(code).not.toMatch(/ribbon\.after\(/);
-    expect(code).toContain('app.prepend(suiviBtn);');
+    expect(code).toContain('app.prepend(btn);');
     // …and the shell clear no longer spares an element that cannot exist.
     expect(code).not.toMatch(/child !== ribbon/);
   });

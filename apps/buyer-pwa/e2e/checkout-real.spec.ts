@@ -95,6 +95,8 @@ interface Scripted {
   /** The marks per read, the LAST repeating — each entry is spread into the
    *  order body ({acceptedAt…arrivedAt, livree}). Default: none, forever. */
   marques?: Array<Record<string, unknown>>;
+  /** COMMANDES-GARDEES-1 — the marks for ONE order id, overriding `marques` for it. */
+  marquesPar?: Record<string, Array<Record<string, unknown>>>;
   /** The remise route's code. Answered ONLY once the last-served marks carry
    *  `arrivedAt` AND the Bearer matches the create's buyerRef — the service's
    *  own gate, scripted. Absent ⇒ the route always answers the uniform 404. */
@@ -218,7 +220,8 @@ async function scriptService(page: Page, opts: Scripted = {}): Promise<Wire> {
         const doors = opts.doorLegs ?? ['none'];
         doorLeg = doors[Math.min(seen, doors.length - 1)]!;
       }
-      const marques = opts.marques === undefined ? {} : opts.marques[Math.min(seen, opts.marques.length - 1)]!;
+      const parCommande = opts.marquesPar?.[orderId] ?? opts.marques;
+      const marques = parCommande === undefined ? {} : parCommande[Math.min(seen, parCommande.length - 1)]!;
       marquesServies = marques;
       return json(200, {
         orderId,
@@ -1095,7 +1098,7 @@ test('VRAI-SUIVI · the timeline advances on server facts alone, and the code ar
 
   // THE CREATE STORED THE ORDER ON THE PHONE — the re-entry record, written
   // where the bearer ref is born.
-  const gardee = await page.evaluate(() => localStorage.getItem('sp-commande:v1'));
+  const gardee = await page.evaluate(() => localStorage.getItem('sp-commandes:v1'));
   expect(gardee).toContain('ord-quote-full-1');
   expect(gardee).toContain(BUYER_REF);
   // SUIVI-REFERENCE (verifier MAJOR) — ONE number for one order: the
@@ -1153,7 +1156,7 @@ test('VRAI-SUIVI · the timeline advances on server facts alone, and the code ar
   // …and the one action closes it: the phone forgets the finished order and she
   // is returned to the beginning rather than left on a screen she dismissed.
   await page.locator('[data-action="suivi-terminer"]').click();
-  expect(await page.evaluate(() => localStorage.getItem('sp-commande:v1'))).toBeNull();
+  expect(await page.evaluate(() => localStorage.getItem('sp-commandes:v1'))).toBeNull();
   await page.locator('[data-screen="C1"]').waitFor({ timeout: 10_000 });
 });
 
@@ -1233,7 +1236,7 @@ test('PORTE-APRES-RECHARGE-1 · the tab closed: « Ma commande » reopens her tr
   // holder — never a code, never an amount.
   const portes = await page.evaluate(() => JSON.parse(localStorage.getItem('sp-portes:v1') ?? '[]') as Array<Record<string, unknown>>);
   expect(portes.map((e) => e['orderId'])).toEqual(['ord-quote-door-1']);
-  const garde = await page.evaluate(() => (localStorage.getItem('sp-commande:v1') ?? '') + (localStorage.getItem('sp-portes:v1') ?? ''));
+  const garde = await page.evaluate(() => (localStorage.getItem('sp-commandes:v1') ?? '') + (localStorage.getItem('sp-portes:v1') ?? ''));
   expect(garde).not.toContain('654321');
   expect(garde).not.toContain('11500');
 });
@@ -1255,7 +1258,7 @@ test('PORTE-APRES-RECHARGE-1 · « C’est terminé » forgets her door holder w
   await page.locator('[data-action="suivi-terminer"]').waitFor({ timeout: 15_000 });
   await page.locator('[data-action="suivi-terminer"]').click();
   await page.locator('[data-screen="C1"]').waitFor({ timeout: 10_000 });
-  expect(await page.evaluate(() => localStorage.getItem('sp-commande:v1'))).toBeNull();
+  expect(await page.evaluate(() => localStorage.getItem('sp-commandes:v1'))).toBeNull();
   expect(await page.evaluate(() => localStorage.getItem('sp-portes:v1'))).toBeNull();
 });
 
@@ -1268,8 +1271,8 @@ test('PORTE-APRES-RECHARGE-1 · CONTROL — a prepaid order keeps no door holder
   await toPayer(page, 'A');
   await page.locator('[data-action="payer"]').click();
   await page.locator('[data-etat="confirmee"]').waitFor({ timeout: 15_000 });
-  const garde = await page.evaluate(() => JSON.parse(localStorage.getItem('sp-commande:v1') ?? '{}') as Record<string, unknown>);
-  expect(garde['orderId']).toBe('ord-quote-full-1');
+  const garde = await page.evaluate(() => JSON.parse(localStorage.getItem('sp-commandes:v1') ?? '[]') as Array<Record<string, unknown>>);
+  expect(garde.map((c) => c['orderId'])).toEqual(['ord-quote-full-1']);
   expect(await page.evaluate(() => localStorage.getItem('sp-portes:v1'))).toBeNull();
   await page.evaluate(() => sessionStorage.clear());
   const luesAvant = wire.orderReads.length;
@@ -1282,6 +1285,109 @@ test('PORTE-APRES-RECHARGE-1 · CONTROL — a prepaid order keeps no door holder
   await expect.poll(() => wire.orderReads.length, { timeout: 15_000 }).toBeGreaterThan(luesAvant);
   await expect(page.locator('[data-screen="C7"] .cl-tl-dot-done')).toHaveCount(4, { timeout: 15_000 });
   await expect(page.locator('[data-action="porte"]')).toHaveCount(0);
+});
+
+/**
+ * ═══ COMMANDES-GARDEES-1 (AUDIT-4 A-02, founder « go », 2026-10-01) ═══
+ *
+ * Monday she buys a pagne without an account; Tuesday, while it travels, she
+ * buys something else from another link. Before this slice her phone kept
+ * only the newest order: when the pagne's rider came, its tracking and its
+ * code were out of her reach (the code is never stored; her read token came
+ * once, at the create). Now the phone keeps both, and the band lists them.
+ */
+
+/** One prepaid checkout, start to confirmation, in a fresh tab (sessionStorage dies with the tab). */
+async function commanderEnEntier(page: Page): Promise<void> {
+  if (page.url() !== 'about:blank') await page.evaluate(() => sessionStorage.clear());
+  await askForPrice(page);
+  await toPayer(page, 'A');
+  await page.locator('[data-action="payer"]').click();
+  await page.locator('[data-etat="confirmee"]').waitFor({ timeout: 15_000 });
+}
+
+test('COMMANDES-GARDEES-1 · two orders on one phone, no account: the band lists both, and each opens its own tracking', async ({ page }) => {
+  test.setTimeout(120_000);
+  await scriptService(page, { orderStates: ['confirmed'], marques: [MARQUES_ARRIVEE], codeRemise: '654321' });
+  await commanderEnEntier(page); // ord-quote-full-1 — the pagne
+  await commanderEnEntier(page); // ord-quote-full-2 — the second order
+  await page.evaluate(() => sessionStorage.clear());
+  await page.goto(ENTRY);
+  await page.locator('[data-screen="C1"]').waitFor();
+  const bande = page.locator('[data-role="mes-commandes"]');
+  await bande.waitFor({ timeout: 15_000 });
+  await expect(bande).toContainText('Mes commandes');
+  await expect(bande).toContainText('2');
+  await expect(page.locator('[data-role="ma-commande"]')).toHaveCount(0);
+  await bande.click();
+  await page.locator('[data-screen="MES-COMMANDES"]').waitFor();
+  const lignes = page.locator('[data-role="commande-gardee"]');
+  await expect(lignes).toHaveCount(2);
+  // Her short references — never her read token, never an amount.
+  await expect(page.locator('[data-screen="MES-COMMANDES"]')).toContainText('Réf. EFULL1');
+  await expect(page.locator('[data-screen="MES-COMMANDES"]')).toContainText('Réf. EFULL2');
+  expect(await page.content()).not.toContain(BUYER_REF);
+  // Each row opens its own tracking: the newer order first…
+  await page.locator('[data-action="ouvrir-commande"][data-order="ord-quote-full-2"]').click();
+  await page.locator('[data-screen="C7"]').waitFor();
+  await expect(page.locator('.cl-cmd')).toHaveText('Réf. EFULL2');
+  // …then, on a later visit, the FIRST order — the one the old phone would have lost.
+  await page.goto(ENTRY);
+  await page.locator('[data-role="mes-commandes"]').click();
+  await page.locator('[data-action="ouvrir-commande"][data-order="ord-quote-full-1"]').click();
+  await page.locator('[data-screen="C7"]').waitFor();
+  await expect(page.locator('.cl-cmd')).toHaveText('Réf. EFULL1');
+  // …and its code, from the remise route, at her door.
+  await page.locator('[data-action="voir-code"]').click();
+  await page.locator('[data-screen="C9"]').waitFor({ timeout: 15_000 });
+  expect((await stage(page)).replace(/\s+/g, ' ')).toContain('654 321');
+});
+
+test('COMMANDES-GARDEES-1 · a door order, then another order: the first one still pays at her door', async ({ page }) => {
+  test.setTimeout(150_000);
+  const wire = await scriptService(page, PORTE_B);
+  await payerLaLivraison(page); // ord-quote-door-1, its holder kept
+  await commanderEnEntier(page); // ord-quote-full-1, a later order on the same phone
+  await page.evaluate(() => sessionStorage.clear());
+  await page.goto(ENTRY);
+  await page.locator('[data-role="mes-commandes"]').click();
+  await page.locator('[data-action="ouvrir-commande"][data-order="ord-quote-door-1"]').click();
+  await page.locator('[data-screen="C7"]').waitFor({ timeout: 15_000 });
+  await page.locator('[data-action="porte"]').click();
+  await page.locator('[data-screen="C8"]').waitFor();
+  await page.locator('[data-action="porte-bon"]').click();
+  await expect.poll(() => wire.doorCharges.length, { timeout: 10_000 }).toBe(1);
+  // The holder the DOOR order was held under — not the later order's.
+  const tenue = wire.reserves.find((r) => /quote-door-1\/reserve$/.test(r.url))!.body['holderRef'];
+  expect(wire.doorCharges[0]!.body['holderRef']).toBe(tenue);
+  await page.locator('[data-screen="C9"]').waitFor({ timeout: 30_000 });
+});
+
+test('COMMANDES-GARDEES-1 · « C’est terminé » on one order forgets only that one; the other keeps its own band', async ({ page }) => {
+  test.setTimeout(120_000);
+  await scriptService(page, {
+    orderStates: ['confirmed'],
+    marques: [MARQUES_ARRIVEE],
+    marquesPar: { 'ord-quote-full-1': [{ ...MARQUES_ARRIVEE, livree: true }] },
+    codeRemise: '654321',
+  });
+  await commanderEnEntier(page);
+  await commanderEnEntier(page);
+  await page.evaluate(() => sessionStorage.clear());
+  await page.goto(ENTRY);
+  await page.locator('[data-role="mes-commandes"]').click();
+  await page.locator('[data-action="ouvrir-commande"][data-order="ord-quote-full-1"]').click();
+  await page.locator('[data-action="suivi-terminer"]').click();
+  await page.locator('[data-screen="C1"]').waitFor({ timeout: 10_000 });
+  const garde = await page.evaluate(() => localStorage.getItem('sp-commandes:v1') ?? '');
+  expect(garde).not.toContain('ord-quote-full-1');
+  expect(garde).toContain('ord-quote-full-2');
+  // One order left: the one-order band, as before.
+  const bande = page.locator('[data-role="ma-commande"]');
+  await bande.waitFor({ timeout: 15_000 });
+  await expect(page.locator('[data-role="mes-commandes"]')).toHaveCount(0);
+  await bande.click();
+  await expect(page.locator('.cl-cmd')).toHaveText('Réf. EFULL2');
 });
 
 test('VRAI-SUIVI · re-entry — « Ma commande » reopens the REAL tracking of the stored order', async ({ page }) => {
@@ -1380,7 +1486,7 @@ test('REMBOURSEMENT-1 · a refused parcel: from her code screen to the refund ca
   // …and the one way on is pressable and takes her home, the phone forgetting it.
   await page.locator('[data-action="suivi-terminer"]').click();
   await page.locator('[data-screen="C1"]').waitFor({ timeout: 10_000 });
-  expect(await page.evaluate(() => localStorage.getItem('sp-commande:v1'))).toBeNull();
+  expect(await page.evaluate(() => localStorage.getItem('sp-commandes:v1'))).toBeNull();
 });
 
 /**
@@ -1433,7 +1539,7 @@ test('REMBOURSEMENT-2 · an article not available: the tracking says so, the ref
 
   await page.locator('[data-action="suivi-terminer"]').click();
   await page.locator('[data-screen="C1"]').waitFor({ timeout: 10_000 });
-  expect(await page.evaluate(() => localStorage.getItem('sp-commande:v1'))).toBeNull();
+  expect(await page.evaluate(() => localStorage.getItem('sp-commandes:v1'))).toBeNull();
 });
 
 /**
@@ -1479,7 +1585,7 @@ test('REMBOURSEMENT-1 · pay at the door after the parcel was refused: no failed
 
   await page.locator('[data-action="suivi-terminer"]').click();
   await page.locator('[data-screen="C1"]').waitFor({ timeout: 10_000 });
-  expect(await page.evaluate(() => localStorage.getItem('sp-commande:v1'))).toBeNull();
+  expect(await page.evaluate(() => localStorage.getItem('sp-commandes:v1'))).toBeNull();
 });
 
 /**

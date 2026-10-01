@@ -2,8 +2,9 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import {
-  COMMANDE_CLE, LECTURE_COMMANDE_TIMEOUT_MS, PORTES_CLE, PORTES_MAX, commandeGardee, garderCommande, garderPorte,
-  httpQuotePort, oublierCommande, oublierPorte, porteGardee, verdictBande, type QuotePort,
+  COMMANDE_CLE, COMMANDES_CLE, COMMANDES_MAX, LECTURE_COMMANDE_TIMEOUT_MS, PORTES_CLE, PORTES_MAX, commandeGardee,
+  commandesGardees, garderCommande, garderPorte, httpQuotePort, oublierCommande, oublierPorte, porteGardee, verdictBande,
+  type QuotePort,
 } from '../src/cliente/quote-port';
 import {
   CODE_REMISE, SUIVI, SUIVI_STEPS, codeAffiche, etapeDeSuivi, renderC10, renderC7, renderC9,
@@ -256,34 +257,74 @@ describe('httpQuotePort.remise — GET with her bearer ref, four honest outcomes
 
 /* ═══════════ 4 · the phone's memory of her order ══════════════════════════ */
 
-describe('sp-commande:v1 — one slot, newest wins, garbage reads as nothing', () => {
+describe('sp-commandes:v1 — every order this phone keeps, ten at most, garbage reads as nothing', () => {
   it('stores {orderId, buyerRef, at} and reads it back', () => {
     const s = memStorage();
     garderCommande({ orderId: 'ord-1', buyerRef: 'ref-1', at: ISO }, s);
-    expect(commandeGardee(s)).toEqual({ orderId: 'ord-1', buyerRef: 'ref-1', at: ISO });
-    expect(s.getItem(COMMANDE_CLE)).not.toBeNull();
+    expect(commandesGardees(s)).toEqual([{ orderId: 'ord-1', buyerRef: 'ref-1', at: ISO }]);
+    expect(commandeGardee('ord-1', s)).toEqual({ orderId: 'ord-1', buyerRef: 'ref-1', at: ISO });
+    expect(s.getItem(COMMANDES_CLE)).not.toBeNull();
   });
 
-  it('newest wins — one order at pilot scale', () => {
+  it('COMMANDES-GARDEES-1 — a second order never takes the first one with it; newest first', () => {
     const s = memStorage();
     garderCommande({ orderId: 'ord-1', buyerRef: 'ref-1', at: ISO }, s);
     garderCommande({ orderId: 'ord-2', buyerRef: 'ref-2', at: ISO }, s);
-    expect(commandeGardee(s)?.orderId).toBe('ord-2');
+    expect(commandesGardees(s).map((c) => c.orderId)).toEqual(['ord-2', 'ord-1']);
+    expect(commandeGardee('ord-1', s)?.buyerRef).toBe('ref-1');
   });
 
-  it('« C’est terminé » clears the slot', () => {
+  it('the same order kept again is updated in place, never doubled (a retry, « paid »)', () => {
     const s = memStorage();
     garderCommande({ orderId: 'ord-1', buyerRef: 'ref-1', at: ISO }, s);
-    oublierCommande(s);
-    expect(commandeGardee(s)).toBeUndefined();
-    expect(s.getItem(COMMANDE_CLE)).toBeNull();
+    garderCommande({ orderId: 'ord-2', buyerRef: 'ref-2', at: ISO }, s);
+    garderCommande({ orderId: 'ord-1', buyerRef: 'ref-1', at: ISO, payee: true }, s);
+    expect(commandesGardees(s).map((c) => c.orderId)).toEqual(['ord-2', 'ord-1']);
+    expect(commandeGardee('ord-1', s)?.payee).toBe(true);
   });
 
-  it('a malformed or half-written record is NOTHING — never a tracking that cannot poll', () => {
+  it(`at most ${COMMANDES_MAX}: the oldest leaves first`, () => {
     const s = memStorage();
-    for (const bad of ['not json', '42', 'null', '{}', '{"orderId":"ord-1"}', '{"orderId":"","buyerRef":"r","at":"t"}', '{"orderId":"o","buyerRef":"","at":"t"}']) {
+    for (let i = 0; i <= COMMANDES_MAX; i++) garderCommande({ orderId: `ord-${i}`, buyerRef: `ref-${i}`, at: ISO }, s);
+    expect(commandesGardees(s)).toHaveLength(COMMANDES_MAX);
+    expect(commandeGardee('ord-0', s)).toBeUndefined();
+    expect(commandeGardee(`ord-${COMMANDES_MAX}`, s)).toBeDefined();
+  });
+
+  it('« C’est terminé » forgets that order only; the last one out clears the key', () => {
+    const s = memStorage();
+    garderCommande({ orderId: 'ord-1', buyerRef: 'ref-1', at: ISO }, s);
+    garderCommande({ orderId: 'ord-2', buyerRef: 'ref-2', at: ISO }, s);
+    oublierCommande('ord-1', s);
+    expect(commandesGardees(s).map((c) => c.orderId)).toEqual(['ord-2']);
+    oublierCommande('ord-2', s);
+    expect(commandesGardees(s)).toEqual([]);
+    expect(s.getItem(COMMANDES_CLE)).toBeNull();
+  });
+
+  it('the one-slot record of earlier builds is still hers — read as the oldest, folded in on the next write', () => {
+    const s = memStorage();
+    s.setItem(COMMANDE_CLE, JSON.stringify({ orderId: 'ord-ancienne', buyerRef: 'ref-a', at: ISO, payee: true }));
+    expect(commandeGardee('ord-ancienne', s)).toEqual({ orderId: 'ord-ancienne', buyerRef: 'ref-a', at: ISO, payee: true });
+    garderCommande({ orderId: 'ord-neuve', buyerRef: 'ref-n', at: ISO }, s);
+    expect(commandesGardees(s).map((c) => c.orderId)).toEqual(['ord-neuve', 'ord-ancienne']);
+    expect(s.getItem(COMMANDE_CLE)).toBeNull();
+    oublierCommande('ord-ancienne', s);
+    expect(commandesGardees(s).map((c) => c.orderId)).toEqual(['ord-neuve']);
+  });
+
+  it('a malformed or half-written entry is NOTHING — never a tracking that cannot poll; its neighbours survive', () => {
+    const s = memStorage();
+    for (const bad of ['not json', '42', 'null', '{}', '[{"orderId":"ord-1"}]', '[{"orderId":"","buyerRef":"r","at":"t"}]', '[{"orderId":"o","buyerRef":"","at":"t"}]']) {
+      s.setItem(COMMANDES_CLE, bad);
+      expect(commandesGardees(s), bad).toEqual([]);
+    }
+    s.setItem(COMMANDES_CLE, JSON.stringify([{ orderId: 'o' }, { orderId: 'ord-2', buyerRef: 'ref-2', at: ISO }]));
+    expect(commandesGardees(s).map((c) => c.orderId)).toEqual(['ord-2']);
+    for (const bad of ['not json', '{}', '{"orderId":"ord-1"}']) {
+      s.removeItem(COMMANDES_CLE);
       s.setItem(COMMANDE_CLE, bad);
-      expect(commandeGardee(s), bad).toBeUndefined();
+      expect(commandesGardees(s), bad).toEqual([]);
     }
   });
 
@@ -294,10 +335,10 @@ describe('sp-commande:v1 — one slot, newest wins, garbage reads as nothing', (
       removeItem: () => { throw new Error('quota'); },
     } as unknown as Storage;
     expect(() => garderCommande({ orderId: 'o', buyerRef: 'r', at: ISO }, dead)).not.toThrow();
-    expect(commandeGardee(dead)).toBeUndefined();
-    expect(() => oublierCommande(dead)).not.toThrow();
+    expect(commandesGardees(dead)).toEqual([]);
+    expect(() => oublierCommande('o', dead)).not.toThrow();
     // …and no storage at all is the same non-event.
-    expect(commandeGardee(undefined)).toBeUndefined();
+    expect(commandesGardees(undefined)).toEqual([]);
     expect(() => garderCommande({ orderId: 'o', buyerRef: 'r', at: ISO }, undefined)).not.toThrow();
   });
 });
@@ -316,7 +357,7 @@ describe('sp-portes:v1 — each door order keeps its own holder', () => {
     garderPorte('ord-X', 'titulaire-X', s);
     garderCommande({ orderId: 'ord-Y', buyerRef: 'ref-Y', at: ISO }, s);
     expect(porteGardee('ord-X', sansPorte, s)).toBeTypeOf('function');
-    oublierCommande(s);
+    oublierCommande('ord-Y', s);
     expect(porteGardee('ord-X', sansPorte, s)).toBeTypeOf('function');
   });
 
@@ -511,7 +552,8 @@ describe('[source-text checks] the flow wires the real tracking, not just declar
   });
 
   it('« C’est terminé » clears the phone’s memory of the order', () => {
-    expect(flow).toMatch(/case 'suivi-terminer':\s*[\s\S]{0,400}oublierCommande\(localStorageOrUndefined\(\)\)/);
+    // COMMANDES-GARDEES-1 — THIS order, never the whole list.
+    expect(flow).toMatch(/case 'suivi-terminer':\s*[\s\S]{0,400}oublierCommande\(state\.orderId, localStorageOrUndefined\(\)\)/);
   });
 });
 
@@ -615,10 +657,11 @@ describe('BANDE-PAYEE — the service says whether « Ma commande » may stand (
   it('the record remembers « paid » — and only a literal true reads as paid', () => {
     const s = memStorage();
     garderCommande({ orderId: 'ord-1', buyerRef: 'ref-1', at: ISO, payee: true }, s);
-    expect(commandeGardee(s)).toEqual({ orderId: 'ord-1', buyerRef: 'ref-1', at: ISO, payee: true });
+    expect(commandeGardee('ord-1', s)).toEqual({ orderId: 'ord-1', buyerRef: 'ref-1', at: ISO, payee: true });
     garderCommande({ orderId: 'ord-2', buyerRef: 'ref-2', at: ISO }, s);
-    expect(commandeGardee(s)?.payee).toBeUndefined();
-    s.setItem(COMMANDE_CLE, JSON.stringify({ orderId: 'o', buyerRef: 'r', at: ISO, payee: 'true' }));
-    expect(commandeGardee(s)?.payee).toBeUndefined();
+    expect(commandeGardee('ord-2', s)?.payee).toBeUndefined();
+    expect(commandeGardee('ord-1', s)?.payee).toBe(true);
+    s.setItem(COMMANDES_CLE, JSON.stringify([{ orderId: 'o', buyerRef: 'r', at: ISO, payee: 'true' }]));
+    expect(commandeGardee('o', s)?.payee).toBeUndefined();
   });
 });

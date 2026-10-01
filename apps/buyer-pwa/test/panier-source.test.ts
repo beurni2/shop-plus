@@ -3,6 +3,11 @@ import { creerSourcePanier } from '../src/cliente/panier-source';
 import {
   demoPanierPort,
   garderPanierPaye,
+  oublierPanierPaye,
+  paniersPayes,
+  PANIER_PAYE_CLE,
+  PANIERS_PAYES_CLE,
+  PANIERS_PAYES_MAX,
   httpPanierPort,
   panierPaye,
   pidsPayes,
@@ -241,7 +246,7 @@ describe('PAYER-TOUT-1 — the panier\'s price, spoken as one quote', () => {
       { orderId: 'ord-q-p1-A', buyerRef: 'ref-1', nom: 'Robe bogolan', pid: 'p1' },
       { orderId: 'ord-q-p2-A', buyerRef: 'ref-2', nom: 'Sac en cuir', pid: 'p2' },
     ]);
-    const kept = panierPaye(garde);
+    const kept = panierPaye('grp-abc', garde);
     expect(kept?.groupId).toBe('grp-abc');
     expect(kept?.holderRef).toBe(svc.j.reserves[0]!.holderRef);
     expect(kept?.articles.map((a) => a.nom)).toEqual(['Robe bogolan', 'Sac en cuir']);
@@ -360,16 +365,16 @@ describe('PAYER-TOUT-1 — the panier\'s price, spoken as one quote', () => {
     const echec = await source(service({ payer: failed }).port, memoire(), garde).s.quoteSource('Gounghin');
     if (echec.status !== 'ready') throw new Error('not ready');
     await echec.commander('A', 0);
-    expect(panierPaye(garde)).toBeUndefined();
+    expect(panierPaye('grp-abc', garde)).toBeUndefined();
 
     const svcP = service();
     const attente = await source(svcP.port, memoire(), garde).s.quoteSource('Gounghin');
     if (attente.status !== 'ready') throw new Error('not ready');
     await attente.commander('A', 0);
-    expect(panierPaye(garde)?.groupId).toBe('grp-abc');
+    expect(panierPaye('grp-abc', garde)?.groupId).toBe('grp-abc');
     svcP.port.etat = async () => failed;
     await attente.etatCommande('grp-abc');
-    expect(panierPaye(garde)).toBeUndefined();
+    expect(panierPaye('grp-abc', garde)).toBeUndefined();
   });
 });
 
@@ -431,9 +436,9 @@ describe('PAYER-TOUT-1 — the port: what crosses the wire, and what the phone k
       garde,
     );
     retirerArticlePaye('o1', garde);
-    expect(panierPaye(garde)?.articles.map((a) => a.orderId)).toEqual(['o2']);
+    expect(panierPaye('grp-1', garde)?.articles.map((a) => a.orderId)).toEqual(['o2']);
     retirerArticlePaye('o2', garde);
-    expect(panierPaye(garde)).toBeUndefined();
+    expect(panierPaye('grp-1', garde)).toBeUndefined();
   });
 
   it('BANDE-PAYEE — the record remembers « paid », and keeps remembering after one article is done', () => {
@@ -442,11 +447,13 @@ describe('PAYER-TOUT-1 — the port: what crosses the wire, and what the phone k
       { groupId: 'grp-1', holderRef: 'h', at: 'T', payee: true, articles: [{ orderId: 'o1', buyerRef: 'r1', nom: 'A' }, { orderId: 'o2', buyerRef: 'r2', nom: 'B' }] },
       garde,
     );
-    expect(panierPaye(garde)?.payee).toBe(true);
+    expect(panierPaye('grp-1', garde)?.payee).toBe(true);
     retirerArticlePaye('o1', garde);
-    expect(panierPaye(garde)?.payee).toBe(true);
+    expect(panierPaye('grp-1', garde)?.payee).toBe(true);
     garderPanierPaye({ groupId: 'grp-2', holderRef: 'h', at: 'T', articles: [{ orderId: 'o3', buyerRef: 'r3', nom: 'C' }] }, garde);
-    expect(panierPaye(garde)?.payee).toBeUndefined();
+    expect(panierPaye('grp-2', garde)?.payee).toBeUndefined();
+    // COMMANDES-GARDEES-1 — a second panier never takes the first with it.
+    expect(panierPaye('grp-1', garde)?.payee).toBe(true);
   });
 });
 
@@ -547,5 +554,81 @@ describe('COLIS-FOURNISSEUR-1 — a price kept while its package stays whole', (
     expect(encore.status).toBe('ready');
     const avant = cles[1];
     expect(svc.j.requests.filter((x) => x.intent.pid === 'p1' && x.intent.paymentMode === 'FULL_PREPAY').every((x) => x.key !== avant)).toBe(true);
+  });
+});
+
+/**
+ * COMMANDES-GARDEES-1 (AUDIT-4 A-02) — the phone keeps every paid panier, ten
+ * at most, not only the newest: a second panier never takes the first one's
+ * tracking with it.
+ */
+describe('sp-paniers-payes:v1 — every paid panier this phone keeps', () => {
+  const panier = (groupId: string, slug: string, ...orderIds: string[]) => ({
+    groupId,
+    holderRef: `h-${groupId}`,
+    at: 'T',
+    slug,
+    articles: orderIds.map((o) => ({ orderId: o, buyerRef: `r-${o}`, nom: o, pid: `p-${o}` })),
+  });
+
+  it('a second panier keeps the first; newest first; each read by its own payment', () => {
+    const garde = memoire();
+    garderPanierPaye(panier('grp-1', 'aicha-4821', 'o1', 'o2'), garde);
+    garderPanierPaye(panier('grp-2', 'mariam-1203', 'o3', 'o4'), garde);
+    expect(paniersPayes(garde).map((p) => p.groupId)).toEqual(['grp-2', 'grp-1']);
+    expect(panierPaye('grp-1', garde)?.holderRef).toBe('h-grp-1');
+    expect([...pidsPayes('aicha-4821', garde)].sort()).toEqual(['p-o1', 'p-o2']);
+    expect([...pidsPayes('mariam-1203', garde)].sort()).toEqual(['p-o3', 'p-o4']);
+  });
+
+  it('« C’est terminé » on an article touches only ITS panier; a failed payment forgets only its own', () => {
+    const garde = memoire();
+    garderPanierPaye(panier('grp-1', 'aicha-4821', 'o1', 'o2'), garde);
+    garderPanierPaye(panier('grp-2', 'aicha-4821', 'o3', 'o4'), garde);
+    retirerArticlePaye('o1', garde);
+    expect(panierPaye('grp-1', garde)?.articles.map((a) => a.orderId)).toEqual(['o2']);
+    expect(panierPaye('grp-2', garde)?.articles.map((a) => a.orderId)).toEqual(['o3', 'o4']);
+    oublierPanierPaye('grp-2', garde);
+    expect(paniersPayes(garde).map((p) => p.groupId)).toEqual(['grp-1']);
+    retirerArticlePaye('o2', garde);
+    expect(paniersPayes(garde)).toEqual([]);
+    expect(garde.getItem(PANIERS_PAYES_CLE)).toBeNull();
+  });
+
+  it(`at most ${PANIERS_PAYES_MAX}: the oldest leaves first; the same payment kept again is updated in place`, () => {
+    const garde = memoire();
+    for (let i = 0; i <= PANIERS_PAYES_MAX; i++) garderPanierPaye(panier(`grp-${i}`, 's', `o${i}a`, `o${i}b`), garde);
+    expect(paniersPayes(garde)).toHaveLength(PANIERS_PAYES_MAX);
+    expect(panierPaye('grp-0', garde)).toBeUndefined();
+    garderPanierPaye({ ...panier('grp-5', 's', 'o5a', 'o5b'), payee: true }, garde);
+    expect(paniersPayes(garde)).toHaveLength(PANIERS_PAYES_MAX);
+    expect(panierPaye('grp-5', garde)?.payee).toBe(true);
+    expect(paniersPayes(garde).findIndex((p) => p.groupId === 'grp-5')).toBe(PANIERS_PAYES_MAX - 5);
+  });
+
+  it('the one-slot record of earlier builds is still hers — read as the oldest, folded in on the next write', () => {
+    const garde = memoire();
+    garde.setItem(PANIER_PAYE_CLE, JSON.stringify({ ...panier('grp-ancien', 's', 'oa', 'ob'), payee: true }));
+    expect(panierPaye('grp-ancien', garde)?.payee).toBe(true);
+    garderPanierPaye(panier('grp-neuf', 's', 'on', 'om'), garde);
+    expect(paniersPayes(garde).map((p) => p.groupId)).toEqual(['grp-neuf', 'grp-ancien']);
+    expect(garde.getItem(PANIER_PAYE_CLE)).toBeNull();
+  });
+
+  it('a malformed entry is nothing and its neighbours survive; a dead storage never crashes', () => {
+    const garde = memoire();
+    garde.setItem(PANIERS_PAYES_CLE, JSON.stringify([{ groupId: 'x' }, panier('grp-1', 's', 'o1', 'o2')]));
+    expect(paniersPayes(garde).map((p) => p.groupId)).toEqual(['grp-1']);
+    garde.setItem(PANIERS_PAYES_CLE, 'not json');
+    expect(paniersPayes(garde)).toEqual([]);
+    const dead = {
+      getItem: () => { throw new Error('quota'); },
+      setItem: () => { throw new Error('quota'); },
+      removeItem: () => { throw new Error('quota'); },
+    } as unknown as Storage;
+    expect(() => garderPanierPaye(panier('g', 's', 'o1', 'o2'), dead)).not.toThrow();
+    expect(paniersPayes(dead)).toEqual([]);
+    expect(() => retirerArticlePaye('o1', dead)).not.toThrow();
+    expect(() => oublierPanierPaye('g', dead)).not.toThrow();
   });
 });

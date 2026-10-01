@@ -2464,6 +2464,53 @@ export function renderMesArticles(
   ].join('');
 }
 
+/** jj/mm/aaaa, digits only — no month name to translate. */
+export function dateCourte(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+}
+
+/**
+ * COMMANDES-GARDEES-1 (AUDIT-4 A-02) — « MES COMMANDES » ON HER PHONE: every
+ * order and every paid panier this phone keeps, newest first, each with its
+ * own way to its tracking. The day she ordered and the order's short
+ * reference — what she can read out to a rider — never an amount, never her
+ * read token.
+ */
+export function renderMesCommandes(
+  commandes: readonly { readonly orderId: string; readonly at: string }[],
+  paniers: readonly { readonly groupId: string; readonly at: string; readonly articles: readonly unknown[] }[],
+): string {
+  const lignes = [
+    ...commandes.map((c) => ({
+      at: c.at,
+      html: [
+        '<div class="cl-panier-ligne" data-role="commande-gardee">',
+        `<div class="cl-panier-nom"><v>${esc(tf('compte.commandes.ligne', { date: dateCourte(c.at) }))}</v> · ${esc(tf('cl.c7.reference', { ref: referenceCourte(c.orderId) }))}</div>`,
+        `<button class="cl-panier-suivre" data-action="ouvrir-commande" data-order="${esc(c.orderId)}">${t('cl.panier.suivre')}</button>`,
+        '</div>',
+      ].join(''),
+    })),
+    ...paniers.map((p) => ({
+      at: p.at,
+      html: [
+        '<div class="cl-panier-ligne" data-role="panier-garde">',
+        `<div class="cl-panier-nom"><v>${esc(tf('compte.commandes.ligne', { date: dateCourte(p.at) }))}</v> · ${esc(tf('cl.commandes.articles', { n: String(p.articles.length) }))}</div>`,
+        `<button class="cl-panier-suivre" data-action="ouvrir-panier" data-groupe="${esc(p.groupId)}">${t('cl.panier.suivre')}</button>`,
+        '</div>',
+      ].join(''),
+    })),
+  ].sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0));
+  return [
+    '<div class="cl-screen" data-screen="MES-COMMANDES">',
+    `<div class="cl-stephead"><div class="cl-steptitle">${t('compte.commandes.titre')}</div></div>`,
+    `<div class="cl-panier-suivi" data-role="mes-commandes-liste">${lignes.map((l) => l.html).join('')}</div>`,
+    `<div class="cl-footnote">${t('cl.chrome.numero_prive')}</div>`,
+    '</div>',
+  ].join('');
+}
+
 /* ----------------------------------------------------------------- C7 ---- */
 
 export interface C7State {

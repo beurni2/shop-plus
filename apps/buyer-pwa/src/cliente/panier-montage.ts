@@ -15,7 +15,7 @@
 
 import { applyTheme } from '../vitrine/themes';
 import type { ClienteInit } from './flow';
-import { renderMesArticles, type ArticlePanierVue, type ClienteProduit } from './screens';
+import { renderMesArticles, renderMesCommandes, type ArticlePanierVue, type ClienteProduit } from './screens';
 import { creerSourcePanier } from './panier-source';
 import {
   panierPaye,
@@ -26,7 +26,7 @@ import {
   type ColisPaye,
   type PanierPaye,
 } from './panier-port';
-import { orderCommandIdFor, villeDe } from './quote-port';
+import { orderCommandIdFor, villeDe, type CommandeGardee } from './quote-port';
 import { retirerDuPanier } from '../vitrine/panier';
 import { tf } from '../i18n';
 
@@ -141,6 +141,37 @@ export function monterSuiviArticle(
   });
 }
 
+/**
+ * COMMANDES-GARDEES-1 (AUDIT-4 A-02) — « MES COMMANDES » ON HER PHONE: two or
+ * more orders and paid paniers kept here, each opening its own road — an
+ * order its tracking, a panier its articles. Nothing is read to draw it: the
+ * list is what the phone already keeps.
+ */
+export function monterMesCommandes(
+  host: HTMLElement,
+  args: {
+    readonly commandes: readonly CommandeGardee[];
+    readonly paniers: readonly PanierPaye[];
+    readonly ouvrirCommande: (c: CommandeGardee) => void;
+    readonly ouvrirPanier: (p: PanierPaye) => void;
+  },
+): void {
+  applyTheme(host, 'indigo');
+  host.classList.add('cl-root');
+  host.innerHTML = `<div class="cl-stage">${renderMesCommandes(args.commandes, args.paniers)}</div>`;
+  host.addEventListener('click', (ev) => {
+    const el = (ev.target as HTMLElement).closest('[data-action="ouvrir-commande"], [data-action="ouvrir-panier"]');
+    if (!(el instanceof HTMLElement)) return;
+    const commande = args.commandes.find((c) => c.orderId === el.getAttribute('data-order'));
+    if (commande !== undefined) {
+      args.ouvrirCommande(commande);
+      return;
+    }
+    const panier = args.paniers.find((p) => p.groupId === el.getAttribute('data-groupe'));
+    if (panier !== undefined) args.ouvrirPanier(panier);
+  });
+}
+
 export function monterPanier(
   host: HTMLElement,
   args: {
@@ -218,7 +249,7 @@ export function monterMesArticles(
     if (!(el instanceof HTMLElement)) return;
     const orderId = el.getAttribute('data-order') ?? '';
     // Re-read: the record is the phone's, and the last word on it wins.
-    const paye = panierPaye(args.garde) ?? args.paye;
+    const paye = panierPaye(args.paye.groupId, args.garde) ?? args.paye;
     const article = paye.articles.find((a) => a.orderId === orderId);
     if (article === undefined) return;
     monterSuiviArticle(host, {
