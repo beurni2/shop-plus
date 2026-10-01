@@ -3306,6 +3306,12 @@
   "screenClass": "label"
  },
  {
+  "key": "attente.annuler_boutique",
+  "fr": "Annuler les changements",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
   "key": "attente.produit",
   "fr": "Ce produit",
   "register": "neutral",

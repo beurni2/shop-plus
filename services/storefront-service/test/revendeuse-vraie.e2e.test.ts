@@ -98,9 +98,9 @@ describe('REVENDEUSE-VRAIE-1 — a boutique edit made offline waits on the phone
     expect((await port.publish(SF_ID, 'corr-revendeuse-001')).ok).toBe(true);
     expect((await boutique()).tagline).toBe('');
 
-    // THE APP'S DEPOSIT: the earlier kept patch, overlaid by her newest word.
+    // THE APP'S DEPOSIT: the earlier WAITING patch (never a refused one), overlaid by her newest word.
     const garder = async (q: InstanceType<Outbox['FileAttente']>, patch: Record<string, unknown>) => {
-      const deja = q.tout().find((e) => e.name === 'storefront.identity');
+      const deja = q.enAttente().find((e) => e.name === 'storefront.identity');
       const avant = (deja?.payload['patch'] ?? {}) as Record<string, unknown>;
       await q.deposer('storefront.identity', box.PID_BOUTIQUE, { patch: { ...avant, ...patch } });
     };

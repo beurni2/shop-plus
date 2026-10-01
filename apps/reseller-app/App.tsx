@@ -26,7 +26,7 @@ import { choisirClipActif } from './src/ui/clip-actif';
 import { DuotoneTile } from './src/ui/signature';
 import { CustomizeStack } from './src/vitrine/customize/screens';
 import { resolveStorefrontService, deriveShortCode, saveRefusalToastKey, publierRefusalToastKey, estSessionRefusee, raisonReseau, verdictReplay, type SaveIssue, type StorefrontIdentityPatch } from './src/vitrine/service';
-import type { Storefront } from './src/vitrine/customize/storefront';
+import { withFocus, type Storefront } from './src/vitrine/customize/storefront';
 import { loadOrMintIdentity, remintIdentity } from './src/identity/store';
 import { resolveOfferSource, type Offer, type OfferFeed } from './src/vitrine/offers';
 import { categoriesPresentes, filtrerOffres, filtrerParSelection, labelCategorie, rayonsDuLivre, RAYONS, autresRayons } from './src/vitrine/rayons';
@@ -674,13 +674,16 @@ export const VitrineCard = memo(function VitrineCard({
  * it. Nothing here claims that anything landed: what landed left the file
  * and is read back from the shop like everything else on this screen.
  */
-function AttenteBandeau({ nAttente, echecs, nomDe, rejeu, onEnvoyer, onAbandonner }: {
+function AttenteBandeau({ nAttente, echecs, nomDe, rejeu, onEnvoyer, onAbandonner, boutiqueEnAttente }: {
   readonly nAttente: number;
   readonly echecs: readonly QueueEntry[];
   readonly nomDe: (pid: string) => string;
   readonly rejeu: boolean;
   readonly onEnvoyer: () => void;
   readonly onAbandonner: (pid: string) => void;
+  /** REVENDEUSE-VRAIE-1 — a kept boutique change has no card of its own to
+   *  carry « Annuler »; its way out lives here. */
+  readonly boutiqueEnAttente: boolean;
 }) {
   if (nAttente === 0 && echecs.length === 0) return null;
   return (
@@ -700,6 +703,18 @@ function AttenteBandeau({ nAttente, echecs, nomDe, rejeu, onEnvoyer, onAbandonne
           >
             <Text style={styles.attenteEnvoyerLabel}>{rejeu ? t('attente.envoi_en_cours') : t('attente.envoyer')}</Text>
           </Pressable>
+          {boutiqueEnAttente && (
+            <Pressable
+              style={({ pressed }) => [styles.vitrineRetirer, pressed && styles.pressed]}
+              onPress={() => onAbandonner(PID_BOUTIQUE)}
+              disabled={rejeu}
+              accessibilityRole="button"
+              accessibilityState={{ disabled: rejeu }}
+              accessibilityLabel={t('attente.annuler_boutique')}
+            >
+              <Text style={styles.vitrineRetirerLabel}>{t('attente.annuler_boutique')}</Text>
+            </Pressable>
+          )}
         </>
       )}
       {echecs.map((e) => (
@@ -708,7 +723,9 @@ function AttenteBandeau({ nAttente, echecs, nomDe, rejeu, onEnvoyer, onAbandonne
           <Text style={styles.attenteEchecNom}>{nomDe(e.pid)}</Text>
           {/* The SAME sentence a refused tap earns (RAISON-NOMMEE-1): the
               service's named word decides, never the wire token. */}
-          <Text style={styles.noteLine}>{t(publierRefusalToastKey(e.failureReason ?? ''))}</Text>
+          <Text style={styles.noteLine}>
+            {t(e.name === 'storefront.identity' ? saveRefusalToastKey(e.failureReason ?? '') : publierRefusalToastKey(e.failureReason ?? ''))}
+          </Text>
           <Pressable
             style={({ pressed }) => [styles.vitrineRetirer, pressed && styles.pressed]}
             onPress={() => onAbandonner(e.pid)}
@@ -900,10 +917,11 @@ export default function App() {
   );
   const echecsAttente = useMemo(() => attentes.filter((e) => e.status === 'failed'), [attentes]);
   // REVENDEUSE-VRAIE-1 (A-06) — her boutique's changes, kept while the network is away.
-  const identiteEnAttente = useMemo(
-    () => attentes.some((e) => e.status === 'pending' && e.name === 'storefront.identity'),
-    [attentes],
-  );
+  const patchEnAttente = useMemo(() => {
+    const e = attentes.find((x) => x.status === 'pending' && x.name === 'storefront.identity');
+    return e === undefined ? undefined : ((e.payload['patch'] ?? {}) as StorefrontIdentityPatch);
+  }, [attentes]);
+  const identiteEnAttente = patchEnAttente !== undefined;
   const attenteDe = (pid: string): 'ajout' | 'retrait' | null =>
     ajoutsEnAttente.has(pid) ? 'ajout' : retraitsEnAttente.has(pid) ? 'retrait' : null;
   /** The product's name for the banner: the live feed's, else the name the
@@ -1102,6 +1120,30 @@ export default function App() {
    */
   const [liveStorefront, setLiveStorefront] = useState<Storefront | null | undefined>(undefined);
   /**
+   * REVENDEUSE-VRAIE-1 (verifier BLOCKER) — Personnaliser opens on her shop AS
+   * IT WILL BE once her kept change lands, not as stored: opened on the stored
+   * values, her next edit (every save carries all six fields) sent the stored
+   * phrase back over the kept one. The waiting notice on K1 says it is not
+   * stored yet; a cancelled change takes its overlay with it.
+   */
+  const storefrontVu = useMemo((): Storefront | undefined => {
+    if (liveStorefront === null || liveStorefront === undefined) return undefined;
+    const p = patchEnAttente;
+    if (p === undefined) return liveStorefront;
+    return {
+      ...liveStorefront,
+      ...(p.name !== undefined ? { name: p.name } : {}),
+      ...(p.tagline !== undefined ? { tagline: p.tagline } : {}),
+      ...(p.bio !== undefined ? { bio: p.bio } : {}),
+      ...(p.zone !== undefined ? { zone: p.zone } : {}),
+      ...(p.theme !== undefined ? { theme: p.theme as Storefront['theme'] } : {}),
+      ...(p.featuredItems !== undefined ? { featuredItems: p.featuredItems } : {}),
+      ...(p.headerStyle !== undefined ? { headerStyle: p.headerStyle } : {}),
+      ...(p.coverFocus !== undefined ? { cover: withFocus(liveStorefront.cover, p.coverFocus) } : {}),
+      ...(p.avatarFocus !== undefined ? { avatar: withFocus(liveStorefront.avatar, p.avatarFocus) } : {}),
+    };
+  }, [liveStorefront, patchEnAttente]);
+  /**
    * ONE ADOPTER, AND IT ONLY EVER MOVES FORWARD (verifier MAJOR — a stale
    * response could bring the removed card back). Two writers set this value:
    * the entry effect and the removal. Enter Ma Vitrine, tap « Retirer » before
@@ -1137,19 +1179,18 @@ export default function App() {
       // cannot vouch for. REVENDEUSE-VRAIE-1 (AUDIT-3 A-01): EVERY product,
       // not her first twenty — past twenty her card quoted a price no link
       // charges. Six at a time, so a large shop never floods a 2G link.
+      // Each round lands as it answers (verifier MAJOR): waiting for the whole
+      // shop left every card on the arithmetic price for the slowest round.
       void (async () => {
         const pids = res.value!.curatedItems;
-        const lus: (readonly [string, Awaited<ReturnType<typeof service.readListing>>])[] = [];
         for (let i = 0; i < pids.length && live; i += 6) {
-          lus.push(...(await Promise.all(pids.slice(i, i + 6).map(async (pid) => [pid, await service.readListing(identity.storefrontId, pid)] as const))));
+          const lus = await Promise.all(pids.slice(i, i + 6).map(async (pid) => [pid, await service.readListing(identity.storefrontId, pid)] as const));
+          if (!live) return;
+          const signes: Record<string, number> = {};
+          for (const [pid, lu] of lus) if (lu.ok && lu.value !== undefined) signes[pid] = lu.value.customerPriceFcfa;
+          if (Object.keys(signes).length > 0) setPrixSignes((prev) => ({ ...prev, ...signes }));
         }
-        return lus;
-      })().then((lus) => {
-        if (!live) return;
-        const signes: Record<string, number> = {};
-        for (const [pid, lu] of lus) if (lu.ok && lu.value !== undefined) signes[pid] = lu.value.customerPriceFcfa;
-        if (Object.keys(signes).length > 0) setPrixSignes((prev) => ({ ...prev, ...signes }));
-      });
+      })();
     });
     return () => {
       live = false;
@@ -1336,15 +1377,30 @@ export default function App() {
         // shape, so the next screen reads what was actually stored.
         const fresh = await service.getById(identity.storefrontId);
         if (fresh.ok && fresh.value !== undefined) setLiveStorefront(fresh.value);
+        // What this save stored must never be brought back by an older kept
+        // change (verifier BLOCKER): its fields leave the kept patch, and an
+        // emptied patch leaves the file.
+        const fichier = fileAttente.current;
+        const garde = fichier?.enAttente().find((e) => e.name === 'storefront.identity');
+        if (fichier !== null && fichier !== undefined && garde !== undefined) {
+          const reste = Object.fromEntries(Object.entries((garde.payload['patch'] ?? {}) as Record<string, unknown>).filter(([champ]) => !(champ in patch)));
+          if (Object.keys(reste).length === 0) await fichier.abandonner(PID_BOUTIQUE);
+          else await fichier.deposer('storefront.identity', PID_BOUTIQUE, { patch: reste });
+          rafraichirAttentes();
+        }
         return true;
       }
       // REVENDEUSE-VRAIE-1 (AUDIT-3 A-06) — the network, not the service: the
       // change is KEPT on the phone (her last word per field, one entry) and
       // leaves by itself when the network returns. Said as waiting, never as
-      // saved (Law 7: queued = pending, never done).
+      // saved (Law 7: queued = pending, never done). Merged over the WAITING
+      // change only — a refused one never rides again (verifier MAJOR). A
+      // reorder is never kept: the service accepts an order only against the
+      // shop as it is when it lands, and a kept add or removal changes that
+      // (verifier MAJOR) — so it is said as not saved, to retry with network.
       const file = fileAttente.current;
-      if (raisonReseau(res.reason) && file !== null) {
-        const deja = file.tout().find((e) => e.name === 'storefront.identity');
+      if (raisonReseau(res.reason) && file !== null && patch.curatedItems === undefined) {
+        const deja = file.enAttente().find((e) => e.name === 'storefront.identity');
         const avant = (deja?.payload['patch'] ?? {}) as StorefrontIdentityPatch;
         await file.deposer('storefront.identity', PID_BOUTIQUE, { patch: { ...avant, ...patch } });
         rafraichirAttentes();
@@ -2192,7 +2248,24 @@ export default function App() {
     setGallery(startAt === undefined ? { name, refs } : { name, refs, startAt });
   }, []);
   const ouvrirVoix = useCallback((pid: string, name: string) => setVoiceSheet({ pid, name }), []);
-  const partagerDepuisCarte = useCallback((pid: string) => { setShareCampBadge(false); setShareId(pid); go('lien'); }, [go]);
+  const prixSignesRef = useRef(prixSignes);
+  prixSignesRef.current = prixSignes;
+  const partagerDepuisCarte = useCallback((pid: string) => {
+    setShareCampBadge(false);
+    setShareId(pid);
+    go('lien');
+    // A card whose signed price has not been read yet (a slow round, or the
+    // round abandoned when she left Ma Vitrine) is read now, before she sends
+    // a price no link charges (verifier MAJOR).
+    if (prixSignesRef.current[pid] === undefined && service !== null && identity !== null && identity !== undefined) {
+      void service.readListing(identity.storefrontId, pid).then((lu) => {
+        if (lu.ok && lu.value !== undefined) {
+          const prix = lu.value.customerPriceFcfa;
+          setPrixSignes((prev) => ({ ...prev, [pid]: prix }));
+        }
+      });
+    }
+  }, [go, service, identity]);
   const retirerProduit = useCallback((pid: string) => { void retirerDeVitrine(pid); }, [retirerDeVitrine]);
   const changerMarge = useCallback((pid: string, m: number) => {
     setMarkups((prev) => ({ ...prev, [pid]: m }));
@@ -2210,16 +2283,11 @@ export default function App() {
   const annulerAttente = useCallback((pid: string) => {
     const file = fileAttente.current;
     if (file === null) return;
-    void file.abandonner(pid).then(async () => {
+    void file.abandonner(pid).then(() => {
       rafraichirAttentes();
       setToast(t('attente.annule'));
-      // A cancelled boutique change: her screens read the shop as stored again.
-      if (pid === PID_BOUTIQUE && service !== null && identity !== null && identity !== undefined) {
-        const lu = await service.getById(identity.storefrontId);
-        if (lu.ok && lu.value !== undefined) setLiveStorefront({ ...lu.value });
-      }
     });
-  }, [rafraichirAttentes, service, identity]);
+  }, [rafraichirAttentes]);
   /**
    * ═══ FILE-ATTENTE-1 — THE REPLAY ═══
    *
@@ -3075,6 +3143,7 @@ export default function App() {
                 rejeu={rejeu}
                 onEnvoyer={() => void rejouer()}
                 onAbandonner={annulerAttente}
+                boutiqueEnAttente={identiteEnAttente}
               />
               <EmptyState
                 glyph={<IconVitrine size={dimension.iconSizePx.emptyState} color={sharedColour.sub} />}
@@ -3169,6 +3238,7 @@ export default function App() {
                     rejeu={rejeu}
                     onEnvoyer={() => void rejouer()}
                     onAbandonner={annulerAttente}
+                    boutiqueEnAttente={identiteEnAttente}
                   />
                 </View>
               }
@@ -3485,7 +3555,7 @@ export default function App() {
             // PERSONNALISER-REAL-1 — HER shop, read back from the service, and the
             // save that persists every edit. A null read (not live yet) leaves the
             // screens on their local draft, which the K1 note states plainly.
-            storefront={liveStorefront ?? undefined}
+            storefront={storefrontVu}
             onSaveIdentity={saveIdentity}
             identiteEnAttente={identiteEnAttente}
             savesPersist={liveStorefront !== null && liveStorefront !== undefined}

@@ -281,14 +281,24 @@ export function CustomizeStack({ onClose, onToast, storefront, onStorefrontChang
    * live (`savesPersist === false`) there is nothing to save to: the change
    * is her draft, applied here and said as one by the caller.
    */
+  // ONE SAVE AT A TIME (verifier MINOR): the next change is built from `sf`,
+  // which moves only once the answer lands — a second tap meanwhile would
+  // carry the shop as it was and undo the first. It is not sent.
+  const envoiEnCours = useRef(false);
   const enregistrer = async (next: Storefront, opts?: { readonly withOrder?: boolean }): Promise<SaveIssue | 'brouillon'> => {
     if (onSaveIdentity === undefined || savesPersist === false) {
       appliquer(next);
       return 'brouillon';
     }
-    const issue = await onSaveIdentity(patchDe(next, opts));
-    if (issue !== false) appliquer(next);
-    return issue;
+    if (envoiEnCours.current) return false;
+    envoiEnCours.current = true;
+    try {
+      const issue = await onSaveIdentity(patchDe(next, opts));
+      if (issue !== false) appliquer(next);
+      return issue;
+    } finally {
+      envoiEnCours.current = false;
+    }
   };
   const patchDe = (next: Storefront, opts?: { readonly withOrder?: boolean }): StorefrontIdentityPatch => ({
       name: next.name,
@@ -395,10 +405,13 @@ export function CustomizeStack({ onClose, onToast, storefront, onStorefrontChang
   const saveFraming = async (kind: FrameKind, order: PhotoFocus | null): Promise<void> => {
     const next: Storefront =
       kind === 'cover' ? { ...sf, cover: withFocus(sf.cover, order) } : { ...sf, avatar: withFocus(sf.avatar, order) };
-    if (onSaveIdentity === undefined) return;
+    if (onSaveIdentity === undefined || envoiEnCours.current) return;
     // REVENDEUSE-VRAIE-1 (A-03) — « Cadrage enregistré » only once it is; a
     // refusal keeps the sheet open on her framing (the App says why).
-    const issue = await onSaveIdentity(kind === 'cover' ? { coverFocus: order } : { avatarFocus: order });
+    envoiEnCours.current = true;
+    const issue = await onSaveIdentity(kind === 'cover' ? { coverFocus: order } : { avatarFocus: order }).finally(() => {
+      envoiEnCours.current = false;
+    });
     if (issue === false) return;
     appliquer(next);
     if (issue === true) onToast(t(order === null ? 'k.cadrage.toast_defaut' : 'k.cadrage.toast'));

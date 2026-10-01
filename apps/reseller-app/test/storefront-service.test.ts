@@ -355,7 +355,10 @@ describe('PERSONNALISER-REAL-1 — the wiring (source-pinned)', () => {
 
   it('APP READS HER REAL SHOP and hands it, the save and the persist-state to the stack', () => {
     expect(app).toMatch(/service\.getById\(identity\.storefrontId\)/);
-    expect(app).toMatch(/storefront=\{liveStorefront \?\? undefined\}/);
+    // REVENDEUSE-VRAIE-1 — her real shop, with a WAITING change laid over it
+    // (never the demo seed): `storefrontVu` is built from `liveStorefront`.
+    expect(app).toMatch(/storefront=\{storefrontVu\}/);
+    expect(app).toMatch(/if \(liveStorefront === null \|\| liveStorefront === undefined\) return undefined;\n    const p = patchEnAttente;/);
     expect(app).toMatch(/onSaveIdentity=\{saveIdentity\}/);
     expect(app).toMatch(/savesPersist=\{liveStorefront !== null && liveStorefront !== undefined\}/);
     // the DEMO seed is no longer what she edits — the read is the source
