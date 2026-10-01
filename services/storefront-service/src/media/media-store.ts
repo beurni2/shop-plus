@@ -63,6 +63,8 @@ export interface R2ObjectBodyLike {
   readonly size?: number;
   /** The range R2 actually served, when one was asked. */
   readonly range?: { readonly offset?: number; readonly length?: number; readonly suffix?: number };
+  /** When the object was written (native R2) — how old a photo is. */
+  readonly uploaded?: Date;
 }
 /** PORTÉE-MEDIA — the slice a ranged read asks R2 for (native R2GetOptions). */
 export interface R2RangeLike {

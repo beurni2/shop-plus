@@ -125,8 +125,14 @@ export function imageDimensions(bytes: Uint8Array, fmt: ImageFormat): { width: n
  */
 export const PETITE_MAX_DIM = 640;
 export const PETITE_MIN_DIM = 32;
-export const PETITE_MAX_BYTES = 160 * 1024;
+/** PERF-BUDGETS « hero ≤ 80 KB » — the copy exists to meet it (verifier MINOR 1). */
+export const PETITE_MAX_BYTES = 80 * 1024;
 export const PETITE_SUFFIXE = '~p';
+/** How long after her photo is written its copy may still be on its way (the
+ *  app sends it seconds later; a day covers a phone that went offline). Past
+ *  it, a photo with no copy will never get one: the app sends copies only right
+ *  after a new pick, and a new pick is a new key. */
+export const PETITE_ATTENTE_MS = 24 * 3600_000;
 
 /** The small copy's key, derived from its photo's — a constant suffix, no caller input. */
 export function petiteKeyFor(photoKey: string): string {

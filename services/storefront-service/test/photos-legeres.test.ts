@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import worker from '../src/index.js';
 import {
   InMemoryMediaStore,
   PETITE_MAX_BYTES,
@@ -34,7 +35,7 @@ function jpeg(w: number, h: number): Uint8Array {
 }
 
 describe('validerPetite — an image, small in pixels and in bytes', () => {
-  it('accepts a JPEG or PNG within 640 px and 160 KB, naming its real type', () => {
+  it('accepts a JPEG or PNG within 640 px and 80 KB, naming its real type', () => {
     expect(validerPetite(jpeg(640, 480))).toMatchObject({ ok: true, contentType: 'image/jpeg' });
     expect(validerPetite(png(384, 384))).toMatchObject({ ok: true, contentType: 'image/png' });
     expect(validerPetite(png(PETITE_MAX_DIM, PETITE_MAX_DIM, PETITE_MAX_BYTES))).toMatchObject({ ok: true });
@@ -60,5 +61,38 @@ describe('putPetite — beside its photo, under a derived key', () => {
     expect(petiteKeyFor(cle)).toBe(`${cle}~p`);
     expect([...store.objects.keys()]).toEqual([`${cle}~p`]);
     expect(store.objects.get(`${cle}~p`)).toEqual({ bytes: octets, contentType: 'image/jpeg' });
+  });
+});
+
+/**
+ * Verifier MAJOR 1 — the stand-in's short cache cost buyers bytes on every shop
+ * that existed before this change: no copy ever comes for an older photo (the
+ * app sends one only right after a new pick), so `?v=petite` served the full
+ * photo with a one-hour cache where the bare address had a one-year one. Only a
+ * FRESH photo may still be waiting for its copy.
+ */
+describe('?v=petite without a copy — a short cache only while one may still come', () => {
+  const objet = (uploaded: Date) => ({
+    body: new Blob([new Uint8Array(100)]).stream(),
+    httpMetadata: { contentType: 'image/jpeg' },
+    size: 100,
+    uploaded,
+  });
+  const lire = async (uploaded: Date): Promise<Response> => {
+    const BUCKET = {
+      put: async () => undefined,
+      get: async (key: string) => (key.endsWith('~p') ? null : objet(uploaded)),
+    };
+    return worker.fetch(new Request('https://storefront-service.shop.internal/media/storefronts/sf-1/cover/a.jpeg?v=petite'), { BUCKET } as never);
+  };
+  it('a photo older than a day keeps the year-long cache the bare address has', async () => {
+    const r = await lire(new Date(Date.now() - 2 * 24 * 3600_000));
+    expect(r.status).toBe(200);
+    expect(r.headers.get('cache-control')).toBe('public, max-age=31536000, immutable');
+  });
+  it('a photo uploaded just now is cached one hour, so its copy is picked up when it lands', async () => {
+    const r = await lire(new Date(Date.now() - 60_000));
+    expect(r.status).toBe(200);
+    expect(r.headers.get('cache-control')).toBe('public, max-age=3600');
   });
 });

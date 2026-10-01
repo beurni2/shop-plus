@@ -28,7 +28,7 @@ const ADRESSE = {
   avatar: 'https://media.example.dev/media/storefronts/sf-0258/avatar/a1.jpeg',
 } as const;
 
-function service(opts: { pointe?: boolean } = {}): Route[] {
+function service(opts: { pointe?: boolean; copie?: 'pendante' | 'refusee' } = {}): Route[] {
   const etat = { cover: null as string | null, avatar: null as string | null };
   const storefront = () => ({
     id: SF_ID, resellerId: 'RS', slug: SLUG, discoverable: true, curatedItems: [], name: NOM, zone: 'Ouagadougou',
@@ -48,7 +48,11 @@ function service(opts: { pointe?: boolean } = {}): Route[] {
       if (path !== '/media/upload') return null;
       const q = new URLSearchParams(search);
       const kind = q.get('kind') as 'cover' | 'avatar';
-      if (q.get('petite') === '1') return { status: 201, json: { kind, petite: true } };
+      if (q.get('petite') === '1') {
+        if (opts.copie === 'pendante') return new Promise(() => undefined); // the network that never answers
+        if (opts.copie === 'refusee') return { status: 409, json: { service: 'storefront-service', error: 'photo_changed' } };
+        return { status: 201, json: { kind, petite: true } };
+      }
       // `pointe: false` — the service stored the bytes but her shop does not show them.
       if (opts.pointe !== false) etat[kind] = ADRESSE[kind];
       return { status: 201, json: { service: 'storefront-service', kind, status: 'live', url: ADRESSE[kind] } };
@@ -123,6 +127,45 @@ describe('PHOTOS-LEGERES-1 — the photo she picks leaves with its small copy', 
     await screen.settle();
     const e = envois(w);
     expect(e.map((x) => [x.q.get('kind'), x.q.get('petite')])).toEqual([['cover', null]]);
+    screen.unmount();
+  });
+
+  /* Verifier MINOR 2 — her answer never waits on the copy, and a copy that
+   * fails or cannot be made costs her nothing. */
+  it('a copy upload that never answers does not hold her answer: « Votre couverture est en ligne »', async () => {
+    const { w, screen } = await surCouverturePortrait(service({ copie: 'pendante' }));
+    (await import('./doubles/expo-simple')).prochainePhoto();
+    await screen.press('Ajouter une couverture');
+    await screen.settle();
+    await screen.settle();
+    expect(screen.shows('Votre couverture est en ligne'), `on screen: ${JSON.stringify(screen.texts().slice(0, 20))}`).toBe(true);
+    expect(envois(w).map((x) => x.q.get('petite'))).toEqual([null, '1']);
+    screen.unmount();
+  });
+
+  it('a copy the service refuses leaves her photo and her answer as they are', async () => {
+    const { w, screen } = await surCouverturePortrait(service({ copie: 'refusee' }));
+    (await import('./doubles/expo-simple')).prochainePhoto();
+    await screen.press('Ajouter une couverture');
+    await screen.settle();
+    await screen.settle();
+    expect(screen.shows('Votre couverture est en ligne')).toBe(true);
+    expect(envois(w).map((x) => x.q.get('petite'))).toEqual([null, '1']);
+    screen.unmount();
+  });
+
+  it('a copy the phone cannot make: the photo alone leaves, and her answer is the same', async () => {
+    const { w, screen } = await surCouverturePortrait();
+    const doubles = await import('./doubles/expo-simple');
+    doubles.prochainePhoto();
+    doubles.prochaineCopieImpossible();
+    await screen.press('Ajouter une couverture');
+    await screen.settle();
+    await screen.settle();
+    expect(screen.shows('Votre couverture est en ligne')).toBe(true);
+    const e = envois(w);
+    expect(e.map((x) => [x.q.get('kind'), x.q.get('petite')])).toEqual([['cover', null]]);
+    expect(e[0]!.bytes).toBeGreaterThan(0);
     screen.unmount();
   });
 });

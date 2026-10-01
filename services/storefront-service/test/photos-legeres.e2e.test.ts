@@ -19,7 +19,7 @@ import { OPS_SECRET, seance, type Seance } from './seance';
  *   · the photo's own address still answers the photo;
  *   · a copy made from a photo that is no longer on her shop is refused by
  *     name, and lands nowhere;
- *   · bounds: too wide, too heavy, not an image — refused by name;
+ *   · bounds: too wide, too heavy (over the 80 KB hero budget), not an image — refused by name;
  *   · another reseller cannot put a copy beside her photo.
  */
 
@@ -149,7 +149,7 @@ describe('PHOTOS-LEGERES-1 — her photo, and the small copy buyers download', (
     const up = await port.uploadCover(id, png(1200, 900, 100_000, 1), 'image/png');
     const url = up.ok ? up.value.url : '';
     expect(await port.uploadPetite('cover', id, url, png(641, 480, 30_000, 5))).toEqual({ ok: false, reason: 'bad_dimensions' });
-    expect(await port.uploadPetite('cover', id, url, png(640, 480, 160 * 1024 + 1, 5))).toEqual({ ok: false, reason: 'too_large' });
+    expect(await port.uploadPetite('cover', id, url, png(640, 480, 80 * 1024 + 1, 5))).toEqual({ ok: false, reason: 'too_large' });
     expect(await port.uploadPetite('cover', id, url, new Uint8Array(2_000).fill(5))).toEqual({ ok: false, reason: 'unsupported_type' });
     expect(await lire(`${url}?v=petite`)).toMatchObject({ taille: 100_000, marque: 1 });
   }, 120_000);

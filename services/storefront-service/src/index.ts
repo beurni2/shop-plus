@@ -1,7 +1,7 @@
 import { makeHealthFetch, provenance } from '@shop-plus/observability';
 import type { ResellerListing, Storefront } from '@platform/contracts';
 import { resolveMediaStore, type MediaEnv, type R2ObjectBodyLike } from './media/media-store.js';
-import { PETITE_SUFFIXE, StorefrontMediaService, petiteKeyFor, validerPetite, type MediaKind } from './media/service.js';
+import { PETITE_ATTENTE_MS, PETITE_SUFFIXE, StorefrontMediaService, petiteKeyFor, validerPetite, type MediaKind } from './media/service.js';
 import { absoluteAssetRefs, joinVitrineProduct, toStorefrontView, whatsappDigits, type VitrineProductRecord } from './customer-projection.js';
 import { resolveStorefrontStore, type StorefrontStoreEnv } from './storefront-store.js';
 import { resolveSupplySource, type SupplySourceEnv } from './supply-source.js';
@@ -538,8 +538,11 @@ async function describeProducts(
  * names the photo the copy was made from; the service reads which photo that
  * shop points at and writes beside it only when they are the same. So a copy
  * made from yesterday's cover can never land beside today's, and a photo that
- * is not on her shop (held for review, replaced, never pointed) gets none —
- * the small copy follows its photo through any future review by construction.
+ * is not on her shop (held for review, replaced, never pointed) gets none.
+ * The copy ITSELF is not reviewed: the owner can post it once her photo is
+ * live, and a later post replaces it. Review is off for every kind today; the
+ * day `REQUIRES_REVIEW` is turned back on, the copy needs the same review
+ * (named, not solved here — verifier note, PHOTOS-LEGERES-1).
  * The key written is derived from the shop's own pointer, never from the caller.
  */
 async function handleMediaPetite(request: Request, env: StorefrontServiceEnv | undefined, url: URL): Promise<Response> {
@@ -607,7 +610,7 @@ function parseRange(header: string | null): { offset?: number; length?: number; 
   return { offset, length: end - offset + 1 };
 }
 
-async function handleMediaRead(key: string, env?: MediaEnv, rangeHeader: string | null = null): Promise<Response> {
+async function handleMediaRead(key: string, env?: MediaEnv, rangeHeader: string | null = null, standIn = false): Promise<Response> {
   const bucket = env?.BUCKET;
   if (bucket === undefined || typeof bucket.get !== 'function') {
     return Response.json({ service: SERVICE_NAME, error: 'not_found' }, { status: 404 });
@@ -629,9 +632,15 @@ async function handleMediaRead(key: string, env?: MediaEnv, rangeHeader: string 
    * content-versioned, a slice of an immutable object is itself immutable.
    */
   const range = parseRange(rangeHeader);
-  const baseHeaders = (contentType: string | undefined): Record<string, string> => ({
+  // PHOTOS-LEGERES-1 — a photo served in place of its small copy (`standIn`)
+  // is cached one hour only while that copy may still come; past
+  // PETITE_ATTENTE_MS none will, and it keeps the year-long cache it always had.
+  const baseHeaders = (contentType: string | undefined, uploaded?: Date): Record<string, string> => ({
     'Content-Type': contentType ?? 'application/octet-stream',
-    'Cache-Control': 'public, max-age=31536000, immutable',
+    'Cache-Control':
+      standIn && (uploaded === undefined || Date.now() - uploaded.getTime() < PETITE_ATTENTE_MS)
+        ? 'public, max-age=3600'
+        : 'public, max-age=31536000, immutable',
     'Accept-Ranges': 'bytes',
   });
   if (range !== null) {
@@ -654,7 +663,7 @@ async function handleMediaRead(key: string, env?: MediaEnv, rangeHeader: string 
       const total = whole.size;
       return new Response(null, {
         status: 416,
-        headers: { ...baseHeaders(whole.httpMetadata?.contentType), 'Content-Range': `bytes */${total ?? 0}` },
+        headers: { ...baseHeaders(whole.httpMetadata?.contentType, whole.uploaded), 'Content-Range': `bytes */${total ?? 0}` },
       });
     }
     const total = object.size ?? 0;
@@ -673,13 +682,13 @@ async function handleMediaRead(key: string, env?: MediaEnv, rangeHeader: string 
     if (total > 0 && start >= total) {
       return new Response(null, {
         status: 416,
-        headers: { ...baseHeaders(object.httpMetadata?.contentType), 'Content-Range': `bytes */${total}` },
+        headers: { ...baseHeaders(object.httpMetadata?.contentType, object.uploaded), 'Content-Range': `bytes */${total}` },
       });
     }
     return new Response(object.body, {
       status: 206,
       headers: {
-        ...baseHeaders(object.httpMetadata?.contentType),
+        ...baseHeaders(object.httpMetadata?.contentType, object.uploaded),
         'Content-Range': `bytes ${start}-${end}/${total}`,
         'Content-Length': String(length),
       },
@@ -692,8 +701,8 @@ async function handleMediaRead(key: string, env?: MediaEnv, rangeHeader: string 
   return new Response(object.body, {
     status: 200,
     headers: object.size !== undefined
-      ? { ...baseHeaders(object.httpMetadata?.contentType), 'Content-Length': String(object.size) }
-      : baseHeaders(object.httpMetadata?.contentType),
+      ? { ...baseHeaders(object.httpMetadata?.contentType, object.uploaded), 'Content-Length': String(object.size) }
+      : baseHeaders(object.httpMetadata?.contentType, object.uploaded),
   });
 }
 
@@ -866,14 +875,11 @@ export const handleRequest = async (request: Request, env?: StorefrontServiceEnv
     if (key === null) return withReadCors(Response.json({ service: SERVICE_NAME, error: 'not_found' }, { status: 404 }));
     const range = request.headers.get('Range');
     // PHOTOS-LEGERES-1 — her photo's small copy when it exists; else the photo
-    // itself, cached for an hour only, so the copy is picked up once it lands
-    // (the app sends it seconds after the photo) instead of never.
+    // itself, as a stand-in (its cache: `handleMediaRead`'s `standIn` rule).
     if (url.searchParams.get('v') === 'petite') {
       const petite = await handleMediaRead(petiteKeyFor(key), env, range);
       if (petite.status !== 404) return withReadCors(petite);
-      const photo = await handleMediaRead(key, env, range);
-      if (photo.ok) photo.headers.set('Cache-Control', 'public, max-age=3600');
-      return withReadCors(photo);
+      return withReadCors(await handleMediaRead(key, env, range, true));
     }
     return withReadCors(await handleMediaRead(key, env, range));
   }

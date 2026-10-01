@@ -87,8 +87,17 @@ interface ManipHandle {
   renderAsync(): Promise<ManipRef>;
 }
 let enregistrements = 0;
+/** PHOTOS-LEGERES-1 (verifier MINOR 2) — the next pick's small copy cannot be
+ *  made: every save of an image derived from an already-rendered one (the copy;
+ *  the photo itself is rendered from the picked uri, a string) throws, as a
+ *  native encoder out of memory would. One pick, then it disarms. */
+let copieImpossible = false;
+export function prochaineCopieImpossible(): void {
+  copieImpossible = true;
+}
 export const ImageManipulator = {
-  manipulate: (_source: unknown): ManipHandle => {
+  manipulate: (source: unknown): ManipHandle => {
+    const derivee = typeof source !== 'string';
     const handle: ManipHandle = {
       resize: () => handle,
       crop: () => handle,
@@ -96,6 +105,10 @@ export const ImageManipulator = {
         width: 1000,
         height: 1000,
         saveAsync: async () => {
+          if (derivee && copieImpossible) {
+            copieImpossible = false;
+            throw new Error('rendu: la copie ne peut pas être faite');
+          }
           enregistrements += 1;
           const uri = `file:///rendu-cache/photo-rendu-${enregistrements}.jpg`;
           new File(uri).write('photo-rendu — aucun octet d’image, voir la borne en tête de bloc');

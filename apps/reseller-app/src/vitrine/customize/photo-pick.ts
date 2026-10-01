@@ -67,7 +67,11 @@ const MIN_DIM = 200;
  * Quality 0.6: the copy is seen small, on metered data.
  */
 const PETITE_DIM = { cover: 640, avatar: 384 } as const;
-const PETITE_QUALITY = 0.6;
+/** PERF-BUDGETS « hero ≤ 80 KB », the service's own ceiling for the copy:
+ *  quality steps down until the copy fits, and a copy that never fits is not
+ *  sent (buyers are then served the photo itself). */
+const PETITE_QUALITES = [0.6, 0.45, 0.3] as const;
+const PETITE_MAX_OCTETS = 80 * 1024;
 
 export async function pickPhoto(kind: 'cover' | 'avatar'): Promise<PickOutcome> {
   // ASK FIRST, and treat a refusal as a REFUSAL — never as a failure. She is
@@ -146,10 +150,16 @@ async function petiteDe(
     const ref = await ImageManipulator.manipulate(fitted)
       .resize(fitted.width >= fitted.height ? { width: Math.min(dim, fitted.width) } : { height: Math.min(dim, fitted.height) })
       .renderAsync();
-    const saved = await ref.saveAsync({ compress: PETITE_QUALITY, format: SaveFormat.JPEG });
-    ref.release();
-    const bytes = await new File(saved.uri).bytes();
-    return bytes.length > 0 ? bytes : undefined;
+    try {
+      for (const compress of PETITE_QUALITES) {
+        const saved = await ref.saveAsync({ compress, format: SaveFormat.JPEG });
+        const bytes = await new File(saved.uri).bytes();
+        if (bytes.length > 0 && bytes.length <= PETITE_MAX_OCTETS) return bytes;
+      }
+      return undefined;
+    } finally {
+      ref.release();
+    }
   } catch {
     return undefined;
   }
