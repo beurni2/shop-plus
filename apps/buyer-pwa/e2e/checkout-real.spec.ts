@@ -1229,29 +1229,58 @@ test('PORTE-APRES-RECHARGE-1 · the tab closed: « Ma commande » reopens her tr
   await bande.waitFor({ timeout: 15_000 });
   await bande.click();
   await payerALaPorteDepuisLeSuivi(page, wire);
-  // What the phone keeps names the order and its door holder — never a code,
-  // never an amount.
-  const garde = await page.evaluate(() => localStorage.getItem('sp-commande:v1') ?? '');
+  // What the phone keeps names the order and, in its own store, the door
+  // holder — never a code, never an amount.
+  const portes = await page.evaluate(() => JSON.parse(localStorage.getItem('sp-portes:v1') ?? '[]') as Array<Record<string, unknown>>);
+  expect(portes.map((e) => e['orderId'])).toEqual(['ord-quote-door-1']);
+  const garde = await page.evaluate(() => (localStorage.getItem('sp-commande:v1') ?? '') + (localStorage.getItem('sp-portes:v1') ?? ''));
   expect(garde).not.toContain('654321');
   expect(garde).not.toContain('11500');
+});
+
+test('PORTE-APRES-RECHARGE-1 · « C’est terminé » forgets her door holder with her order', async ({ page }) => {
+  test.setTimeout(90_000);
+  // Her door is already paid and the parcel handed over: the tracking ends.
+  await scriptService(page, {
+    doorAvailable: true,
+    orderStates: ['confirmed'],
+    doorLegs: ['paid'],
+    marques: [{ ...MARQUES_ARRIVEE, livree: true }],
+    codeRemise: '654321',
+    montantsCommande: { paid: 1_000, due: 11_500 },
+  });
+  await payerLaLivraison(page);
+  expect(await page.evaluate(() => localStorage.getItem('sp-portes:v1'))).toContain('ord-quote-door-1');
+  await page.locator('[data-action="suivre"]').click();
+  await page.locator('[data-action="suivi-terminer"]').waitFor({ timeout: 15_000 });
+  await page.locator('[data-action="suivi-terminer"]').click();
+  await page.locator('[data-screen="C1"]').waitFor({ timeout: 10_000 });
+  expect(await page.evaluate(() => localStorage.getItem('sp-commande:v1'))).toBeNull();
+  expect(await page.evaluate(() => localStorage.getItem('sp-portes:v1'))).toBeNull();
 });
 
 test('PORTE-APRES-RECHARGE-1 · CONTROL — a prepaid order keeps no door holder, and its reopened tracking offers no door', async ({ page }) => {
   test.setTimeout(90_000);
   // The door option EXISTS (a door quote, a door holder) — she chooses to pay
   // everything now, and the phone must keep no holder for that order.
-  await scriptService(page, { doorAvailable: true, orderStates: ['confirmed'], marques: [MARQUES_ARRIVEE], codeRemise: '654321' });
+  const wire = await scriptService(page, { doorAvailable: true, orderStates: ['confirmed'], marques: [MARQUES_ARRIVEE], codeRemise: '654321' });
   await askForPrice(page);
   await toPayer(page, 'A');
   await page.locator('[data-action="payer"]').click();
   await page.locator('[data-etat="confirmee"]').waitFor({ timeout: 15_000 });
   const garde = await page.evaluate(() => JSON.parse(localStorage.getItem('sp-commande:v1') ?? '{}') as Record<string, unknown>);
   expect(garde['orderId']).toBe('ord-quote-full-1');
-  expect(garde).not.toHaveProperty('titulaire');
+  expect(await page.evaluate(() => localStorage.getItem('sp-portes:v1'))).toBeNull();
   await page.evaluate(() => sessionStorage.clear());
+  const luesAvant = wire.orderReads.length;
   await page.goto(ENTRY);
   await page.locator('[data-role="ma-commande"]').click();
   await page.locator('[data-action="voir-code"]').waitFor({ timeout: 15_000 });
+  // The door could only appear once the reopened tracking READ the rider's
+  // arrival (verifier minor 4) — wait for that read, and for the arrival step
+  // it proves, before asserting there is no door.
+  await expect.poll(() => wire.orderReads.length, { timeout: 15_000 }).toBeGreaterThan(luesAvant);
+  await expect(page.locator('[data-screen="C7"] .cl-tl-dot-done')).toHaveCount(4, { timeout: 15_000 });
   await expect(page.locator('[data-action="porte"]')).toHaveCount(0);
 });
 

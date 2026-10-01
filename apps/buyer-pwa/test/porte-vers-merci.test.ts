@@ -304,7 +304,7 @@ describe('PORTE-VERS-MERCI — chaque route C8 → C9 garde la montre vivante', 
     await laRemiseDoitFermer(c, script);
   });
 
-  it('mode B, déjà payé — revenir à C8 et repasser par « Tout est bon » (2 600 ms) mène à C9, puis livree mène à C10', async () => {
+  it('mode B, déjà payé — revenir à C8 et repasser par « Tout est bon » mène tout de suite à C9, puis livree mène à C10', async () => {
     const script: ScriptPorte = { doorLeg: 'due', livree: false, etatReads: 0 };
     const c = monter(script);
     await jusquALaPorte(c, 'B');
@@ -323,10 +323,12 @@ describe('PORTE-VERS-MERCI — chaque route C8 → C9 garde la montre vivante', 
     expect(c.innerHTML).toContain('data-screen="C7"');
     presser(c, 'porte');
     expect(c.innerHTML).toContain('data-screen="C8"');
-    // Nothing left owed (doorLeg `paid`): the accepted card stands, and the
-    // delayed jump lands her on C9.
+    // Nothing left owed (doorLeg `paid`): a real order goes straight to her
+    // code — never the operator's « validate N FCFA » card for money already
+    // collected (PORTE-APRES-RECHARGE-1, verifier minor 3).
     presser(c, 'porte-bon');
-    await vi.advanceTimersByTimeAsync(2_600);
+    expect(c.innerHTML).not.toContain('data-etat="paiement-porte"');
+    await souffler();
     expect(c.innerHTML).toContain('data-screen="C9"');
 
     await laRemiseDoitFermer(c, script);

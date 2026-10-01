@@ -39,7 +39,7 @@ function monterCliente(...args: Parameters<typeof createCliente>): void {
   arreterCliente = createCliente(...args);
 }
 import { clienteProduit, clienteProduitReel, composeQuote, harnessFrancs } from './cliente/seed';
-import { commandIdFor, commandeGardee, forgetRequestKey, garderCommande, localStorageOrUndefined, oublierCommande, orderCommandIdFor, porteGardee, requestKeyFor, resolveQuotePort, verdictBande, villeDe } from './cliente/quote-port';
+import { commandIdFor, commandeGardee, forgetRequestKey, garderCommande, localStorageOrUndefined, oublierCommande, oublierPorte, orderCommandIdFor, porteGardee, requestKeyFor, resolveQuotePort, verdictBande, villeDe } from './cliente/quote-port';
 import { SUIVI } from './cliente/screens';
 import { monterMesArticles, monterPanier } from './cliente/panier-montage';
 import { garderPanierPaye, oublierPanierPaye, panierPaye, resolveSuiviArticle } from './cliente/panier-port';
@@ -637,9 +637,9 @@ if (app) {
     const suiviMain = document.createElement('main');
     monterCliente(suiviMain, {
       // C7/C9 read nothing off the product; the record deliberately stores
-      // none (no amount, no name — nothing worth stealing). This stub is
-      // unrenderable: C7 has no back road to C1 and the re-entry withholds
-      // the door screen (no live checkout handle).
+      // none (no amount, no name — nothing worth stealing). C7 has no back
+      // road to C1. The door screen (C8) renders on this stub when this phone
+      // kept the order's holder: its checklist then names no variant.
       produit: { shopName: '', prenom: '', slug: '', productName: '', zone: '', priceFcfa: 0, assetRefs: [], inStock: true },
       theme: 'indigo',
       ecran: 'C7',
@@ -1383,6 +1383,9 @@ if (app) {
         const actuelle = commandeGardee(garde);
         const encore = actuelle?.orderId === gardeeSure.orderId && actuelle.at === gardeeSure.at;
         if (verdict === 'oublier' && encore) oublierCommande(garde);
+        // Her door holder is per order, so it leaves with THIS order's failure
+        // whatever the newest slot holds now.
+        if (verdict === 'oublier') oublierPorte(gardeeSure.orderId, garde);
         if (verdict !== 'payee') return;
         if (encore) garderCommande({ ...gardeeSure, payee: true }, garde);
         if (!shellRemplace) poserBandeCommande();

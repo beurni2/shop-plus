@@ -48,7 +48,7 @@ function fmtSecondes(sec: number): string {
   return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
 }
 import { prixExpire, type OrderFetch, type QuoteFetch, type RemiseFetch, type ReserveFetch } from './quote-model';
-import { garderCommande, localStorageOrUndefined, oublierCommande, type ServerOrder } from './quote-port';
+import { garderCommande, garderPorte, localStorageOrUndefined, oublierCommande, oublierPorte, type ServerOrder } from './quote-port';
 import type { PorteOutcome } from './panier-port';
 import { garderReprise, lireReprise, oublierReprise, type Reprise } from './reprise';
 import { DEMO_ADRESSE } from './seed';
@@ -640,9 +640,10 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
     init.suivi?.remise ?? (state.live !== null ? state.live.remise : null) ?? init.reprise?.remise ?? null;
   /**
    * PAYER-TOUT-1 — WHO CAN START HER DOOR PAYMENT: the live checkout's handle,
-   * or a panier article's own (its re-entry carries the panier's holder).
-   * null = nobody can, and the door road is withheld — the single re-entry's
-   * standing law.
+   * a panier article's own (its re-entry carries the panier's holder), or —
+   * PORTE-APRES-RECHARGE-1 — the holder THIS phone kept for this order, on a
+   * reload or a reopened tracking. null = nobody can, and the door road is
+   * withheld (a prepaid order, or another phone).
    */
   const porteHandle = (): ((orderId: string, essai: number) => Promise<OrderFetch>) | null =>
     state.live !== null
@@ -1287,8 +1288,9 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
            * The step is `etapeDeSuivi` over the marks the SERVER last reported
            * — never `state.step`, never a tap, never a clock. « Simuler » is
            * unrenderable on this branch (`reel: true` wins over the `demo`
-           * default). « Je suis à la porte » needs the live checkout handle
-           * (the door charge rides it), so the re-entry mount withholds it.
+           * default). « Je suis à la porte » needs a door handle (the door
+           * charge rides it): a re-entry has one only when this phone kept
+           * the order's holder (PORTE-APRES-RECHARGE-1).
            */
           return renderC7({
             step: etapeDeSuivi({ ...state.marques, livree: state.livree }),
@@ -2028,18 +2030,16 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
        */
       if (r.order.buyerRef !== undefined) {
         state.buyerRef = r.order.buyerRef;
-        // PORTE-APRES-RECHARGE-1 — a door order keeps its holder with it, so
-        // the tracking she reopens after the tab died can still pay at her door.
-        const titulaire = mode === 'B' ? live.titulairePorte : undefined;
         garderCommande(
-          {
-            orderId: r.order.orderId,
-            buyerRef: r.order.buyerRef,
-            at: new Date().toISOString(),
-            ...(titulaire !== undefined ? { titulaire } : {}),
-          },
+          { orderId: r.order.orderId, buyerRef: r.order.buyerRef, at: new Date().toISOString() },
           localStorageOrUndefined(),
         );
+        // PORTE-APRES-RECHARGE-1 — a door order keeps its holder in its own
+        // store, so the tracking she reopens after the tab died can still pay
+        // at her door, whatever she orders next on this phone.
+        if (mode === 'B' && live.titulairePorte !== undefined) {
+          garderPorte(r.order.orderId, live.titulairePorte, localStorageOrUndefined());
+        }
         init.rattacher?.({ orderId: r.order.orderId, buyerRef: r.order.buyerRef });
       }
       const etat = etatDeC6(r.order.state);
@@ -2835,6 +2835,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
         // lives on the service; only the shortcut goes away.
         if (init.suivi?.oublier !== undefined) init.suivi.oublier();
         else oublierCommande(localStorageOrUndefined());
+        if (state.orderId !== null) oublierPorte(state.orderId, localStorageOrUndefined());
         state.termineeVue = true;
         if (init.onTerminee !== undefined) {
           // A host that wants to own the ending gets it (the shell uses this to
@@ -2911,9 +2912,9 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
         }
         // `reel`, not `state.live !== null` (VRAI-SUIVI): the re-entry mount
         // has no live handle but is every bit a real buyer, and the harness
-        // levers must not open for it. Unreachable there today — C7 withholds
-        // « Je suis à la porte » without a live handle — but a guard that is
-        // satisfied only by unreachability is the exact shape §6bis warns of.
+        // levers must not open for it. Reachable since PORTE-APRES-RECHARGE-1:
+        // a reopened tracking offers « Je suis à la porte » when this phone
+        // kept the order's holder.
         if (!revelationPermise(reel, state.confirmState, state.doorLeg)) return;
         // ═══ EVERY C9 ENTRY RESTARTS THE DELIVERY WATCH — the voir-code fix
         // (e6bcc54), owed on both of these roads too. `jump` kills the watch;
@@ -2922,7 +2923,11 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
         // watch's own arrivedAt rule fetches her code, and its `livree` rule
         // ends the screen. (No-op on the demo path — `demarrerSuivi` holds on
         // `!reel`.)
-        if (state.pay === 'A') { jump('C9', { leg2: 'confirmed', step: 6 }); demarrerSuivi(); return; }
+        // A real order whose door is already paid (or never owed) goes straight
+        // to her code: the operator's waiting screen below is the demo's, and
+        // on a reopened road it would ask her PIN for money already collected
+        // (verifier minor 3).
+        if (state.pay === 'A' || reel) { jump('C9', { leg2: 'confirmed', step: 6 }); demarrerSuivi(); return; }
         state.door = 'accepted'; render();
         t1 = setTimeout(() => { jump('C9', { leg2: 'confirmed', step: 6, door: 'inspecting' }); demarrerSuivi(); }, 2600);
         return;

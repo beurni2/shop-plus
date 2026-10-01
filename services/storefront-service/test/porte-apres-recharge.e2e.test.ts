@@ -14,8 +14,10 @@ import { OPS_SECRET, seance, type Seance } from './seance';
  * §5.5: « product paid by MoMo at the door before custody transfer ». The
  * buyer site's own price module (`fetchClienteQuote`, imported from the app,
  * never re-implemented) holds and orders a pay-at-the-door article; the flow
- * keeps `{orderId, buyerRef, titulaire}` on the phone exactly as `flow.ts`
- * writes it; the tab « dies » (nothing in memory survives); then `porteGardee`
+ * keeps `{orderId, buyerRef, at}` and, in its own per-order store, the door
+ * holder, exactly as `flow.ts` writes them; she then orders something else on
+ * the same phone (the newest slot moves on); the tab « dies » (nothing in
+ * memory survives); then `porteGardee`
  * — what « Ma commande », a reload and « Mes commandes » on this phone now use
  * — starts the door collection. The LEDGER decides: the Worker accepts the
  * holder (the reservation's own receipt), the door leg is `due` until the
@@ -128,9 +130,13 @@ async function poster(path: string, event: unknown): Promise<number> {
 }
 
 /** Her order, held and created through the app's OWN price module, kept on her phone as the flow keeps it. */
-async function commandeALaPorte(port: Port, modele: Modele, telephone: Storage): Promise<{ orderId: string; buyerRef: string }> {
-  const session = memoire();
-  const http = port.httpQuotePort('http://sf');
+async function commandeALaPorte(
+  port: Port,
+  modele: Modele,
+  telephone: Storage,
+  session: Storage = memoire(),
+  http: ReturnType<Port['httpQuotePort']> = port.httpQuotePort('http://sf'),
+): Promise<{ orderId: string; buyerRef: string; payerDansLOnglet: (orderId: string, essai: number) => Promise<unknown> }> {
   const pret = await modele.fetchClienteQuote(
     http,
     { slug: 'pr-0001', pid: PV, zoneTo: 'Ouagadougou', attributionResellerId: S.accountId },
@@ -146,8 +152,9 @@ async function commandeALaPorte(port: Port, modele: Modele, telephone: Storage):
   const cree = await pret.commander('B', 0, { phone: '70 12 34 56', quartier: 'Gounghin', repere: 'près du marché' });
   if (cree.status !== 'order' || cree.order.buyerRef === undefined) throw new Error(`order: ${JSON.stringify(cree)}`);
   // EXACTLY what flow.ts writes for a door order (mode B ⇒ the holder).
-  port.garderCommande({ orderId: cree.order.orderId, buyerRef: cree.order.buyerRef, at: new Date().toISOString(), titulaire: pret.titulairePorte! }, telephone);
-  return { orderId: cree.order.orderId, buyerRef: cree.order.buyerRef };
+  port.garderCommande({ orderId: cree.order.orderId, buyerRef: cree.order.buyerRef, at: new Date().toISOString() }, telephone);
+  port.garderPorte(cree.order.orderId, pret.titulairePorte!, telephone);
+  return { orderId: cree.order.orderId, buyerRef: cree.order.buyerRef, payerDansLOnglet: pret.payerALaPorte };
 }
 
 describe('PORTE-APRES-RECHARGE-1 — her door after the tab died, on the real Worker', () => {
@@ -158,10 +165,12 @@ describe('PORTE-APRES-RECHARGE-1 — her door after the tab died, on the real Wo
     const { orderId, buyerRef } = await commandeALaPorte(port, modele, telephone);
     expect(await poster('/checkout/webhook/payment', webhook(orderId, await legKeyOf(orderId, 'checkout'), 1_000, false))).toBe(200);
 
+    // Verifier MAJOR 1 — she orders something else on this phone, and that
+    // order fails: the newest slot moves on, then is cleared. Her door stays.
+    port.garderCommande({ orderId: 'ord-plus-tard', buyerRef: 'ref-plus-tard', at: new Date().toISOString() }, telephone);
+    port.oublierCommande(telephone);
+
     // THE TAB DIES — nothing in memory survives; a fresh port and a fresh tab.
-    const lu = port.commandeGardee(telephone);
-    expect(lu?.orderId).toBe(orderId);
-    expect(lu?.titulaire).toBeTypeOf('string');
     const payer = port.porteGardee(orderId, port.httpQuotePort('http://sf'), telephone, memoire());
     expect(payer, 'the phone kept the holder, so her door exists').toBeTypeOf('function');
 
@@ -187,10 +196,35 @@ describe('PORTE-APRES-RECHARGE-1 — her door after the tab died, on the real Wo
     expect(code.status).toBe('code');
   }, 120_000);
 
+  // Verifier minor 2 — the checkout tab and the reopened road slot the door
+  // command on the same key, so a reload while her request waits for the
+  // operator REPLAYS it. The ledger, not the response, says how many attempts.
+  it('a reload while her door request waits replays HER request — one door attempt on the ledger, not two', async () => {
+    const port: Port = await import('../../../apps/buyer-pwa/src/cliente/quote-port.js');
+    const modele: Modele = await import('../../../apps/buyer-pwa/src/cliente/quote-model.js');
+    const telephone = memoire();
+    const onglet = memoire();
+    const reel = port.httpQuotePort('http://sf');
+    const commandes: string[] = [];
+    const espion = { ...reel, doorCharge: (id: string, cmd: string, h: string) => { commandes.push(cmd); return reel.doorCharge(id, cmd, h); } };
+    const { orderId, payerDansLOnglet } = await commandeALaPorte(port, modele, telephone, onglet, espion);
+    expect(await poster('/checkout/webhook/payment', webhook(orderId, await legKeyOf(orderId, 'checkout'), 1_000, false))).toBe(200);
+
+    expect(((await payerDansLOnglet(orderId, 0)) as { status: string }).status).toBe('order');
+    // The tab reloads: its memory dies, its sessionStorage survives.
+    const apres = await port.porteGardee(orderId, espion, telephone, onglet)!(orderId, 0);
+    expect(apres.status, JSON.stringify(apres)).toBe('order');
+    expect(commandes).toHaveLength(2);
+    expect(commandes[1], 'the same request, replayed').toBe(commandes[0]);
+    const ns = await mf.getDurableObjectNamespace('ORDER');
+    const audit = (await (await ns.get(ns.idFromName(orderId)).fetch('https://do/entry/audit')).json()) as { doorAttempts: unknown[] };
+    expect(audit.doorAttempts, 'a replay is not a new attempt').toHaveLength(1);
+  }, 120_000);
+
   it('a phone that kept no holder for the order — another order, or a prepaid one — gets no door road at all', async () => {
     const port: Port = await import('../../../apps/buyer-pwa/src/cliente/quote-port.js');
     const telephone = memoire();
-    port.garderCommande({ orderId: 'ord-autre', buyerRef: 'ref-autre', at: new Date().toISOString(), titulaire: 'titulaire-autre' }, telephone);
+    port.garderPorte('ord-autre', 'titulaire-autre', telephone);
     expect(port.porteGardee('ord-pas-celle-ci', port.httpQuotePort('http://sf'), telephone, memoire())).toBeUndefined();
     port.garderCommande({ orderId: 'ord-prepayee', buyerRef: 'ref-prepayee', at: new Date().toISOString() }, telephone);
     expect(port.porteGardee('ord-prepayee', port.httpQuotePort('http://sf'), telephone, memoire())).toBeUndefined();

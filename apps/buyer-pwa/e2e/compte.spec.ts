@@ -1070,7 +1070,13 @@ const garde = (page: Page, cle: string) => page.evaluate((k) => localStorage.get
 for (const [etat, oublie] of [['payment_pending', false], ['payment_failed', true], ['cancelled', true], [null, false]] as const) {
   test(`BANDE-PAYEE — an order the service says is ${etat ?? 'unreachable'}: no « Ma commande » band${oublie ? ', and the phone forgets it' : ', and the phone keeps it for the next visit'}`, async ({ page }) => {
     const livre = new Livre();
-    await page.addInitScript((c) => localStorage.setItem('sp-commande:v1', JSON.stringify(c)), COMMANDE_KEPT);
+    // PORTE-APRES-RECHARGE-1 — the phone also keeps this order's door holder,
+    // and another order's.
+    const autrePorte = { orderId: 'ord-autre-porte', titulaire: 'titulaire-autre' };
+    await page.addInitScript(([c, autre]) => {
+      localStorage.setItem('sp-commande:v1', JSON.stringify(c));
+      localStorage.setItem('sp-portes:v1', JSON.stringify([{ orderId: c.orderId, titulaire: 'titulaire-gardee' }, autre]));
+    }, [COMMANDE_KEPT, autrePorte] as const);
     let lus: string[] = [];
     const erreurs = await ouvrir(page, livre, '/?/v/aicha-4821', async () => {
       lus = await lectures(page, { [COMMANDE_KEPT.orderId]: etat });
@@ -1083,6 +1089,9 @@ for (const [etat, oublie] of [['payment_pending', false], ['payment_failed', tru
     await page.waitForTimeout(500);
     await expect(page.locator('[data-role="ma-commande"]')).toHaveCount(0);
     if (!oublie) expect(await garde(page, 'sp-commande:v1')).toContain(COMMANDE_KEPT.orderId);
+    // A failed order's door holder leaves with it; nobody else's does.
+    if (oublie) await expect.poll(() => garde(page, 'sp-portes:v1')).toBe(JSON.stringify([autrePorte]));
+    else expect(await garde(page, 'sp-portes:v1')).toContain(COMMANDE_KEPT.orderId);
     expect(erreurs).toEqual([]);
   });
 }

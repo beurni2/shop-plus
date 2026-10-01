@@ -623,7 +623,7 @@ export async function fetchClienteQuote(
       if (doorHold === undefined) {
         return Promise.resolve({ status: 'refused', reason: 'mode_indisponible' });
       }
-      const cmd = orderCommandIdFor(`${doorHold.quoteId}#porte`, essai);
+      const cmd = orderCommandIdFor(`${orderId}#porte`, essai);
       if (cmd === undefined) return Promise.resolve({ status: 'refused', reason: 'no_secure_random' });
       return port.doorCharge(orderId, cmd, doorKey);
     },

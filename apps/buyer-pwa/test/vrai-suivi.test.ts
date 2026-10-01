@@ -2,8 +2,8 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import {
-  COMMANDE_CLE, LECTURE_COMMANDE_TIMEOUT_MS, commandeGardee, garderCommande, httpQuotePort,
-  oublierCommande, verdictBande, type QuotePort,
+  COMMANDE_CLE, LECTURE_COMMANDE_TIMEOUT_MS, PORTES_CLE, PORTES_MAX, commandeGardee, garderCommande, garderPorte,
+  httpQuotePort, oublierCommande, oublierPorte, porteGardee, verdictBande, type QuotePort,
 } from '../src/cliente/quote-port';
 import {
   CODE_REMISE, SUIVI, SUIVI_STEPS, codeAffiche, etapeDeSuivi, renderC10, renderC7, renderC9,
@@ -299,6 +299,87 @@ describe('sp-commande:v1 — one slot, newest wins, garbage reads as nothing', (
     // …and no storage at all is the same non-event.
     expect(commandeGardee(undefined)).toBeUndefined();
     expect(() => garderCommande({ orderId: 'o', buyerRef: 'r', at: ISO }, undefined)).not.toThrow();
+  });
+});
+
+/**
+ * PORTE-APRES-RECHARGE-1 (verifier MAJOR 1) — a door order's holder lives in
+ * its own per-order store, so the « newest wins » slot above can never take
+ * an earlier order's door with it.
+ */
+describe('sp-portes:v1 — each door order keeps its own holder', () => {
+  const sansPorte: Pick<QuotePort, 'doorCharge'> = { doorCharge: () => Promise.reject(new Error('not called')) };
+
+  it('a later order on the same phone — kept, then forgotten — leaves the earlier door in place', () => {
+    const s = memStorage();
+    garderCommande({ orderId: 'ord-X', buyerRef: 'ref-X', at: ISO }, s);
+    garderPorte('ord-X', 'titulaire-X', s);
+    garderCommande({ orderId: 'ord-Y', buyerRef: 'ref-Y', at: ISO }, s);
+    expect(porteGardee('ord-X', sansPorte, s)).toBeTypeOf('function');
+    oublierCommande(s);
+    expect(porteGardee('ord-X', sansPorte, s)).toBeTypeOf('function');
+  });
+
+  it('the door charge rides the holder kept for THAT order, slotted on the order', async () => {
+    const s = memStorage();
+    const session = memStorage();
+    garderPorte('ord-X', 'titulaire-X', s);
+    garderPorte('ord-Z', 'titulaire-Z', s);
+    const appels: [string, string, string][] = [];
+    const port: Pick<QuotePort, 'doorCharge'> = {
+      doorCharge: (id, cmd, holder) => { appels.push([id, cmd, holder]); return Promise.resolve({ status: 'unreachable' }); },
+    };
+    await porteGardee('ord-X', port, s, session)!('ord-X', 0);
+    await porteGardee('ord-X', port, s, session)!('ord-X', 0);
+    expect(appels.map((a) => a[2])).toEqual(['titulaire-X', 'titulaire-X']);
+    // Same order, same attempt ⇒ the same command: a reload replays.
+    expect(appels[0]![1]).toBe(appels[1]![1]);
+  });
+
+  it('no holder kept for the order ⇒ no door road (a prepaid order, another phone)', () => {
+    const s = memStorage();
+    garderPorte('ord-autre', 'titulaire-autre', s);
+    expect(porteGardee('ord-pas-celle-ci', sansPorte, s)).toBeUndefined();
+    expect(porteGardee('ord-autre', sansPorte, undefined)).toBeUndefined();
+  });
+
+  it('« C’est terminé » forgets only that order; the last one out clears the key', () => {
+    const s = memStorage();
+    garderPorte('ord-1', 't-1', s);
+    garderPorte('ord-2', 't-2', s);
+    oublierPorte('ord-1', s);
+    expect(porteGardee('ord-1', sansPorte, s)).toBeUndefined();
+    expect(porteGardee('ord-2', sansPorte, s)).toBeTypeOf('function');
+    oublierPorte('ord-2', s);
+    expect(s.getItem(PORTES_CLE)).toBeNull();
+  });
+
+  it(`at most ${PORTES_MAX}, newest first; the same order kept again moves up, never doubles`, () => {
+    const s = memStorage();
+    for (let i = 0; i <= PORTES_MAX; i++) garderPorte(`ord-${i}`, `t-${i}`, s);
+    expect(porteGardee('ord-0', sansPorte, s)).toBeUndefined();
+    expect(porteGardee(`ord-${PORTES_MAX}`, sansPorte, s)).toBeTypeOf('function');
+    garderPorte('ord-5', 't-5bis', s);
+    const kept = JSON.parse(s.getItem(PORTES_CLE)!) as { orderId: string; titulaire: string }[];
+    expect(kept).toHaveLength(PORTES_MAX);
+    expect(kept[0]).toEqual({ orderId: 'ord-5', titulaire: 't-5bis' });
+    expect(kept.filter((e) => e.orderId === 'ord-5')).toHaveLength(1);
+  });
+
+  it('garbage reads as nothing, and a dead storage never crashes', () => {
+    const s = memStorage();
+    for (const bad of ['not json', '42', '{}', '[{"orderId":"ord-1"}]', '[{"orderId":"ord-1","titulaire":""}]']) {
+      s.setItem(PORTES_CLE, bad);
+      expect(porteGardee('ord-1', sansPorte, s), bad).toBeUndefined();
+    }
+    const dead = {
+      getItem: () => { throw new Error('quota'); },
+      setItem: () => { throw new Error('quota'); },
+      removeItem: () => { throw new Error('quota'); },
+    } as unknown as Storage;
+    expect(() => garderPorte('o', 't', dead)).not.toThrow();
+    expect(() => oublierPorte('o', dead)).not.toThrow();
+    expect(porteGardee('o', sansPorte, dead)).toBeUndefined();
   });
 });
 
