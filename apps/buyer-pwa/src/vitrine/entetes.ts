@@ -32,7 +32,7 @@
 import { t } from '../i18n';
 import { esc } from '../format';
 import { groupFr } from '../cliente/money';
-import { focusPosition, type Storefront, type VitrineTrust } from './profile';
+import { focusPosition, petite, type Storefront, type VitrineTrust } from './profile';
 import { chips, hero } from './render';
 import { loadedEntete } from './entetes/registry';
 import {
@@ -196,9 +196,9 @@ export function vals(sf: Storefront, trust: VitrineTrust, opts: EnteteOpts): Val
     bio: esc(sf.bio ?? ''),
     hasTag: !compact && !!sf.tagline,
     hasBio: !compact && !!sf.bio,
-    coverUrl: hasCover ? esc(sf.cover.url as string) : '',
+    coverUrl: hasCover ? esc(petite(sf.cover.url as string)) : '',
     hasCover,
-    avatarUrl: hasAvatar ? esc(sf.avatar.url as string) : '',
+    avatarUrl: hasAvatar ? esc(petite(sf.avatar.url as string)) : '',
     hasAvatar,
     // ENTETES-C — read ONCE, validated (integers 0–100 or nothing): garbage on
     // a demo/test shape can never reach a style attribute.

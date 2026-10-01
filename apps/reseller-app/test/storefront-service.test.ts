@@ -111,6 +111,20 @@ describe('HttpStorefrontService — the request the app WOULD send', () => {
     expect(calls[0]!.init.body).toBe(bytes);
   });
 
+  it('PHOTOS-LEGERES-1 — uploadPetite → POST /media/upload?…&petite=1&photo={the photo it was made from}, raw bytes; the named refusal survives', async () => {
+    const calls = stubFetch(201, { kind: 'cover', petite: true });
+    const svc = new HttpStorefrontService('https://sf.example.dev', async () => 'SPS-AAAA-BBBB-CCCC-DDDD');
+    const photo = 'https://sf.example.dev/media/storefronts/sf-test-1/cover/abc.jpeg';
+    const bytes = new Uint8Array([0xff, 0xd8, 0xff]);
+    expect(await svc.uploadPetite('cover', 'sf-test-1', photo, bytes)).toEqual({ ok: true, value: { petite: true } });
+    expect(calls[0]!.url).toBe(`https://sf.example.dev/media/upload?kind=cover&storefrontId=sf-test-1&petite=1&photo=${encodeURIComponent(photo)}`);
+    expect(calls[0]!.init.method).toBe('POST');
+    expect((calls[0]!.init.headers as Record<string, string>)['Authorization']).toBe('Bearer SPS-AAAA-BBBB-CCCC-DDDD');
+    expect(calls[0]!.init.body).toBe(bytes);
+    stubFetch(409, { error: 'photo_changed' });
+    expect(await svc.uploadPetite('avatar', 'sf-test-1', photo, bytes)).toEqual({ ok: false, reason: 'photo_changed' });
+  });
+
   it('list → GET /storefronts, no key', async () => {
     const calls = stubFetch(200, [{ id: 'sf-test-1', slug: 'boutik-0007', name: 'B', discoverable: true }]);
     const svc = new HttpStorefrontService('https://sf.example.dev');

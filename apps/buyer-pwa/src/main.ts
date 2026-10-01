@@ -13,7 +13,7 @@ import {
 } from '@platform/ui-tokens/legacy';
 import { vitrineSlugFromPath, signedProductSlugFromPath, recordVitrineArrival, vitrineHref, deployBaseFromPath } from './vitrine-link';
 import { mountCadeau } from './cadeau';
-import { demoStorefrontPort, focusPosition, resolveStorefrontPort, VitrineOffline, VitrinePause } from './vitrine/profile';
+import { demoStorefrontPort, focusPosition, petite, resolveStorefrontPort, VitrineOffline, VitrinePause } from './vitrine/profile';
 import { harnessProfil, monterArticleAbsent, monterAttenteVitrine, mountVitrine, type VitrineEtat } from './vitrine/flows';
 import { enteteOverride } from './vitrine/entetes';
 import { avantDelai, ENTETE_DELAI_MS } from './vitrine/entetes/registry';
@@ -600,7 +600,7 @@ async function lireBoutiqueCompte(slug: string): Promise<LectureBoutique> {
     const r = await resolveStorefrontPort().resolve(slug);
     if (r === undefined) return 'introuvable';
     const sf = r.storefront;
-    const portrait = sf.avatar.mode === 'photo' && sf.avatar.url ? sf.avatar.url : undefined;
+    const portrait = sf.avatar.mode === 'photo' && sf.avatar.url ? petite(sf.avatar.url) : undefined;
     const cadrage = portrait !== undefined ? focusPosition(sf.avatar.focus) : undefined;
     return {
       nom: sf.name, lieu: sf.zone, theme: sf.theme,
@@ -1303,7 +1303,7 @@ if (app) {
         boutique: premiere.then((r) => {
           if (r === undefined) return undefined;
           const sf = r.storefront;
-          const portrait = sf.avatar.mode === 'photo' && sf.avatar.url ? sf.avatar.url : undefined;
+          const portrait = sf.avatar.mode === 'photo' && sf.avatar.url ? petite(sf.avatar.url) : undefined;
           const cadrage = portrait !== undefined ? focusPosition(sf.avatar.focus) : undefined;
           return {
             nom: sf.name, lieu: sf.zone, theme: sf.theme,

@@ -171,6 +171,12 @@ export class DemoStorefrontService implements StorefrontServicePort {
     return { ok: true, value: { status: 'pending', url } };
   }
 
+  /** PHOTOS-LEGERES-1 — no buyer reads the demo's photos, so the small copy has
+   *  nowhere to go; it is accepted, as the real service accepts a valid one. */
+  async uploadPetite(): Promise<ServiceResult<{ readonly petite: true }>> {
+    return { ok: true, value: { petite: true } };
+  }
+
   /**
    * VOIX-PRODUIT — the demo double. CONTRACT-CERTIFIED in the one way that
    * matters here (Execution Contract §3): it answers `ready`, which is what the

@@ -12,6 +12,8 @@
  * not a statement that picking works; the upload paths keep their own tests.
  */
 
+import { File } from './expo-file-system';
+
 /* ── expo-status-bar ─────────────────────────────────────────────────────── */
 export const StatusBar = (): null => null;
 
@@ -31,7 +33,23 @@ export const runtimeVersion: string | null = null;
 
 /* ── expo-image-picker ───────────────────────────────────────────────────── */
 export const MediaTypeOptions = { Images: 'Images', Videos: 'Videos', All: 'All' } as const;
-export const launchImageLibraryAsync = async (): Promise<{ canceled: true }> => ({ canceled: true });
+/**
+ * PHOTOS-LEGERES-1 — ONE canned pick, and only when a walk arms it
+ * (`prochainePhoto()`), so the photo buttons can be walked to the network.
+ * What it yields is what the native picker yields and ALL it yields: a uri.
+ * Unarmed, it answers « cancelled » exactly as before.
+ */
+let photoArmee = false;
+export function prochainePhoto(): void {
+  photoArmee = true;
+}
+export const launchImageLibraryAsync = async (): Promise<
+  { canceled: true } | { canceled: false; assets: { uri: string; width: number; height: number }[] }
+> => {
+  if (!photoArmee) return { canceled: true };
+  photoArmee = false;
+  return { canceled: false, assets: [{ uri: 'file:///rendu-galerie/photo.jpg', width: 0, height: 0 }] };
+};
 export const launchCameraAsync = async (): Promise<{ canceled: true }> => ({ canceled: true });
 export const requestMediaLibraryPermissionsAsync = async (): Promise<{ granted: boolean }> => ({ granted: true });
 export const requestCameraPermissionsAsync = async (): Promise<{ granted: boolean }> => ({ granted: true });
@@ -51,22 +69,39 @@ export const manipulateAsync = async (uri: string): Promise<{ uri: string; width
  * IT RESIZES NOTHING. Every call answers the same 1000×1000 handle, so no walk
  * may read a dimension, a crop or an encoded byte from here — the real resize,
  * re-encode and EXIF-strip laws keep their own suites over the real module. This
- * exists so a screen that CAN pick a photo still mounts.
+ * exists so a screen that CAN pick a photo still mounts — and, since
+ * PHOTOS-LEGERES-1, so a walk can follow a pick to the network: each save
+ * « lands » a file whose marker « bytes » (a string, never an image) the
+ * expo-file-system double holds, under a fresh uri. A walk may assert that an
+ * upload LEFT with bytes, never what they were.
  */
+interface ManipRef {
+  width: number;
+  height: number;
+  saveAsync(): Promise<{ uri: string }>;
+  release(): void;
+}
 interface ManipHandle {
   resize(): ManipHandle;
   crop(): ManipHandle;
-  renderAsync(): Promise<{ width: number; height: number; saveAsync(): Promise<{ uri: string }> }>;
+  renderAsync(): Promise<ManipRef>;
 }
+let enregistrements = 0;
 export const ImageManipulator = {
-  manipulate: (uri: string): ManipHandle => {
+  manipulate: (_source: unknown): ManipHandle => {
     const handle: ManipHandle = {
       resize: () => handle,
       crop: () => handle,
       renderAsync: async () => ({
         width: 1000,
         height: 1000,
-        saveAsync: async () => ({ uri }),
+        saveAsync: async () => {
+          enregistrements += 1;
+          const uri = `file:///rendu-cache/photo-rendu-${enregistrements}.jpg`;
+          new File(uri).write('photo-rendu — aucun octet d’image, voir la borne en tête de bloc');
+          return { uri };
+        },
+        release: () => undefined,
       }),
     };
     return handle;

@@ -307,10 +307,10 @@ describe('MEDIA-2 — the cover photograph is RENDERED, not captioned', () => {
   const trust = { deliveredCount: 0, rating: '', reviewCount: 0, demo: false };
   const PHOTO = 'https://storefront-service.example.workers.dev/media/storefronts/sf-cov/cover/a.jpg';
 
-  it('A LIVE COVER WITH A URL DRAWS AN <img> CARRYING THAT EXACT ADDRESS', () => {
+  it('A LIVE COVER WITH A URL DRAWS AN <img> CARRYING THAT ADDRESS — asked small (PHOTOS-LEGERES-1)', () => {
     const sf = { ...base, cover: { status: 'live' as const, url: PHOTO } };
     const html = renderVitrineReady(sf as never, trust, { fromProduct: false }, {}, []);
-    expect(html).toContain(`src="${PHOTO}"`);
+    expect(html).toContain(`src="${PHOTO}?v=petite"`);
     expect(html).toContain('class="vt-cover-img"');
     // …and it does NOT caption a photograph, because it IS one
     expect(html).not.toContain('PHOTO DE COUVERTURE');
@@ -360,10 +360,10 @@ describe('MEDIA-2 — the portrait is RENDERED, not replaced by an initial', () 
   const trust = { deliveredCount: 0, rating: '', reviewCount: 0, demo: false };
   const PORTRAIT = 'https://storefront-service.example.workers.dev/media/storefronts/sf-av/avatar/b.jpg';
 
-  it('A PHOTO AVATAR WITH A URL DRAWS AN <img> CARRYING THAT EXACT ADDRESS', () => {
+  it('A PHOTO AVATAR WITH A URL DRAWS AN <img> CARRYING THAT ADDRESS — asked small (PHOTOS-LEGERES-1)', () => {
     const sf = { ...base, avatar: { mode: 'photo' as const, url: PORTRAIT } };
     const html = renderVitrineReady(sf as never, trust, { fromProduct: false }, {}, []);
-    expect(html).toContain(`src="${PORTRAIT}"`);
+    expect(html).toContain(`src="${PORTRAIT}?v=petite"`);
     expect(html).toContain('class="vt-avatar-img"');
   });
 

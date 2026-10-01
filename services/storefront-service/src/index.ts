@@ -1,7 +1,7 @@
 import { makeHealthFetch, provenance } from '@shop-plus/observability';
 import type { ResellerListing, Storefront } from '@platform/contracts';
 import { resolveMediaStore, type MediaEnv, type R2ObjectBodyLike } from './media/media-store.js';
-import { StorefrontMediaService, type MediaKind } from './media/service.js';
+import { PETITE_SUFFIXE, StorefrontMediaService, petiteKeyFor, validerPetite, type MediaKind } from './media/service.js';
 import { absoluteAssetRefs, joinVitrineProduct, toStorefrontView, whatsappDigits, type VitrineProductRecord } from './customer-projection.js';
 import { resolveStorefrontStore, type StorefrontStoreEnv } from './storefront-store.js';
 import { resolveSupplySource, type SupplySourceEnv } from './supply-source.js';
@@ -123,6 +123,7 @@ const KINDS: readonly MediaKind[] = ['cover', 'avatar', 'voice'];
  */
 async function handleMediaUpload(request: Request, env?: StorefrontServiceEnv): Promise<Response> {
   const url = new URL(request.url);
+  if (url.searchParams.get('petite') === '1') return handleMediaPetite(request, env, url);
   const kind = url.searchParams.get('kind');
   const storefrontId = url.searchParams.get('storefrontId');
   if (storefrontId === null || kind === null || !(KINDS as readonly string[]).includes(kind)) {
@@ -532,6 +533,50 @@ async function describeProducts(
 }
 
 /**
+ * PHOTOS-LEGERES-1 (AUDIT-4 B-02) — her photo's SMALL COPY, beside the photo
+ * she has NOW. `POST /media/upload?kind=cover|avatar&storefrontId=…&petite=1&photo={url}`
+ * names the photo the copy was made from; the service reads which photo that
+ * shop points at and writes beside it only when they are the same. So a copy
+ * made from yesterday's cover can never land beside today's, and a photo that
+ * is not on her shop (held for review, replaced, never pointed) gets none —
+ * the small copy follows its photo through any future review by construction.
+ * The key written is derived from the shop's own pointer, never from the caller.
+ */
+async function handleMediaPetite(request: Request, env: StorefrontServiceEnv | undefined, url: URL): Promise<Response> {
+  const kind = url.searchParams.get('kind');
+  const storefrontId = url.searchParams.get('storefrontId');
+  const photo = url.searchParams.get('photo');
+  if (storefrontId === null || photo === null || photo === '' || (kind !== 'cover' && kind !== 'avatar')) {
+    return Response.json({ service: SERVICE_NAME, error: 'bad_request' }, { status: 400 });
+  }
+  const verdict = validerPetite(new Uint8Array(await request.arrayBuffer()));
+  if (!verdict.ok) return Response.json({ service: SERVICE_NAME, error: verdict.reason }, { status: 400 });
+  const shop = env?.STOREFRONT_DO
+    ? await env.STOREFRONT_DO.fetch(new Request(`https://do/storefronts/${encodeURIComponent(storefrontId)}`, { method: 'GET' })).catch(() => null)
+    : null;
+  if (shop === null || !shop.ok) {
+    const reason = shop === null ? 'storefront_unreachable' : shop.status === 404 ? 'storefront_absent' : 'not_pointed';
+    return Response.json({ service: SERVICE_NAME, error: reason }, { status: 502 });
+  }
+  const sf = (await shop.json().catch(() => null)) as { cover?: { url?: unknown }; avatar?: { url?: unknown } } | null;
+  const actuelle = kind === 'cover' ? sf?.cover?.url : sf?.avatar?.url;
+  const cle = typeof actuelle === 'string' && actuelle === photo ? cleDeMedia(actuelle, storefrontId, kind) : null;
+  if (cle === null) return Response.json({ service: SERVICE_NAME, error: 'photo_changed' }, { status: 409 });
+  await getMediaService(env).putPetite(cle, verdict.bytes, verdict.contentType);
+  return Response.json({ service: SERVICE_NAME, kind, petite: true }, { status: 201 });
+}
+
+/** The stored key behind a media URL this service minted (`…/media/{key}`),
+ *  or null when it is not one of THIS shop's photos of THIS kind. */
+function cleDeMedia(mediaUrl: string, storefrontId: string, kind: 'cover' | 'avatar'): string | null {
+  const i = mediaUrl.indexOf('/media/');
+  if (i < 0) return null;
+  const cle = decodeSur(mediaUrl.slice(i + '/media/'.length), decodeURI);
+  if (cle === null || !cle.startsWith(`storefronts/${storefrontId}/${kind}/`) || cle.includes(PETITE_SUFFIXE)) return null;
+  return cle;
+}
+
+/**
  * THE MEDIA READ ROUTE — GET /media/{key} (STOREFRONT-DEPLOY-1). Serves the bytes
  * back THROUGH THE SERVICE from the private R2 bucket (`env.BUCKET.get(key)`) —
  * the bucket is never public. Immutable cache: media keys are content-versioned
@@ -819,7 +864,18 @@ export const handleRequest = async (request: Request, env?: StorefrontServiceEnv
   if (request.method === 'GET' && mediaReadMatch) {
     const key = decodeSur(mediaReadMatch[1]!, decodeURI);
     if (key === null) return withReadCors(Response.json({ service: SERVICE_NAME, error: 'not_found' }, { status: 404 }));
-    return withReadCors(await handleMediaRead(key, env, request.headers.get('Range')));
+    const range = request.headers.get('Range');
+    // PHOTOS-LEGERES-1 — her photo's small copy when it exists; else the photo
+    // itself, cached for an hour only, so the copy is picked up once it lands
+    // (the app sends it seconds after the photo) instead of never.
+    if (url.searchParams.get('v') === 'petite') {
+      const petite = await handleMediaRead(petiteKeyFor(key), env, range);
+      if (petite.status !== 404) return withReadCors(petite);
+      const photo = await handleMediaRead(key, env, range);
+      if (photo.ok) photo.headers.set('Cache-Control', 'public, max-age=3600');
+      return withReadCors(photo);
+    }
+    return withReadCors(await handleMediaRead(key, env, range));
   }
   // health (and the honest 404 fallthrough) — the buyer read surface, CORS on.
   return withReadCors(await healthWithProvenance(request, env?.CUSTODY_WIRES, env?.PBKDF2_SONDE));

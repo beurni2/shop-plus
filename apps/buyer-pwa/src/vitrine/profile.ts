@@ -437,6 +437,18 @@ export function focusPosition(raw: unknown): string | undefined {
   return f === undefined ? undefined : `${f.x}% ${f.y}%`;
 }
 
+/**
+ * PHOTOS-LEGERES-1 (AUDIT-4 B-02) — her cover and portrait, asked SMALL: the
+ * service answers the copy her phone made (640 px cover, 384 px portrait), or
+ * the photo itself while none exists. Every header, the account card and the
+ * product link draw her photos through this, so no buyer screen downloads the
+ * 2048 px original. Only a served address grows the ask (`vignette`'s rule).
+ */
+export function petite(ref: string): string {
+  if (!/^https?:\/\//.test(ref)) return ref;
+  return `${ref}${ref.includes('?') ? '&' : '?'}v=petite`;
+}
+
 /** ENTETES-C — strip a non-canon `focus` OFF a wire sub-object (cover/avatar)
  *  so the resolved storefront carries either a valid pair or no key at all. */
 function sanitizeFocus<T extends { readonly focus?: unknown }>(part: T): T {

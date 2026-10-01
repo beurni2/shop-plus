@@ -310,6 +310,13 @@ export interface StorefrontServicePort {
   uploadCover(storefrontId: string, bytes: Uint8Array, contentType: string): Promise<ServiceResult<UploadOutcome>>;
   uploadAvatar(storefrontId: string, bytes: Uint8Array, contentType: string): Promise<ServiceResult<UploadOutcome>>;
   /**
+   * PHOTOS-LEGERES-1 — the SMALL copy of the photo she just put on her shop,
+   * for buyers' phones. It names the photo it was made from (`photoUrl`, the
+   * address the upload answered); the service stores it only beside that photo,
+   * and only while it is still the one on her shop.
+   */
+  uploadPetite(kind: 'cover' | 'avatar', storefrontId: string, photoUrl: string, bytes: Uint8Array): Promise<ServiceResult<{ readonly petite: true }>>;
+  /**
    * VOIX-PRODUIT — her recorded note for ONE product. Same seam as the photos,
    * two extra facts the service needs: WHICH product it is about, and how long
    * the take ran. The service writes the note onto her shop and answers with
@@ -576,6 +583,28 @@ export class HttpStorefrontService implements StorefrontServicePort {
     durationMs: number,
   ): Promise<ServiceResult<UploadOutcome>> {
     return this.upload('voice', storefrontId, bytes, contentType, { pid, durationMs });
+  }
+
+  async uploadPetite(
+    kind: 'cover' | 'avatar',
+    storefrontId: string,
+    photoUrl: string,
+    bytes: Uint8Array,
+  ): Promise<ServiceResult<{ readonly petite: true }>> {
+    const q = `?kind=${kind}&storefrontId=${encodeURIComponent(storefrontId)}&petite=1&photo=${encodeURIComponent(photoUrl)}`;
+    let res: Response;
+    try {
+      res = await fetchBorne(`${this.base}/media/upload${q}`, {
+        method: 'POST',
+        headers: await this.headers({ 'Content-Type': 'image/jpeg' }),
+        body: bytes as unknown as BodyInit_,
+      }, DELAI_ENVOI_MS);
+    } catch {
+      return { ok: false, reason: 'offline' };
+    }
+    const data = (await res.json().catch(() => null)) as { error?: string } | null;
+    if (!res.ok) return { ok: false, reason: data?.error ?? `http_${res.status}` };
+    return { ok: true, value: { petite: true } };
   }
 
   async removeVoiceNote(

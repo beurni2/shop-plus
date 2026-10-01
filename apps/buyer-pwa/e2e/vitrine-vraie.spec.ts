@@ -403,3 +403,35 @@ test.describe('ENTETE-BORNEE-1 — a header style that never arrives never freez
     expect(errors).toEqual([]);
   });
 });
+
+/* ═══ PHOTOS-LEGERES-1 (AUDIT-4 B-02) — her photos, downloaded small ═══
+ *
+ * AUDIT-4 measured her 2048 px cover and portrait drawn into 44–280 px boxes,
+ * downloaded in full by every buyer on the first screen. The page now asks the
+ * service for the small copy (`?v=petite`; the service answers the photo itself
+ * while no copy exists — pinned on workerd in `photos-legeres.e2e.test.ts`).
+ * The walk records what the page DOWNLOADS for her two photos, in the default
+ * header and two lazily-loaded ones. It claims nothing about how they look. */
+test.describe('PHOTOS-LEGERES-1 — her cover and portrait are asked small', () => {
+  const MEDIA = 'https://media.invalid/media/storefronts/sf-e2e-vv-1';
+  for (const entete of ['classique', 'pagne', 'royale']) {
+    test(`${entete}: every download of her photos asks the small copy, none the full photo`, async ({ page }) => {
+      const demandes: string[] = [];
+      await page.route('https://media.invalid/**', (route) => {
+        demandes.push(route.request().url());
+        return route.fulfill({ status: 200, contentType: 'image/png', body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64') });
+      });
+      const errors = await service(page, (url) => repondre(3, url, {
+        headerStyle: entete,
+        cover: { status: 'live', url: `${MEDIA}/cover/c.jpeg` },
+        avatar: { mode: 'photo', url: `${MEDIA}/avatar/a.jpeg` },
+      }));
+      await page.goto(`/?/v/${SLUG}`);
+      await expect(page.locator('.vt-root[data-etat="ready"]')).toBeVisible();
+      await expect.poll(() => demandes.length, 'her photos were never asked for').toBeGreaterThan(0);
+      await page.waitForTimeout(500);
+      expect(demandes.filter((u) => !u.endsWith('?v=petite')), 'a full-size download of her photo').toEqual([]);
+      expect(errors).toEqual([]);
+    });
+  }
+});

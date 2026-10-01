@@ -229,7 +229,7 @@ describe('ENTETES-F — her portrait in the style frame, or the monogram pattern
     it(`${key}: a real portrait draws the avatar <img>; the sheet biases it at ${AVATAR_POS}`, () => {
       const html = head(key, BASE, F1);
       expect(html).toContain('data-etat="live"');
-      expect(html).toContain(`src="${AVATAR}"`);
+      expect(html).toContain(`src="${AVATAR}?v=petite"`); // PHOTOS-LEGERES-1: her photo, asked small
       expect(html).toContain(`alt="${t('vit.avatar_alt')}"`);
       // the crop bias lives in the SHEET (her inline focus must stay the only
       // inline emitter) — pinned here against the style's own rule
@@ -500,7 +500,7 @@ describe('ENTETES-F — the five draw HER COVER, exactly as the six do', () => {
   for (const key of FIVE) {
     it(`${key}: the cover fills the frame and the frame reads live`, () => {
       const html = head(key, AVEC_COVER, F1);
-      expect(html).toContain(`src="${COVER}"`);
+      expect(html).toContain(`src="${COVER}?v=petite"`); // PHOTOS-LEGERES-1: her photo, asked small
       expect(html).toContain('data-etat="live"');
       expect(html).toContain(`alt="${t('vit.cover_alt')}"`);
       // the style's own motif is NOT drawn when a photograph exists
@@ -523,7 +523,7 @@ describe('ENTETES-F — the five draw HER COVER, exactly as the six do', () => {
 
     it(`${key}: no cover ⇒ the PORTRAIT still fills the frame (the fallback, not a hole)`, () => {
       const html = head(key, BASE, F1); // avatar only
-      expect(html).toContain(`src="${AVATAR}"`);
+      expect(html).toContain(`src="${AVATAR}?v=petite"`); // PHOTOS-LEGERES-1: her photo, asked small
       expect(html).toContain('data-etat="live"');
       expect(html).not.toContain(MOTIF[key]!);
     });
@@ -537,7 +537,7 @@ describe('ENTETES-F — the five draw HER COVER, exactly as the six do', () => {
 
     it(`${key}: a live cover with NO url falls back to the portrait, never a broken <img>`, () => {
       const html = head(key, { ...BASE, cover: { status: 'live' as const } }, F1);
-      expect(html).toContain(`src="${AVATAR}"`);
+      expect(html).toContain(`src="${AVATAR}?v=petite"`); // PHOTOS-LEGERES-1: her photo, asked small
       expect(html).not.toContain('src=""');
     });
 

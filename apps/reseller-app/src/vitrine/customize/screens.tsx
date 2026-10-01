@@ -114,12 +114,12 @@ export interface CustomizeProps {
   /** PERSONNALISER-MEDIA-1 — send the REAL bytes. The App owns the service call
    *  (same idiom as onPublishOnline); absent ⇒ the slot stays inert, never a
    *  tap that pretends. Resolves to the honest outcome so the screen can state it. */
-  onUploadCover?: (bytes: Uint8Array, contentType: string) => Promise<{ ok: boolean; reason?: string }>;
+  onUploadCover?: (bytes: Uint8Array, contentType: string, petite?: Uint8Array) => Promise<{ ok: boolean; reason?: string }>;
   /** MEDIA-2 — the same seam for her PORTRAIT. The service half (uploadAvatar,
    *  decideSetMedia kind:'avatar') shipped in MEDIA-1 with NO caller: the « Photo »
    *  segment rendered a camera-icon slot that was a plain View — she tapped it and
    *  nothing happened, which is exactly the « still some mocks » the founder named. */
-  onUploadAvatar?: (bytes: Uint8Array, contentType: string) => Promise<{ ok: boolean; reason?: string }>;
+  onUploadAvatar?: (bytes: Uint8Array, contentType: string, petite?: Uint8Array) => Promise<{ ok: boolean; reason?: string }>;
   /** RESELLER-SEAM-HONESTY-1 — `true` when the write seam resolved to `null` (the
    * `EXPO_PUBLIC_STOREFRONT_*` pair is not inlined in this build). The CTA STAYS
    * VISIBLE and an honest note sits under it: a button that vanishes hides the truth
@@ -339,7 +339,7 @@ export function CustomizeStack({ onClose, onToast, storefront, onStorefrontChang
     // this screen. Locking only the network leg left the square tappable through
     // exactly the wait that makes her tap again.
     setAvatarSending(true);
-    const picked = await pickPhoto();
+    const picked = await pickPhoto('avatar');
     if (!picked.ok) {
       setAvatarSending(false);
       if (picked.reason === 'refused') onToast(t('k.cover.acces_refuse'));
@@ -347,7 +347,7 @@ export function CustomizeStack({ onClose, onToast, storefront, onStorefrontChang
       else if (picked.reason === 'too_small') onToast(t('k.cover.trop_petite'));
       return;
     }
-    const res = await onUploadAvatar(picked.bytes, picked.contentType);
+    const res = await onUploadAvatar(picked.bytes, picked.contentType, picked.petite);
     setAvatarSending(false);
     onToast(res.ok ? t('k.portrait.toast_en_ligne') : uploadFailureMessage(res.reason));
     // ENTETES-C — a fresh photo starts UNFRAMED (the service dropped any old
@@ -361,7 +361,7 @@ export function CustomizeStack({ onClose, onToast, storefront, onStorefrontChang
     // Same law as the portrait: « ENVOI… » covers the decode too, so the slot is
     // not a live target through the longest part of the wait.
     setSfRaw(coverTo(sf, 'uploading'));
-    const picked = await pickPhoto();
+    const picked = await pickPhoto('cover');
     if (!picked.ok) {
       // Her own cancel is NOT an error and says nothing; a refusal explains.
       // Returning to the cover she actually has — NOT to 'none', which would erase
@@ -372,7 +372,7 @@ export function CustomizeStack({ onClose, onToast, storefront, onStorefrontChang
       else if (picked.reason === 'too_small') onToast(t('k.cover.trop_petite'));
       return;
     }
-    const res = await onUploadCover(picked.bytes, picked.contentType);
+    const res = await onUploadCover(picked.bytes, picked.contentType, picked.petite);
     if (res.ok) {
       // The SERVICE owns the URL and writes it onto her shop; the App re-reads
       // and the real photograph arrives through `storefront`. No local guess.

@@ -37,7 +37,7 @@ import { File } from 'expo-file-system';
  * ~300 KB instead of ~6 MB.
  */
 export type PickOutcome =
-  | { readonly ok: true; readonly bytes: Uint8Array; readonly contentType: string }
+  | { readonly ok: true; readonly bytes: Uint8Array; readonly contentType: string; readonly petite?: Uint8Array }
   | { readonly ok: false; readonly reason: 'refused' | 'cancelled' | 'unreadable' | 'too_small' };
 
 /** Quality is a DESIGN choice, not a default: a market phone on patchy data
@@ -58,7 +58,18 @@ const QUALITY = 0.7;
 const MAX_DIM = 2048;
 const MIN_DIM = 200;
 
-export async function pickPhoto(): Promise<PickOutcome> {
+/**
+ * PHOTOS-LEGERES-1 (AUDIT-4 B-02) — the SMALL copy buyers' phones download
+ * instead of the 2048 px photo. Long edge per kind: the cover fills a box of at
+ * most 188×280 css px; the portrait a 44–54 px circle, AND the whole photo
+ * frame (up to 188 px) of the headers that show her face when she has no cover
+ * — so 384, not the circle's size. Under the service's PETITE_MAX_DIM (640).
+ * Quality 0.6: the copy is seen small, on metered data.
+ */
+const PETITE_DIM = { cover: 640, avatar: 384 } as const;
+const PETITE_QUALITY = 0.6;
+
+export async function pickPhoto(kind: 'cover' | 'avatar'): Promise<PickOutcome> {
   // ASK FIRST, and treat a refusal as a REFUSAL — never as a failure. She is
   // allowed to say no, and the screen should say what happened, not apologise.
   const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -115,11 +126,31 @@ export async function pickPhoto(): Promise<PickOutcome> {
     // the content-type we declare is the one we actually produced — not a guess
     // inherited from whatever the gallery happened to hold.
     const saved = await fitted.saveAsync({ compress: QUALITY, format: SaveFormat.JPEG });
+    const petite = await petiteDe(fitted, PETITE_DIM[kind]);
     fitted.release();
     const bytes = await new File(saved.uri).bytes();
     if (bytes.length === 0) return { ok: false, reason: 'unreadable' };
-    return { ok: true, bytes, contentType: 'image/jpeg' };
+    return { ok: true, bytes, contentType: 'image/jpeg', ...(petite !== undefined ? { petite } : {}) };
   } catch {
     return { ok: false, reason: 'unreadable' };
+  }
+}
+
+/** The small copy, from the bitmap already decoded (no second decode on a 1 GB
+ *  phone). Best effort: without it, buyers are served the photo itself. */
+async function petiteDe(
+  fitted: Awaited<ReturnType<ReturnType<typeof ImageManipulator.manipulate>['renderAsync']>>,
+  dim: number,
+): Promise<Uint8Array | undefined> {
+  try {
+    const ref = await ImageManipulator.manipulate(fitted)
+      .resize(fitted.width >= fitted.height ? { width: Math.min(dim, fitted.width) } : { height: Math.min(dim, fitted.height) })
+      .renderAsync();
+    const saved = await ref.saveAsync({ compress: PETITE_QUALITY, format: SaveFormat.JPEG });
+    ref.release();
+    const bytes = await new File(saved.uri).bytes();
+    return bytes.length > 0 ? bytes : undefined;
+  } catch {
+    return undefined;
   }
 }

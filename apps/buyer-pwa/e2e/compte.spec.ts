@@ -1540,3 +1540,48 @@ test('MON-COMPTE-PLUS — a shared phone: what Awa kept while signed in never jo
   expect(livre.articles.get('70123456')).toEqual({ panier: [art('aicha-4821', 'p1')], favoris: [art('aicha-4821', 'p2')] });
   expect(erreurs).toEqual([]);
 });
+
+/* ═══ PHOTOS-LEGERES-1 (AUDIT-4 B-02) — her portrait, downloaded small, at the
+ * doors and on « Mon compte » ═══ (the boutique's own headers: vitrine-vraie). */
+const PORTRAIT_PETITE = 'https://media.invalid/media/storefronts/sf-e2e-compte-2/avatar/a.jpeg';
+const PNG_1PX = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
+const photosDemandees = async (page: Page): Promise<string[]> => {
+  const demandes: string[] = [];
+  await page.route('https://media.invalid/**', (route) => {
+    demandes.push(route.request().url());
+    return route.fulfill({ status: 200, contentType: 'image/png', body: PNG_1PX });
+  });
+  return demandes;
+};
+
+test('PHOTOS-LEGERES — the doors ask her portrait small, never the full photo', async ({ page }) => {
+  const livre = new Livre();
+  const demandes = await photosDemandees(page);
+  const erreurs = await ouvrir(page, livre, '/?/v/aicha-4821', async () => {
+    await page.route('**/api/s/**', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ...BOUTIQUE, avatar: { mode: 'photo', url: PORTRAIT_PETITE } }) }));
+  });
+  await expect(page.locator('[data-role="porte-avatar"] img')).toHaveCount(1);
+  await expect.poll(() => demandes.length, 'her portrait was never asked for').toBeGreaterThan(0);
+  expect(demandes.filter((u) => u !== `${PORTRAIT_PETITE}?v=petite`)).toEqual([]);
+  expect(erreurs).toEqual([]);
+});
+
+test('PHOTOS-LEGERES — « Mon compte » asks each boutique portrait small, never the full photo', async ({ page }) => {
+  const livre = new Livre();
+  await dejaConnectee(page, livre);
+  livre.articles.set('70123456', { panier: [art('mariam-1203', 'm1')], favoris: [] });
+  const demandes = await photosDemandees(page);
+  const erreurs = await ouvrir(page, livre, '/?/v/aicha-4821', async () => {
+    await page.route('**/api/s/**', (route) => {
+      const slug = decodeURIComponent(new URL(route.request().url()).pathname.split('/').pop() ?? '');
+      const b = slug === 'mariam-1203' ? { ...BOUTIQUE_MARIAM, avatar: { mode: 'photo', url: PORTRAIT_PETITE } } : BOUTIQUE_AICHA;
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(b) });
+    });
+  });
+  await expect(boutique(page)).toContainText('Chez Aïcha Mode');
+  await bande(page).click();
+  await expect(page.locator('[data-role="compte-panier"] [data-boutique="mariam-1203"] .compte-boutique-avatar img')).toHaveCount(1);
+  await expect.poll(() => demandes.length, 'her portrait was never asked for').toBeGreaterThan(0);
+  expect(demandes.filter((u) => u !== `${PORTRAIT_PETITE}?v=petite`)).toEqual([]);
+  expect(erreurs).toEqual([]);
+});

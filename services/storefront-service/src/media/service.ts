@@ -104,6 +104,54 @@ export function imageDimensions(bytes: Uint8Array, fmt: ImageFormat): { width: n
   return null;
 }
 
+/* ------------------------------------------------- PHOTOS-LEGERES-1 -- */
+
+/**
+ * ═══ PHOTOS-LEGERES-1 (AUDIT-4 B-02) — THE SMALL COPY BESIDE HER PHOTO ═══
+ *
+ * Her cover and portrait reached every buyer at the size her phone uploaded
+ * them (long edge up to 2048 px), into boxes of 44–280 px above the fold of her
+ * boutique's first screen. This service cannot shrink an image (a codec in a
+ * Worker is a dependency nobody has ruled on), but THE PHONE ALREADY RESIZES:
+ * the app that made the large photo makes a small copy beside it, and this
+ * service validates and stores it — Boutik+'s `?v=thumb` for product
+ * vignettes, applied to her photos.
+ *
+ * THE KEY IS DERIVED. Canon `StorefrontCoverSchema` / `StorefrontAvatarSchema`
+ * carry one `url` and are not this service's to widen (§7), so the small copy
+ * has no field of its own: it sits at `{photoKey}~p`, and
+ * `GET /media/{photoKey}?v=petite` answers it — or the photo itself while no
+ * small copy exists, so a buyer is never shown a broken image.
+ */
+export const PETITE_MAX_DIM = 640;
+export const PETITE_MIN_DIM = 32;
+export const PETITE_MAX_BYTES = 160 * 1024;
+export const PETITE_SUFFIXE = '~p';
+
+/** The small copy's key, derived from its photo's — a constant suffix, no caller input. */
+export function petiteKeyFor(photoKey: string): string {
+  return `${photoKey}${PETITE_SUFFIXE}`;
+}
+
+export type PetiteReason = 'empty' | 'too_large' | 'unsupported_type' | 'bad_dimensions';
+
+/** The small copy's own bounds: an image, small in pixels and in bytes. */
+export function validerPetite(
+  bytes: Uint8Array,
+):
+  | { readonly ok: true; readonly bytes: Uint8Array; readonly contentType: string }
+  | { readonly ok: false; readonly reason: PetiteReason } {
+  if (bytes.length === 0) return { ok: false, reason: 'empty' };
+  if (bytes.length > PETITE_MAX_BYTES) return { ok: false, reason: 'too_large' };
+  const fmt = sniffImage(bytes);
+  if (fmt === null) return { ok: false, reason: 'unsupported_type' };
+  const dims = imageDimensions(bytes, fmt);
+  if (dims === null) return { ok: false, reason: 'bad_dimensions' };
+  if (dims.width > PETITE_MAX_DIM || dims.height > PETITE_MAX_DIM) return { ok: false, reason: 'bad_dimensions' };
+  if (dims.width < PETITE_MIN_DIM || dims.height < PETITE_MIN_DIM) return { ok: false, reason: 'bad_dimensions' };
+  return { ok: true, bytes, contentType: fmt === 'png' ? 'image/png' : 'image/jpeg' };
+}
+
 /* -------------------------------------------------------------- records -- */
 
 export type ModerationStatus = 'pending_review' | 'live';
@@ -230,6 +278,12 @@ export class StorefrontMediaService {
     };
     this.byId.set(id, record);
     return { ok: true, record };
+  }
+
+  /** PHOTOS-LEGERES-1 — store a validated small copy beside a photo key the
+   *  CALLER derived from her shop's own pointer (never from the request). */
+  async putPetite(photoKey: string, bytes: Uint8Array, contentType: string): Promise<void> {
+    await this.store.put(petiteKeyFor(photoKey), bytes, contentType);
   }
 
   /** Séra review passes → the held record goes live (buyer-visible). Idempotent; absent → undefined. */

@@ -17,7 +17,7 @@ import { esc } from '../format';
 import { epingleSvg, fmtCoords, viseurSvg } from '../geo-carte';
 import { fmtFCFA } from '../cliente/money';
 import { productFromSeed, seedProduct, type VitrineProduct, type VitrineSeedProduct } from './catalog';
-import { focusPosition, type Storefront, type VitrineTrust, type ProductVoiceNote, type ProductVoiceNotes } from './profile';
+import { focusPosition, petite, type Storefront, type VitrineTrust, type ProductVoiceNote, type ProductVoiceNotes } from './profile';
 import { renderVoiceChip } from './voice-player';
 import {
   iconBack,
@@ -90,7 +90,7 @@ function cover(sf: Storefront): string {
     const pos = focusPosition(sf.cover.focus);
     return [
       '<div class="vt-hero-photo vt-cover-photo" data-role="vitrine-cover" data-etat="live">',
-      `<img class="vt-cover-img" src="${esc(sf.cover.url)}" alt="${t('vit.cover_alt')}" loading="lazy" decoding="async"${pos !== undefined ? ` style="object-position:${pos}"` : ''}>`,
+      `<img class="vt-cover-img" src="${esc(petite(sf.cover.url))}" alt="${t('vit.cover_alt')}" loading="lazy" decoding="async"${pos !== undefined ? ` style="object-position:${pos}"` : ''}>`,
       '</div>',
     ].join('');
   }
@@ -174,7 +174,7 @@ export function hero(sf: Storefront, trust: VitrineTrust, opts: { compact?: bool
   const avatarPos = focusPosition(sf.avatar.focus);
   const avatar =
     sf.avatar.mode === 'photo' && sf.avatar.url
-      ? `<span class="vt-avatar vt-avatar-photo"><img class="vt-avatar-img" src="${esc(sf.avatar.url)}" alt="${t('vit.avatar_alt')}" loading="lazy" decoding="async"${avatarPos !== undefined ? ` style="object-position:${avatarPos}"` : ''}>${badge}</span>`
+      ? `<span class="vt-avatar vt-avatar-photo"><img class="vt-avatar-img" src="${esc(petite(sf.avatar.url))}" alt="${t('vit.avatar_alt')}" loading="lazy" decoding="async"${avatarPos !== undefined ? ` style="object-position:${avatarPos}"` : ''}>${badge}</span>`
       : `<span class="vt-avatar">${initial}${badge}</span>`;
   const panel = [
     '<div class="vt-hero-id" data-role="vitrine-identity">',

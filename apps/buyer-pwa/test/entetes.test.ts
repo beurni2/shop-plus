@@ -265,7 +265,7 @@ describe('ENTETES-A — her photograph, or the style’s own pattern; never a cl
       expect(html).toContain('data-role="vitrine-cover"');
       expect(html).toContain('data-etat="live"');
       expect(html).toContain('class="vt-cover-img"');
-      expect(html).toContain(`src="${PHOTO}"`);
+      expect(html).toContain(`src="${PHOTO}?v=petite"`);
       // HANDOFF §5 — the portrait bias is this style's, not a shared default
       expect(html).toContain(`object-position:${OBJECT_POS[key]}`);
       // …and the ornamental pattern is NOT drawn behind a real photograph
@@ -752,7 +752,7 @@ describe('ENTETES-C — focus drives object-position; absent = the contract defa
       const html = head(key, FOCUSED, REAL);
       expect(html).toContain('object-position:10% 90%');
       expect(html).not.toContain(`object-position:${OBJECT_POS[key]}`); // her hand replaced the default
-      expect(html).toContain(`src="${PHOTO}"`); // still her photo, same markup family
+      expect(html).toContain(`src="${PHOTO}?v=petite"`); // still her photo, same markup family
     });
 
     it(`${key}: ABSENT focus ⇒ the contract default byte-for-byte (nothing about the emission changed)`, () => {
@@ -803,7 +803,7 @@ describe('ENTETES-C — focus drives object-position; absent = the contract defa
   it('classique: NO focus ⇒ not one object-position byte on the page (the ENTETES-A byte-identity family)', () => {
     const opts = { fromProduct: false };
     const plain = renderVitrineReady(WITH_COVER as never, REAL, opts, {}, PRODUCTS, 'classique');
-    expect(plain).toContain(`src="${PHOTO}"`); // the cover really rendered
+    expect(plain).toContain(`src="${PHOTO}?v=petite"`); // the cover really rendered
     expect(plain).not.toContain('object-position'); // and today's bytes carry no position at all
     // …byte-identical to a storefront whose cover object never knew the field
     const stripped = renderVitrineReady(

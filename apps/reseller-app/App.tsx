@@ -1302,7 +1302,7 @@ export default function App() {
    * it is there, never because the upload call returned.
    */
   const uploadCover = useCallback(
-    async (bytes: Uint8Array, contentType: string): Promise<{ ok: boolean; reason?: string }> => {
+    async (bytes: Uint8Array, contentType: string, petite?: Uint8Array): Promise<{ ok: boolean; reason?: string }> => {
       if (service === null || identity === null || identity === undefined) return { ok: false, reason: 'unconfigured' };
       if (liveStorefront === null || liveStorefront === undefined) return { ok: false, reason: 'not_live' };
       const res = await service.uploadCover(identity.storefrontId, bytes, contentType);
@@ -1319,6 +1319,10 @@ export default function App() {
       // true of a cover she uploaded last week, so a failed replacement could have
       // reported success — the very shape B5 closed on the server side.
       const confirmed = fresh.ok && fresh.value !== undefined && fresh.value.cover.url === res.value.url;
+      // PHOTOS-LEGERES-1 — her buyers' small copy rides AFTER her photo is
+      // confirmed, and her answer never waits on it: without it, buyers are
+      // served the photo itself.
+      if (confirmed && petite !== undefined) void service.uploadPetite('cover', identity.storefrontId, res.value.url, petite);
       return confirmed ? { ok: true } : { ok: false, reason: 'not_confirmed' };
     },
     [service, identity, liveStorefront],
@@ -1407,7 +1411,7 @@ export default function App() {
   /** MEDIA-2 — her PORTRAIT, same law as the cover: bytes up, URL owned by the
    *  service, success only once the read-back shows it. */
   const uploadAvatar = useCallback(
-    async (bytes: Uint8Array, contentType: string): Promise<{ ok: boolean; reason?: string }> => {
+    async (bytes: Uint8Array, contentType: string, petite?: Uint8Array): Promise<{ ok: boolean; reason?: string }> => {
       if (service === null || identity === null || identity === undefined) return { ok: false, reason: 'unconfigured' };
       if (liveStorefront === null || liveStorefront === undefined) return { ok: false, reason: 'not_live' };
       const res = await service.uploadAvatar(identity.storefrontId, bytes, contentType);
@@ -1415,6 +1419,7 @@ export default function App() {
       const fresh = await service.getById(identity.storefrontId);
       if (fresh.ok && fresh.value !== undefined) setLiveStorefront(fresh.value);
       const confirmed = fresh.ok && fresh.value !== undefined && fresh.value.avatar.url === res.value.url;
+      if (confirmed && petite !== undefined) void service.uploadPetite('avatar', identity.storefrontId, res.value.url, petite);
       return confirmed ? { ok: true } : { ok: false, reason: 'not_confirmed' };
     },
     [service, identity, liveStorefront],
