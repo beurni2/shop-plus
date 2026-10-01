@@ -61,6 +61,58 @@ const ROW_PREFIX = 'row:';
 /** VITRINE-VRAIE-1 — one mark per delivered order (`livree:{reseller}:{order}`), and her count (`livrees:{reseller}`). */
 const LIVREE_PREFIX = 'livree:';
 const LIVREES_PREFIX = 'livrees:';
+/**
+ * VENTES-LIVREES-2 (founder « go », 2026-10-01: count every seller's older
+ * deliveries once) — the receipt of the one-time catch-up. Deliveries Séra
+ * validated BEFORE VITRINE-VRAIE-1 left no mark here, so her boutique read
+ * « Nouvelle vendeuse » until she happened to open her sales. On its first
+ * wake after this deploy the book walks EVERY sale row it holds, a batch per
+ * alarm, asks each order the question her sales read asks (`/entry/reseller`
+ * → `livree`), and marks what is delivered through the same one-mark-per-order
+ * write — so nothing can count twice, whichever road marks first. The receipt
+ * keeps the cursor (where the walk stopped) and, at the end, `fin`: a later
+ * wake does nothing. An order whose answer cannot be read is counted in
+ * `illisibles` and left to her sales read, which still re-marks what it sees.
+ */
+const RATTRAPAGE_RECU = 'rattrapage:livrees';
+interface RecuRattrapage {
+  readonly curseur?: string;
+  readonly lignes: number;
+  readonly marquees: number;
+  readonly illisibles: number;
+  readonly fin?: string;
+}
+/** Orders asked per alarm — the sales read's own fan-out bound. A test knob
+ *  can only LOWER it (the `FEED_FANOUT_MAX` idiom). */
+const MAX_RATTRAPAGE_LOT = 40;
+function rattrapageLot(env: ResellerFeedEnv): number {
+  const raw = Number(env.RATTRAPAGE_LOT);
+  if (!Number.isInteger(raw) || raw < 1) return MAX_RATTRAPAGE_LOT;
+  return Math.min(raw, MAX_RATTRAPAGE_LOT);
+}
+
+export interface ResellerFeedEnv {
+  /** The order books the catch-up asks. Unbound ⇒ no catch-up is started. */
+  readonly ORDER?: DurableObjectNamespace;
+  readonly RATTRAPAGE_LOT?: string;
+}
+
+/** ONE MARK PER ORDER; her count moves only by the marks that are new. */
+async function marquerLivrees(storage: DurableObjectStorage, resellerId: string, orderIds: readonly string[]): Promise<number> {
+  const qui = encodeURIComponent(resellerId);
+  const cles = [...new Set(orderIds)].map((o) => `${LIVREE_PREFIX}${qui}:${o}`);
+  const deja = await storage.get(cles);
+  const nouvelles = cles.filter((c) => !deja.has(c));
+  if (nouvelles.length > 0) {
+    const compte = (await storage.get<number>(`${LIVREES_PREFIX}${qui}`)) ?? 0;
+    const at = new Date().toISOString();
+    const ecrire: Record<string, unknown> = { [`${LIVREES_PREFIX}${qui}`]: compte + nouvelles.length };
+    for (const c of nouvelles) ecrire[c] = at;
+    await storage.put(ecrire);
+  }
+  return nouvelles.length;
+}
+
 /** What the retired `SP-` mint wrote — erased, never written again. */
 const RETIRED_PREFIXES = ['codehash:', 'resellercode:'] as const;
 const PURGE_RECEIPT = 'purge:codes-retires';
@@ -89,9 +141,65 @@ interface FeedRow {
 }
 
 export class ResellerFeedDO {
-  constructor(private readonly state: DurableObjectState) {
+  constructor(
+    private readonly state: DurableObjectState,
+    private readonly env: ResellerFeedEnv,
+  ) {
     // Before the first request is served (blockConcurrencyWhile holds them).
-    void state.blockConcurrencyWhile(() => effacerAnciensCodes(state.storage));
+    void state.blockConcurrencyWhile(async () => {
+      await effacerAnciensCodes(state.storage);
+      // VENTES-LIVREES-2 — the catch-up starts on the first wake and runs by alarm, never inside a request.
+      if (env.ORDER === undefined) return;
+      if ((await state.storage.get<RecuRattrapage>(RATTRAPAGE_RECU))?.fin !== undefined) return;
+      if ((await state.storage.getAlarm()) === null) await state.storage.setAlarm(Date.now());
+    });
+  }
+
+  /** VENTES-LIVREES-2 — one batch of the catch-up, then the next alarm until every row was asked. */
+  async alarm(): Promise<void> {
+    const ns = this.env.ORDER;
+    if (ns === undefined) return;
+    const avant = (await this.state.storage.get<RecuRattrapage>(RATTRAPAGE_RECU)) ?? { lignes: 0, marquees: 0, illisibles: 0 };
+    if (avant.fin !== undefined) return;
+    const lot = rattrapageLot(this.env);
+    const lignes = await this.state.storage.list<FeedRow>({
+      prefix: ROW_PREFIX,
+      limit: lot,
+      ...(avant.curseur !== undefined ? { startAfter: avant.curseur } : {}),
+    });
+    const cles = [...lignes.keys()];
+    // `row:{reseller}:{order}` ↔ `livree:{reseller}:{order}` — a row already marked is not asked again.
+    const marques = await this.state.storage.get(cles.map((c) => `${LIVREE_PREFIX}${c.slice(ROW_PREFIX.length)}`));
+    const parRevendeuse = new Map<string, string[]>();
+    let illisibles = 0;
+    for (const [cle, ligne] of lignes) {
+      const corps = cle.slice(ROW_PREFIX.length);
+      if (marques.has(`${LIVREE_PREFIX}${corps}`)) continue;
+      // The reseller id is escaped into the key, so the first `:` is the boundary.
+      const resellerId = decodeURIComponent(corps.slice(0, corps.indexOf(':')));
+      try {
+        const res = await ns.get(ns.idFromName(ligne.orderId)).fetch(
+          new Request(`https://do/entry/reseller/${encodeURIComponent(resellerId)}`),
+        );
+        const v = (await res.json().catch(() => null)) as { ok?: unknown; livree?: unknown } | null;
+        if (v === null || res.status >= 500) illisibles += 1;
+        else if (v.livree === true) parRevendeuse.set(resellerId, [...(parRevendeuse.get(resellerId) ?? []), ligne.orderId]);
+      } catch {
+        illisibles += 1;
+      }
+    }
+    let marquees = 0;
+    for (const [resellerId, ids] of parRevendeuse) marquees += await marquerLivrees(this.state.storage, resellerId, ids);
+    const fini = cles.length < lot;
+    const curseur = cles.length > 0 ? cles[cles.length - 1] : avant.curseur;
+    await this.state.storage.put(RATTRAPAGE_RECU, {
+      lignes: avant.lignes + cles.length,
+      marquees: avant.marquees + marquees,
+      illisibles: avant.illisibles + illisibles,
+      ...(curseur !== undefined ? { curseur } : {}),
+      ...(fini ? { fin: new Date().toISOString() } : {}),
+    } satisfies RecuRattrapage);
+    if (!fini) await this.state.storage.setAlarm(Date.now());
   }
 
   async fetch(request: Request): Promise<Response> {
@@ -195,18 +303,8 @@ export class ResellerFeedDO {
       ) {
         return Response.json({ ok: false, reason: 'malformed' }, { status: 400 });
       }
-      const qui = encodeURIComponent(resellerId);
-      const cles = [...new Set(orderIds as string[])].map((o) => `${LIVREE_PREFIX}${qui}:${o}`);
-      const deja = await this.state.storage.get(cles);
-      const nouvelles = cles.filter((c) => !deja.has(c));
-      if (nouvelles.length > 0) {
-        const compte = (await this.state.storage.get<number>(`${LIVREES_PREFIX}${qui}`)) ?? 0;
-        const at = new Date().toISOString();
-        const ecrire: Record<string, unknown> = { [`${LIVREES_PREFIX}${qui}`]: compte + nouvelles.length };
-        for (const c of nouvelles) ecrire[c] = at;
-        await this.state.storage.put(ecrire);
-      }
-      return Response.json({ ok: true, nouvelles: nouvelles.length });
+      const nouvelles = await marquerLivrees(this.state.storage, resellerId, orderIds as string[]);
+      return Response.json({ ok: true, nouvelles });
     }
 
     if (request.method === 'POST' && pathname === '/livrees') {
