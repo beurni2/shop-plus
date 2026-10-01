@@ -1,6 +1,37 @@
 # JOURNAL — shop-plus
 Continuity ledger per CTO charter §6/§6bis. Every entry is evidence-grounded.
 
+## 2026-10-01 · ENTETE-BORNEE-1 (AUDIT-4 B-01, founder « go with your recommendation ») — a header-style file that never arrives never freezes her boutique · on the branch, NOT merged, NOT deployed
+
+**Founder order (2026-10-01).** « go with your recommendation » — AUDIT-4's recommended order; this is item 3.
+
+**What was wrong.** 28 of her header styles live in their own small file (the other 15 keys — 14 retired ones and `classique` — draw the default and fetch nothing), fetched after the boutique read (`vitrine/entetes/registry.ts` `loadEntete`, awaited by `flows.ts` `resolveWithStyle` before any header-drawing screen). A failed fetch already drew the default header (the ENTETES-E0 law); a fetch that neither answered nor failed — a stalled 2G socket — left the page on « Ouverture de la boutique… » for ever, with nothing to press (AUDIT-4 measured: still stuck at 20 s). The print poster's own lazy file had no bound either: a blank page.
+
+**What moved (buyer site only).**
+- `registry.ts`: `avantDelai(p, ms)` — the value, or nothing once `ms` have passed (timer cleared; a late answer dropped, a failure still a failure); `loadEntete` races the style file against `ENTETE_DELAI_MS` = 6 s (under the boutique read's own 12 s). Past it the default header draws her articles, prices and proof; a late file is never registered, so the header is never swapped under her eyes (the `renderEntete` law).
+- `main.ts`: the poster's file gets the same bound; past it `mountVitrine(…, { etat: 'offline', raison: 'reseau', reessayer: reload })` — the boutique's designed offline card. « Réessayer » reloads: a hung module import is never retried in-page.
+
+**Evidence.**
+- **Walks, red first** (`e2e/vitrine-vraie.spec.ts`, deploy-like build, the REAL style request held open by the browser): her `pagne` file hangs → within the bound the boutique opens, `ready`, her three articles, the default header (no `pg-hero`), no page error. RED on the old code (`ready` never came). CONTROL: the same file answering draws HER style (`pg-hero` present). `e2e/affiche.spec.ts`: the poster file held open → the offline card with « Réessayer » → the poster after it (RED on the old code: a blank page).
+- **A trap named:** port 4173 (the demo build the poster walk uses) serves the last `dist/` and does NOT rebuild; the first green-looking run would have tested stale code. The walk was re-run after `pnpm build`, and the poster mutations rebuild before each run.
+- **Unit:** `test/entete-bornee.test.ts` — a file that never comes resolves to nothing AT the bound and not before; an answer in time is the answer; a late one is dropped; a failure is still a failure; the bound is 6 s. Buyer suite 1 451/1 451.
+- **Mutations — 5/5 KILLED** (anchors matched once, files restored byte-identical, demo bundle rebuilt after): the style load unbounded · the bound never fires · a late style applied after the bound · the poster unbounded · the poster card with no way out.
+- **Board (5ba0657):** ALL GATES GREEN — storefront-service 926, reseller app 889, buyer 1 451, buyer walks 304.
+- **Verifier — ONE fresh-context pass** (given the spec quotes, the diff 5ba0657 and the DoD; ran typecheck, 1 451 unit, the four affected walk files 92/92, the payload and copy gates, and its own browser probe of late answers and late failures): **0 BLOCKER · 0 MAJOR · 2 MINOR · 6 NOTE**, handled once, never re-inspected (3df9ed0):
+  - MINOR 1 — the poster page stayed blank for the whole 6 s bound (the DoD says « never a blank page »). **Fixed:** the boutique's own waiting frame stands while the poster file comes, removed before the card or the poster mounts. Walk RED first (no frame within 2 s), then green; the frame is gone once the card shows and absent under the poster. Mutations: no frame · the frame never removed — both KILLED.
+  - MINOR 2 — « a late file is never swapped in » had no walk. **Fixed:** the walk now releases the held style file AFTER the bound, waits for it to arrive, taps a heart, and the default header still stands with no page error. The mutant the verifier named (register the file when it arrives) SURVIVED the walk — correctly: nothing on the boutique screen re-draws the header after `ready`, so a late registration cannot reach her eyes today. It is now pinned where it lives: a unit test lets a file arrive after the bound and asserts it was never registered (mutant KILLED).
+  - NOTE 1 — the bound's parameter had no caller. **Resolved by NOTE 2's fix** and the unit tests, which pass it.
+  - NOTE 2 — the « every style » test seam inherited the 6 s bound, so a slow CI runner could quietly check fewer styles. **Fixed:** the seam is unbounded; a unit test passes the buyer bound before any file arrives and every style still loads (mutant KILLED).
+  - NOTE 3 — the walk comment and commit 5ba0657's message said « 42 of the 43 » styles; it is 28 files. **Fixed** in the walk comment and in this entry; the commit message stays as written.
+  - NOTE 4 — two other lazy imports are unbounded, on harness addresses only (the demo voice file, the cliente harness); the published build refuses both addresses. **Journalled**, not changed.
+  - NOTE 5 — the poster's fallback card speaks of the boutique (« La boutique reviendra… ») while « Réessayer » brings the poster. **Journalled:** the DoD asked for this card; a poster-specific sentence is a copy choice for later.
+  - NOTE 6 — the poster walk did not listen for page errors. **Fixed:** it does, and asserts none.
+- **After the fixes:** buyer unit 1 453/1 453; the four affected walk files 92/92; fix mutations 4/4 KILLED (one through the unit test, as above); board at 3df9ed0: ALL GATES GREEN — storefront-service 926, reseller app 889, buyer 1 453, buyer walks 304.
+
+**Not changed.** No service, no money, no wire, no contract shape. A FAILED style fetch behaves exactly as before.
+
+---
+
 ## 2026-10-01 · COMMANDES-GARDEES-1 (AUDIT-4 A-02, founder « go with your recommendation ») — a guest's phone keeps every live order, not only the newest · on the branch, NOT merged, NOT deployed
 
 **Founder order (2026-10-01).** « go with your recommendation » — AUDIT-4's recommended order; this is item 2.
