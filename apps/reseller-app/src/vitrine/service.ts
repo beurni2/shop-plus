@@ -248,6 +248,11 @@ export function listingIdFor(storefrontId: string, productVersionId: string): st
  * every save. No money field exists in this shape — presentation only (loi 5),
  * unrepresentable rather than merely unsent.
  */
+/** REVENDEUSE-VRAIE-1 — what a save of her boutique came to: stored
+ *  (`true`), not stored and said why (`false`), or kept on the phone for the
+ *  network (`'attente'`, AUDIT-3 A-06 — pending, never done). */
+export type SaveIssue = boolean | 'attente';
+
 export interface StorefrontIdentityPatch {
   readonly name?: string;
   readonly tagline?: string;

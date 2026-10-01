@@ -57,9 +57,14 @@ export interface QueueStore {
   write(data: string): Promise<void>;
 }
 
-/** The two intents this outbox carries. Media bytes (a photo, a note) and the
- *  Personnaliser patch are NOT here — stated in the journal, not smuggled. */
-export type IntentName = 'listing.publish' | 'listing.remove';
+/** The intents this outbox carries. Media bytes (a photo, a note) are NOT
+ *  here — stated in the journal, not smuggled. REVENDEUSE-VRAIE-1 (AUDIT-3
+ *  A-06): her Personnaliser patch is, under ONE key (`PID_BOUTIQUE`) — her
+ *  last word per field wins, the pid rule applied to her shop's settings. */
+export type IntentName = 'listing.publish' | 'listing.remove' | 'storefront.identity';
+
+/** The one key her shop's settings wait under (no product carries it). */
+export const PID_BOUTIQUE = '__boutique__';
 
 export type EntryStatus = 'pending' | 'failed';
 
@@ -135,7 +140,7 @@ export class FileAttente {
         if (parsed.version === SCHEMA_VERSION && Array.isArray(parsed.entries)) {
           entries = parsed.entries.filter(
             (e) =>
-              (e.name === 'listing.publish' || e.name === 'listing.remove') &&
+              (e.name === 'listing.publish' || e.name === 'listing.remove' || e.name === 'storefront.identity') &&
               typeof e.pid === 'string' &&
               (e.status === 'pending' || e.status === 'failed') &&
               typeof e.payload === 'object' && e.payload !== null,

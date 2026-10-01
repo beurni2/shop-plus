@@ -632,7 +632,9 @@ describe('PERSONNALISER-HONESTY-1 — the header picker never claims an unsaved 
   });
 
   it('the save seam ANSWERS — the callback type resolves a boolean, not void', () => {
-    expect(screens).toMatch(/onSaveIdentity\?: \(patch: StorefrontIdentityPatch\) => Promise<boolean>/);
+    // REVENDEUSE-VRAIE-1 (A-06): `SaveIssue` = boolean | 'attente' (kept on the phone).
+    expect(screens).toMatch(/onSaveIdentity\?: \(patch: StorefrontIdentityPatch\) => Promise<SaveIssue>/);
+    expect(readFileSync(join(__dirname, '..', 'src/vitrine/service.ts'), 'utf8')).toMatch(/export type SaveIssue = boolean \| 'attente';/);
   });
 
   it('the pending string exists in the catalog and is a status, not a promise', async () => {

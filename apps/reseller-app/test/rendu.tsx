@@ -62,8 +62,12 @@ if (moduleInterne.__renduPatched !== true) {
  */
 
 /** One scripted answer. `handler` sees the path and the parsed body. */
+/** A route may HOLD its answer (a Promise) — the only way a walk can stand on
+ *  the screen while the service has not answered yet — or throw, which is the
+ *  phone with no network (`fetch` rejects, exactly as React Native's does). */
 export type Route = (path: string, body: Record<string, unknown> | null) =>
   | { status: number; json: Record<string, unknown> }
+  | Promise<{ status: number; json: Record<string, unknown> }>
   | null;
 
 export interface Wire {
@@ -102,7 +106,7 @@ export function wire(routes: readonly Route[]): Wire {
     const auth = typeof entetes['Authorization'] === 'string' ? entetes['Authorization'] : null;
     calls.push({ path, method: init?.method ?? 'GET', body, search: u.search, bytes, auth });
     for (const r of routes) {
-      const answer = r(path, body);
+      const answer = await r(path, body);
       if (answer !== null) {
         return new Response(JSON.stringify(answer.json), {
           status: answer.status,

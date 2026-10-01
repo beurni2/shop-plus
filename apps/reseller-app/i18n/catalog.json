@@ -132,12 +132,6 @@
   "screenClass": "selling_surface"
  },
  {
-  "key": "share.og_signe",
-  "fr": "Votre lien est signé — la vente vous revient, toujours.",
-  "register": "selling",
-  "screenClass": "selling_surface"
- },
- {
   "key": "share.prix",
   "fr": "Prix : {amount}",
   "register": "money",
@@ -370,6 +364,12 @@
   "fr": "Vous ajoutez",
   "register": "money",
   "screenClass": "label"
+ },
+ {
+  "key": "vitrine.prix_fixe",
+  "fr": "Ce prix est fixé : c’est celui que paie la cliente.",
+  "register": "money",
+  "screenClass": "status"
  },
  {
   "key": "fiche.plafond",
@@ -3292,6 +3292,18 @@
   "fr": "L’envoi n’est pas passé. Le retrait de {nom} est gardé sur votre téléphone. Il repartira tout seul dès que ça passe.",
   "register": "neutral",
   "screenClass": "status"
+ },
+ {
+  "key": "attente.boutique_garde",
+  "fr": "L’envoi n’est pas passé. Vos changements sont gardés sur votre téléphone. Ils repartiront tout seuls dès que ça passe.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "attente.boutique_nom",
+  "fr": "Les changements de votre boutique",
+  "register": "neutral",
+  "screenClass": "label"
  },
  {
   "key": "attente.produit",

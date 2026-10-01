@@ -25,14 +25,14 @@ import { cadreRatio, CADRE_DEFAUT } from './src/ui/cadre';
 import { choisirClipActif } from './src/ui/clip-actif';
 import { DuotoneTile } from './src/ui/signature';
 import { CustomizeStack } from './src/vitrine/customize/screens';
-import { resolveStorefrontService, deriveShortCode, saveRefusalToastKey, publierRefusalToastKey, estSessionRefusee, raisonReseau, verdictReplay, type StorefrontIdentityPatch } from './src/vitrine/service';
+import { resolveStorefrontService, deriveShortCode, saveRefusalToastKey, publierRefusalToastKey, estSessionRefusee, raisonReseau, verdictReplay, type SaveIssue, type StorefrontIdentityPatch } from './src/vitrine/service';
 import type { Storefront } from './src/vitrine/customize/storefront';
 import { loadOrMintIdentity, remintIdentity } from './src/identity/store';
 import { resolveOfferSource, type Offer, type OfferFeed } from './src/vitrine/offers';
 import { categoriesPresentes, filtrerOffres, filtrerParSelection, labelCategorie, rayonsDuLivre, RAYONS, autresRayons } from './src/vitrine/rayons';
 import type { ResellerIdentity } from './src/identity/mint';
 import { expoIdentityStore, expoRandomBytes } from './src/identity/expoStore';
-import { FileAttente, type QueueEntry } from './src/offline/queue';
+import { FileAttente, PID_BOUTIQUE, type QueueEntry } from './src/offline/queue';
 import { expoFileAttenteStore } from './src/offline/expoStore';
 import { useVoiceNotes, VoiceCardRow, VoiceNoteSheet, voiceCardLabel, type VoiceNotesController, type VoiceRemover, type VoiceUploader } from './src/vitrine/customize/voice-sheet';
 import { noteOf } from './src/vitrine/customize/voice';
@@ -441,10 +441,13 @@ export interface VitrineCardProps {
   /** A replay pass is in flight: « Annuler » sleeps meanwhile (a send that
    *  lands after a cancel would make « Rien n'a été envoyé » false). */
   readonly rejeu: boolean;
+  /** REVENDEUSE-VRAIE-1 (AUDIT-3 A-01) — the service SIGNED this product's
+   *  price: her marge is stated, never an editor of a price nothing re-signs. */
+  readonly signe: boolean;
 }
 
 export const VitrineCard = memo(function VitrineCard({
-  item, markup, cap, net, client, ctl, retiring, onGalerie, onVoix, onPartager, onRetirer, onMarge, onFocusField, attente, onAnnulerAttente, rejeu,
+  item, markup, cap, net, client, ctl, retiring, onGalerie, onVoix, onPartager, onRetirer, onMarge, onFocusField, attente, onAnnulerAttente, rejeu, signe,
 }: VitrineCardProps) {
   // Per-product card (founder recomposition of the planche read-only
   // grid): art 110 · client price (deep) ↔ net (small, live) · the
@@ -534,12 +537,22 @@ export const VitrineCard = memo(function VitrineCard({
           read-only row plus a slider underneath it. She sets the
           figure where she reads it, and « Prix cliente » below is
           the arithmetic answering her in place. */}
-      <MarkupControl
-        onFocusField={onFocusField}
-        value={markup}
-        cap={cap}
-        onChange={(m) => onMarge(item.productVersionId, m)}
-      />
+      {signe ? (
+        <>
+          <View style={styles.margeHeadRow}>
+            <Overline>{t('fiche.marge_titre')}</Overline>
+            <Text style={styles.margeAmount}>{formatFcfa(markup)}</Text>
+          </View>
+          <Text style={styles.noteLine}>{t('vitrine.prix_fixe')}</Text>
+        </>
+      ) : (
+        <MarkupControl
+          onFocusField={onFocusField}
+          value={markup}
+          cap={cap}
+          onChange={(m) => onMarge(item.productVersionId, m)}
+        />
+      )}
       <View style={styles.margeHeadRow}>
         <Overline>{t('fiche.prix_cliente')}</Overline>
         <Text style={styles.margeAmount}>{formatFcfa(client)}</Text>
@@ -886,11 +899,17 @@ export default function App() {
     [attentes],
   );
   const echecsAttente = useMemo(() => attentes.filter((e) => e.status === 'failed'), [attentes]);
+  // REVENDEUSE-VRAIE-1 (A-06) — her boutique's changes, kept while the network is away.
+  const identiteEnAttente = useMemo(
+    () => attentes.some((e) => e.status === 'pending' && e.name === 'storefront.identity'),
+    [attentes],
+  );
   const attenteDe = (pid: string): 'ajout' | 'retrait' | null =>
     ajoutsEnAttente.has(pid) ? 'ajout' : retraitsEnAttente.has(pid) ? 'retrait' : null;
   /** The product's name for the banner: the live feed's, else the name the
    *  intent carried (a reboot with no network has no feed), else « Ce produit ». */
   const nomAttente = (pid: string): string => {
+    if (pid === PID_BOUTIQUE) return t('attente.boutique_nom');
     const nom = attentes.find((e) => e.pid === pid)?.payload['nom'];
     return offers.find((o) => o.productVersionId === pid)?.productName ?? (typeof nom === 'string' ? nom : t('attente.produit'));
   };
@@ -1112,13 +1131,20 @@ export default function App() {
       }
       adopterStorefront(res.value);
       // PRIX-SIGNE-1 — the signed price of every product she lists, from the
-      // route the buyer join reads (behind her session). Bounded like the
-      // boutique read itself; a pid the Worker has no listing for stays unread
-      // (the default arithmetic stands, as before); a failed read changes
-      // nothing — never a number this app cannot vouch for.
-      void Promise.all(
-        res.value.curatedItems.slice(0, 20).map(async (pid) => [pid, await service.readListing(identity.storefrontId, pid)] as const),
-      ).then((lus) => {
+      // route the buyer join reads (behind her session). A pid the Worker has
+      // no listing for stays unread (the default arithmetic stands, as
+      // before); a failed read changes nothing — never a number this app
+      // cannot vouch for. REVENDEUSE-VRAIE-1 (AUDIT-3 A-01): EVERY product,
+      // not her first twenty — past twenty her card quoted a price no link
+      // charges. Six at a time, so a large shop never floods a 2G link.
+      void (async () => {
+        const pids = res.value!.curatedItems;
+        const lus: (readonly [string, Awaited<ReturnType<typeof service.readListing>>])[] = [];
+        for (let i = 0; i < pids.length && live; i += 6) {
+          lus.push(...(await Promise.all(pids.slice(i, i + 6).map(async (pid) => [pid, await service.readListing(identity.storefrontId, pid)] as const))));
+        }
+        return lus;
+      })().then((lus) => {
         if (!live) return;
         const signes: Record<string, number> = {};
         for (const [pid, lu] of lus) if (lu.ok && lu.value !== undefined) signes[pid] = lu.value.customerPriceFcfa;
@@ -1288,7 +1314,7 @@ export default function App() {
    * when the service accepted AND the read-back landed.
    */
   const saveIdentity = useCallback(
-    async (patch: StorefrontIdentityPatch): Promise<boolean> => {
+    async (patch: StorefrontIdentityPatch): Promise<SaveIssue> => {
       if (service === null || identity === null || identity === undefined) return false;
       // ═══ NEVER SAVE FROM AN UNADOPTED DRAFT (verifier finding, blocking) ═══
       //
@@ -1312,13 +1338,26 @@ export default function App() {
         if (fresh.ok && fresh.value !== undefined) setLiveStorefront(fresh.value);
         return true;
       }
+      // REVENDEUSE-VRAIE-1 (AUDIT-3 A-06) — the network, not the service: the
+      // change is KEPT on the phone (her last word per field, one entry) and
+      // leaves by itself when the network returns. Said as waiting, never as
+      // saved (Law 7: queued = pending, never done).
+      const file = fileAttente.current;
+      if (raisonReseau(res.reason) && file !== null) {
+        const deja = file.tout().find((e) => e.name === 'storefront.identity');
+        const avant = (deja?.payload['patch'] ?? {}) as StorefrontIdentityPatch;
+        await file.deposer('storefront.identity', PID_BOUTIQUE, { patch: { ...avant, ...patch } });
+        rafraichirAttentes();
+        setToast(t('attente.boutique_garde'));
+        return 'attente';
+      }
       // PERSONNALISER-HONESTY-1 — the reason earns its own sentence, and only a
       // genuinely transient one earns « Réessayez dans un moment » (see
       // `saveRefusalToastKey`: an unknown reason is treated as permanent).
       setToast(t(saveRefusalToastKey(res.reason)));
       return false;
     },
-    [service, identity, liveStorefront],
+    [service, identity, liveStorefront, rafraichirAttentes],
   );
   useEffect(() => {
     let live = true;
@@ -1523,14 +1562,16 @@ export default function App() {
    */
   function marginOf(id: string, basePrice: number, commission: number) {
     const cap = markupCap(basePrice);
-    // PRIX-SIGNE-1 — until she touches the marge THIS session, a product with
-    // a SIGNED price shows that price: the cliente row is the Worker's figure,
-    // the marge shown is what that figure implies over today's base (clamped
-    // to the control's range). Once she moves the control, the arithmetic
-    // answers her in place, as before — the frozen-marge question (does a
-    // moved slider re-sign?) is journalled and the founder's, unchanged here.
+    // PRIX-SIGNE-1 — a product with a SIGNED price shows that price: the
+    // cliente row is the Worker's figure, the marge shown is what that figure
+    // implies over today's base (clamped to the control's range).
+    // REVENDEUSE-VRAIE-1 (AUDIT-3 A-01) — ALWAYS, not « until she moves the
+    // control »: nothing re-signs a published product (re-pricing is the
+    // founder's open call), so a moved figure was a price no link charges —
+    // on her card AND in the message to her cliente. Her card no longer
+    // offers the control on a signed product (`VitrineCard` `signe`).
     const signe = prixSignes[id];
-    if (markups[id] === undefined && signe !== undefined) {
+    if (signe !== undefined) {
       const implique = Math.max(0, Math.min(cap, signe - basePrice));
       return { ...marginBreakdown(basePrice, commission, implique), client: signe };
     }
@@ -2169,11 +2210,16 @@ export default function App() {
   const annulerAttente = useCallback((pid: string) => {
     const file = fileAttente.current;
     if (file === null) return;
-    void file.abandonner(pid).then(() => {
+    void file.abandonner(pid).then(async () => {
       rafraichirAttentes();
       setToast(t('attente.annule'));
+      // A cancelled boutique change: her screens read the shop as stored again.
+      if (pid === PID_BOUTIQUE && service !== null && identity !== null && identity !== undefined) {
+        const lu = await service.getById(identity.storefrontId);
+        if (lu.ok && lu.value !== undefined) setLiveStorefront({ ...lu.value });
+      }
     });
-  }, [rafraichirAttentes]);
+  }, [rafraichirAttentes, service, identity]);
   /**
    * ═══ FILE-ATTENTE-1 — THE REPLAY ═══
    *
@@ -2216,6 +2262,13 @@ export default function App() {
        */
       const idempotents: { remise: boolean }[] = [];
       const bilan = await file.rejouer(async (entry) => {
+        if (entry.name === 'storefront.identity') {
+          // REVENDEUSE-VRAIE-1 (A-06) — the kept boutique change leaves by the
+          // same port her save uses; the read-back below adopts what was stored.
+          const res = await service.saveIdentity(identity.storefrontId, (entry.payload['patch'] ?? {}) as StorefrontIdentityPatch);
+          if (!res.ok) return verdictReplay(res.reason);
+          return { kind: 'delivered' };
+        }
         const horodatage = new Date().toISOString();
         if (entry.name === 'listing.publish') {
           // The replay ADDRESSES her shop as it is now (the device's identity);
@@ -2282,7 +2335,7 @@ export default function App() {
     });
     return () => abonnement.remove();
   }, [rejouer]);
-  const attenteNonVide = ajoutsEnAttente.size > 0 || retraitsEnAttente.size > 0;
+  const attenteNonVide = ajoutsEnAttente.size > 0 || retraitsEnAttente.size > 0 || identiteEnAttente;
   useEffect(() => {
     if (!attenteNonVide) return;
     const minuteur = setInterval(() => {
@@ -3016,7 +3069,7 @@ export default function App() {
               {/* FILE-ATTENTE-1 — a refused replay can leave a shop empty AND
                   a failure to read; the banner lives in both branches. */}
               <AttenteBandeau
-                nAttente={ajoutsEnAttente.size + retraitsEnAttente.size}
+                nAttente={ajoutsEnAttente.size + retraitsEnAttente.size + (identiteEnAttente ? 1 : 0)}
                 echecs={echecsAttente}
                 nomDe={nomAttente}
                 rejeu={rejeu}
@@ -3110,7 +3163,7 @@ export default function App() {
                   </Pressable>
                   <Text style={styles.noteLine}>{t('vitrine.sous_titre')}</Text>
                   <AttenteBandeau
-                    nAttente={ajoutsEnAttente.size + retraitsEnAttente.size}
+                    nAttente={ajoutsEnAttente.size + retraitsEnAttente.size + (identiteEnAttente ? 1 : 0)}
                     echecs={echecsAttente}
                     nomDe={nomAttente}
                     rejeu={rejeu}
@@ -3139,6 +3192,7 @@ export default function App() {
                     attente={attenteDe(item.productVersionId)}
                     onAnnulerAttente={annulerAttente}
                     rejeu={rejeu}
+                    signe={prixSignes[item.productVersionId] !== undefined}
                   />
                 );
               }}
@@ -3209,7 +3263,6 @@ export default function App() {
                   <View style={styles.ogBadgeRow}>
                     <StatusChip tone="ok" label={t('share.livre_sera')} />
                   </View>
-                  <Text style={styles.ogSigned}>{t('share.og_signe')}</Text>
                 </Card>
 
                 {/* reseller-only: her net — « jamais visible par la cliente » */}
@@ -3422,7 +3475,11 @@ export default function App() {
             onClose={back}
             onToast={setToast}
             onPublishOnline={publishOnline}
-            onRecommencer={() => { void recommencer(); }}
+            // REVENDEUSE-VRAIE-1 (AUDIT-3 A-05) — offered only on the road it can
+            // serve: no account yet. With an account her address cannot change
+            // here, so the row could only refuse her; while the account is still
+            // being read from the phone, nothing is offered yet.
+            onRecommencer={compte === null ? () => { void recommencer(); } : undefined}
             onListStorefronts={listOnline}
             serviceUnconfigured={service === null}
             // PERSONNALISER-REAL-1 — HER shop, read back from the service, and the
@@ -3430,6 +3487,7 @@ export default function App() {
             // screens on their local draft, which the K1 note states plainly.
             storefront={liveStorefront ?? undefined}
             onSaveIdentity={saveIdentity}
+            identiteEnAttente={identiteEnAttente}
             savesPersist={liveStorefront !== null && liveStorefront !== undefined}
             // Her shop EXISTS (the admin list saw it) but its settings have not
             // loaded yet — a different sentence from « you are not online yet ».
@@ -3981,12 +4039,6 @@ const styles = StyleSheet.create({
   // ── GAINS frame (planche L641–677) — the accent pending hero (magenta card) ──
   gainsHeroCard: { backgroundColor: shopColour.primary, borderColor: shopColour.primary },
   ogBadgeRow: { flexDirection: 'row', paddingTop: spacing.xs },
-  ogSigned: {
-    color: sharedColour.sub,
-    fontFamily: TEXT_FAMILY,
-    fontSize: rmax(t2.scale.body.size),
-    paddingTop: spacing.xs,
-  },
   ogValidite: {
     color: sharedColour.sub,
     fontFamily: TEXT_FAMILY,

@@ -246,3 +246,36 @@ describe('every double is CERTIFIED to what the app imports', () => {
     expect(src).toContain('may NEVER\n *   claim anything about appearance');
   });
 });
+
+describe('the faked network keeps the timing a walk asserts', () => {
+  it('a HELD route does not answer until released, and a throwing route rejects like a phone with no network', async () => {
+    const { wire } = await import('./rendu');
+    let relacher: (() => void) | undefined;
+    wire([
+      (path) =>
+        path === '/tenu'
+          ? new Promise((resolve) => {
+              relacher = () => resolve({ status: 200, json: { status: 'saved' } });
+            })
+          : null,
+      (path) => {
+        if (path === '/coupe') throw new TypeError('Network request failed');
+        return null;
+      },
+    ]);
+    const f = (globalThis as unknown as { fetch: (u: string) => Promise<Response> }).fetch;
+    let repondu = false;
+    const tenu = f('https://shop.test/tenu').then((r) => {
+      repondu = true;
+      return r;
+    });
+    for (let i = 0; i < 5; i += 1) await Promise.resolve();
+    expect(repondu, 'an answer arrived before the route released it').toBe(false);
+    relacher!();
+    const r = await tenu;
+    expect(r.status).toBe(200);
+    expect(await r.json()).toEqual({ status: 'saved' });
+    await expect(f('https://shop.test/coupe')).rejects.toThrow('Network request failed');
+    delete (globalThis as { fetch?: unknown }).fetch;
+  });
+});

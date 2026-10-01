@@ -363,8 +363,11 @@ describe('PERSONNALISER-REAL-1 — the wiring (source-pinned)', () => {
   });
 
   it('EVERY EDIT PERSISTS — setSf saves every presentation field, never a subset', () => {
-    const setSf = /const setSf = \(next: Storefront, opts\?[\s\S]*?\n  \};/.exec(screens)?.[0] ?? '';
-    expect(setSf).toContain('onSaveIdentity?.(');
+    // REVENDEUSE-VRAIE-1 (A-03): the save is `enregistrer` (service first, then
+    // her screen) and the patch it sends is built by `patchDe`.
+    const enregistrer = /const enregistrer = async \(next: Storefront, opts\?[\s\S]*?\n  \};/.exec(screens)?.[0] ?? '';
+    expect(enregistrer).toContain('await onSaveIdentity(patchDe(next, opts))');
+    const setSf = /const patchDe = \(next: Storefront, opts\?[\s\S]*?\n  \}\);/.exec(screens)?.[0] ?? '';
     // zone joined via VITRINE-QUARTIER-1; sections LEFT with the K6 editor
     // (founder order 2026-08-13 — the wire still accepts the field, the app
     // simply no longer edits it, so it must not ride and half-overwrite).
@@ -424,7 +427,7 @@ describe('PERSONNALISER-REAL-1 — the demo seed can never be saved over her sho
     // the OLD gate — a different read — must not survive anywhere in the handler
     expect(handler).not.toMatch(/liveShop === null \|\| liveShop === undefined/);
     // …and the callback re-runs when that read changes, or the gate reads stale
-    expect(handler).toMatch(/\[service, identity, liveStorefront\]/);
+    expect(handler).toMatch(/\[service, identity, liveStorefront, rafraichirAttentes\]/);
   });
 
   it('« ce sera gardé » TRACKS THE SAME READ, so the note cannot promise what the gate refuses', () => {
@@ -459,15 +462,18 @@ describe('PERSONNALISER-REAL-1 — the demo seed can never be saved over her sho
 
   it('K5 ▲▼ PERSISTS — the order rides ONLY the save that changes it', () => {
     // it must reach the wire (the silent no-op)…
-    expect(screens).toMatch(/onMove=\{\(pid, dir\) => setSf\(moveItem\(sf, pid, dir\), \{ withOrder: true \}\)\}/);
+    expect(screens).toMatch(/onMove=\{\(pid, dir\) => void enregistrer\(moveItem\(sf, pid, dir\), \{ withOrder: true \}\)\}/);
     expect(screens).toMatch(/opts\?\.withOrder === true \? \{ curatedItems: next\.curatedItems \}/);
     // …but NOT on every save: a stale membership would refuse an unrelated edit
-    const setSf = /const setSf = \(next: Storefront, opts\?[\s\S]*?\n  \};/.exec(screens)?.[0] ?? '';
+    const setSf = /const patchDe = \(next: Storefront, opts\?[\s\S]*?\n  \}\);/.exec(screens)?.[0] ?? '';
+    expect(setSf.length).toBeGreaterThan(0);
     expect(setSf).not.toMatch(/^\s+curatedItems: next\.curatedItems,$/m);
   });
 
   it('K2 NEVER TELLS AN ALREADY-PUBLISHED SELLER TO PUBLISH — three states, three sentences', () => {
-    expect(screens).toMatch(/savesPersist !== false\s*\n\s*\? t\(r\.toastKey \?\? 'k\.toast_enregistre'\)\s*\n\s*: shopIsLive === true\s*\n\s*\? t\('k\.enreg\.pas_charge'\)\s*\n\s*: t\('k\.enreg\.brouillon_toast'\)/);
+    // REVENDEUSE-VRAIE-1 (A-03): « Enregistré » only on the service's yes; a
+    // draft is said as a draft — pas_charge when her shop exists, brouillon when not.
+    expect(screens).toMatch(/if \(issue === true\) onToast\(t\(r\.toastKey \?\? 'k\.toast_enregistre'\)\);\s*\n\s*else if \(issue === 'brouillon'\) onToast\(shopIsLive === true \? t\('k\.enreg\.pas_charge'\) : t\('k\.enreg\.brouillon_toast'\)\);/);
   });
 
   // (The section-rename commit pin left with its screen — SECTIONS RETIRÉES,

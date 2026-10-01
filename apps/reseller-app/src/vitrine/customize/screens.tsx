@@ -53,7 +53,7 @@ import { fromCatalog, type KCatalogItem } from './catalog';
 import { vignette } from '../vignette';
 // PERSONNALISER-REAL-1 — the WIRE shape, imported rather than re-declared: two
 // copies of a patch shape are two shapes that drift on the first field added.
-import type { StorefrontIdentityPatch } from '../service';
+import type { SaveIssue, StorefrontIdentityPatch } from '../service';
 import { pickPhoto } from './photo-pick';
 import { cadreRatio } from '../../ui/cadre';
 import { EnteteApercu } from './screens-apercu';
@@ -91,7 +91,7 @@ export interface CustomizeProps {
   onListStorefronts?: () => void;
   /** RECOMMENCER — a fresh identity + a new storefront under the shop's current
    *  name, so the address reads that name. Absent ⇒ the action stays hidden. */
-  onRecommencer?: () => void;
+  onRecommencer?: (() => void) | undefined;
   /** RESELLER-UX-1 item 6 — her shop's REAL slug once it is live (read back from
    * the service, never computed). Present ⇒ the publish CTA is retired and
    * « voir » opens the public page; absent ⇒ first-time flow, unchanged. */
@@ -101,7 +101,10 @@ export interface CustomizeProps {
    *  the screens stay local-only, exactly as they were. */
   /** PERSONNALISER-HONESTY-1 — resolves TRUE only when the service accepted and
    *  the read-back landed. A screen may not draw a stored state without it. */
-  onSaveIdentity?: (patch: StorefrontIdentityPatch) => Promise<boolean>;
+  onSaveIdentity?: (patch: StorefrontIdentityPatch) => Promise<SaveIssue>;
+  /** REVENDEUSE-VRAIE-1 (AUDIT-3 A-06) — a change of hers waits on the phone
+   *  for the network (queued = pending, never done): K1 says so. */
+  identiteEnAttente?: boolean;
   /** Does a save actually reach the service today? False before she goes live —
    *  stated on K1 rather than left for her to discover when it vanishes. */
   savesPersist?: boolean;
@@ -208,7 +211,7 @@ function KHeader({ title, onBack, pill }: { title: string; onBack: () => void; p
 
 /* ------------------------------------------------------------- the stack -- */
 
-export function CustomizeStack({ onClose, onToast, storefront, onStorefrontChange, onPublishOnline, onRecommencer, onListStorefronts, serviceUnconfigured, liveSlug, onOpenBoutique, onSaveIdentity, savesPersist, shopIsLive, onUploadCover, onUploadAvatar, catalog }: CustomizeProps) {
+export function CustomizeStack({ onClose, onToast, storefront, onStorefrontChange, onPublishOnline, onRecommencer, onListStorefronts, serviceUnconfigured, liveSlug, onOpenBoutique, onSaveIdentity, savesPersist, shopIsLive, onUploadCover, onUploadAvatar, catalog, identiteEnAttente }: CustomizeProps) {
   const [route, setRoute] = useState<KRoute>('k1');
   const [sf, setSfRaw] = useState<Storefront>(storefront ?? DEFAULT_STOREFRONT);
   // PERSONNALISER-HONESTY-1 — which header save is in flight, so K4 can say
@@ -264,10 +267,30 @@ export function CustomizeStack({ onClose, onToast, storefront, onStorefrontChang
    * `...(sections !== undefined ? { sections } : {})`), so a shop already
    * holding sections keeps them through every save made here.
    */
-  const setSf = (next: Storefront, opts?: { readonly withOrder?: boolean }): void => {
+  const appliquer = (next: Storefront): void => {
     setSfRaw(next);
     onStorefrontChange?.(next);
-    onSaveIdentity?.({
+  };
+  /**
+   * REVENDEUSE-VRAIE-1 (AUDIT-3 A-03) — THE SERVICE FIRST, THEN HER SCREEN.
+   * This used to draw her change and announce it before the save had an
+   * answer; a refused save left the unsaved text standing as hers. Now her
+   * screen takes the change only when the service has it (`true`) or when
+   * the phone keeps it for the network (`'attente'`, A-06); a refusal leaves
+   * the screen on what is stored, and the App says why. Before her shop is
+   * live (`savesPersist === false`) there is nothing to save to: the change
+   * is her draft, applied here and said as one by the caller.
+   */
+  const enregistrer = async (next: Storefront, opts?: { readonly withOrder?: boolean }): Promise<SaveIssue | 'brouillon'> => {
+    if (onSaveIdentity === undefined || savesPersist === false) {
+      appliquer(next);
+      return 'brouillon';
+    }
+    const issue = await onSaveIdentity(patchDe(next, opts));
+    if (issue !== false) appliquer(next);
+    return issue;
+  };
+  const patchDe = (next: Storefront, opts?: { readonly withOrder?: boolean }): StorefrontIdentityPatch => ({
       name: next.name,
       tagline: next.tagline,
       bio: next.bio,
@@ -280,8 +303,7 @@ export function CustomizeStack({ onClose, onToast, storefront, onStorefrontChang
       // curation mismatch it had nothing to do with. The order rides only the
       // save that actually changes it. The service accepts a PERMUTATION only.
       ...(opts?.withOrder === true ? { curatedItems: next.curatedItems } : {}),
-    });
-  };
+  });
   const th = THEMES[sf.theme];
 
   /**
@@ -370,13 +392,16 @@ export function CustomizeStack({ onClose, onToast, storefront, onStorefrontChang
    * between save and re-read; the adopted service truth then arrives via
    * `storefront`, and a refusal lands as a toast through the App's save seam.
    */
-  const saveFraming = (kind: FrameKind, order: PhotoFocus | null): void => {
+  const saveFraming = async (kind: FrameKind, order: PhotoFocus | null): Promise<void> => {
     const next: Storefront =
       kind === 'cover' ? { ...sf, cover: withFocus(sf.cover, order) } : { ...sf, avatar: withFocus(sf.avatar, order) };
-    setSfRaw(next);
-    onStorefrontChange?.(next);
-    onSaveIdentity?.(kind === 'cover' ? { coverFocus: order } : { avatarFocus: order });
-    onToast(t(order === null ? 'k.cadrage.toast_defaut' : 'k.cadrage.toast'));
+    if (onSaveIdentity === undefined) return;
+    // REVENDEUSE-VRAIE-1 (A-03) — « Cadrage enregistré » only once it is; a
+    // refusal keeps the sheet open on her framing (the App says why).
+    const issue = await onSaveIdentity(kind === 'cover' ? { coverFocus: order } : { avatarFocus: order });
+    if (issue === false) return;
+    appliquer(next);
+    if (issue === true) onToast(t(order === null ? 'k.cadrage.toast_defaut' : 'k.cadrage.toast'));
     setFraming(null);
   };
 
@@ -403,32 +428,30 @@ export function CustomizeStack({ onClose, onToast, storefront, onStorefrontChang
           saveWired={onSaveIdentity !== undefined}
           savesPersist={savesPersist ?? false}
           shopIsLive={shopIsLive ?? false}
+          enAttente={identiteEnAttente ?? false}
         />
       )}
       {route === 'k2' && (
         <K2
           sf={sf}
           onBack={back}
-          onSave={(patch) => {
+          onSave={async (patch) => {
             const r = saveIdentity(sf, patch);
-            if (r.ok) {
-              setSf(r.next);
-              // « Enregistré — visible immédiatement » is TRUE only when the save
-              // reaches the service. Before she is live it is a draft, and saying
-              // « visible » would be the fabricated success this project refuses.
-              // THREE STATES, THREE SENTENCES (verifier finding): saved for real ·
-              // her shop exists but its settings have not arrived · not live yet.
-              // Keying only on `savesPersist` told an ALREADY-PUBLISHED seller to
-              // publish, because that flag now means « settings loaded ».
-              onToast(
-                savesPersist !== false
-                  ? t(r.toastKey ?? 'k.toast_enregistre')
-                  : shopIsLive === true
-                    ? t('k.enreg.pas_charge')
-                    : t('k.enreg.brouillon_toast'),
-              );
-              setRoute('k1');
-            }
+            if (!r.ok) return;
+            // « Enregistré — visible immédiatement » is TRUE only when the save
+            // reaches the service — and now only once it HAS (REVENDEUSE-VRAIE-1,
+            // A-03): K2 says « Envoi en cours… » meanwhile. Before she is live it
+            // is a draft, and saying « visible » would be the fabricated success
+            // this project refuses. THREE STATES, THREE SENTENCES (verifier
+            // finding): saved for real · her shop exists but its settings have
+            // not arrived · not live yet. A refusal keeps her on K2 with what
+            // she typed (the App says why); a change the phone keeps for the
+            // network goes back to K1, which says it waits.
+            const issue = await enregistrer(r.next);
+            if (issue === false) return;
+            if (issue === true) onToast(t(r.toastKey ?? 'k.toast_enregistre'));
+            else if (issue === 'brouillon') onToast(shopIsLive === true ? t('k.enreg.pas_charge') : t('k.enreg.brouillon_toast'));
+            setRoute('k1');
           }}
         />
       )}
@@ -475,8 +498,11 @@ export function CustomizeStack({ onClose, onToast, storefront, onStorefrontChang
           }
           onBack={back}
           onPick={(key) => {
-            setSf(setTheme(sf, key));
-            onToast(tf('k.theme.toast', { nom: THEMES[key].name }));
+            // REVENDEUSE-VRAIE-1 (A-03) — « appliqué » once the service has it.
+            void (async () => {
+              const issue = await enregistrer(setTheme(sf, key));
+              if (issue === true || issue === 'brouillon') onToast(tf('k.theme.toast', { nom: THEMES[key].name }));
+            })();
           }}
           enteteEnCours={enteteEnCours}
           onPickEntete={(key) => {
@@ -507,10 +533,10 @@ export function CustomizeStack({ onClose, onToast, storefront, onStorefrontChang
           onBack={back}
           onPin={(pid, inStock) => {
             const r = togglePin(sf, pid, inStock);
-            if (r.ok) setSf(r.next);
+            if (r.ok) void enregistrer(r.next);
             else onToast(t(r.toastKey));
           }}
-          onMove={(pid, dir) => setSf(moveItem(sf, pid, dir), { withOrder: true })}
+          onMove={(pid, dir) => void enregistrer(moveItem(sf, pid, dir), { withOrder: true })}
           catalog={catalog}
         />
       )}
@@ -529,7 +555,7 @@ export function CustomizeStack({ onClose, onToast, storefront, onStorefrontChang
 
 /* ------------------------------------------------------------------- K1 -- */
 
-function K1({ sf, th, onBack, go, onPublishOnline, onRecommencer, onListStorefronts, serviceUnconfigured, liveSlug, onOpenBoutique, saveWired, savesPersist, shopIsLive, catalogTotal }: { sf: Storefront; th: (typeof THEMES)[VitrineThemeKey]; onBack: () => void; go: (r: KRoute) => void; onPublishOnline?: (() => void) | undefined; onRecommencer?: (() => void) | undefined; onListStorefronts?: (() => void) | undefined; serviceUnconfigured?: boolean; liveSlug?: string | undefined; onOpenBoutique?: ((slug: string) => void) | undefined; saveWired?: boolean; savesPersist?: boolean; shopIsLive?: boolean; catalogTotal?: number | undefined }) {
+function K1({ sf, th, onBack, go, onPublishOnline, onRecommencer, onListStorefronts, serviceUnconfigured, liveSlug, onOpenBoutique, saveWired, savesPersist, shopIsLive, catalogTotal, enAttente }: { sf: Storefront; th: (typeof THEMES)[VitrineThemeKey]; onBack: () => void; go: (r: KRoute) => void; onPublishOnline?: (() => void) | undefined; onRecommencer?: (() => void) | undefined; onListStorefronts?: (() => void) | undefined; serviceUnconfigured?: boolean; liveSlug?: string | undefined; onOpenBoutique?: ((slug: string) => void) | undefined; saveWired?: boolean; savesPersist?: boolean; shopIsLive?: boolean; catalogTotal?: number | undefined; enAttente?: boolean }) {
   // RECOMMENCER — the two-step stays local to K1: a destructive-adjacent act
   // needs its consequences read before its button, and a stray tap must cost
   // nothing (« Garder mon adresse » is the way out).
@@ -558,6 +584,13 @@ function K1({ sf, th, onBack, go, onPublishOnline, onRecommencer, onListStorefro
           </View>
         }
       />
+      {/* REVENDEUSE-VRAIE-1 (AUDIT-3 A-06) — queued is pending, never done:
+          a change kept on the phone for the network is SAID here, first. */}
+      {enAttente === true ? (
+        <View style={S.noteRose}>
+          <Text style={S.noteRoseText}>{t('attente.bandeau_un')}</Text>
+        </View>
+      ) : null}
       {/* C-K1 — carte aperçu en direct */}
       <View style={S.previewCard}>
         <View style={[S.previewCover, { backgroundColor: th.soft }]}>
@@ -667,7 +700,12 @@ function K1({ sf, th, onBack, go, onPublishOnline, onRecommencer, onListStorefro
 
 /* ------------------------------------------------------------- K2 / K2b -- */
 
-function K2({ sf, onBack, onSave }: { sf: Storefront; onBack: () => void; onSave: (p: { name: string; tagline: string; bio: string; zone: string }) => void }) {
+function K2({ sf, onBack, onSave }: { sf: Storefront; onBack: () => void; onSave: (p: { name: string; tagline: string; bio: string; zone: string }) => Promise<void> | void }) {
+  // REVENDEUSE-VRAIE-1 (A-03) — while the service has not answered, the button
+  // says so and cannot be pressed twice; a refusal gives it back with her text.
+  const [envoi, setEnvoi] = useState(false);
+  const monte = useRef(true);
+  useEffect(() => () => { monte.current = false; }, []);
   const [name, setName] = useState(sf.name);
   const [tagline, setTagline] = useState(sf.tagline);
   const [bio, setBio] = useState(sf.bio);
@@ -724,13 +762,18 @@ function K2({ sf, onBack, onSave }: { sf: Storefront; onBack: () => void; onSave
         <Text style={S.noteRoseText}>{tf('k.identite.note_slug', { slug: sf.slug === '' ? '/v/…' : `/v/${sf.slug}` })}</Text>
       </View>
       <Pressable
-        style={({ pressed }) => [S.cta, invalid && S.ctaDisabled, pressed && !invalid && S.pressed]}
-        disabled={invalid}
-        onPress={() => onSave({ name, tagline, bio, zone })}
+        style={({ pressed }) => [S.cta, (invalid || envoi) && S.ctaDisabled, pressed && !invalid && !envoi && S.pressed]}
+        disabled={invalid || envoi}
+        onPress={() => {
+          setEnvoi(true);
+          void Promise.resolve(onSave({ name, tagline, bio, zone })).finally(() => {
+            if (monte.current) setEnvoi(false);
+          });
+        }}
         accessibilityRole="button"
-        accessibilityState={{ disabled: invalid }}
+        accessibilityState={{ disabled: invalid || envoi }}
       >
-        <Text style={[S.ctaText, invalid && S.ctaTextDisabled]}>{t('k.enregistrer')}</Text>
+        <Text style={[S.ctaText, (invalid || envoi) && S.ctaTextDisabled]}>{envoi ? t('k.publier.envoi') : t('k.enregistrer')}</Text>
       </Pressable>
     </ScrollView>
   );
