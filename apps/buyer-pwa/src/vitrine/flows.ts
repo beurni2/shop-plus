@@ -32,7 +32,9 @@ import {
   renderListeModif,
   renderListeGeo,
   renderListeVoix,
+  renderArticleAbsent,
   renderVitrineEmpty,
+  renderVitrineIndisponible,
   renderVitrineInvalid,
   renderVitrineOffline,
   renderVitrinePause,
@@ -212,6 +214,67 @@ export function harnessProfil(
   return 'default';
 }
 
+/** ONE sheet, however many mounts: the signed road re-mounts on « Réessayer »
+ *  (LIEN-HORS-LIGNE-1), and a second identical sheet would only pile up. */
+function poserFeuilleVitrine(): void {
+  if (document.head.querySelector('style[data-vitrine]') === null) {
+    const style = document.createElement('style');
+    style.setAttribute('data-vitrine', '');
+    style.textContent = VITRINE_STYLES;
+    document.head.appendChild(style);
+  }
+}
+
+/**
+ * VITRINE-VRAIE-1 (AUDIT-3 B-06) — the product link she was sent draws its
+ * frame AT ONCE: the boutique skeleton, while the read is out. The link used
+ * to await the read with nothing on screen — a white page for as long as a
+ * slow or stalled network took. Returns the remover the road calls when the
+ * answer (or the time limit) lands.
+ */
+export function monterAttenteVitrine(host: HTMLElement): () => void {
+  poserFeuilleVitrine();
+  const root = document.createElement('div');
+  root.className = 'vt-root';
+  root.setAttribute('data-screen', 'vitrine');
+  root.setAttribute('data-etat', 'loading');
+  applyTheme(root, DEFAULT_THEME);
+  root.innerHTML = renderVitrineSkeleton();
+  host.appendChild(root);
+  return () => root.remove();
+}
+
+/**
+ * VITRINE-VRAIE-1 (AUDIT-3 B-02, B-04) — the product link's article is not on
+ * sale in her shop (`retire`), or is hers but could not be described just now
+ * (`indisponible`). Drawn in HER colours with her name; « Voir la boutique »
+ * leads to her shop, « Réessayer » re-runs the link's own road.
+ */
+export function monterArticleAbsent(
+  host: HTMLElement,
+  carte: {
+    readonly kind: 'retire' | 'indisponible';
+    readonly nom: string;
+    readonly theme: Parameters<typeof applyTheme>[1];
+    readonly voirBoutique: () => void;
+    readonly reessayer: () => void;
+  },
+): void {
+  poserFeuilleVitrine();
+  const root = document.createElement('div');
+  root.className = 'vt-root';
+  root.setAttribute('data-screen', 'vitrine');
+  root.setAttribute('data-etat', 'article');
+  applyTheme(root, carte.theme);
+  root.innerHTML = renderArticleAbsent(carte.kind, carte.nom);
+  root.addEventListener('click', (ev) => {
+    const action = (ev.target as HTMLElement).closest('[data-action]')?.getAttribute('data-action');
+    if (action === 'voir-boutique') carte.voirBoutique();
+    else if (action === 'reessayer') carte.reessayer();
+  });
+  host.appendChild(root);
+}
+
 const SKELETON_MS = 750;
 const RETRY_MS = 900;
 const enum Never {}
@@ -227,14 +290,7 @@ export function mountVitrine(
    *  renders the creator's own band from the device-local record. */
   listeToken?: string,
 ): void {
-  // ONE sheet, however many mounts: the signed road re-mounts on « Réessayer »
-  // (LIEN-HORS-LIGNE-1), and a second identical sheet would only pile up.
-  if (document.head.querySelector('style[data-vitrine]') === null) {
-    const style = document.createElement('style');
-    style.setAttribute('data-vitrine', '');
-    style.textContent = VITRINE_STYLES;
-    document.head.appendChild(style);
-  }
+  poserFeuilleVitrine();
 
   // ENTETES-A/B — the five headers' sheet, its own element so the vitrine sheet
   // stays byte-unchanged. Every rule is scoped under a per-style root class
@@ -574,16 +630,21 @@ export function mountVitrine(
         // described products, THAT list decides; otherwise membership does.
         const described = resolu!.products;
         const showable = described !== undefined ? described.length : sf!.curatedItems.length;
+        // VITRINE-VRAIE-1 (AUDIT-3 B-01) — nothing shown BECAUSE nothing could
+        // be described just now is not an empty shop: say so, with « Réessayer ».
+        const incomplet = resolu!.incomplet === true;
         root.innerHTML =
           showable === 0
-            ? renderVitrineEmpty(sf!, resolu!.trust, { fromProduct }, entete)
+            ? incomplet
+              ? renderVitrineIndisponible(sf!, resolu!.trust, { fromProduct }, entete)
+              : renderVitrineEmpty(sf!, resolu!.trust, { fromProduct }, entete)
             : renderVitrineReady(
                 sf!,
                 resolu!.trust,
                 // PANIER-BOUTON-1 — the resolved WhatsApp contact no longer
                 // rides into the grid (no tile tap); it still reaches the fiche
                 // through main.ts, where the buyer's own page keeps the option.
-                { fromProduct },
+                { fromProduct, incomplet, listeEnTete: listeToken !== undefined },
                 resolu!.notes,
                 described,
                 entete,

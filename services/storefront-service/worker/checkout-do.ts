@@ -243,6 +243,9 @@ export class CheckoutDO {
         batch[QUOTE_FULFILLMENT_KEY] = {
           productVersionId: args.request.pid,
           zoneTo: args.request.zoneTo,
+          // VITRINE-VRAIE-1 — the boutique this quote was asked on, so the
+          // order can refuse a liste that belongs to another one.
+          slug: args.request.slug,
           offerVersion: args.entry.listing.offerVersion,
         };
       }

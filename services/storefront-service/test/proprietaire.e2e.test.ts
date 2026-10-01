@@ -608,7 +608,7 @@ describe('RESELLER-AUTH-1 — a session creates, and creates only as herself', (
     unitaireSuspendu.clear();
   }, 30_000);
 
-  it('VITRINE-LECTURE-1 — past the ceiling the page describes MAX_PRODUITS_DECRITS products, in her order, and says so — instead of throwing past the platform budget and dropping the rest in silence', async () => {
+  it('VITRINE-LECTURE-1 → VITRINE-VRAIE-1 — past the ceiling ONE read describes MAX_PRODUITS_DECRITS products, in her order, and says where the next page starts — never throwing past the platform budget, never dropping the rest in silence', async () => {
     // The stub's faults are reset HERE too, not only at the previous case's
     // tail: a case that fails mid-way leaves them set, and this case would
     // then fail for its neighbour's reason (seen under mutation).
@@ -625,7 +625,9 @@ describe('RESELLER-AUTH-1 — a session creates, and creates only as herself', (
     expect(MAX_PRODUITS_DECRITS, 'the ceiling this case drives past').toBeLessThan(22);
     expect(produits).toHaveLength(MAX_PRODUITS_DECRITS);
     expect(produits.map((p) => p.pid)).toEqual(Array.from({ length: MAX_PRODUITS_DECRITS }, (_, i) => `pv-own-${i + 1}`));
-    expect(page.json['incomplet']).toBe(true);
+    // VITRINE-VRAIE-1 — a page boundary is a NEXT PAGE, not a failure.
+    expect(page.json['suite']).toBe(MAX_PRODUITS_DECRITS);
+    expect(page.json['incomplet']).toBeUndefined();
     expect(lecturesCollection, 'still ONE collection read at the ceiling').toBe(1);
     // THE BUDGET, on the worst path: the collection FAILS, every described
     // pid falls to the single road, and the page still answers — 4 + 3·15
@@ -638,7 +640,7 @@ describe('RESELLER-AUTH-1 — a session creates, and creates only as herself', (
     expect(lecturesCollection).toBe(1);
     expect(lecturesUnitaires, 'every described pid asked alone').toBe(MAX_PRODUITS_DECRITS);
     expect((pire.json['products'] as { pid: string }[]).length).toBe(MAX_PRODUITS_DECRITS);
-    expect(pire.json['incomplet']).toBe(true);
+    expect(pire.json['suite']).toBe(MAX_PRODUITS_DECRITS);
     collectionEnPanne = false;
   }, 60_000);
 });

@@ -388,6 +388,17 @@ name = "LIMITE_CONNEXIONS_CLIENTES"
 namespace_id = "1006"
 simple = { limit = 60, period = 60 }
 
+# VITRINE-VRAIE-1 — the public reads (`GET /s/*`, `GET /listes/*`), per
+# address: §4.1 « La résolution est côté serveur et limitée en débit ». A short
+# code is guessable (PRENOM-NNNN) and a boutique read answers her name, quartier,
+# WhatsApp and prices, so a sweep must meet a ceiling. Generous: a big shop is
+# read in pages (14 products each) and a carrier puts a neighbourhood behind one
+# address. Fails OPEN, like every limiter here.
+[[ratelimits]]
+name = "LIMITE_LECTURES"
+namespace_id = "1007"
+simple = { limit = 600, period = 60 }
+
 # ═══════════════════════════════════════════════════════════════════════════
 # READINESS-RETURN-1c — THE RETURN LEG'S INTAKE SECRET.
 # ═══════════════════════════════════════════════════════════════════════════

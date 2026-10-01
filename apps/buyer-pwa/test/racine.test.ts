@@ -66,7 +66,7 @@ describe('renderRacine — one sentence, one field, one act; offline is a design
   it('carries the field with a label, the ONE primary action, and the refusal hidden until earned', () => {
     const html = renderRacine({ enLigne: true });
     expect(html).toContain('data-screen="racine"');
-    expect(html).toMatch(/<label class="field"><span class="field-label">Le lien de la boutique<\/span>/);
+    expect(html).toMatch(/<label class="field"><span class="field-label">Le lien ou le code de la boutique<\/span>/);
     expect(html).toMatch(/data-role="racine-lien"[^>]*aria-describedby="racine-refus"/);
     expect(html).toContain('data-action="racine-ouvrir"');
     expect(html.match(/class="primary-action"/g)).toHaveLength(1);

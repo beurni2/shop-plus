@@ -23,10 +23,10 @@ import { renderC1 } from '../src/cliente/screens';
  * if it has one not just a la une product. » So the pin below flipped — EVERY
  * in-stock card carrying a clip is a `<video>`, hero or grid. The 1GB-Android
  * promise is kept by the OBSERVER (at most one clip plays at a time) and by
- * `preload="metadata"` + poster, not by refusing the element.
+ * `preload="none"` + poster (VITRINE-VRAIE-1), not by refusing the element.
  *
  * What must hold: a product WITH a clip renders as a `<video>` — muted (the
- * only autoplay that respects anyone), playsinline, loop, `preload="metadata"`,
+ * only autoplay that respects anyone), playsinline, loop, `preload="none"`,
  * the hero PHOTO as poster; a product without one renders the photo card
  * byte-for-byte as before; an ÉPUISÉ tile stays a photograph (veiled, muette —
  * a clip playing under the stamp advertises what cannot be bought); and the
@@ -59,9 +59,12 @@ describe('the featured card IS the video hero when a clip exists', () => {
     const html = ready(CLIP);
     const video = html.match(/<video[^>]*>/)?.[0];
     expect(video, 'no <video> on a clip-bearing featured card').toBeDefined();
-    for (const attr of ['muted', 'playsinline', 'loop', 'preload="metadata"', `poster="${HERO}"`, `src="${CLIP}"`, 'data-role="video-hero"']) {
+    // VITRINE-VRAIE-1 (AUDIT-3 B-14): `preload="none"` — no clip byte until the
+    // scroll player starts it, and it never starts one when she asked for less.
+    for (const attr of ['muted', 'playsinline', 'loop', 'preload="none"', `poster="${HERO}"`, `src="${CLIP}"`, 'data-role="video-hero"']) {
       expect(video, attr).toContain(attr);
     }
+    expect(video).not.toContain('preload="metadata"');
   });
 
   it('EVERY card with a clip — hero AND grid (founder order 2026-08-03)', () => {

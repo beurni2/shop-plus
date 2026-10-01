@@ -279,7 +279,8 @@ describe('BUYER-LIVE-WIRE-4 — tapping a REAL tile opens the buyer flow, not th
     expect(render).toMatch(/data-action="produit" data-pid="\$\{esc\(p\.pid\)\}"/);
     const flows = readFileSync(join(__dirname, '..', 'src/vitrine/flows.ts'), 'utf8');
     expect(flows).toMatch(/signedHref\(window\.location\.pathname, slug, pid\)/);
-    expect(main).toMatch(/const pid = params\.get\('pid'\) \|\| defaultPid;/);
+    expect(main).toMatch(/const pidParam = params\.get\('pid'\);/);
+    expect(main).toMatch(/const pid = pidParam \|\| defaultPid;/);
   });
 });
 
@@ -842,7 +843,9 @@ describe('BUYER-LIVE-WIRE-6 — offline is not a wrong link (audit F3)', () => {
     const main = readFileSync(join(__dirname, '..', 'src/main.ts'), 'utf8');
     // PAUSE-VENTE-1 — the pause branch sits FIRST in the same catch (it mounts
     // the pause card and returns); the offline road after it is unchanged.
-    expect(main).toMatch(/resolved = await port\.resolve\(signedSlug\);\s*\} catch \(e\) \{\s*if \(e instanceof VitrinePause\) \{[^}]*mountVitrine\(app as HTMLElement, signedSlug\);\s*return;\s*\}\s*if \(!\(e instanceof VitrineOffline\)\) throw e;\s*mountVitrine\(app as HTMLElement, signedSlug, \{ etat: 'offline', raison: e\.raison, reessayer: \(\) => void monterOffre\(\) \}\);/);
+    // VITRINE-VRAIE-1 — the read now asks for the link's own article(s), and
+    // the waiting frame leaves before either card mounts.
+    expect(main).toMatch(/resolved = await port\.resolve\(signedSlug, demandes\.length > 0 \? \{ pids: demandes \} : undefined\);\s*\} catch \(e\) \{\s*retirerAttente\(\);\s*if \(e instanceof VitrinePause\) \{[^}]*mountVitrine\(app as HTMLElement, signedSlug\);\s*return;\s*\}\s*if \(!\(e instanceof VitrineOffline\)\) throw e;\s*mountVitrine\(app as HTMLElement, signedSlug, \{ etat: 'offline', raison: e\.raison, reessayer: \(\) => void monterOffre\(\) \}\);/);
     expect(flows).toMatch(/if \(harness\.reessayer !== undefined\) harness\.reessayer\(\);/);
   });
 });

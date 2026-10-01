@@ -4,7 +4,7 @@ import { GEO_ZOOM, geoVersMonde, mondeVersGeo } from '../src/geo-carte';
 /**
  * LISTE-ENVIES-1 — THE WALK (the 2026-08-10 screen law, on this repo's own
  * harness: Playwright drives the REAL page in a real browser). Runs against
- * the port-4175 build made with `VITE_STOREFRONT_BASE`, so `resolveListePort`
+ * the port-4176 build made with `VITE_STOREFRONT_BASE`, so `resolveListePort`
  * returns the REAL `httpListePort` — every `/listes*` request is a real
  * `fetch` intercepted here and answered by a scripted service, the
  * checkout-real shape. The `?demo-vitrine=` entry keeps the DEMO storefront
@@ -22,7 +22,9 @@ import { GEO_ZOOM, geoVersMonde, mondeVersGeo } from '../src/geo-carte';
  *     the REAL order create body, and nothing else new.
  */
 
-const BASE = 'http://127.0.0.1:4175';
+// VITRINE-VRAIE-1 — the harness on the real ports (4176): the published-profile
+// build (4175) no longer answers `?demo-signed=` / `?demo-vitrine=`.
+const BASE = 'http://127.0.0.1:4176';
 const TOKEN = 'T'.repeat(32);
 
 const LISTE = {

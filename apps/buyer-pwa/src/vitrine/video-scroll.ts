@@ -15,6 +15,21 @@
 /** The visibility fraction at which a hero starts playing. */
 export const SEUIL_LECTURE = 0.6;
 
+/**
+ * VITRINE-VRAIE-1 (AUDIT-3 B-14) — she asked for less: « réduire les
+ * animations », the data saver, or a 2G link. Then no clip plays and none is
+ * fetched (the elements are `preload="none"`); the poster photograph stands —
+ * the C1 slideshow's own guard (`diapoPermis`), applied to the boutique.
+ */
+export function lectureRetenue(): boolean {
+  const reduit = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const conn =
+    typeof navigator !== 'undefined'
+      ? (navigator as { connection?: { saveData?: boolean; effectiveType?: string } }).connection
+      : undefined;
+  return reduit || conn?.saveData === true || conn?.effectiveType === '2g' || conn?.effectiveType === 'slow-2g';
+}
+
 /** The pure rule, testable without a DOM: play iff mostly visible. */
 export const decideLecture = (ratio: number): 'lire' | 'pause' => (ratio >= SEUIL_LECTURE ? 'lire' : 'pause');
 
@@ -33,6 +48,7 @@ export function mountVideoScroll(root: {
 }): () => void {
   const IO = (globalThis as { IntersectionObserver?: typeof IntersectionObserver }).IntersectionObserver;
   if (IO === undefined) return () => {}; // the poster stands — the photo-only card
+  if (lectureRetenue()) return () => {}; // she asked for less — the poster stands
   const videos = [...root.querySelectorAll('[data-role="video-hero"]')] as (VideoLike & Element)[];
   if (videos.length === 0) return () => {};
   const observer = new IO(

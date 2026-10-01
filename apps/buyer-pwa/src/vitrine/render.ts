@@ -187,15 +187,16 @@ export function hero(sf: Storefront, trust: VitrineTrust, opts: { compact?: bool
     if (sf.bio) panel.push(`<div class="vt-bio"><v>${esc(sf.bio)}</v></div>`);
     if (trust.deliveredCount >= 1) {
       panel.push(
-        `<div class="vt-rep" data-role="reputation"><v>${trust.deliveredCount}</v> ${t('vit.ventes_livrees')}</div>`,
+        `<div class="vt-rep" data-role="reputation"><v>${trust.deliveredCount}</v> ${t(trust.deliveredCount === 1 ? 'vit.vente_livree' : 'vit.ventes_livrees')}</div>`,
       );
     }
   }
   panel.push('</div>');
   // No earned proof AT ALL → the state is named, never left as suspicious blank.
-  // On the PHOTO, as the mockup places it (round 3, founder walk).
+  // On the PHOTO, as the mockup places it (round 3, founder walk). A count the
+  // service did not give is not zero: neither claim is drawn (VITRINE-VRAIE-1).
   const nouvelle =
-    trust.deliveredCount === 0 && trust.reviewCount === 0
+    trust.inconnu !== true && trust.deliveredCount === 0 && trust.reviewCount === 0
       ? `<span class="vt-chip-nouvelle" data-role="chip-nouvelle">${iconStar(12, th.deep)}${t('vit.nouvelle_vendeuse')}</span>`
       : '';
   return [
@@ -369,7 +370,7 @@ function tile(p: VitrineProduct, note: ProductVoiceNote | undefined, slug: strin
  * clips on a 1GB Android is a stutter. That concern is answered by the
  * observer, not by the markup: `video-scroll.ts` plays AT MOST ONE clip at a
  * time (starting one pauses every sibling) and every element is
- * `preload="metadata"` with the photograph as poster — so an unplayed card
+ * `preload="none"` with the photograph as poster — so an unplayed card
  * costs a poster image, exactly what it cost as a photo tile. What the founder
  * asked for and what the phone can carry are the same build.
  *
@@ -383,7 +384,10 @@ function produitArt(p: VitrineProduct, veiled: boolean, taille: TailleArt = 'vig
     const posterSrc = poster !== undefined && poster !== '' ? (taille === 'vignette' ? vignette(poster) : poster) : undefined;
     return [
       '<div class="vt-tile-art vt-tile-art-photo" data-role="tile-video">',
-      `<video class="vt-video-hero" data-role="video-hero" src="${esc(clip)}" muted playsinline loop preload="metadata"${posterSrc !== undefined ? ` poster="${esc(posterSrc)}"` : ''}></video>`,
+      // VITRINE-VRAIE-1 (AUDIT-3 B-14) — `preload="none"`: no clip byte leaves
+      // the network until the scroll player starts it, and it never starts
+      // one when she asked for less (`lectureRetenue`).
+      `<video class="vt-video-hero" data-role="video-hero" src="${esc(clip)}" muted playsinline loop preload="none"${posterSrc !== undefined ? ` poster="${esc(posterSrc)}"` : ''}></video>`,
       '</div>',
     ].join('');
   }
@@ -488,6 +492,13 @@ function orderedProducts(
 export interface VitrineRenderOpts {
   /** ← appears only when arrived from a product page (§4.1). */
   readonly fromProduct: boolean;
+  /** VITRINE-VRAIE-1 (AUDIT-3 B-01) — some of her articles could not be
+   *  described just now: the page says so, with « Réessayer ». */
+  readonly incomplet?: boolean;
+  /** VITRINE-VRAIE-1 (AUDIT-3 B-13) — a friend's liste link: the liste she
+   *  came for leads the page. Absent, her articles lead and the creator's
+   *  invitation follows the first of them. */
+  readonly listeEnTete?: boolean;
   // PANIER-BOUTON-1 (founder 2026-09-20) retired CONTACT-WHATSAPP-2's tile
   // chip: the boutique grid carries no WhatsApp tap; the option lives on the
   // buyer's own product page (CONTACT-WHATSAPP-1, cliente/screens.ts), so the
@@ -1178,13 +1189,23 @@ export function renderVitrineReady(
     parts.push(`<div class="vt-presentation" data-role="vitrine-presentation"><v>${esc(sf.bio)}</v></div>`);
   }
 
-  // LISTE-ENVIES-1 — the liste's slot, ABOVE the panier: a friend who tapped
-  // a shared liste link came for exactly this, so it is the first thing under
-  // the header. FLOWS fills it after mount (the friend's liste is a network
-  // read; the creator's band is drawn from the device-local record) — the
-  // renderer only reserves the place, so a re-render never flashes a stale
-  // liste.
-  parts.push('<div data-role="vitrine-liste-slot"></div>');
+  // VITRINE-VRAIE-1 (AUDIT-3 B-01) — articles she lists that could not be
+  // shown just now are SAID, never silently missing from the grid.
+  if (opts.incomplet === true) {
+    parts.push(
+      `<div class="vt-incomplet" data-role="vitrine-incomplet"><span>${t('vit.articles_incomplet')}</span><span class="vt-ghostbtn" role="button" data-action="reessayer">${t('vit.reessayer')}</span></div>`,
+    );
+  }
+
+  // LISTE-ENVIES-1 — the liste's slot. FLOWS fills it after mount (the
+  // friend's liste is a network read; the creator's band is drawn from the
+  // device-local record) — the renderer only reserves the place, so a
+  // re-render never flashes a stale liste. VITRINE-VRAIE-1 (AUDIT-3 B-13): it
+  // leads only for a friend who tapped a shared liste link — she came for
+  // exactly this. Otherwise her articles lead, and the creator's invitation
+  // waits under the first of them (one primary action above the fold).
+  const listeSlot = '<div data-role="vitrine-liste-slot"></div>';
+  if (opts.listeEnTete === true) parts.push(listeSlot);
 
   // PANIER-VITRINE-1 — HER shelf, back where she left it (founder order
   // 2026-08-22): rendered from the device-local store on every load, above the
@@ -1233,6 +1254,7 @@ export function renderVitrineReady(
       ),
     );
     for (const p of featured) parts.push(featuredTile(p, notes[p.pid], pinned.length > 0, sf.slug));
+    if (opts.listeEnTete !== true) parts.push(listeSlot);
     if (anythingBelow) parts.push('<div id="vt-anchor-grid"></div>');
   }
 
@@ -1257,6 +1279,8 @@ export function renderVitrineReady(
     parts.push(sectionHead(iconBag(15, '#6F6355', 1.9), residualLabel, undefined, undefined, residual.length));
     parts.push(grille(residual, notes, sf.slug));
   }
+  // Nothing in stock to lead with: the invitation follows the grid.
+  if (opts.listeEnTete !== true && featured.length === 0) parts.push(listeSlot);
 
   parts.push(inkBandAndFooter(sf));
   return wrap(parts.join(''));
@@ -1289,6 +1313,60 @@ export function renderVitrineEmpty(
       `<div class="vt-band" data-role="vitrine-bande">${tf('vit.bande', {
         lien: `<b>${t('vit.bande_lien')}</b>`,
       })} ${t('vit.bande_recap')}</div>`,
+    ].join(''),
+  );
+}
+
+/**
+ * VITRINE-VRAIE-1 (AUDIT-3 B-01) — her shop answered, but none of her articles
+ * could be described just now (a supply hiccup). Her identity stays on top;
+ * the card says the truth and offers « Réessayer » — never « prépare sa
+ * boutique » over a shop that is full.
+ */
+export function renderVitrineIndisponible(
+  sf: Storefront,
+  trust: VitrineTrust,
+  opts: VitrineRenderOpts,
+  entete: EnteteKey = 'classique',
+): string {
+  return wrap(
+    [
+      renderEntete(
+        entete,
+        sf,
+        trust,
+        { compact: true, fromProduct: opts.fromProduct },
+        topBar({ back: opts.fromProduct, accent: VITRINE_THEMES[sf.theme].accent }),
+      ),
+      '<div class="vt-empty" data-role="vitrine-indisponible">',
+      iconDevanture(40, '#8A7D6B', 1.7),
+      `<div class="vt-empty-titre">${t('vit.articles_indispo_titre')}</div>`,
+      `<div class="vt-empty-corps">${t('vit.articles_indispo_corps')}</div>`,
+      `<span class="vt-ghostbtn" role="button" data-action="reessayer">${t('vit.reessayer')}</span>`,
+      '</div>',
+    ].join(''),
+  );
+}
+
+/**
+ * VITRINE-VRAIE-1 (AUDIT-3 B-02, B-04) — a product link whose article is not
+ * on sale in HER shop: removed, auto-hidden, or never hers (a mangled or demo
+ * id). Her boutique is live one tap away, so that is the one act — never « ce
+ * lien ne mène à aucune boutique », never a demo product dressed as hers.
+ * `indisponible`: the article IS hers but could not be described just now —
+ * « Réessayer » leads, her boutique whispers. Her name is a server byte.
+ */
+export function renderArticleAbsent(kind: 'retire' | 'indisponible', nom: string): string {
+  const retire = kind === 'retire';
+  const voir = `<span class="${retire ? 'vt-primbtn' : 'vt-ghostbtn'}" role="button" data-action="voir-boutique">${t('vit.voir_boutique')}</span>`;
+  return wrap(
+    [
+      `<div class="vt-state" data-role="${retire ? 'article-retire' : 'article-indisponible'}">`,
+      `<div class="vt-picto">${iconDevanture(28, '#1C1710', 1.9)}</div>`,
+      `<h3>${retire ? tf('vit.article_retire_titre', { nom: esc(nom) }) : t('vit.article_indispo_titre')}</h3>`,
+      `<p>${t(retire ? 'vit.article_retire_corps' : 'vit.indisponible_corps')}</p>`,
+      retire ? voir : `<span class="vt-primbtn" role="button" data-action="reessayer">${t('vit.reessayer')}</span>${voir}`,
+      '</div>',
     ].join(''),
   );
 }

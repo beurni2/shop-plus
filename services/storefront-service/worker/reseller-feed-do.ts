@@ -58,6 +58,9 @@
 
 export const RESELLER_FEED_NAME = 'reseller-feed';
 const ROW_PREFIX = 'row:';
+/** VITRINE-VRAIE-1 — one mark per delivered order (`livree:{reseller}:{order}`), and her count (`livrees:{reseller}`). */
+const LIVREE_PREFIX = 'livree:';
+const LIVREES_PREFIX = 'livrees:';
 /** What the retired `SP-` mint wrote — erased, never written again. */
 const RETIRED_PREFIXES = ['codehash:', 'resellercode:'] as const;
 const PURGE_RECEIPT = 'purge:codes-retires';
@@ -167,6 +170,53 @@ export class ResellerFeedDO {
           .map((r) => ({ orderId: r.orderId, at: r.at }));
       }
       return Response.json({ ok: true, rows });
+    }
+
+    /**
+     * ═══ VITRINE-VRAIE-1 — « N VENTES LIVRÉES » (SP8) ═══
+     *
+     * SP8: « la réputation d'une revendeuse EST le nombre de ventes livrées »,
+     * sourced from `delivery.validated.v1` through the locked
+     * `Order.resellerId`. Nothing produced that number, so every boutique
+     * said « Nouvelle vendeuse » for ever. The OrderDO marks an order here
+     * when Séra's validation lands (and her sales read re-marks what it sees
+     * delivered, which carries the orders validated before this existed).
+     * ONE MARK PER ORDER, so a redelivered signal never counts twice; the
+     * count moves only when a mark is new. INTERNAL ONLY, like /register.
+     */
+    if (request.method === 'POST' && pathname === '/livrees/marquer') {
+      const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
+      const resellerId = body?.['resellerId'];
+      const orderIds = body?.['orderIds'];
+      if (
+        typeof resellerId !== 'string' || resellerId === '' || resellerId.length > 128 ||
+        !Array.isArray(orderIds) || orderIds.length === 0 || orderIds.length > 50 ||
+        !orderIds.every((o) => typeof o === 'string' && o !== '' && o.length <= 191)
+      ) {
+        return Response.json({ ok: false, reason: 'malformed' }, { status: 400 });
+      }
+      const qui = encodeURIComponent(resellerId);
+      const cles = [...new Set(orderIds as string[])].map((o) => `${LIVREE_PREFIX}${qui}:${o}`);
+      const deja = await this.state.storage.get(cles);
+      const nouvelles = cles.filter((c) => !deja.has(c));
+      if (nouvelles.length > 0) {
+        const compte = (await this.state.storage.get<number>(`${LIVREES_PREFIX}${qui}`)) ?? 0;
+        const at = new Date().toISOString();
+        const ecrire: Record<string, unknown> = { [`${LIVREES_PREFIX}${qui}`]: compte + nouvelles.length };
+        for (const c of nouvelles) ecrire[c] = at;
+        await this.state.storage.put(ecrire);
+      }
+      return Response.json({ ok: true, nouvelles: nouvelles.length });
+    }
+
+    if (request.method === 'POST' && pathname === '/livrees') {
+      const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
+      const resellerId = body?.['resellerId'];
+      if (typeof resellerId !== 'string' || resellerId === '' || resellerId.length > 128) {
+        return Response.json({ ok: false, reason: 'malformed' }, { status: 400 });
+      }
+      const compte = (await this.state.storage.get<number>(`${LIVREES_PREFIX}${encodeURIComponent(resellerId)}`)) ?? 0;
+      return Response.json({ ok: true, compte });
     }
 
     return Response.json({ error: 'not_found' }, { status: 404 });

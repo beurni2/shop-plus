@@ -253,6 +253,13 @@ export type StorefrontServiceEnv = MediaEnv &
      * Node/unit contexts, like the bindings above.
      */
     readonly ACCES?: { enPause(resellerId: string): Promise<boolean> };
+    /**
+     * VITRINE-VRAIE-1 (SP8, « N ventes livrées ») — her delivered-sales count,
+     * read from her feed book (one mark per order whose delivery Séra
+     * validated). `undefined` on any hiccup: the page then claims nothing —
+     * neither a count nor « Nouvelle vendeuse ». Absent in Node/unit contexts.
+     */
+    readonly LIVREES?: { compte(resellerId: string): Promise<number | undefined> };
   };
 
 /**
@@ -261,7 +268,7 @@ export type StorefrontServiceEnv = MediaEnv &
  * StorefrontView. An unknown slug is the HONEST not-found (404) the PWA already
  * renders as VitrineEtat 'invalid' — never a 500, never a neighbouring store.
  */
-async function handleStorefrontRead(slug: string, env?: StorefrontServiceEnv): Promise<Response> {
+async function handleStorefrontRead(slug: string, env?: StorefrontServiceEnv, query?: URLSearchParams): Promise<Response> {
   const storefront = await resolveStorefrontStore(env).getBySlug(slug);
   if (storefront === undefined) {
     return Response.json({ service: SERVICE_NAME, error: 'not_found' }, { status: 404 });
@@ -280,7 +287,30 @@ async function handleStorefrontRead(slug: string, env?: StorefrontServiceEnv): P
   if (env?.ACCES !== undefined && (await env.ACCES.enPause(storefront.resellerId).catch(() => false))) {
     return Response.json({ service: SERVICE_NAME, enPause: true, name: storefront.name, slug: storefront.slug }, { status: 200 });
   }
-  const { products, incomplet } = await describeProducts(storefront.id, storefront.curatedItems, env);
+  /**
+   * VITRINE-VRAIE-1 — THE PAGE IS READ IN PAGES, AND A LINK'S OWN PRODUCT
+   * FIRST. One request may describe only MAX_PRODUITS_DECRITS products (the
+   * platform's subrequest budget), and products are APPENDED to her shop — so
+   * a single read silently lost her newest ones, and a shared link to her
+   * 16th article answered « no boutique ». Now:
+   *   · `?pid=a,b` (a product link, a panier) describes THOSE products, in
+   *     her shop, before anything else — whatever their rank;
+   *   · `?depuis=N` describes the window of her shop starting at N, and the
+   *     answer carries `suite` (where the next window starts) while products
+   *     remain — the page asks for the rest.
+   * A pid that is not in her shop is not described (it is not hers to sell);
+   * `incomplet` keeps ONE meaning: a hop that failed, never a page boundary.
+   */
+  const fenetre = fenetreDeLecture(storefront.curatedItems, query);
+  const { products, incomplet } = await describeProducts(storefront.id, fenetre.pids, env);
+  // SP8 — her delivered sales, on the FIRST page only (the rest of the pages
+  // need no second copy, and the budget below counts this hop once). A product
+  // link (`?pid=`) never draws the count, so it never pays the hop (verifier N6).
+  const premiereLecture = fenetre.depuis === 0 && (query?.get('pid') ?? '') === '';
+  const ventesLivrees =
+    premiereLecture && env?.LIVREES !== undefined
+      ? await env.LIVREES.compte(storefront.resellerId).catch(() => undefined)
+      : undefined;
   /**
    * CONTACT-WHATSAPP-1 — the owner's registration phone joins her public page
    * as wa.me-ready digits, so a buyer can write to HER about a product (the
@@ -307,9 +337,38 @@ async function handleStorefrontRead(slug: string, env?: StorefrontServiceEnv): P
       // truth (a pid past the ceiling, a failed hop, a supply hiccup); a shop
       // whose every product was described carries no such key.
       ...(incomplet ? { incomplet: true } : {}),
+      ...(fenetre.suite !== undefined ? { suite: fenetre.suite } : {}),
+      ...(ventesLivrees !== undefined ? { ventesLivrees } : {}),
     },
     { status: 200 },
   );
+}
+
+/** At most this many products may be asked by name in one read — a panier pays at most ten. */
+export const MAX_PIDS_DEMANDES = 10;
+
+/**
+ * VITRINE-VRAIE-1 — which of her products one read describes. PURE, so the
+ * paging is proven without a Worker: asked pids (in her shop, deduplicated,
+ * at most MAX_PIDS_DEMANDES) come first and end the read there; otherwise the
+ * window `[depuis, depuis + MAX)` of her own order, with `suite` when more
+ * remain. A malformed `depuis` reads as 0 — the first page, never an error.
+ */
+export function fenetreDeLecture(
+  curatedItems: readonly string[],
+  query?: URLSearchParams,
+): { pids: readonly string[]; depuis: number; suite?: number } {
+  const brut = query?.get('pid') ?? '';
+  const demandes = [...new Set(brut.split(',').filter((p) => p !== '' && curatedItems.includes(p)))].slice(0, MAX_PIDS_DEMANDES);
+  if (demandes.length > 0) return { pids: demandes, depuis: 0 };
+  const d = Number(query?.get('depuis') ?? '0');
+  const depuis = Number.isInteger(d) && d > 0 && d < curatedItems.length ? d : 0;
+  const fin = depuis + MAX_PRODUITS_DECRITS;
+  return {
+    pids: curatedItems.slice(depuis, fin),
+    depuis,
+    ...(fin < curatedItems.length ? { suite: fin } : {}),
+  };
 }
 
 /**
@@ -323,23 +382,22 @@ async function handleStorefrontRead(slug: string, env?: StorefrontServiceEnv): P
  * and before this slice every catch on the path turned that throw into a
  * silent omission: a shop with more than ~15 products rendered FEWER products
  * with no word about it, and each pid cost its own supply round-trip, in
- * sequence. So the read describes at most this many pids (4 + 2·20 = 44 hops,
- * room for the rare extras), reads their listings in parallel, and SAYS when
- * it could not tell the whole truth (`incomplet`, below).
+ * sequence. So one read describes at most this many pids (the arithmetic
+ * below), reads their listings in parallel, SAYS when it could not tell the
+ * whole truth (`incomplet`), and a larger shop is read in pages.
  */
 /**
  * THE ARITHMETIC (verifier finding, the platform's 50-subrequest budget): a
- * boutique read costs 5 hops (pointer, entry, the owner's access state —
- * PAUSE-VENTE-1 — contact, the collection) + 2 per product on the listing
- * side (the pid pointer, then the listing) + up to 1 per product on the
- * supply side when the collection did not carry it (an omitted pid, or a
- * collection that failed and left every pid to the single road).
- * 5 + 3·15 = 50 fits EVERY path, at the ceiling; 20 fit only the happy one
- * (65 on a collection outage — the very throw this slice exists to end). The
- * rarer extras (a hide for a lapsed listing) past 50 land in `incomplet`,
- * declared, never silent.
+ * boutique read costs 6 hops (pointer, entry, the owner's access state —
+ * PAUSE-VENTE-1 — contact, the collection, and her delivered-sales count —
+ * VITRINE-VRAIE-1) + 2 per product on the listing side (the pid pointer, then
+ * the listing) + up to 1 per product on the supply side when the collection
+ * did not carry it (an omitted pid, or a collection that failed and left every
+ * pid to the single road). 6 + 3·14 = 48 fits EVERY path. The rarer extras (a
+ * hide for a lapsed listing) past 50 land in `incomplet`, declared, never
+ * silent. A shop with more products is read in PAGES (`fenetreDeLecture`).
  */
-export const MAX_PRODUITS_DECRITS = 15;
+export const MAX_PRODUITS_DECRITS = 14;
 /** Listing hops in flight at once — the object hops are tiny; this keeps a large shop from opening forty at a time. */
 const LOT_LECTURE = 8;
 
@@ -365,12 +423,13 @@ async function describeProducts(
   const listings = env?.LISTING_DO;
   if (listings === undefined || pids.length === 0) return { products: [], incomplet: false };
   const supply = resolveSupplySource(env);
-  // INCOMPLET names a truth the page could not tell: a pid left past the
-  // ceiling, a listing hop that failed or answered something other than a
-  // listing, a presence the producer could not settle. A pid with NO listing
+  // INCOMPLET names a truth the page could not tell: a listing hop that
+  // failed or answered something other than a listing, a presence the
+  // producer could not settle (the caller pages her shop — VITRINE-VRAIE-1 —
+  // so a window boundary is never incompleteness). A pid with NO listing
   // (an inconsistency the shop's own state carries) and a positive absence
   // (`gone`) are legitimate omissions, as they always were, and raise no flag.
-  let incomplet = pids.length > MAX_PRODUITS_DECRITS;
+  let incomplet = false;
   const lus = pids.slice(0, MAX_PRODUITS_DECRITS);
   type ListingSide = { listingId?: string; productVersionId: string; customerPriceFcfa: number; status: string };
   const sides = new Map<string, ListingSide>();
@@ -755,7 +814,7 @@ export const handleRequest = async (request: Request, env?: StorefrontServiceEnv
   if (request.method === 'GET' && slugMatch) {
     const slug = decodeSur(slugMatch[1]!);
     if (slug === null) return withReadCors(Response.json({ service: SERVICE_NAME, error: 'not_found' }, { status: 404 }));
-    return withReadCors(await handleStorefrontRead(slug, env));
+    return withReadCors(await handleStorefrontRead(slug, env, url.searchParams));
   }
   if (request.method === 'GET' && mediaReadMatch) {
     const key = decodeSur(mediaReadMatch[1]!, decodeURI);

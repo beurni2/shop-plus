@@ -124,7 +124,16 @@ export class WishlistDO {
     if (request.method === 'GET' && pathname === '/entry/livraison') {
       const record = await this.state.storage.get<ListeRecord>(LISTE_KEY);
       if (record?.livraison === undefined) return Response.json({ ok: false }, { status: 404 });
-      return Response.json({ ok: true, nom: record.nom, livraison: record.livraison });
+      // VITRINE-VRAIE-1 — WHERE the wishes live rides with the address: the
+      // two readers (the quote and the order) refuse a gift asked on another
+      // boutique, or for an article she never wished for.
+      return Response.json({
+        ok: true,
+        nom: record.nom,
+        livraison: record.livraison,
+        slug: record.slug,
+        pids: record.articles.map((a) => a.pid),
+      });
     }
 
     /** THE READ — already projected: the hash and every orderId stay here. */

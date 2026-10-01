@@ -14,7 +14,7 @@ import { GEO_ZOOM, geoVersMonde, mondeVersGeo } from '../src/geo-carte';
  * clock escape — had NO coverage at all: a fresh verifier deleted each of those
  * five lines in turn and every gate stayed green.
  *
- * This suite closes that. It runs against the port-4175 build made with
+ * This suite closes that. It runs against the port-4176 build made with
  * `VITE_STOREFRONT_BASE` (see `playwright.config.ts`), so `resolveQuotePort`
  * returns the REAL `httpQuotePort`; every `/checkout/**` request is intercepted
  * here and answered by a scripted service. Real bundle, real `fetch`, real
@@ -27,7 +27,9 @@ import { GEO_ZOOM, geoVersMonde, mondeVersGeo } from '../src/geo-carte';
  * network) while the QUOTE port stays real — exactly the seam we want to drive.
  */
 
-const BASE = 'http://127.0.0.1:4175';
+// VITRINE-VRAIE-1 — the harness on the real ports (4176): the published-profile
+// build (4175) no longer answers `?demo-signed=` / `?demo-vitrine=`.
+const BASE = 'http://127.0.0.1:4176';
 /** TUILES-PROXY — a real one-pixel PNG the scripted proxy answers with, so a
  *  tile the map asked for LOADS (and stays on screen) rather than erroring. */
 const PNG_1PX = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';

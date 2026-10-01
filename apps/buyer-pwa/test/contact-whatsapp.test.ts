@@ -146,7 +146,7 @@ describe('the boutique grid carries NO WhatsApp tap — with or without a served
     // …and mountVitrine hands the READY render (not only the empty one) the
     // one option that is left — the digits never ride into the grid again.
     const flows = readFileSync(new URL('../src/vitrine/flows.ts', import.meta.url), 'utf8');
-    expect(flows).toMatch(/renderVitrineReady\(\s*sf!,\s*resolu!\.trust,\s*(?:\/\/[^\n]*\n\s*)*\{ fromProduct \},\s*resolu!\.notes/);
+    expect(flows).toMatch(/renderVitrineReady\(\s*sf!,\s*resolu!\.trust,\s*(?:\/\/[^\n]*\n\s*)*\{ fromProduct, incomplet, listeEnTete: listeToken !== undefined \},\s*resolu!\.notes/);
     expect(flows).not.toContain('whatsapp: resolu');
     expect(flows).not.toContain("action === 'whatsapp'");
   });

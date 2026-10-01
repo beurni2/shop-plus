@@ -55,7 +55,7 @@ function render(v: Vals): string {
       ? [
           '<div class="he-proof">',
           v.showProof
-            ? `<span class="he-proof-l" data-role="reputation"><span class="he-pill"><v>${groupFr(v.delivN)}</v></span><span class="he-proof-t">${t('vit.ventes_livrees')}</span></span>`
+            ? `<span class="he-proof-l" data-role="reputation"><span class="he-pill"><v>${groupFr(v.delivN)}</v></span><span class="he-proof-t">${t(v.delivN === 1 ? 'vit.vente_livree' : 'vit.ventes_livrees')}</span></span>`
             : '',
           v.showStars
             ? `<span class="he-stars" data-role="chip-avis">${iconStarEnt(12, '#C79A45')}<span><v>${v.rating}</v> · <v>${v.reviewCount}</v> ${t('vit.avis_verifies')}</span></span>`

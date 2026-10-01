@@ -87,7 +87,9 @@ test('DEMO · boutique → « Payer les 2 articles ensemble » → one payment �
 
 /* ═════════════════ the real-path build against a scripted service ═════════════════ */
 
-const BASE = 'http://127.0.0.1:4175';
+// VITRINE-VRAIE-1 — the harness on the real ports (4176): the published-profile
+// build (4175) no longer answers `?demo-signed=` / `?demo-vitrine=`.
+const BASE = 'http://127.0.0.1:4176';
 const ENTRY = `${BASE}/?demo-signed=aicha-4821&panier=p1,p2`;
 
 interface Wire {

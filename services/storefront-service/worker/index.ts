@@ -171,6 +171,8 @@ interface Env extends WriteAuthEnv {
    * the two anonymous create doors together. OPTIONAL by law: absent (a deploy
    * before its config, a suite that binds none) ⇒ the door stays OPEN. */
   LIMITE_TUILES?: Limiteur;
+  /** VITRINE-VRAIE-1 — §4.1 « La résolution est côté serveur et limitée en débit » (the boutique and liste reads). */
+  LIMITE_LECTURES?: Limiteur;
   LIMITE_CREATIONS?: Limiteur;
   /** LIMITE-REVENDEUSE-1 — the reseller's signup and login, each its own
    * budget; the /health PBKDF2 probe spends the login one. Same fail-open law. */
@@ -276,6 +278,22 @@ export default {
       request.method === 'POST' &&
       (pathname === '/checkout/quote' || pathname === '/checkout/order' || pathname === '/checkout/group' || pathname === '/listes') &&
       !(await admis(env.LIMITE_CREATIONS, request))
+    ) {
+      return withReadCors(refusLimite());
+    }
+
+    // ═══ VITRINE-VRAIE-1 — THE PUBLIC READS HAVE A CEILING TOO (§4.1) ═══
+    // « La résolution est côté serveur et limitée en débit. » A boutique read
+    // answers her name, quartier, WhatsApp and priced catalogue for a short
+    // code anyone can guess (PRENOM-NNNN), so a per-address ceiling stands in
+    // front of `/s/*` and the liste read. Generous — a big shop is read in
+    // pages and carriers put a neighbourhood behind one address — and it fails
+    // OPEN like every limiter here. The buyer site reads the 429 as « la
+    // boutique ne répond pas », with « Réessayer ».
+    if (
+      request.method === 'GET' &&
+      (pathname.startsWith('/s/') || pathname.startsWith('/listes/')) &&
+      !(await admis(env.LIMITE_LECTURES, request))
     ) {
       return withReadCors(refusLimite());
     }
@@ -480,10 +498,21 @@ export default {
           const lu = await env.WISHLIST.get(env.WISHLIST.idFromName(`liste:${peeked['listeRef']}`)).fetch(
             new Request('https://do/entry/livraison'),
           );
-          const livre = lu.status === 200 ? ((await lu.json().catch(() => null)) as { livraison?: { zone?: unknown } } | null) : null;
+          const livre =
+            lu.status === 200
+              ? ((await lu.json().catch(() => null)) as { livraison?: { zone?: unknown }; slug?: unknown; pids?: unknown } | null)
+              : null;
           const zone = livre?.livraison?.zone;
           if (typeof zone !== 'string' || zone === '') {
             return withReadCors(Response.json({ ok: false, reason: 'liste_sans_adresse' }, { status: 422 }));
+          }
+          // VITRINE-VRAIE-1 — a liste is HER wishes in ONE boutique: priced to
+          // her address only on that boutique, and only for an article she
+          // listed. Another seller's page holding her link is refused by name
+          // (SP-I05: a buyer one reseller brought is never walked to another).
+          const pidsListe = Array.isArray(livre?.pids) ? (livre!.pids as unknown[]) : [];
+          if (livre?.slug !== peeked['slug'] || !pidsListe.includes(peeked['pid'])) {
+            return withReadCors(Response.json({ ok: false, reason: 'liste_hors_boutique' }, { status: 409 }));
           }
           const { listeRef: _retire, ...reste } = peeked;
           quoteRequest = new Request(request, { body: JSON.stringify({ ...reste, zoneTo: zone }) });
@@ -1203,6 +1232,7 @@ export default {
       const asked = mine.orders.slice(0, feedFanoutMax(env));
       let illisibles = mine.orders.length - asked.length;
       const ventes: unknown[] = [];
+      const livrees: string[] = [];
       for (const row of asked) {
         try {
           const res = await env.ORDER.get(env.ORDER.idFromName(row.orderId)).fetch(
@@ -1211,10 +1241,21 @@ export default {
           const v = (await res.json().catch(() => null)) as Record<string, unknown> | null;
           const projected = projectVente(v);
           if (projected === null) illisibles += 1;
-          else ventes.push(projected);
+          else {
+            ventes.push(projected);
+            if (v?.['livree'] === true) livrees.push(projected['orderId'] as string);
+          }
         } catch {
           illisibles += 1;
         }
+      }
+      // VITRINE-VRAIE-1 (SP8) — what her own read sees delivered is marked in
+      // her book (idempotent, one hop, best-effort): a delivery validated
+      // before her boutique counted them is counted the next time she looks.
+      if (livrees.length > 0) {
+        await feed
+          .fetch(new Request('https://do/livrees/marquer', { method: 'POST', body: JSON.stringify({ resellerId: mine.resellerId, orderIds: livrees.slice(0, 50) }) }))
+          .catch(() => undefined);
       }
       // RF-1a (verifier M5) — an authenticated money-bearing answer is never
       // a cacheable one.
@@ -2116,6 +2157,23 @@ export default {
       // hiccup (the port's own law), and absent when the book is unbound.
       ...(env.COMPTES !== undefined
         ? { ACCES: { enPause: (resellerId: string): Promise<boolean> => compteEnPause(env, resellerId) } }
+        : {}),
+      // VITRINE-VRAIE-1 (SP8) — her delivered-sales count from her feed book;
+      // `undefined` on any hiccup, so the page claims nothing it could not read.
+      ...(env.RESELLER !== undefined
+        ? {
+            LIVREES: {
+              compte: async (resellerId: string): Promise<number | undefined> => {
+                const res = await env
+                  .RESELLER!.get(env.RESELLER!.idFromName(RESELLER_FEED_NAME))
+                  .fetch(new Request('https://do/livrees', { method: 'POST', body: JSON.stringify({ resellerId }) }))
+                  .catch(() => undefined);
+                if (res === undefined || !res.ok) return undefined;
+                const body = (await res.json().catch(() => null)) as { compte?: unknown } | null;
+                return typeof body?.compte === 'number' && Number.isInteger(body.compte) && body.compte >= 0 ? body.compte : undefined;
+              },
+            },
+          }
         : {}),
       ...(env.COMPTES !== undefined
         ? {

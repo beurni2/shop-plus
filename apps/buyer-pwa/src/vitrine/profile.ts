@@ -42,6 +42,16 @@ export interface VitrineTrust {
   readonly reviewCount: number;
   /** Demo (test-data) trust → rendered with the honest « démo » discipline. */
   readonly demo: boolean;
+  /** VITRINE-VRAIE-1 (AUDIT-3 B-05) — the service could not say how many
+   *  sales were delivered: neither « N ventes livrées » nor « Nouvelle
+   *  vendeuse » is true then, so neither is drawn. */
+  readonly inconnu?: boolean;
+}
+
+/** VITRINE-VRAIE-1 — what a reader asks of the boutique read: the articles a
+ *  product link names (described first, alone), or — absent — the whole shop. */
+export interface DemandeLecture {
+  readonly pids?: readonly string[];
 }
 
 /**
@@ -76,7 +86,7 @@ export interface StorefrontProfilePort {
    * from storefront-service; the demo adapter resolves synchronously but returns
    * the same Promise shape so callers await ONE seam. undefined still = the
    * honest not-found the flow renders (VitrineEtat 'invalid'). */
-  resolve(slug: string): Promise<
+  resolve(slug: string, demande?: DemandeLecture): Promise<
     | {
         storefront: Storefront;
         trust: VitrineTrust;
@@ -94,6 +104,13 @@ export interface StorefrontProfilePort {
          * with zero transformation, exactly as `catalog.ts` always intended.
          */
         products?: readonly VitrineProduct[];
+        /**
+         * VITRINE-VRAIE-1 (AUDIT-3 B-01) — some articles she lists could not
+         * be described just now (a supply hiccup, a page that did not land).
+         * The page says so and offers « Réessayer »; it never reads as an
+         * empty shop or a dead link.
+         */
+        incomplet?: boolean;
         /**
          * CONTACT-WHATSAPP-1 — the reseller's registration number, wa.me-ready
          * digits, already normalized and vouched for SERVER-SIDE (active
@@ -165,13 +182,17 @@ const AICHA_CUSTOMISED: Storefront = {
 const AICHA_TRUST: VitrineTrust = { deliveredCount: 16, rating: '4,8', reviewCount: 12, demo: true };
 
 /**
- * ABSENT trust — what a REAL storefront carries until it earns its own
- * (BUYER-REAL-HONESTY-1). Zero deliveries, no rating, zero reviews, and
- * `demo:false` because none of it is demo data: it is the honest absence of
- * history. The render turns this into the « Nouvelle vendeuse » state — never
- * blank space, and NEVER another reseller's sixteen deliveries.
+ * A REAL storefront's trust (BUYER-REAL-HONESTY-1, VITRINE-VRAIE-1): HER count
+ * of delivered sales as the service counts it, no rating, no reviews, and
+ * `demo:false` — never another reseller's sixteen deliveries. Zero is a real
+ * answer (« Nouvelle vendeuse »); a count the service did not give is UNKNOWN,
+ * and unknown draws neither claim.
  */
-const ABSENT_TRUST: VitrineTrust = { deliveredCount: 0, rating: '', reviewCount: 0, demo: false };
+function confianceReelle(ventesLivrees: unknown): VitrineTrust {
+  return typeof ventesLivrees === 'number' && Number.isInteger(ventesLivrees) && ventesLivrees >= 0
+    ? { deliveredCount: ventesLivrees, rating: '', reviewCount: 0, demo: false }
+    : { deliveredCount: 0, rating: '', reviewCount: 0, demo: false, inconnu: true };
+}
 
 /**
  * V-demo voice notes — two products carry a `ready` note ([DEMO] placeholder
@@ -434,16 +455,14 @@ function sanitizeFocus<T extends { readonly focus?: unknown }>(part: T): T {
  * EVERY real storefront, so a real reseller's page displayed sixteen deliveries,
  * 4,8 stars and twelve reviews she never earned — and played ANOTHER RESELLER'S
  * recorded voice as if it were hers. Both are removed at the source:
- *   · TRUST → `ABSENT_TRUST` (no producer exists server-side; absence is the
- *     truth, and the render states it as « Nouvelle vendeuse »).
- *   · NOTES → `{}` (they need the canon `productNotes?` field, §7 — the founder's
- *     call). No note ⇒ the existing, honest sans-voix state; no player, no gap.
- * Swap each in when its producer lands; the shape and the callers never change.
+ *   · TRUST → HER delivered-sales count from the service (VITRINE-VRAIE-1),
+ *     unknown when the service gives none (`confianceReelle`).
+ *   · NOTES → HER OWN notes from the wire (VOIX-PRODUIT, `notesFromWire`).
  * The DEMO port keeps its demo trust and demo notes untouched (offline harness).
  *
- * A 404 (unknown slug) or a network failure both resolve to `undefined` — the
- * SAME honest not-found the flow renders as VitrineEtat 'invalid'; never a throw
- * up the mount path, never a neighbouring store.
+ * A 404 (unknown slug) resolves to `undefined` — the honest not-found the flow
+ * renders as VitrineEtat 'invalid'; a missing network or service raises
+ * `VitrineOffline` (`lireVue`); never a neighbouring store.
  */
 /**
  * VOIX-PRODUIT — the wire's `productNotes` turned into the shape the render
@@ -512,42 +531,108 @@ function looksLikePause(v: unknown): v is { enPause: true; name: string } {
   return p.enPause === true && typeof p.name === 'string';
 }
 
+/**
+ * VITRINE-VRAIE-1 (AUDIT-3 B-06) — how long ONE boutique read may hang before
+ * the buyer is shown the designed offline card with « Réessayer ». The
+ * delivery-tracking read's floor (`LECTURE_COMMANDE_TIMEOUT_MS`): slow on a
+ * congested cell is twelve seconds; a read that never settles left her on a
+ * blank page with nothing to press.
+ */
+export const LECTURE_VITRINE_TIMEOUT_MS = 12_000;
+
+/** The Worker describes at most ten asked articles per read (`MAX_PIDS_DEMANDES`). */
+const MAX_PIDS_DEMANDES = 10;
+/** A shop is read in pages; past this many the rest is said, never silently dropped. */
+const MAX_PAGES_VITRINE = 20;
+
+/**
+ * One read of the boutique road, bounded in time. `undefined` is a 4xx — the
+ * honest not-found; the two absences that are NOT the link's fault raise
+ * `VitrineOffline` with the name of what happened.
+ *
+ * audit F3: a THROWN fetch is « pas de connexion », NOT a wrong link. Raise the
+ * OFFLINE marker so the mount routes the designed offline surface — kept OUT
+ * of the resolve return type so every not-found caller is untouched.
+ * LIEN-HORS-LIGNE-1 (AUDIT-SHOP-2 F-52) — a 5xx, or a 2xx whose body is not
+ * JSON (a proxy or captive-portal page), is the SERVICE not answering.
+ * VITRINE-VRAIE-1 — a 429 is the read limiter (§4.1) asking her to wait: the
+ * service's answer, never « ce lien ne mène à aucune boutique ». The timer
+ * covers the body as well as the headers: a stream that stalls mid-body is
+ * the same hang. `AbortController` (not `AbortSignal.timeout`, which the
+ * targeted WebViews do not all carry), guarded so its absence degrades to
+ * the unbounded read rather than a throw.
+ */
+async function lireVue(url: string): Promise<unknown> {
+  const ctrl = typeof AbortController === 'function' ? new AbortController() : null;
+  const stall = ctrl === null ? null : setTimeout(() => ctrl.abort(), LECTURE_VITRINE_TIMEOUT_MS);
+  try {
+    let res: Response;
+    try {
+      res = await fetch(url, { headers: { Accept: 'application/json' }, ...(ctrl !== null ? { signal: ctrl.signal } : {}) });
+    } catch {
+      throw new VitrineOffline();
+    }
+    if (res.status >= 500 || res.status === 429) throw new VitrineOffline('service');
+    if (!res.ok) return undefined; // 404 and any other 4xx → honest not-found
+    const view: unknown = await res.json().catch(() => null);
+    if (view === null) throw new VitrineOffline(ctrl?.signal.aborted === true ? 'reseau' : 'service');
+    return view;
+  } finally {
+    if (stall !== null) clearTimeout(stall);
+  }
+}
+
+/** A page's described articles, through the same five-field check as the first. */
+function produitsDe(view: unknown): VitrineProduct[] | undefined {
+  const raw = (view as { products?: unknown } | null)?.products;
+  return Array.isArray(raw) ? raw.filter(looksLikeProduct).map(productFromWire) : undefined;
+}
+
 export function httpStorefrontPort(baseUrl: string): StorefrontProfilePort {
   const base = baseUrl.replace(/\/+$/, '');
   return {
-    async resolve(slug: string) {
-      let res: Response;
-      try {
-        res = await fetch(`${base}/s/${encodeURIComponent(slug)}`, { headers: { Accept: 'application/json' } });
-      } catch {
-        // audit F3: a THROWN fetch is « pas de connexion », NOT a wrong link.
-        // Collapsing it to `undefined` (the not-found signal) showed an offline
-        // buyer on a valid /v/{slug} the « lien invalide » screen. Raise the
-        // OFFLINE marker so the mount routes the designed offline surface — kept
-        // OUT of the resolve return type so every not-found caller is untouched;
-        // the ONE caller (mountVitrine) catches it.
-        throw new VitrineOffline();
-      }
-      // LIEN-HORS-LIGNE-1 (AUDIT-SHOP-2 F-52) — a 5xx, or a 2xx whose body is
-      // not JSON (a proxy or captive-portal page), is the SERVICE not answering,
-      // not a wrong link: the buyer earns « Réessayer », never « lien invalide »
-      // and a sentence telling her to ask the seller for a new link. A 4xx (the
-      // 404 above all) stays the honest not-found.
-      if (res.status >= 500) throw new VitrineOffline('service');
-      if (!res.ok) return undefined; // 404 and any other 4xx → honest not-found
-      const view: unknown = await res.json().catch(() => null);
-      if (view === null) throw new VitrineOffline('service');
+    async resolve(slug: string, demande?: DemandeLecture) {
+      const racine = `${base}/s/${encodeURIComponent(slug)}`;
+      // A product link asks for ITS article(s): the Worker describes those
+      // first and alone, wherever they sit in her shop (AUDIT-3 B-01).
+      const pids = [...new Set((demande?.pids ?? []).filter((p) => /^[A-Za-z0-9_-]+$/.test(p)))].slice(0, MAX_PIDS_DEMANDES);
+      const view = await lireVue(pids.length > 0 ? `${racine}?pid=${encodeURIComponent(pids.join(','))}` : racine);
+      if (view === undefined) return undefined;
       // PAUSE-VENTE-1 — the founder paused her: the service says so on a 200
       // with her name and no products. Decided BEFORE the storefront check,
       // which would otherwise read this honest answer as « lien invalide ».
       if (looksLikePause(view)) throw new VitrinePause(view.name);
       if (!looksLikeStorefront(view)) return undefined;
-      // BUYER-LIVE-WIRE-3 — the service's `products` ride through. Defensive on
-      // shape because this is a network boundary: a non-array is treated as
-      // ABSENT (the seed path) rather than crashing the mount, and each record is
-      // checked for the five fields the tile actually renders.
-      const raw = (view as { products?: unknown }).products;
-      const products = Array.isArray(raw) ? raw.filter(looksLikeProduct).map(productFromWire) : undefined;
+      // BUYER-LIVE-WIRE-3 — the service's `products` ride through, each record
+      // checked for the five fields the tile renders. VITRINE-VRAIE-1: a wire
+      // without the array is a shop with nothing described — never the demo
+      // seed (AUDIT-3 B-02); `products` is absent only on the demo port.
+      const products = produitsDe(view) ?? [];
+      let incomplet = (view as { incomplet?: unknown }).incomplet === true;
+      // VITRINE-VRAIE-1 (AUDIT-3 B-01) — the WHOLE shop, page by page. The
+      // first answer names where the next page starts (`suite`), which is also
+      // the page size; the rest are asked together. A page that does not land
+      // costs the articles it held, said on the page — never the shop.
+      const suite = (view as { suite?: unknown }).suite;
+      if (pids.length === 0 && typeof suite === 'number' && Number.isInteger(suite) && suite > 0) {
+        const total = chaines((view as { curatedItems?: unknown }).curatedItems).length;
+        const departs: number[] = [];
+        for (let d = suite; d < total; d += suite) departs.push(d);
+        if (departs.length > MAX_PAGES_VITRINE - 1) {
+          departs.length = MAX_PAGES_VITRINE - 1;
+          incomplet = true;
+        }
+        const pages = await Promise.all(departs.map((d) => lireVue(`${racine}?depuis=${d}`).catch(() => undefined)));
+        for (const page of pages) {
+          const lus = page !== undefined && looksLikeStorefront(page) ? produitsDe(page) : undefined;
+          if (lus === undefined) {
+            incomplet = true;
+            continue;
+          }
+          if ((page as { incomplet?: unknown }).incomplet === true) incomplet = true;
+          for (const p of lus) if (!products.some((q) => q.pid === p.pid)) products.push(p);
+        }
+      }
       // ENTETES-B — the field is normalised HERE, once, so every consumer of the
       // resolved storefront reads a valid key (old wire without it ⇒ classique).
       // ENTETES-C — the framing gets the same treatment: a non-canon `focus` on
@@ -583,9 +668,9 @@ export function httpStorefrontPort(baseUrl: string): StorefrontProfilePort {
       // parser keeps: a note is rendered only if it is THIS shop's and playable.
       // The service already ships ready-only, so this is the second line —
       // network boundary, hostile shape, same discipline as `products`.
-      // TRUST STAYS ABSENT: no producer for it exists server-side, and borrowing
-      // another reseller's deliveries is the very defect that rule was written
-      // for. Only the notes half is filled in.
+      // VITRINE-VRAIE-1 (AUDIT-3 B-05) — TRUST is HER count now: the Worker
+      // counts her delivered sales and serves it on the first page. Absent or
+      // malformed is unknown, never zero and never borrowed.
       const notes = notesFromWire((view as { productNotes?: unknown }).productNotes);
       // CONTACT-WHATSAPP-1 — digits or absent, decided HERE once (network
       // boundary, hostile shape — the `products` discipline). 10–15 digits is
@@ -595,9 +680,10 @@ export function httpStorefrontPort(baseUrl: string): StorefrontProfilePort {
       const whatsapp = typeof rawWa === 'string' && /^\d{10,15}$/.test(rawWa) ? rawWa : undefined;
       return {
         storefront,
-        trust: ABSENT_TRUST,
+        trust: confianceReelle((view as { ventesLivrees?: unknown }).ventesLivrees),
         notes,
-        ...(products !== undefined ? { products } : {}),
+        products,
+        ...(incomplet ? { incomplet: true } : {}),
         ...(whatsapp !== undefined ? { whatsapp } : {}),
       };
     },

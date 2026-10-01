@@ -44,11 +44,23 @@ describe('item 1 + 2 — a REAL storefront carries ABSENT trust and NO borrowed 
     const got = await withStubbedFetch(REAL_VIEW, 200, () => httpStorefrontPort('https://svc.example').resolve('binta-7412'));
     expect(got).toBeDefined();
     expect(got!.storefront.slug).toBe('binta-7412'); // it IS the real storefront
-    expect(got!.trust).toEqual({ deliveredCount: 0, rating: '', reviewCount: 0, demo: false });
+    // VITRINE-VRAIE-1 — a view without the service's count is UNKNOWN: no
+    // « N ventes livrées » and no « Nouvelle vendeuse » either.
+    expect(got!.trust).toEqual({ deliveredCount: 0, rating: '', reviewCount: 0, demo: false, inconnu: true });
     // the exact fabricated values this slice removed — social proof she never earned
     expect(got!.trust.deliveredCount).not.toBe(16);
     expect(got!.trust.rating).not.toBe('4,8');
     expect(got!.trust.reviewCount).not.toBe(12);
+  });
+
+  it('VITRINE-VRAIE-1: HER count when the service gives one — a whole number ≥ 0, never a borrowed or malformed one', async () => {
+    const lire = (ventesLivrees: unknown) =>
+      withStubbedFetch({ ...REAL_VIEW, ventesLivrees }, 200, () => httpStorefrontPort('https://svc.example').resolve('binta-7412'));
+    expect((await lire(12))!.trust).toEqual({ deliveredCount: 12, rating: '', reviewCount: 0, demo: false });
+    expect((await lire(0))!.trust).toEqual({ deliveredCount: 0, rating: '', reviewCount: 0, demo: false });
+    for (const faux of [-1, 1.5, '12', null]) {
+      expect((await lire(faux))!.trust, String(faux)).toEqual({ deliveredCount: 0, rating: '', reviewCount: 0, demo: false, inconnu: true });
+    }
   });
 
   it('BORROWED-VOICE-REMOVED: the real port returns NO notes — a real page never plays another reseller’s recorded voice', async () => {

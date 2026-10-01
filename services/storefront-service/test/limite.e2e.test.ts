@@ -56,6 +56,7 @@ const mf = new Miniflare({
   ratelimits: {
     LIMITE_TUILES: { namespace_id: '1001', simple: { limit: 3, period: 60 } },
     LIMITE_CREATIONS: { namespace_id: '1002', simple: { limit: 2, period: 60 } },
+    LIMITE_LECTURES: { namespace_id: '1007', simple: { limit: 3, period: 60 } },
   },
   outboundService: async (): Promise<Response> =>
     new Response(PNG, { status: 200, headers: { 'Content-Type': 'image/png', 'Cache-Control': 'max-age=3600' } }),
@@ -127,5 +128,22 @@ describe('LIMITE-ANONYME-1 — the anonymous create doors', () => {
     const trop = await de(C, '/checkout/quote', corps);
     expect(trop.status).toBe(429);
     expect(await trop.json()).toEqual({ error: 'too_many_requests' });
+  });
+});
+
+describe('VITRINE-VRAIE-1 — the public boutique and liste reads have a ceiling (§4.1 « limitée en débit »)', () => {
+  it('within the ceiling a boutique read from one address reaches the boutique road; past it, a 429 by name the buyer site reads; a liste read spends the same budget; another address is untouched', async () => {
+    const LECTEUR = '203.0.113.77';
+    for (let i = 0; i < 2; i += 1) {
+      const res = await de(LECTEUR, '/s/personne-0000');
+      expect(res.status, `read ${i + 1}: the boutique road answered (an unknown shop is its honest 404)`).toBe(404);
+    }
+    expect((await de(LECTEUR, '/listes/zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz')).status, 'a liste read is reached too').not.toBe(429);
+    const trop = await de(LECTEUR, '/s/personne-0000');
+    expect(trop.status).toBe(429);
+    expect(await trop.json()).toEqual({ error: 'too_many_requests' });
+    expect(trop.headers.get('access-control-allow-origin')).toBe('https://beurni2.github.io');
+    expect((await de(LECTEUR, '/listes/zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz')).status).toBe(429);
+    expect((await de('203.0.113.78', '/s/personne-0000')).status).toBe(404);
   });
 });

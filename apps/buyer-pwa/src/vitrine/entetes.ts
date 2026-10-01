@@ -209,7 +209,8 @@ export function vals(sf: Storefront, trust: VitrineTrust, opts: EnteteOpts): Val
     rating: esc(trust.rating),
     reviewCount: trust.reviewCount,
     showStars: !compact && trust.reviewCount >= AVIS_FLOOR,
-    nouvelle: trust.deliveredCount === 0 && trust.reviewCount === 0,
+    // VITRINE-VRAIE-1 — a count the service did not give is not zero.
+    nouvelle: trust.inconnu !== true && trust.deliveredCount === 0 && trust.reviewCount === 0,
     longName: sf.name.length > LONG_NAME,
     tail: nameTail(sf.name),
     back: opts.fromProduct === true,
@@ -284,7 +285,7 @@ export const avisChip = (v: Vals): string =>
 /** « {N} ventes livrées par Séra » with the count grouped the repo's byte-stable
  *  way (manual NNBSP grouping — ICU is banned; the handoff's fr-FR intent). */
 export const ventesLine = (v: Vals): string =>
-  `<b><v>${groupFr(v.delivN)}</v></b> ${t('vit.ventes_livrees').replace(/\s+(\S+)$/, '&nbsp;$1')}`;
+  `<b><v>${groupFr(v.delivN)}</v></b> ${t(v.delivN === 1 ? 'vit.vente_livree' : 'vit.ventes_livrees').replace(/\s+(\S+)$/, '&nbsp;$1')}`;
 
 /** The cover container's honest state: a real photograph, or the style's own
  *  ornamental pattern. Never a caption claiming a photo that is not there. */

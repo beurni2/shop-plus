@@ -114,6 +114,12 @@
   "screenClass": "label"
  },
  {
+  "key": "vit.vente_livree",
+  "fr": "vente livrée par Séra",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
   "key": "vit.cv_manchette",
   "fr": "L'\u00c9dition",
   "register": "selling",
@@ -121,7 +127,7 @@
  },
  {
   "key": "vit.cv_kicker",
-  "fr": "Collection \u00b7 Ouagadougou",
+  "fr": "Collection",
   "register": "selling",
   "screenClass": "label"
  },
@@ -133,7 +139,7 @@
  },
  {
   "key": "vit.bi_specimen",
-  "fr": "Sp\u00e9cimen",
+  "fr": "Bienvenue",
   "register": "selling",
   "screenClass": "label"
  },
@@ -145,37 +151,37 @@
  },
  {
   "key": "vit.dt_kicker",
-  "fr": "Broderie · Ouagadougou",
+  "fr": "Broderie",
   "register": "selling",
   "screenClass": "label"
  },
  {
   "key": "vit.bg_kicker",
-  "fr": "La cour fleurie · Ouagadougou",
+  "fr": "La cour fleurie",
   "register": "selling",
   "screenClass": "label"
  },
  {
   "key": "vit.fm_kicker",
-  "fr": "L’heure dorée · Ouagadougou",
+  "fr": "L’heure dorée",
   "register": "selling",
   "screenClass": "label"
  },
  {
   "key": "vit.hb_kicker",
-  "fr": "Le bissap · Ouagadougou",
+  "fr": "Le bissap",
   "register": "selling",
   "screenClass": "label"
  },
  {
   "key": "vit.pp_kicker",
-  "fr": "L’envol · Ouagadougou",
+  "fr": "L’envol",
   "register": "selling",
   "screenClass": "label"
  },
  {
   "key": "vit.gu_kicker",
-  "fr": "La fête de cour · Ouagadougou",
+  "fr": "La fête de cour",
   "register": "selling",
   "screenClass": "label"
  },
@@ -187,7 +193,7 @@
  },
  {
   "key": "vit.ka_pur",
-  "fr": "Pur beurre de karit\u00e9",
+  "fr": "Choisi avec soin",
   "register": "selling",
   "screenClass": "label"
  },
@@ -361,7 +367,7 @@
  },
  {
   "key": "vit.bande",
-  "fr": "Chaque prix vient de la {lien} du produit — c’est elle qui fait foi.",
+  "fr": "Le prix à payer est celui de la {lien} du produit.",
   "register": "money",
   "screenClass": "status"
  },
@@ -379,7 +385,7 @@
  },
  {
   "key": "vit.footer_verifiee",
-  "fr": "Boutique Séra vérifiée ·",
+  "fr": "Boutique Shop+ ·",
   "register": "neutral",
   "screenClass": "label"
  },
@@ -414,6 +420,42 @@
   "screenClass": "status"
  },
  {
+  "key": "vit.articles_indispo_titre",
+  "fr": "Les articles ne s’affichent pas pour le moment.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "vit.articles_indispo_corps",
+  "fr": "La boutique est bien là. Réessayez dans un instant.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "vit.articles_incomplet",
+  "fr": "Certains articles ne s’affichent pas pour le moment.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "vit.article_retire_titre",
+  "fr": "Cet article n’est plus en vente chez {nom}.",
+  "register": "selling",
+  "screenClass": "status"
+ },
+ {
+  "key": "vit.article_retire_corps",
+  "fr": "Ses autres articles vous attendent dans sa boutique.",
+  "register": "selling",
+  "screenClass": "status"
+ },
+ {
+  "key": "vit.article_indispo_titre",
+  "fr": "Cet article ne s’affiche pas pour le moment.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
   "key": "vit.reessayer",
   "fr": "Réessayer",
   "register": "neutral",
@@ -427,7 +469,7 @@
  },
  {
   "key": "vit.invalide_corps",
-  "fr": "Vérifiez le message reçu — chaque lien Séra est signé, et un lien signé s’ouvre toujours.",
+  "fr": "Vérifiez le lien reçu : une lettre ou un chiffre a peut-être changé.",
   "register": "neutral",
   "screenClass": "instruction"
  },
@@ -1117,13 +1159,13 @@
  },
  {
   "key": "racine.lien_label",
-  "fr": "Le lien de la boutique",
+  "fr": "Le lien ou le code de la boutique",
   "register": "neutral",
   "screenClass": "label"
  },
  {
   "key": "racine.lien_placeholder",
-  "fr": "Collez le lien ici",
+  "fr": "Collez le lien, ou tapez le code (ex. AICHA-4821)",
   "register": "neutral",
   "screenClass": "instruction"
  },
@@ -1135,7 +1177,7 @@
  },
  {
   "key": "racine.refus",
-  "fr": "Ce lien n’ouvre pas de boutique. Demandez un nouveau lien à votre vendeuse.",
+  "fr": "Ce lien ou ce code n’ouvre pas de boutique. Regardez s’il est bien écrit, ou demandez à votre vendeuse.",
   "register": "neutral",
   "screenClass": "status"
  },
@@ -2270,6 +2312,24 @@
  {
   "key": "cl.refus.liste_contact_conflit.phrase",
   "fr": "Rouvrez le lien de la liste, puis commandez. Rien n’a été payé.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.refus.liste_hors_boutique.overline",
+  "fr": "LA LISTE",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.refus.liste_hors_boutique.titre",
+  "fr": "Cet article n’est pas sur cette liste.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.refus.liste_hors_boutique.phrase",
+  "fr": "Rouvrez le lien de la liste pour voir ce qu’elle contient. Rien n’a été payé.",
   "register": "money",
   "screenClass": "status"
  },

@@ -16,7 +16,8 @@ import { LISTE_TOKEN } from './vitrine/liste';
  * What the card accepts (`routeDepuisLien`): the two link forms the system
  * emits — `/v/{slug}` (the boutique, optionally `?liste=`) and
  * `/s/{slug}?pid=` (the signed offer) — as a full address or a bare path, in
- * any letter case, plus the slug alone. Every outbound href is base-aware
+ * any letter case, plus the slug alone or her code typed loosely (§4.1,
+ * `slugDepuisCode`). Every outbound href is base-aware
  * (`vitrineHref` / `signedHref`), so it lands under the deploy base on Pages
  * exactly as the C-ENT entries do. Anything else is refused on the card with
  * one sentence and the field kept — never a navigation to nowhere.
@@ -33,6 +34,21 @@ export type RouteLien =
 
 const SLUG_SEUL = /^[a-z0-9-]+$/;
 
+/**
+ * VITRINE-VRAIE-1 (AUDIT-3 B-07) — §4.1 « Saisie tolérante : insensible à la
+ * casse · espaces ignorés · séparateur absent ou remplacé par une espace
+ * accepté (`aicha4821`, `aicha 4821` → `AICHA-4821`) ». Canon's
+ * `normalizeShortCode` rule, restated here so the entry bundle carries no zod
+ * (BUNDLE-SANS-ZOD-1), then the canon shape `^[A-Z]{2,12}-[0-9]{4}$`. A text
+ * that is not a code passes on untouched to the link reading below.
+ */
+export function slugDepuisCode(texte: string): string | undefined {
+  const compact = texte.replace(/\s+/g, '').toUpperCase();
+  const frontiere = /^([A-Z]+)([0-9]+)$/.exec(compact);
+  const code = compact.includes('-') || frontiere === null ? compact : `${frontiere[1]}-${frontiere[2]}`;
+  return /^[A-Z]{2,12}-[0-9]{4}$/.test(code) ? code.toLowerCase() : undefined;
+}
+
 /** Parse what she pasted into one of the two canon routes, or nothing. */
 export function routeDepuisLien(texte: string): RouteLien | undefined {
   // WhatsApp pastes arrive with quotes, guillemets and stray spaces around
@@ -40,6 +56,8 @@ export function routeDepuisLien(texte: string): RouteLien | undefined {
   // (verifier): « …/v/aicha-4821. » is a good link.
   const brut = texte.trim().replace(/^[«»"'\s]+|[«»"'\s]+$/g, '').replace(/[.,;:!?)\]]+$/, '').trim();
   if (brut === '') return undefined;
+  const code = slugDepuisCode(brut);
+  if (code !== undefined) return { kind: 'vitrine', slug: code };
   const bas = brut.toLowerCase();
   if (SLUG_SEUL.test(bas)) return { kind: 'vitrine', slug: bas };
   let url: URL;

@@ -181,19 +181,45 @@ function lireCadeauxWire(value: unknown): { nom: string; cadeaux: CadeauListe[] 
   return { nom: r.nom, cadeaux };
 }
 
+/** VITRINE-VRAIE-1 (AUDIT-3 B-06) — how long a liste READ may hang before the
+ *  friend is told « ne répond pas » with « Réessayer » (the boutique read's floor). */
+export const LECTURE_LISTE_TIMEOUT_MS = 12_000;
+
+/**
+ * VITRINE-VRAIE-1 (AUDIT-3 B-06, B-15) — one public read, bounded in time,
+ * that tells « this liste does not exist » (a 4xx) from « the service did not
+ * answer » (no network, a stall, a 429, a 5xx, a proxy page). Only the first
+ * may say « n'existe pas ». `null` is the service not answering; the body is
+ * read inside the time limit too.
+ */
+async function lireBornee(url: string, init: RequestInit = {}): Promise<{ readonly ok: boolean; readonly corps: unknown } | null> {
+  const ctrl = typeof AbortController === 'function' ? new AbortController() : null;
+  const stall = ctrl === null ? null : setTimeout(() => ctrl.abort(), LECTURE_LISTE_TIMEOUT_MS);
+  try {
+    let res: Response;
+    try {
+      res = await fetch(url, ctrl !== null ? { ...init, signal: ctrl.signal } : init);
+    } catch {
+      return null;
+    }
+    if (res.status >= 500 || res.status === 429) return null;
+    if (!res.ok) return { ok: false, corps: null };
+    const corps: unknown = await res.json().catch(() => null);
+    return corps === null ? null : { ok: true, corps };
+  } finally {
+    if (stall !== null) clearTimeout(stall);
+  }
+}
+
 /** The REAL adapter — the storefront-service liste doors. */
 export function httpListePort(base: string): ListePort {
   // A closure, not a method, so `fermer`'s already-closed re-read cannot
   // break under destructuring (`this`-free by construction).
   const lire = async (token: string): Promise<ListeLecture> => {
-    let res: Response;
-    try {
-      res = await fetch(`${base}/listes/${encodeURIComponent(token)}`);
-    } catch {
-      return { status: 'hors-ligne' };
-    }
-    if (!res.ok) return { status: 'introuvable' };
-    const body = (await res.json().catch(() => null)) as { ok?: boolean; liste?: unknown } | null;
+    const lu = await lireBornee(`${base}/listes/${encodeURIComponent(token)}`);
+    if (lu === null) return { status: 'hors-ligne' };
+    if (!lu.ok) return { status: 'introuvable' };
+    const body = lu.corps as { ok?: boolean; liste?: unknown } | null;
     const liste = body?.ok === true ? lireListeWire(body.liste) : undefined;
     return liste === undefined ? { status: 'introuvable' } : { status: 'liste', liste };
   };
@@ -274,18 +300,16 @@ export function httpListePort(base: string): ListePort {
       return { status: 'refus' };
     },
     async cadeaux(token, editCle): Promise<ListeCadeauxLecture> {
-      let res: Response;
-      try {
-        res = await fetch(`${base}/listes/${encodeURIComponent(token)}/cadeaux`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ editCle }),
-        });
-      } catch {
-        return { status: 'hors-ligne' };
-      }
-      if (!res.ok) return { status: 'introuvable' };
-      const lu = lireCadeauxWire(await res.json().catch(() => null));
+      // A read (her gifts), bounded and honest like the public one: only a
+      // 4xx is « introuvable »; the service not answering is « hors-ligne ».
+      const reponse = await lireBornee(`${base}/listes/${encodeURIComponent(token)}/cadeaux`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ editCle }),
+      });
+      if (reponse === null) return { status: 'hors-ligne' };
+      if (!reponse.ok) return { status: 'introuvable' };
+      const lu = lireCadeauxWire(reponse.corps);
       return lu === undefined ? { status: 'introuvable' } : { status: 'cadeaux', nom: lu.nom, cadeaux: lu.cadeaux };
     },
   };

@@ -1608,6 +1608,8 @@ export class OrderDO {
         }
         // RELATED-PARTY-1 — the redelivery also repairs an UNDECIDED order.
         await this.lienProcheSiAbsent(spine, quote, origin.orderId, log);
+        // VITRINE-VRAIE-1 — and a delivered mark the first signal failed to leave.
+        await this.marquerLivree(quote.attributionResellerId, origin.orderId);
         return Response.json({ ok: true, status: 'duplicate' });
       }
       // BOUTIK-SUIVI — the supplier's « Livré et terminé » screen is fed from
@@ -1632,6 +1634,9 @@ export class OrderDO {
         [BOUTIK_DELIVERED_KEY]: { status: 'pending', event, attempts: 0 },
       });
       await this.state.storage.setAlarm(Date.now()).catch(() => undefined);
+      // VITRINE-VRAIE-1 (SP8) — a validated delivery is one more « vente
+      // livrée » on HER boutique, counted once per order in her feed book.
+      await this.marquerLivree(quote.attributionResellerId, origin.orderId);
       return Response.json({
         ok: true,
         status: 'recorded',
@@ -1983,6 +1988,10 @@ export class OrderDO {
         resellerNet: quote.resellerNet,
         productVersionId: origin.fulfillment?.productVersionId ?? '',
         zoneTo: origin.fulfillment?.zoneTo ?? '',
+        // VITRINE-VRAIE-1 — Séra validated this delivery (its obligations
+        // exist): her sales read re-marks it in her book, so a delivery
+        // validated before the count existed is counted too.
+        ...(spine.ledger.obligationsFor(origin.orderId).length > 0 ? { livree: true } : {}),
         /**
          * READINESS-RETURN-1c — the preparation facts, each present ONLY once
          * Boutik+ has actually said so. Absent means « not yet », never
@@ -4245,6 +4254,25 @@ export class OrderDO {
     await this.state.storage.put(LOG_KEY, [...log, entree]);
   }
 
+  /** VITRINE-VRAIE-1 — mark this order delivered in its reseller's book (SP8's
+   *  count). Best-effort and idempotent: the validation is already recorded,
+   *  a redelivery repairs a missed mark, and her sales read re-marks what it
+   *  sees delivered. An unattributed order marks nothing. */
+  private async marquerLivree(resellerId: string, orderId: string): Promise<void> {
+    try {
+      const ns = this.env.RESELLER;
+      if (ns === undefined || typeof resellerId !== 'string' || resellerId === '') return;
+      await ns.get(ns.idFromName(RESELLER_FEED_NAME)).fetch(
+        new Request('https://do/livrees/marquer', {
+          method: 'POST',
+          body: JSON.stringify({ resellerId, orderIds: [orderId] }),
+        }),
+      );
+    } catch {
+      // the delivery is recorded; the mark self-heals on the next redelivery or sales read
+    }
+  }
+
   /** RF-1a — put the confirmed sale in its reseller's index. Every failure is
    *  swallowed: see the call site for why a confirmation may never depend on
    *  it. An unattributed order (no reseller on the quote) registers nothing. */
@@ -5260,6 +5288,23 @@ export default {
        * already gated on it, so no address-priced quote can exist to attach.
        */
       if (listeRef !== null && env.WISHLIST !== undefined && !quoteExpiree) {
+        // VITRINE-VRAIE-1 — a liste belongs to ONE boutique and lists HER
+        // articles: an order on another boutique, or for another article, is
+        // refused by name before her address is attached or her wish marked
+        // « offert » (SP-I05). A quote minted before the boutique rode its
+        // facts carries no slug; the article check still stands.
+        const faits = (quoteBody.fulfillment ?? {}) as { slug?: unknown; productVersionId?: unknown };
+        const luListe = await env.WISHLIST.get(env.WISHLIST.idFromName(`liste:${listeRef}`)).fetch(new Request('https://do/entry'));
+        const laListe =
+          luListe.status === 200
+            ? ((await luListe.json().catch(() => null)) as { liste?: { slug?: unknown; articles?: { pid?: unknown }[] } } | null)?.liste
+            : undefined;
+        if (laListe !== undefined) {
+          const pidsListe = Array.isArray(laListe.articles) ? laListe.articles.map((a) => a.pid) : [];
+          if ((typeof faits.slug === 'string' && faits.slug !== laListe.slug) || !pidsListe.includes(faits.productVersionId)) {
+            return refuse('liste_hors_boutique');
+          }
+        }
         const luLivraison = await env.WISHLIST.get(env.WISHLIST.idFromName(`liste:${listeRef}`)).fetch(
           new Request('https://do/entry/livraison'),
         );

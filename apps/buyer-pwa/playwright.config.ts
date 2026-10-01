@@ -74,6 +74,23 @@ export default defineConfig({
       timeout: 120_000,
     },
     {
+      // VITRINE-VRAIE-1 — THE HARNESS ON THE REAL PORTS (port 4176).
+      //
+      // The 4175 build carries the deploy's PROFILE, and the published site no
+      // longer answers the testing addresses (`?demo-signed=`, `?demo-vitrine=`
+      // — AUDIT-3 B-08). The walks that drive the REAL checkout and liste
+      // ports from the demo boutique (checkout-real, colis, panier-payer,
+      // vitrine-liste) keep doing so here: the same service base as 4175, no
+      // profile — exactly the 4175 those walks were written against. It is a
+      // test build only, into `.artifacts/`, never deployed.
+      command:
+        'VITE_STOREFRONT_BASE=http://127.0.0.1:9099/api pnpm exec vite build --outDir .artifacts/dist-real-harnais --emptyOutDir' +
+        ' && pnpm exec vite preview --outDir .artifacts/dist-real-harnais --port 4176 --strictPort --host 127.0.0.1',
+      url: 'http://127.0.0.1:4176',
+      reuseExistingServer: false,
+      timeout: 120_000,
+    },
+    {
       // BUG 2 — the GitHub-Pages emulator (project sub-path + 404.html fallback)
       // so deploy-base.spec.ts can drive the REAL `/shop-plus/v/{slug}` deep-link
       // → restore → boot path that vite preview cannot reproduce. Serves the

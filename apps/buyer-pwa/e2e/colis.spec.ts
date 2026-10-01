@@ -22,7 +22,9 @@ import { expect, test, type Page, type Route } from '@playwright/test';
  * Its bound, stated like every walk's: it claims NOTHING about appearance.
  */
 
-const BASE = 'http://127.0.0.1:4175';
+// VITRINE-VRAIE-1 — the harness on the real ports (4176): the published-profile
+// build (4175) no longer answers `?demo-signed=` / `?demo-vitrine=`.
+const BASE = 'http://127.0.0.1:4176';
 const ENTRY = `${BASE}/?demo-signed=aicha-4821&panier=p1,p2`;
 
 const FIG: Record<string, { produit: number }> = { p1: { produit: 11_500 }, p2: { produit: 20_500 } };

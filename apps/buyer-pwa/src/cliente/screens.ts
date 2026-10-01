@@ -32,6 +32,7 @@ import { t, tf } from '../i18n';
 import { epingleSvg, fmtCoords, viseurSvg } from '../geo-carte';
 import { filtrerQuartiers, QUARTIERS_OUAGADOUGOU } from './quartiers-ouagadougou';
 import { productGlyph } from '../vitrine/icons';
+import { lectureRetenue } from '../vitrine/video-scroll';
 import { fmtFCFA, groupFr, NNBSP } from './money';
 import {
   RECORDED_WAVE_SVG, VOICE_WAVE_HEIGHTS,
@@ -584,6 +585,12 @@ function hero(m: ClienteProduit): string | undefined {
  * when there is a show to fade in.
  */
 export function heroClip(clip: string, poster: string): string {
+  // VITRINE-VRAIE-1 (AUDIT-3 B-14, verifier M1) — she asked for less (reduced
+  // motion, data saver, 2G): the poster stands and no clip byte is fetched.
+  // The element stays a <video> so the frame's swap and gallery keep their shape.
+  if (lectureRetenue()) {
+    return `<video class="cl-photo-img" data-role="video-hero" src="${esc(clip)}" poster="${esc(poster)}" muted playsinline loop preload="none"></video>`;
+  }
   return `<video class="cl-photo-img" data-role="video-hero" src="${esc(clip)}" poster="${esc(poster)}" autoplay muted playsinline loop preload="metadata"></video>`;
 }
 export function heroPhoto(src: string, idx: number, fondu: boolean): string {
@@ -1381,6 +1388,17 @@ const REFUS: Readonly<Record<string, RefusVue>> = {
     overline: t('cl.refus.liste_contact_conflit.overline'),
     titre: t('cl.refus.liste_contact_conflit.titre'),
     phrase: t('cl.refus.liste_contact_conflit.phrase'),
+    action: null,
+    libelle: '',
+  },
+  // VITRINE-VRAIE-1 (verifier m2) — the liste is another boutique's, or no
+  // longer wishes for this article (read missed, or edited after the page
+  // loaded). Every in-app retry re-sends the same liste: no action; the
+  // sentence names the true road, the liste's own link.
+  liste_hors_boutique: {
+    overline: t('cl.refus.liste_hors_boutique.overline'),
+    titre: t('cl.refus.liste_hors_boutique.titre'),
+    phrase: t('cl.refus.liste_hors_boutique.phrase'),
     action: null,
     libelle: '',
   },

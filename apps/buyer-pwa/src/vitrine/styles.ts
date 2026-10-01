@@ -838,6 +838,25 @@ export const VITRINE_STYLES = `
     font-size: 14.5px; font-weight: 700; color: #1C1710;
     cursor: pointer;
   }
+  /* VITRINE-VRAIE-1 — the one primary act of an article card (ink, like the liste CTA). */
+  .vt-primbtn {
+    margin-top: 18px; min-height: 48px; padding: 0 26px;
+    display: flex; align-items: center; justify-content: center;
+    background: #1C1710; color: #FFF8EE; border-radius: 14px;
+    font-family: 'Bricolage Grotesque', sans-serif;
+    font-size: 14.5px; font-weight: 700;
+    cursor: pointer;
+  }
+  .vt-primbtn + .vt-ghostbtn { margin-top: 10px; }
+  /* VITRINE-VRAIE-1 — some articles not shown just now: said, with « Réessayer ». */
+  .vt-incomplet {
+    margin-top: 14px; border-radius: 14px;
+    background: #FCF9F2; border: 1px dashed #DDD2BC;
+    padding: 10px 12px 10px 14px;
+    display: flex; align-items: center; gap: 12px;
+    font-size: 12.5px; line-height: 1.5; color: #4A3F33;
+  }
+  .vt-incomplet .vt-ghostbtn { margin-top: 0; height: 44px; padding: 0 16px; flex: none; }
 
   /* V6 — la carte vide (dashed). */
   .vt-empty {

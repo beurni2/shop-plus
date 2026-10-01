@@ -55,7 +55,7 @@ test('a refused paste keeps her on the card with the sentence and the field; the
   // the tree survived, nothing navigated, the refusal is earned and visible
   await expect(page).toHaveURL(`${PAGES}/shop-plus/`);
   await expect(refus).toBeVisible();
-  await expect(refus).toHaveText('Ce lien n’ouvre pas de boutique. Demandez un nouveau lien à votre vendeuse.');
+  await expect(refus).toHaveText('Ce lien ou ce code n’ouvre pas de boutique. Regardez s’il est bien écrit, ou demandez à votre vendeuse.');
   await expect(champ).toHaveAttribute('aria-invalid', 'true');
   await expect(champ).toBeFocused();
   await expect(page.locator('[data-action="racine-ouvrir"]')).toBeEnabled();

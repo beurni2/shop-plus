@@ -402,8 +402,10 @@ test('no doors on a signed product link, on the reseller\'s own previews, or on 
   await expect(boutique(page)).toContainText('Chez Aïcha Mode');
   await expect(page.locator('[data-screen="compte-porte"]')).toHaveCount(0);
   await expect(bande(page)).toHaveCount(0);
+  // VITRINE-VRAIE-1 — on the published build the harness address is an
+  // ordinary visit: the home card, still no doors.
   await page.goto('/?demo-vitrine=aicha-4821');
-  await expect(page.locator('[data-screen="vitrine"]')).toBeVisible();
+  await expect(page.locator('[data-screen="racine"]')).toBeVisible();
   await expect(page.locator('[data-screen="compte-porte"]')).toHaveCount(0);
   expect(livre.appels).toEqual([]);
 });

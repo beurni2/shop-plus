@@ -53,7 +53,7 @@ function render(v: Vals): string {
       ? [
           '<div class="ry-proof">',
           v.showProof
-            ? `<span class="ry-proof-line" data-role="reputation"><b><v>${groupFr(v.delivN)}</v></b> ${t('vit.ventes_livrees')}</span>`
+            ? `<span class="ry-proof-line" data-role="reputation"><b><v>${groupFr(v.delivN)}</v></b> ${t(v.delivN === 1 ? 'vit.vente_livree' : 'vit.ventes_livrees')}</span>`
             : '',
           v.showStars
             ? `<span class="ry-stars" data-role="chip-avis">${iconStarEnt(12, '#D4A857')}<span><v>${v.rating}</v> · <v>${v.reviewCount}</v> ${t('vit.avis_verifies')}</span></span>`

@@ -322,6 +322,9 @@ describe('REFUS-NOMMÉS-1 — the eight names render their own sentence, one act
     ['stored_quote_unreadable', 'Ce prix ne peut plus être lu.', 'prix-a-jour'],
     ['liste_prepaiement_requis', 'Pour un cadeau, on paie tout maintenant.', 'payer-tout'],
     ['liste_contact_conflit', 'La liste a déjà une adresse.', null],
+    // VITRINE-VRAIE-1 — the service refuses a liste of another boutique (or without
+    // this article) by name; no in-app retry can succeed, so no action.
+    ['liste_hors_boutique', 'Cet article n’est pas sur cette liste.', null],
     ['pay_at_door_not_eligible', 'Le paiement à la porte n’est pas possible pour cette commande.', 'payer-tout'],
   ];
   for (const [reason, titre, action] of cases) {

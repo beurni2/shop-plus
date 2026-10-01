@@ -14,7 +14,7 @@ import {
 import { vitrineSlugFromPath, signedProductSlugFromPath, recordVitrineArrival, vitrineHref, deployBaseFromPath } from './vitrine-link';
 import { mountCadeau } from './cadeau';
 import { demoStorefrontPort, focusPosition, resolveStorefrontPort, VitrineOffline, VitrinePause } from './vitrine/profile';
-import { harnessProfil, mountVitrine, type VitrineEtat } from './vitrine/flows';
+import { harnessProfil, monterArticleAbsent, monterAttenteVitrine, mountVitrine, type VitrineEtat } from './vitrine/flows';
 import { enteteOverride } from './vitrine/entetes';
 import { ENT_STYLES } from './vitrine/entries';
 import { createCliente, type ClienteEcran } from './cliente/flow';
@@ -687,7 +687,11 @@ if (app) {
   // with a demonstration code, so the site real links open never answers it:
   // the deploy builds with VITE_PROFILE 'production' (pwa-preview.yml), and
   // there the address is an ordinary visit. Unset (local runs, tests) keeps it.
-  const clienteDemo = import.meta.env.VITE_PROFILE === 'production' ? null : params.get('demo-cliente');
+  // VITRINE-VRAIE-1 (AUDIT-3 B-03, B-08) — the published site answers NO
+  // testing address: the demo boutique, the demo offer and their state levers
+  // close here exactly as `?demo-cliente=` did (CODES-EFFACES-1).
+  const sitePublie = import.meta.env.VITE_PROFILE === 'production';
+  const clienteDemo = sitePublie ? null : params.get('demo-cliente');
   const CLIENTE_ECRANS: readonly ClienteEcran[] = ['C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'C7', 'C8', 'C9'];
 
   /**
@@ -716,7 +720,7 @@ if (app) {
   // params are a LOCAL/GATE/audit harness only, never the shared link. The
   // controller records the IDENTITY-scope arrival (A8, last-touch) itself and
   // owns the §4.2 state machine (squelette → ready · offline · invalide · vide).
-  const vitrineSlug = vitrineSlugFromPath(window.location.pathname) ?? params.get('demo-vitrine') ?? undefined;
+  const vitrineSlug = vitrineSlugFromPath(window.location.pathname) ?? (sitePublie ? null : params.get('demo-vitrine')) ?? undefined;
 
   // THE SIGNED PRODUCT DEEP-LINK — `/s/{slug}`, « the one she sends » (§6.2.1
   // Arrival; SP-I09). It opens the OFFER (the signed product page), never the
@@ -726,7 +730,7 @@ if (app) {
   // never the shared link; the shared link is the path the 404.html SPA-fallback
   // restores before boot. `?pid=` names the offered product; `demo-signed-profil`
   // is an audit-only lever for the privée state.
-  const signedSlug = signedProductSlugFromPath(window.location.pathname) ?? params.get('demo-signed') ?? undefined;
+  const signedSlug = signedProductSlugFromPath(window.location.pathname) ?? (sitePublie ? null : params.get('demo-signed')) ?? undefined;
 
   /**
    * LISTE-MERCI — THE GIFT-TRACKING PAGE, `?cadeau={orderId}` (founder order
@@ -771,10 +775,29 @@ if (app) {
       const role = enfant.getAttribute('data-role');
       if (role !== 'ma-commande' && role !== 'mon-compte') enfant.remove();
     }
+    const pidParam = params.get('pid');
+    const panierParam = params.get('panier');
+    // VITRINE-VRAIE-1 (AUDIT-3 B-12) — a REAL product link that lost its
+    // `?pid=` (Instagram and TikTok strip it, §4.1) lands on HER BOUTIQUE —
+    // the same arrival, recorded by the mount — never her first article
+    // dressed as the one she shared. The harness keeps its first-article entry.
+    if (isRealPath && (pidParam === null || pidParam === '') && panierParam === null) {
+      mountVitrine(app as HTMLElement, signedSlug);
+      return;
+    }
+    // The article(s) this link names, asked of the service so it describes
+    // THEM first and alone, wherever they sit in her shop (AUDIT-3 B-01).
+    const demandes = panierParam !== null
+      ? [...new Set(panierParam.split(',').filter((p) => p !== ''))]
+      : pidParam !== null && pidParam !== '' ? [pidParam] : [];
+    // VITRINE-VRAIE-1 (AUDIT-3 B-06) — a frame at once, never a white page
+    // while the read is out; it leaves when the screen it waited for mounts.
+    const retirerAttente = monterAttenteVitrine(app as HTMLElement);
     let resolved: Awaited<ReturnType<typeof port.resolve>>;
     try {
-      resolved = await port.resolve(signedSlug);
+      resolved = await port.resolve(signedSlug, demandes.length > 0 ? { pids: demandes } : undefined);
     } catch (e) {
+      retirerAttente();
       if (e instanceof VitrinePause) {
         // PAUSE-VENTE-1 — the founder paused her: the signed offer link lands
         // on the SAME designed pause card the `/v/` road draws (the mount
@@ -790,6 +813,7 @@ if (app) {
     if (!resolved) {
       // Unknown or expired slug → the HONEST not-found, reusing the `/v/` path's
       // invalid surface exactly (no bespoke error wall; §5 honest states).
+      retirerAttente();
       mountVitrine(app as HTMLElement, signedSlug);
     } else {
       // Arrival attribution, recorded on land EXACTLY as the `/v/` path records
@@ -844,13 +868,19 @@ if (app) {
        * to pay — sold out since, or a mangled link — is not a panier: she
        * lands on her boutique, where the band tells the truth.
        */
-      const panierParam = params.get('panier');
+      // VITRINE-VRAIE-1 (AUDIT-3 B-02) — the demo seed answers ONLY where no
+      // service described anything (the demo port, the offline harness). A
+      // shop the service read never borrows a demo article, on either road.
+      const surSeed = resolved.products === undefined;
       if (panierParam !== null) {
-        const pids = [...new Set(panierParam.split(',').filter((p) => p !== ''))];
+        retirerAttente();
+        const pids = demandes;
         const produits = pids
-          .map((p) => resolved.products?.find((x) => x.pid === p) ?? (seedProduct(p) ? productFromSeed(seedProduct(p)!) : undefined))
+          .map((p) => resolved.products?.find((x) => x.pid === p) ?? (surSeed && seedProduct(p) ? productFromSeed(seedProduct(p)!) : undefined))
           .filter((p): p is NonNullable<typeof p> => p !== undefined && p.inStock);
-        if (produits.length < 2 || produits.length > 10) {
+        // The ten-article bound is the LINK's: the read now asks at most ten, so a
+        // longer link would otherwise pay its first ten in silence (verifier N4).
+        if (produits.length < 2 || pids.length > 10) {
           mountVitrine(app as HTMLElement, signedSlug);
           return;
         }
@@ -880,8 +910,10 @@ if (app) {
         });
         return;
       }
+      // The harness entry with no pid opens its first article; a REAL link
+      // without one already went to her boutique above.
       const defaultPid = resolved.storefront.curatedItems[0] ?? 'p1';
-      const pid = params.get('pid') || defaultPid;
+      const pid = pidParam || defaultPid;
       // BUYER-LIVE-WIRE-4 — THE PRODUCT PAGE READS WHAT THE SERVICE DESCRIBED,
       // exactly as the vitrine grid now does (BUYER-LIVE-WIRE-3).
       //
@@ -892,19 +924,34 @@ if (app) {
       // one route over: the vitrine and the product page each resolved products
       // from the demo catalogue while the service was describing them for free.
       //
-      // DESCRIBED WINS, SEED IS THE OFFLINE FALLBACK — the same precedence
-      // `orderedProducts` uses, so the two surfaces cannot disagree about what a
-      // pid means. An explicit pid that resolves to NEITHER still falls to the
-      // honest not-found: a wrong link says so rather than selling something else.
+      // DESCRIBED WINS; THE SEED ANSWERS ONLY ON THE DEMO PORT (`surSeed`) —
+      // VITRINE-VRAIE-1 (AUDIT-3 B-02): a real link once opened « Sandales cuir
+      // homme » at a demo price under her name. A pid that resolves to neither
+      // says so rather than selling something else.
       const described = resolved.products?.find((p) => p.pid === pid);
-      const seed = seedProduct(pid);
+      const seed = surSeed ? seedProduct(pid) : undefined;
       const product = described ?? (seed ? productFromSeed(seed) : undefined);
       const main = document.createElement('main');
-      if (!product) {
-        // Unresolvable pid — honest not-found, the SAME `/v/` invalid surface
-        // an unresolvable slug lands on. No demo fallback, no neighbouring
-        // product: a wrong link says so instead of selling something else.
+      if (!product && surSeed) {
+        // Harness: unresolvable pid — the `/v/` invalid surface, as it was.
+        retirerAttente();
         mountVitrine(app as HTMLElement, signedSlug, { etat: 'invalid' });
+      } else if (!product) {
+        // VITRINE-VRAIE-1 (AUDIT-3 B-04) — her shop answered; this article is
+        // not on sale in it. Hers but not described just now (a supply
+        // hiccup) ⇒ « Réessayer »; removed, auto-hidden or never hers ⇒ « n'est
+        // plus en vente chez {elle} » — and either way her boutique, one tap.
+        retirerAttente();
+        const sienne = resolved.storefront.curatedItems.includes(pid) && resolved.incomplet === true;
+        monterArticleAbsent(app as HTMLElement, {
+          kind: sienne ? 'indisponible' : 'retire',
+          nom: resolved.storefront.name,
+          theme: resolved.storefront.theme,
+          voirBoutique: () => {
+            window.location.href = vitrineHref(window.location.pathname, signedSlug);
+          },
+          reessayer: () => void monterOffre(),
+        });
       } else {
         // CONTACT-WHATSAPP-1 — the resolved contact rides INTO the product
         // model here, the one seam between the boutique read and the fiche.
@@ -934,15 +981,24 @@ if (app) {
         // so a mangled param is NO liste rather than a refused order later;
         // it rides the order create only (see fetchClienteQuote's last param).
         const listeParam = params.get('liste');
-        const listeRef = listeParam !== null && LISTE_TOKEN.test(listeParam) ? listeParam : undefined;
+        const listeDemandee = listeParam !== null && LISTE_TOKEN.test(listeParam) ? listeParam : undefined;
         // LISTE-ADRESSE — WHETHER the liste stored an address (a public
         // boolean; the address itself never reaches this app). Read before
         // the mount because it decides the ROAD: stored ⇒ the friend only
         // pays (C3 never mounts, the quote names the liste). A read that
         // fails keeps today's fill-it-yourself road — honest degradation.
-        const listeLue = listeRef !== undefined ? await resolveListePort().lire(listeRef) : undefined;
+        const listeLue = listeDemandee !== undefined ? await resolveListePort().lire(listeDemandee) : undefined;
+        // VITRINE-VRAIE-1 (AUDIT-3 B-10) — a liste made on ANOTHER boutique,
+        // or one that does not wish for THIS article, never rides: no address
+        // of hers on this order, no « offert » mark from another seller's sale
+        // (the service refuses it by name, `liste_hors_boutique`). The buyer
+        // simply buys for herself.
+        const listeAilleurs =
+          listeLue !== undefined && listeLue.status === 'liste' &&
+          (listeLue.liste.slug !== resolved.storefront.slug || !listeLue.liste.articles.some((a) => a.pid === pid));
+        const listeRef = listeAilleurs ? undefined : listeDemandee;
         const livraisonListe =
-          listeLue !== undefined && listeLue.status === 'liste' && listeLue.liste.livraison
+          listeRef !== undefined && listeLue !== undefined && listeLue.status === 'liste' && listeLue.liste.livraison
             ? { nom: listeLue.liste.nom }
             : undefined;
         const quoteBase = (quartier: string): QuoteBase => ({
@@ -1043,6 +1099,7 @@ if (app) {
             window.location.href = listeRef !== undefined ? `${retour}?liste=${encodeURIComponent(listeRef)}` : retour;
           },
         });
+        retirerAttente();
         app.append(main);
       }
     }
@@ -1167,12 +1224,18 @@ if (app) {
     // ONE `/v/` link form, no second scheme). Shape-checked here: a mangled
     // token mounts the plain boutique, never an error wall over her shop.
     const listeParam = params.get('liste');
+    // VITRINE-VRAIE-1 (AUDIT-3 B-03) — the state levers are the harness's,
+    // the `harnessProfil` rule: a REAL link never takes them (a forwarded
+    // `?demo-vitrine-etat=pause` drew a fake pause over an active seller),
+    // and the published site never answers them at all. The reseller's own
+    // preview levers (`entete`, `apercu-nu`) are not state and stay.
+    const leviers = !isRealVitrinePath && !sitePublie;
     const monterBoutique = (portLecture?: StorefrontProfilePort): void => mountVitrine(app as HTMLElement, vitrineSlug, {
       ...(portLecture !== undefined ? { port: portLecture } : {}),
-      etat: etatParam && (VIT_ETATS as readonly string[]).includes(etatParam) ? (etatParam as VitrineEtat) : undefined,
+      etat: leviers && etatParam && (VIT_ETATS as readonly string[]).includes(etatParam) ? (etatParam as VitrineEtat) : undefined,
       profil: harnessProfil(isRealVitrinePath, profilParam),
-      fromProduct: params.get('demo-vitrine-depuis') === 'produit',
-      fige: params.has('demo-vitrine-fige'),
+      fromProduct: leviers && params.get('demo-vitrine-depuis') === 'produit',
+      fige: leviers && params.has('demo-vitrine-fige'),
       entete,
       // APERÇU NU — the reseller's en-tête preview asks for empty photo frames,
       // so the FRAME is what he compares across forty-three styles instead of
