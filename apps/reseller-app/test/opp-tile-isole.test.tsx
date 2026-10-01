@@ -159,6 +159,7 @@ describe('VitrineCard — a digit typed into card A renders A and no other card'
       startRec: () => {}, stopRec: () => {}, cancelRec: () => {}, playRec: () => {}, publishRec: () => {}, deleteRec: () => {}, retryPermission: () => {},
     };
     const noop = (): void => {};
+    const sansSigne = async (): Promise<boolean> => false;
     let rendusParent = 0;
     function Parent(): React.ReactElement {
       const [markups, setMarkups] = useState<Record<string, number>>({});
@@ -186,6 +187,7 @@ describe('VitrineCard — a digit typed into card A renders A and no other card'
               onAnnulerAttente={noop}
               rejeu={false}
               signe={false}
+              onChangerMarge={sansSigne}
             />
           ))}
         </>

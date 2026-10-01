@@ -79,7 +79,7 @@ const PRIX_SIGNE = 11_500;
 
 /** CONTRACT-CERTIFIED to `storefront-service`: the list answers rows with id,
  *  slug and name; the by-id read answers the canon Storefront; the by-pid read
- *  answers `listing-do.ts`'s `/entry/full` shape (as in rendu-prix-signe). */
+ *  answers `listing-do.ts`'s `/entry/economics` shape (as in rendu-prix-signe). */
 const routes: Route[] = [
   (path) =>
     path === '/supply-projections'
@@ -91,8 +91,8 @@ const routes: Route[] = [
       : null,
   (path) => (/^\/storefronts\/[^/]+$/.test(path) ? { status: 200, json: storefront() as never } : null),
   (path) =>
-    /^\/listings\/by-pid\/[^/]+\/[^/]+$/.test(path)
-      ? { status: 200, json: { listingId: `lst-${SF_ID}-${PV}`, productVersionId: PV, customerPriceFcfa: PRIX_SIGNE, status: 'published' } }
+    /^\/listings\/by-pid\/[^/]+\/[^/]+\/economics$/.test(path)
+      ? { status: 200, json: { listing: { id: `lst-${SF_ID}-${PV}`, productVersionId: PV, markup: (PRIX_SIGNE) - 10_000, version: 1, status: 'published' }, customerPriceFcfa: PRIX_SIGNE, resellerCommission: 1_000 } }
       : null,
 ];
 

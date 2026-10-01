@@ -366,6 +366,54 @@
   "screenClass": "label"
  },
  {
+  "key": "marge.changer",
+  "fr": "Changer ma marge",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "marge.changer_note",
+  "fr": "Les messages déjà envoyés gardent l’ancien prix. Votre page montrera le nouveau.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "marge.nouveau_prix",
+  "fr": "Nouveau prix cliente : {amount}",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "marge.signer",
+  "fr": "Signer ce nouveau prix",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "marge.annuler",
+  "fr": "Annuler",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "marge.signe",
+  "fr": "Nouveau prix signé : {amount}. Les prochaines commandes paieront ce prix.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "marge.reseau",
+  "fr": "Il faut du réseau pour changer un prix. Réessayez quand ça passe.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "marge.incertain",
+  "fr": "Nouveau prix envoyé. Rouvrez Ma vitrine pour le voir.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
   "key": "vitrine.prix_fixe",
   "fr": "Ce prix est fixé : c’est celui que paie la cliente.",
   "register": "money",

@@ -13,9 +13,11 @@ import { formatFcfa } from '../src/earnings';
  * FCFA » while the signed link charged 12 000. Law 1 (every figure reconciles
  * to the franc), SP-I19 (the price snapshot), the trust test.
  *
- * The double is contract-certified to `listing-do.ts`'s `/entry/full` as
- * served by `GET /listings/by-pid/{sf}/{pid}`: `{listingId, productVersionId,
- * customerPriceFcfa, status}`, 404 for a pid without a listing. Only `fetch`
+ * The double is contract-certified to `listing-do.ts`'s `/entry/economics` as
+ * served by `GET /listings/by-pid/{sf}/{pid}/economics` (CHANGER-MARGE-1: her
+ * session's read of the listing as stored): `{ listing: { id,
+ * productVersionId, markup, version, status }, customerPriceFcfa,
+ * resellerCommission }`, 404 for a pid without a listing. Only `fetch`
  * is faked; the App, its ports and the margin arithmetic are the shipped files.
  */
 
@@ -45,9 +47,9 @@ function routes(signe: number | null): Route[] {
     (path) => (path === '/storefronts' ? { status: 200, json: [{ id: SF_ID, slug: SLUG, name: 'Boutique test' }] as never } : null),
     (path) => (/^\/storefronts\/[^/]+$/.test(path) ? { status: 200, json: storefront() as never } : null),
     (path) => {
-      if (!/^\/listings\/by-pid\/[^/]+\/[^/]+$/.test(path)) return null;
+      if (!/^\/listings\/by-pid\/[^/]+\/[^/]+\/economics$/.test(path)) return null;
       if (signe === null) return { status: 404, json: { error: 'not_found' } };
-      return { status: 200, json: { listingId: `lst-${SF_ID}-${PV}`, productVersionId: PV, customerPriceFcfa: signe, status: 'published' } };
+      return { status: 200, json: { listing: { id: `lst-${SF_ID}-${PV}`, productVersionId: PV, markup: (signe) - 10_000, version: 1, status: 'published' }, customerPriceFcfa: signe, resellerCommission: 1_000 } };
     },
   ];
 }
@@ -131,9 +133,9 @@ describe('PRIX-SIGNE-1 — the card and the share preview print the SIGNED price
       (path) => (path === '/storefronts' ? { status: 200, json: [{ id: SF_ID, slug: SLUG, name: 'Boutique test' }] as never } : null),
       (path) => (/^\/storefronts\/[^/]+$/.test(path) ? { status: 200, json: { ...storefront(), curatedItems: state.curated } as never } : null),
       (path) => {
-        if (!/^\/listings\/by-pid\/[^/]+\/[^/]+$/.test(path)) return null;
+        if (!/^\/listings\/by-pid\/[^/]+\/[^/]+\/economics$/.test(path)) return null;
         if (!state.curated.includes(PV)) return { status: 404, json: { error: 'not_found' } };
-        return { status: 200, json: { listingId: `lst-${SF_ID}-${PV}`, productVersionId: PV, customerPriceFcfa: 12_000, status: 'published' } };
+        return { status: 200, json: { listing: { id: `lst-${SF_ID}-${PV}`, productVersionId: PV, markup: (12_000) - 10_000, version: 1, status: 'published' }, customerPriceFcfa: 12_000, resellerCommission: 1_000 } };
       },
     ]);
     const screen = await mountApp();

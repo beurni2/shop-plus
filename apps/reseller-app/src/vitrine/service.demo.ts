@@ -239,6 +239,11 @@ export class DemoStorefrontService implements StorefrontServicePort {
     return { ok: true, value: undefined };
   }
 
+  /** CHANGER-MARGE-1 — with no signed listing there is nothing to re-sign: refused by name, never a phantom success. */
+  async changerMarge(): Promise<ServiceResult<{ status: string }>> {
+    return { ok: false, reason: 'not_found' };
+  }
+
   /**
    * PUBLISH-PRICE-1 — the demo publish. **IT CAN FAIL, deliberately.**
    *

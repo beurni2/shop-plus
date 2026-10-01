@@ -769,31 +769,54 @@ describe('VOIX-PRODUIT — the note upload seam, on the certified demo double', 
   });
 });
 
-describe('PRIX-SIGNE-1 — readListing: the signed price, read by pid behind her session', () => {
+describe('PRIX-SIGNE-1 / CHANGER-MARGE-1 — readListing: the listing as signed, read by pid behind her session', () => {
   const svc = () => new HttpStorefrontService('https://shop.example', async () => 'SPS-AAAA');
-  it('GET /listings/by-pid/{sf}/{pid} riding the Bearer → the signed listing', async () => {
-    const spy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response(JSON.stringify({ listingId: 'lst-SF-pv', productVersionId: 'pv', customerPriceFcfa: 12_000, status: 'published' })),
-    );
+  const entree = (extra: Record<string, unknown> = {}, listing: Record<string, unknown> = {}) =>
+    JSON.stringify({
+      listing: { id: 'lst-SF-pv', resellerId: 'RS', productVersionId: 'pv', offerVersion: 'ov', markup: 2_000, version: 3, variants: [], status: 'published', ...listing },
+      storefrontId: 'SF', publishCommandId: 'publish-lst-SF-pv', customerPriceFcfa: 12_000, resellerCommission: 1_000, ...extra,
+    });
+  it('GET /listings/by-pid/{sf}/{pid}/economics riding the Bearer → price, marge, version and frozen commission', async () => {
+    const spy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(entree()));
     expect(await svc().readListing('SF', 'pv')).toEqual({
       ok: true,
-      value: { listingId: 'lst-SF-pv', productVersionId: 'pv', customerPriceFcfa: 12_000, status: 'published' },
+      value: { listingId: 'lst-SF-pv', productVersionId: 'pv', customerPriceFcfa: 12_000, status: 'published', markup: 2_000, version: 3, resellerCommission: 1_000 },
     });
     const [url, init] = spy.mock.calls[0]!;
-    expect(url).toBe('https://shop.example/listings/by-pid/SF/pv');
+    expect(url).toBe('https://shop.example/listings/by-pid/SF/pv/economics');
     expect((init?.headers as Record<string, string>)['Authorization']).toBe('Bearer SPS-AAAA');
   });
-  it('404 is an honest absence; a price that is not a franc integer is a FAULT, never a number on her card; a throw is offline', async () => {
+  it('a listing too old to carry its commission reads without one (her net is then unknown, never invented)', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(entree({ resellerCommission: undefined })));
+    const lu = await svc().readListing('SF', 'pv');
+    expect(lu.ok && lu.value !== undefined && 'resellerCommission' in lu.value).toBe(false);
+  });
+  it('404 is an honest absence; an amount that is not a franc integer, or a missing version, is a FAULT, never a number on her card; a throw is offline', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({ error: 'not_found' }), { status: 404 }));
     expect(await svc().readListing('SF', 'pv')).toEqual({ ok: true, value: undefined });
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response(JSON.stringify({ listingId: 'l', productVersionId: 'pv', customerPriceFcfa: 12000.5, status: 'published' })),
-    );
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(entree({ customerPriceFcfa: 12000.5 })));
+    expect(await svc().readListing('SF', 'pv')).toEqual({ ok: false, reason: 'unreadable' });
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(entree({}, { markup: -5 })));
+    expect(await svc().readListing('SF', 'pv')).toEqual({ ok: false, reason: 'unreadable' });
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(entree({}, { version: 0 })));
     expect(await svc().readListing('SF', 'pv')).toEqual({ ok: false, reason: 'unreadable' });
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({ customerPriceFcfa: 12000 })));
     expect(await svc().readListing('SF', 'pv')).toEqual({ ok: false, reason: 'unreadable' });
     vi.spyOn(globalThis, 'fetch').mockRejectedValue(new TypeError('down'));
     expect(await svc().readListing('SF', 'pv')).toEqual({ ok: false, reason: 'offline' });
+  });
+  it('changerMarge POSTs the same publish under a command of its own — next version, new marge — and never a price', async () => {
+    const spy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({ status: 'published' })));
+    const res = await svc().changerMarge({ storefrontId: 'SF', resellerId: 'RS', productVersionId: 'pv', markup: 2_400, correlationId: 'c', versionActuelle: 3 });
+    expect(res).toEqual({ ok: true, value: { status: 'published' } });
+    const [url, init] = spy.mock.calls[0]!;
+    expect(url).toBe('https://shop.example/listings');
+    const corps = JSON.parse(String(init?.body)) as Record<string, unknown>;
+    expect(corps['commandId']).toBe('marge-lst-SF-pv-v4-m2400');
+    expect(corps['markup']).toBe(2_400);
+    expect('customerPriceFcfa' in corps).toBe(false);
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({ error: 'markup_over_cap', cap: 2_500 }), { status: 400 }));
+    expect(await svc().changerMarge({ storefrontId: 'SF', resellerId: 'RS', productVersionId: 'pv', markup: 9_000, correlationId: 'c', versionActuelle: 3 })).toEqual({ ok: false, reason: 'markup_over_cap' });
   });
 });
 

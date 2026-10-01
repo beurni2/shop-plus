@@ -58,10 +58,10 @@ function monde(porte: Porte, opts: { curated?: string[]; signe?: number | null }
     (path) => (path === '/storefronts' ? { status: 200, json: [{ id: SF_ID, slug: SLUG, name: 'Boutique test' }] as never } : null),
     (path) => (/^\/storefronts\/[^/]+$/.test(path) ? { status: 200, json: stocke.sf as never } : null),
     (path) => {
-      if (!/^\/listings\/by-pid\/[^/]+\/[^/]+$/.test(path)) return null;
+      if (!/^\/listings\/by-pid\/[^/]+\/[^/]+\/economics$/.test(path)) return null;
       if (opts.signe === null) return { status: 404, json: { error: 'not_found' } };
-      const pid = path.split('/').pop()!;
-      return { status: 200, json: { listingId: `lst-${SF_ID}-${pid}`, productVersionId: pid, customerPriceFcfa: opts.signe ?? 12_000, status: 'published' } };
+      const pid = path.split('/')[4]!;
+      return { status: 200, json: { listing: { id: `lst-${SF_ID}-${pid}`, productVersionId: pid, markup: (opts.signe ?? 12_000) - 10_000, version: 1, status: 'published' }, customerPriceFcfa: opts.signe ?? 12_000, resellerCommission: 1_000 } };
     },
     (path, body) => {
       if (!/^\/storefronts\/[^/]+\/identity$/.test(path)) return null;
@@ -164,7 +164,7 @@ describe('A-01 — a product she already sells always says the price the link ch
     const screen = await mountApp();
     await screen.press('Ma Vitrine');
     await laisser(screen, 12);
-    const lus = new Set(fils.calls.filter((c) => /^\/listings\/by-pid\//.test(c.path)).map((c) => c.path.split('/').pop()));
+    const lus = new Set(fils.calls.filter((c) => /^\/listings\/by-pid\//.test(c.path)).map((c) => c.path.split('/')[4]));
     expect([...lus].sort()).toEqual([...pids].sort());
     // …and every card took it: no card still offers a marge field over a signed price.
     expect(margeChamps(screen), 'a signed card past the twentieth still offers the marge').toHaveLength(0);
@@ -501,8 +501,8 @@ describe('A-01 — the signed price reaches every card and the share screen with
     const lent: Route = (path) => {
       if (!/^\/listings\/by-pid\//.test(path)) return null;
       lus += 1;
-      const pid = path.split('/').pop()!;
-      const rep = { status: 200, json: { listingId: `lst-${SF_ID}-${pid}`, productVersionId: pid, customerPriceFcfa: 12_000, status: 'published' } };
+      const pid = path.split('/')[4]!;
+      const rep = { status: 200, json: { listing: { id: `lst-${SF_ID}-${pid}`, productVersionId: pid, markup: (12_000) - 10_000, version: 1, status: 'published' }, customerPriceFcfa: 12_000, resellerCommission: 1_000 } };
       if (lus <= 6) return rep; // the first round answers; the next is slow (2G)
       return new Promise((resolve) => {
         tenus.push(() => resolve(rep));

@@ -178,16 +178,28 @@ export function estSessionRefusee(reason: string): boolean {
 
 /**
  * PRIX-SIGNE-1 (AUDIT-SHOP-2 F-16) — what the Worker holds for ONE listing of
- * hers: the price it SIGNED. Read from `GET /listings/by-pid/{sf}/{pid}`, the
- * route the buyer join uses, which carries the pid, her cliente price and the
- * status — and deliberately no markup or commission. `undefined` = no listing
- * for that pid (an honest absence, not a fault).
+ * hers: the price it SIGNED. `undefined` = no listing for that pid (an honest
+ * absence, not a fault).
+ *
+ * CHANGER-MARGE-1 (founder « go », 2026-10-01) — read from `GET
+ * /listings/by-pid/{sf}/{pid}/economics`, HER session's read of the listing as
+ * stored, not the buyer join's projection (which carries no marge): her card
+ * states the marge the service SIGNED and the commission frozen with it, never
+ * « signed price − today's base », and a change of marge names the version it
+ * replaces. Nothing here is new to her: she already reads the base and the
+ * commission on every opportunity.
  */
 export interface SignedListing {
   readonly listingId: string;
   readonly productVersionId: string;
   readonly customerPriceFcfa: number;
   readonly status: string;
+  /** M as signed. */
+  readonly markup: number;
+  /** The signed version — a change of marge signs the next one. */
+  readonly version: number;
+  /** C as frozen at signing; absent on the oldest listings (her net is then unknown). */
+  readonly resellerCommission?: number;
 }
 
 export interface UploadOutcome {
@@ -346,6 +358,16 @@ export interface StorefrontServicePort {
   publishListing(
     req: PublishListingRequest,
   ): Promise<ServiceResult<{ status: string; remise?: boolean; storefront?: Storefront }>>;
+  /**
+   * CHANGER-MARGE-1 — sign a NEW price for a product she already sells: the
+   * same publish, under a command id of its own (`marge-{listing}-v{next}-m{M}`),
+   * so the service signs the next version (« REPUBLISH IS A NEW VERSION, NEVER
+   * A MUTATION ») and a retry of the same change replays instead of signing twice.
+   * Orders already placed keep the price they were quoted.
+   */
+  changerMarge(
+    req: PublishListingRequest & { readonly versionActuelle: number },
+  ): Promise<ServiceResult<{ status: string }>>;
   /**
    * VITRINE-RETRAIT (founder, 2026-08-11: « when they delete products from their
    * ma vitrine these products still show on their boutique ») — take ONE product
@@ -596,13 +618,29 @@ export class HttpStorefrontService implements StorefrontServicePort {
     req: PublishListingRequest,
   ): Promise<ServiceResult<{ status: string; remise?: boolean; storefront?: Storefront }>> {
     const listingId = listingIdFor(req.storefrontId, req.productVersionId);
+    return this.poster(req, `publish-${listingId}`); // DERIVED — a re-tap is idempotent, not a second version
+  }
+
+  async changerMarge(
+    req: PublishListingRequest & { readonly versionActuelle: number },
+  ): Promise<ServiceResult<{ status: string }>> {
+    const listingId = listingIdFor(req.storefrontId, req.productVersionId);
+    const res = await this.poster(req, `marge-${listingId}-v${req.versionActuelle + 1}-m${req.markup}`);
+    return res.ok ? { ok: true, value: { status: res.value.status } } : res;
+  }
+
+  private async poster(
+    req: PublishListingRequest,
+    commandId: string,
+  ): Promise<ServiceResult<{ status: string; remise?: boolean; storefront?: Storefront }>> {
+    const listingId = listingIdFor(req.storefrontId, req.productVersionId);
     let res: Response;
     try {
       res = await fetchBorne(`${this.base}/listings`, {
         method: 'POST',
         headers: await this.headers({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({
-          commandId: `publish-${listingId}`, // DERIVED — a re-tap is idempotent, not a second version
+          commandId,
           listingId,
           storefrontId: req.storefrontId,
           resellerId: req.resellerId,
@@ -685,7 +723,7 @@ export class HttpStorefrontService implements StorefrontServicePort {
     let res: Response;
     try {
       res = await fetchBorne(
-        `${this.base}/listings/by-pid/${encodeURIComponent(storefrontId)}/${encodeURIComponent(productVersionId)}`,
+        `${this.base}/listings/by-pid/${encodeURIComponent(storefrontId)}/${encodeURIComponent(productVersionId)}/economics`,
         { method: 'GET', headers: await this.headers() },
         DELAI_LECTURE_MS,
       );
@@ -694,22 +732,36 @@ export class HttpStorefrontService implements StorefrontServicePort {
     }
     if (res.status === 404) return { ok: true, value: undefined };
     if (!res.ok) return { ok: false, reason: `http_${res.status}` };
-    const data = (await res.json().catch(() => null)) as Partial<SignedListing> | null;
-    // A price that is not a franc integer is a FAULT, never a number on her card.
+    // The listing AS STORED: `{ listing: { id, productVersionId, markup, version, status, … }, customerPriceFcfa, resellerCommission? }`.
+    const data = (await res.json().catch(() => null)) as
+      | { listing?: { id?: unknown; productVersionId?: unknown; markup?: unknown; version?: unknown; status?: unknown }; customerPriceFcfa?: unknown; resellerCommission?: unknown }
+      | null;
+    const franc = (v: unknown): v is number => typeof v === 'number' && Number.isInteger(v) && v >= 0;
+    const l = data?.listing;
+    // An amount that is not a franc integer is a FAULT, never a number on her card.
     if (
-      data === null ||
-      typeof data.listingId !== 'string' ||
-      typeof data.productVersionId !== 'string' ||
-      typeof data.customerPriceFcfa !== 'number' ||
-      !Number.isInteger(data.customerPriceFcfa) ||
-      data.customerPriceFcfa < 0 ||
-      typeof data.status !== 'string'
+      data === null || l === undefined ||
+      typeof l.id !== 'string' ||
+      typeof l.productVersionId !== 'string' ||
+      typeof l.status !== 'string' ||
+      !franc(data.customerPriceFcfa) ||
+      !franc(l.markup) ||
+      !(typeof l.version === 'number' && Number.isInteger(l.version) && l.version >= 1) ||
+      (data.resellerCommission !== undefined && !franc(data.resellerCommission))
     ) {
       return { ok: false, reason: 'unreadable' };
     }
     return {
       ok: true,
-      value: { listingId: data.listingId, productVersionId: data.productVersionId, customerPriceFcfa: data.customerPriceFcfa, status: data.status },
+      value: {
+        listingId: l.id,
+        productVersionId: l.productVersionId,
+        customerPriceFcfa: data.customerPriceFcfa,
+        status: l.status,
+        markup: l.markup,
+        version: l.version,
+        ...(data.resellerCommission !== undefined ? { resellerCommission: data.resellerCommission as number } : {}),
+      },
     };
   }
 }

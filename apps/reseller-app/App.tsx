@@ -25,7 +25,7 @@ import { cadreRatio, CADRE_DEFAUT } from './src/ui/cadre';
 import { choisirClipActif } from './src/ui/clip-actif';
 import { DuotoneTile } from './src/ui/signature';
 import { CustomizeStack } from './src/vitrine/customize/screens';
-import { resolveStorefrontService, deriveShortCode, saveRefusalToastKey, publierRefusalToastKey, estSessionRefusee, raisonReseau, verdictReplay, type SaveIssue, type StorefrontIdentityPatch } from './src/vitrine/service';
+import { resolveStorefrontService, deriveShortCode, saveRefusalToastKey, publierRefusalToastKey, estSessionRefusee, raisonReseau, verdictReplay, type SaveIssue, type SignedListing, type StorefrontIdentityPatch } from './src/vitrine/service';
 import { withFocus, type Storefront } from './src/vitrine/customize/storefront';
 import { loadOrMintIdentity, remintIdentity } from './src/identity/store';
 import { resolveOfferSource, type Offer, type OfferFeed } from './src/vitrine/offers';
@@ -419,6 +419,22 @@ export const OppTile = memo(function OppTile({ item, net, deja, actif, onOuvrir,
  * memoized on its own state, so it changes only when a note or a playback
  * clock does — and then every card that shows a note must redraw, and does.
  */
+/** CHANGER-MARGE-1 — what the service signed for one of her products. */
+interface PrixSigne {
+  readonly prix: number;
+  readonly marge: number;
+  readonly version: number;
+  readonly commission?: number;
+}
+function prixSigneDe(l: SignedListing): PrixSigne {
+  return {
+    prix: l.customerPriceFcfa,
+    marge: l.markup,
+    version: l.version,
+    ...(l.resellerCommission !== undefined ? { commission: l.resellerCommission } : {}),
+  };
+}
+
 export interface VitrineCardProps {
   readonly item: Offer;
   readonly markup: number;
@@ -444,11 +460,26 @@ export interface VitrineCardProps {
   /** REVENDEUSE-VRAIE-1 (AUDIT-3 A-01) — the service SIGNED this product's
    *  price: her marge is stated, never an editor of a price nothing re-signs. */
   readonly signe: boolean;
+  /** CHANGER-MARGE-1 — re-sign a signed product at a new marge; `true` once the
+   *  service signed it (the card then closes its editor). */
+  readonly onChangerMarge: (pid: string, marge: number) => Promise<boolean>;
 }
 
 export const VitrineCard = memo(function VitrineCard({
-  item, markup, cap, net, client, ctl, retiring, onGalerie, onVoix, onPartager, onRetirer, onMarge, onFocusField, attente, onAnnulerAttente, rejeu, signe,
+  item, markup, cap, net, client, ctl, retiring, onGalerie, onVoix, onPartager, onRetirer, onMarge, onFocusField, attente, onAnnulerAttente, rejeu, signe, onChangerMarge,
 }: VitrineCardProps) {
+  // CHANGER-MARGE-1 — the marge she is choosing (null = editor closed), and
+  // whether the service is signing it; nothing is sent while she types.
+  const [nouvelleMarge, setNouvelleMarge] = useState<number | null>(null);
+  const [signature, setSignature] = useState(false);
+  const signer = (): void => {
+    if (nouvelleMarge === null || signature) return;
+    setSignature(true);
+    void onChangerMarge(item.productVersionId, nouvelleMarge).then((ok) => {
+      setSignature(false);
+      if (ok) setNouvelleMarge(null);
+    });
+  };
   // Per-product card (founder recomposition of the planche read-only
   // grid): art 110 · client price (deep) ↔ net (small, live) · the
   // marge SLIDER (0→cap, pas 100 → live net/client via marginBreakdown,
@@ -537,13 +568,39 @@ export const VitrineCard = memo(function VitrineCard({
           read-only row plus a slider underneath it. She sets the
           figure where she reads it, and « Prix cliente » below is
           the arithmetic answering her in place. */}
-      {signe ? (
+      {signe && nouvelleMarge === null ? (
         <>
           <View style={styles.margeHeadRow}>
             <Overline>{t('fiche.marge_titre')}</Overline>
             <Text style={styles.margeAmount}>{formatFcfa(markup)}</Text>
           </View>
           <Text style={styles.noteLine}>{t('vitrine.prix_fixe')}</Text>
+          <Pressable
+            style={({ pressed }) => [styles.vitrineRetirer, pressed && styles.pressed]}
+            onPress={() => setNouvelleMarge(markup)}
+            accessibilityRole="button"
+            accessibilityLabel={t('marge.changer')}
+          >
+            <Text style={styles.vitrineRetirerLabel}>{t('marge.changer')}</Text>
+          </Pressable>
+        </>
+      ) : signe && nouvelleMarge !== null ? (
+        // CHANGER-MARGE-1 (SP-I19: « markup changes expire old cards … the
+        // signed page remains the live price ») — the new price is the
+        // service's to sign: the preview is today's base plus her marge, and
+        // what lands is read back from the service before her card moves.
+        <>
+          <MarkupControl onFocusField={onFocusField} value={nouvelleMarge} cap={cap} onChange={setNouvelleMarge} />
+          <Text style={styles.noteLine}>{t('marge.changer_note')}</Text>
+          <View style={styles.margeHeadRow}>
+            <Overline>{tf('marge.nouveau_prix', { amount: formatFcfa(item.basePrice + nouvelleMarge) })}</Overline>
+          </View>
+          <PrimaryButton
+            label={signature ? t('k.publier.envoi') : t('marge.signer')}
+            onPress={signer}
+            disabled={signature || nouvelleMarge === markup}
+          />
+          <GhostButton label={t('marge.annuler')} onPress={() => { if (!signature) setNouvelleMarge(null); }} />
         </>
       ) : (
         <MarkupControl
@@ -854,7 +911,7 @@ export default function App() {
    * a cliente price the signed link did not charge (measured: « 10 000 »
    * twice, the link charging 12 000, the by-pid route never asked).
    */
-  const [prixSignes, setPrixSignes] = useState<Record<string, number>>({});
+  const [prixSignes, setPrixSignes] = useState<Record<string, PrixSigne>>({});
   // RESELLER-UX-2 (founder walk, item 2) — the untouched-slider CTA gate is GONE
   // and so is the `markupTouched` state that carried it. The gate guarded against
   // signing the old defaulted 1 500 she never chose; with DEFAULT_MARKUP now 0
@@ -1186,8 +1243,8 @@ export default function App() {
         for (let i = 0; i < pids.length && live; i += 6) {
           const lus = await Promise.all(pids.slice(i, i + 6).map(async (pid) => [pid, await service.readListing(identity.storefrontId, pid)] as const));
           if (!live) return;
-          const signes: Record<string, number> = {};
-          for (const [pid, lu] of lus) if (lu.ok && lu.value !== undefined) signes[pid] = lu.value.customerPriceFcfa;
+          const signes: Record<string, PrixSigne> = {};
+          for (const [pid, lu] of lus) if (lu.ok && lu.value !== undefined) signes[pid] = prixSigneDe(lu.value);
           if (Object.keys(signes).length > 0) setPrixSignes((prev) => ({ ...prev, ...signes }));
         }
       })();
@@ -1619,17 +1676,15 @@ export default function App() {
   function marginOf(id: string, basePrice: number, commission: number) {
     const cap = markupCap(basePrice);
     // PRIX-SIGNE-1 — a product with a SIGNED price shows that price: the
-    // cliente row is the Worker's figure, the marge shown is what that figure
-    // implies over today's base (clamped to the control's range).
-    // REVENDEUSE-VRAIE-1 (AUDIT-3 A-01) — ALWAYS, not « until she moves the
-    // control »: nothing re-signs a published product (re-pricing is the
-    // founder's open call), so a moved figure was a price no link charges —
-    // on her card AND in the message to her cliente. Her card no longer
-    // offers the control on a signed product (`VitrineCard` `signe`).
+    // cliente row is the Worker's figure. REVENDEUSE-VRAIE-1 (AUDIT-3 A-01) —
+    // always, never the control's arithmetic. CHANGER-MARGE-1 — and the marge
+    // and net are the ones the service SIGNED (its marge, the commission
+    // frozen with it), not « signed price − today's base »: once the
+    // supplier's base moved, that subtraction named a marge she never signed.
+    // A listing too old to carry its commission falls back to today's.
     const signe = prixSignes[id];
     if (signe !== undefined) {
-      const implique = Math.max(0, Math.min(cap, signe - basePrice));
-      return { ...marginBreakdown(basePrice, commission, implique), client: signe };
+      return { ...marginBreakdown(basePrice, signe.commission ?? commission, signe.marge), client: signe.prix };
     }
     return marginBreakdown(basePrice, commission, markups[id] ?? defaultMarkup(cap));
   }
@@ -2260,12 +2315,47 @@ export default function App() {
     if (prixSignesRef.current[pid] === undefined && service !== null && identity !== null && identity !== undefined) {
       void service.readListing(identity.storefrontId, pid).then((lu) => {
         if (lu.ok && lu.value !== undefined) {
-          const prix = lu.value.customerPriceFcfa;
-          setPrixSignes((prev) => ({ ...prev, [pid]: prix }));
+          const signe = prixSigneDe(lu.value);
+          setPrixSignes((prev) => ({ ...prev, [pid]: signe }));
         }
       });
     }
   }, [go, service, identity]);
+  /**
+   * CHANGER-MARGE-1 (founder « go », 2026-10-01; canon SP-I19 « markup changes
+   * expire old cards (never silent edits) … the signed page remains the live
+   * price ») — she changes the price of a product she already sells. The
+   * service signs the next version; orders already placed keep the price they
+   * were quoted. NEVER KEPT ON THE PHONE: a price is a promise to a cliente,
+   * so with no network it is said and nothing waits to fire later. Her card
+   * moves only on the price READ BACK from the service.
+   */
+  const resignerMarge = useCallback(async (pid: string, marge: number): Promise<boolean> => {
+    if (service === null || identity === null || identity === undefined) return false;
+    const actuel = prixSignesRef.current[pid];
+    if (actuel === undefined) return false;
+    const res = await service.changerMarge({
+      storefrontId: identity.storefrontId,
+      resellerId: identity.resellerId,
+      productVersionId: pid,
+      markup: marge,
+      correlationId: identity.correlationId,
+      versionActuelle: actuel.version,
+    });
+    if (!res.ok) {
+      setToast(raisonReseau(res.reason) ? t('marge.reseau') : t(publierRefusalToastKey(res.reason)));
+      return false;
+    }
+    const lu = await service.readListing(identity.storefrontId, pid);
+    if (lu.ok && lu.value !== undefined) {
+      const signe = prixSigneDe(lu.value);
+      setPrixSignes((prev) => ({ ...prev, [pid]: signe }));
+      setToast(tf('marge.signe', { amount: formatFcfa(signe.prix) }));
+    } else {
+      setToast(t('marge.incertain'));
+    }
+    return true;
+  }, [service, identity]);
   const retirerProduit = useCallback((pid: string) => { void retirerDeVitrine(pid); }, [retirerDeVitrine]);
   const changerMarge = useCallback((pid: string, m: number) => {
     setMarkups((prev) => ({ ...prev, [pid]: m }));
@@ -3263,6 +3353,7 @@ export default function App() {
                     onAnnulerAttente={annulerAttente}
                     rejeu={rejeu}
                     signe={prixSignes[item.productVersionId] !== undefined}
+                    onChangerMarge={resignerMarge}
                   />
                 );
               }}
