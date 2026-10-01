@@ -116,23 +116,44 @@ export const isLazyEntete = (key: EnteteKey): boolean => LOADERS[key] !== undefi
 export const loadedEntete = (key: EnteteKey): EnteteUnit | undefined => LOADED.get(key);
 
 /**
+ * ENTETE-BORNEE-1 (AUDIT-4 B-01) — HOW LONG A STYLE FILE MAY TAKE. A fetch
+ * that FAILS already drew the default header; one that neither answers nor
+ * fails (a stalled 2G socket) used to hold the boutique on « Ouverture de la
+ * boutique… » for ever, with nothing to press. Past this bound her boutique
+ * opens on the default header — her articles, her prices, her proof — and the
+ * late file is not swapped in under her eyes.
+ */
+export const ENTETE_DELAI_MS = 6_000;
+
+/** The value, or nothing once `ms` have passed — whichever comes first. A late
+ *  answer is dropped, never applied after the page has moved on. */
+export function avantDelai<T>(p: Promise<T>, ms: number): Promise<T | undefined> {
+  let minuteur: ReturnType<typeof setTimeout> | undefined;
+  const delai = new Promise<undefined>((ok) => {
+    minuteur = setTimeout(() => ok(undefined), ms);
+  });
+  return Promise.race([p, delai]).finally(() => clearTimeout(minuteur));
+}
+
+/**
  * Fetch and register the style, once. Safe to call for any key: `classique` and
  * the retired keys have no loader and resolve immediately, so callers never
  * branch on whether a key still has a drawing.
  *
  * A FAILED FETCH IS NOT A CRASH. Patchy data is this market's normal condition,
  * and a header that throws would take the whole shop page with it. On failure
- * the key simply stays unregistered and `renderEntete` draws `classique` — her
- * products, her prices and her proof all still reach the buyer, in the shipped
- * default header. That is the ENTETES-E0 law, and it is why it exists.
+ * — or past `ENTETE_DELAI_MS` — the key simply stays unregistered and
+ * `renderEntete` draws `classique`: her products, her prices and her proof all
+ * still reach the buyer, in the shipped default header. That is the ENTETES-E0
+ * law, and it is why it exists.
  */
-export async function loadEntete(key: EnteteKey): Promise<void> {
+export async function loadEntete(key: EnteteKey, delaiMs: number = ENTETE_DELAI_MS): Promise<void> {
   if (LOADED.has(key)) return;
   const loader = LOADERS[key];
   if (loader === undefined) return;
   try {
-    const mod = await loader();
-    registerEntete(key, mod.unit);
+    const mod = await avantDelai(loader(), delaiMs);
+    if (mod !== undefined) registerEntete(key, mod.unit);
   } catch {
     /* offline or a failed chunk — classique draws instead, never a blank shop */
   }

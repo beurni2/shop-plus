@@ -56,3 +56,21 @@ test('the poster is NOT the shop — and the shop is NOT the poster', async ({ p
   await expect(page.locator('[data-role="affiche-qr"]')).toBeVisible();
   await expect(page.locator('.vt-root')).toHaveCount(0);
 });
+
+// ENTETE-BORNEE-1 (AUDIT-4 B-01) — the poster's own file, held open: within
+// the bound she gets the designed offline card and « Réessayer », never a blank
+// page; the retry reloads and the poster comes.
+test('ENTETE-BORNEE-1 — the poster file never comes: the offline card and « Réessayer », which brings the poster', async ({ page }) => {
+  let pendre = true;
+  await page.route(/\/poster-[A-Za-z0-9_-]+\.js$/, (route) => {
+    if (pendre) return; // held open: neither answered nor failed
+    return route.continue();
+  });
+  await page.goto('/?demo-vitrine=aicha-4821&affiche=qr');
+  const reessayer = page.locator('[data-etat="horsligne"] [data-action="reessayer"]');
+  await expect(reessayer).toBeVisible({ timeout: 12_000 });
+  await expect(page.locator('[data-role="affiche-qr"]')).toHaveCount(0);
+  pendre = false;
+  await reessayer.click();
+  await expect(page.locator('[data-role="affiche-qr"]')).toBeVisible();
+});

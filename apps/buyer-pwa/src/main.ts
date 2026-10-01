@@ -16,6 +16,7 @@ import { mountCadeau } from './cadeau';
 import { demoStorefrontPort, focusPosition, resolveStorefrontPort, VitrineOffline, VitrinePause } from './vitrine/profile';
 import { harnessProfil, monterArticleAbsent, monterAttenteVitrine, mountVitrine, type VitrineEtat } from './vitrine/flows';
 import { enteteOverride } from './vitrine/entetes';
+import { avantDelai, ENTETE_DELAI_MS } from './vitrine/entetes/registry';
 import { ENT_STYLES } from './vitrine/entries';
 import { createCliente, type ClienteEcran } from './cliente/flow';
 
@@ -1213,9 +1214,17 @@ if (app) {
      */
     // Its own lazy chunk (the neighbours' `void (async …)` pattern): a cliente
     // opening a shop never downloads a byte of the print sheet.
+    // ENTETE-BORNEE-1 (AUDIT-4 B-01) — a file that never comes is bounded too:
+    // past the bound she gets the boutique's designed offline card and
+    // « Réessayer » (a reload: a hung module import is never retried in-page),
+    // never a blank page.
     void (async () => {
-      const { mountAffiche } = await import('./affiche/poster');
-      mountAffiche(app as HTMLElement, vitrineSlug);
+      const mod = await avantDelai(import('./affiche/poster'), ENTETE_DELAI_MS).catch(() => undefined);
+      if (mod === undefined) {
+        mountVitrine(app as HTMLElement, vitrineSlug, { etat: 'offline', raison: 'reseau', reessayer: () => window.location.reload() });
+        return;
+      }
+      mod.mountAffiche(app as HTMLElement, vitrineSlug);
     })();
   } else if (vitrineSlug) {
     const VIT_ETATS: readonly VitrineEtat[] = ['loading', 'ready', 'empty', 'offline', 'invalid', 'pause'];
