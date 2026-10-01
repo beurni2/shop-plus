@@ -2063,7 +2063,11 @@ export default {
        * this append used to run only on `published`, so the product could never
        * return. « Publish states membership » is this root's own law; a replay
        * is still a publish, so it states it too. The listing itself is NOT
-       * re-signed — the product returns at her ORIGINAL signed marge.
+       * re-signed — the product returns at the marge that add signed.
+       * CHANGER-MARGE-1: a price change travels under a command id of its own,
+       * so once she has changed it the stored command is no longer the add's,
+       * and a re-add is a NEW publish — the next version, at the marge the add
+       * carries, answered `published` (never a replay of an older price).
        */
       if (
         (decision?.status === 'published' || decision?.status === 'idempotent') &&

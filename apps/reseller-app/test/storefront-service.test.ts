@@ -786,7 +786,7 @@ describe('PRIX-SIGNE-1 / CHANGER-MARGE-1 — readListing: the listing as signed,
     expect(url).toBe('https://shop.example/listings/by-pid/SF/pv/economics');
     expect((init?.headers as Record<string, string>)['Authorization']).toBe('Bearer SPS-AAAA');
   });
-  it('a listing too old to carry its commission reads without one (her net is then unknown, never invented)', async () => {
+  it('a listing too old to carry its commission reads without one — the port invents none (her card then uses today’s commission: a document conflict, journalled for the founder)', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(entree({ resellerCommission: undefined })));
     const lu = await svc().readListing('SF', 'pv');
     expect(lu.ok && lu.value !== undefined && 'resellerCommission' in lu.value).toBe(false);

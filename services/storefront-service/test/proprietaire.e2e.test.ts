@@ -294,6 +294,9 @@ describe('RESELLER-AUTH-1 — a session creates, and creates only as herself', (
 
     expect((await appel(`/listings/by-pid/${SF_A}/${PID}`, { headers: B.bearer })).status).toBe(404);
     expect((await appel(`/listings/by-pid/${SF_A}/${PID}`, { headers: A.bearer })).status).toBe(200);
+    // CHANGER-MARGE-1 — her marge and commission read: hers alone (verifier MINOR 7).
+    expect((await appel(`/listings/by-pid/${SF_A}/${PID}/economics`, { headers: B.bearer })).status).toBe(404);
+    expect((await appel(`/listings/by-pid/${SF_A}/${PID}/economics`, { headers: A.bearer })).status).toBe(200);
     expect((await appel(`/listings/${LST_A}`, { headers: B.bearer })).status).toBe(404);
     expect((await appel(`/listings/${LST_A}`, { headers: A.bearer })).status).toBe(200);
     const cache = await appel(`/listings/${LST_A}/hide`, { method: 'POST', headers: B.bearer, body: JSON.stringify({ at: T0 }) });

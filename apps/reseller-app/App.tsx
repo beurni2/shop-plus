@@ -575,14 +575,19 @@ export const VitrineCard = memo(function VitrineCard({
             <Text style={styles.margeAmount}>{formatFcfa(markup)}</Text>
           </View>
           <Text style={styles.noteLine}>{t('vitrine.prix_fixe')}</Text>
-          <Pressable
-            style={({ pressed }) => [styles.vitrineRetirer, pressed && styles.pressed]}
-            onPress={() => setNouvelleMarge(markup)}
-            accessibilityRole="button"
-            accessibilityLabel={t('marge.changer')}
-          >
-            <Text style={styles.vitrineRetirerLabel}>{t('marge.changer')}</Text>
-          </Pressable>
+          {/* Not while an intent on this card still waits on the phone (its
+              replay would sign the marge it carries over the new one), nor
+              while a removal is in flight (verifier MAJOR 1). */}
+          {attente === null && retiring === null && (
+            <Pressable
+              style={({ pressed }) => [styles.vitrineRetirer, pressed && styles.pressed]}
+              onPress={() => setNouvelleMarge(markup)}
+              accessibilityRole="button"
+              accessibilityLabel={t('marge.changer')}
+            >
+              <Text style={styles.vitrineRetirerLabel}>{t('marge.changer')}</Text>
+            </Pressable>
+          )}
         </>
       ) : signe && nouvelleMarge !== null ? (
         // CHANGER-MARGE-1 (SP-I19: « markup changes expire old cards … the
@@ -592,15 +597,26 @@ export const VitrineCard = memo(function VitrineCard({
         <>
           <MarkupControl onFocusField={onFocusField} value={nouvelleMarge} cap={cap} onChange={setNouvelleMarge} />
           <Text style={styles.noteLine}>{t('marge.changer_note')}</Text>
-          <View style={styles.margeHeadRow}>
-            <Overline>{tf('marge.nouveau_prix', { amount: formatFcfa(item.basePrice + nouvelleMarge) })}</Overline>
-          </View>
+          {/* Net first (SP-I04): her new gain on TODAY's commission — the one
+              the service freezes with the new version — then the new price.
+              Nothing is « new » until she moves the marge (verifier MAJOR 2,
+              MINOR 4). */}
+          {nouvelleMarge !== markup && (
+            <>
+              <View style={styles.margeHeadRow}>
+                <Overline>{tf('marge.nouveau_gain', { amount: formatFcfa(marginBreakdown(item.basePrice, item.resellerCommission, nouvelleMarge).net) })}</Overline>
+              </View>
+              <View style={styles.margeHeadRow}>
+                <Overline>{tf('marge.nouveau_prix', { amount: formatFcfa(item.basePrice + nouvelleMarge) })}</Overline>
+              </View>
+            </>
+          )}
           <PrimaryButton
             label={signature ? t('k.publier.envoi') : t('marge.signer')}
             onPress={signer}
-            disabled={signature || nouvelleMarge === markup}
+            disabled={signature || retiring !== null || nouvelleMarge === markup}
           />
-          <GhostButton label={t('marge.annuler')} onPress={() => { if (!signature) setNouvelleMarge(null); }} />
+          {!signature && <GhostButton label={t('marge.annuler')} onPress={() => setNouvelleMarge(null)} />}
         </>
       ) : (
         <MarkupControl
@@ -706,9 +722,9 @@ export const VitrineCard = memo(function VitrineCard({
       <Pressable
         style={({ pressed }) => [styles.vitrineRetirer, pressed && styles.pressed]}
         onPress={() => onRetirer(item.productVersionId)}
-        disabled={retiring !== null}
+        disabled={retiring !== null || signature}
         accessibilityRole="button"
-        accessibilityState={{ disabled: retiring !== null }}
+        accessibilityState={{ disabled: retiring !== null || signature }}
         accessibilityLabel={t('vitrine.retirer')}
       >
         <Text style={styles.vitrineRetirerLabel}>
@@ -1817,6 +1833,9 @@ export default function App() {
        * toast tells the truth: it is BACK, at the marge she signed before —
        * the replay re-signs nothing, so « déjà » would be the wrong sentence
        * and « ajouté » would promise a marge the replay never applied.
+       * CHANGER-MARGE-1: once she has changed the price, the service holds the
+       * change's command, not this one — a re-add is then a NEW signing at the
+       * marge this add carries, answered `published` (« ajouté »), never `remise`.
        */
       if (res.value.status === 'idempotent' && res.value.remise === true) {
         if (res.value.storefront !== undefined) adopterStorefront(res.value.storefront);
@@ -2305,6 +2324,10 @@ export default function App() {
   const ouvrirVoix = useCallback((pid: string, name: string) => setVoiceSheet({ pid, name }), []);
   const prixSignesRef = useRef(prixSignes);
   prixSignesRef.current = prixSignes;
+  // CHANGER-MARGE-1 — products whose new price was signed but not read back:
+  // the price held for them is the OLD one, so Partager reads before quoting
+  // (verifier MAJOR 3).
+  const aRelireRef = useRef(new Set<string>());
   const partagerDepuisCarte = useCallback((pid: string) => {
     setShareCampBadge(false);
     setShareId(pid);
@@ -2312,10 +2335,12 @@ export default function App() {
     // A card whose signed price has not been read yet (a slow round, or the
     // round abandoned when she left Ma Vitrine) is read now, before she sends
     // a price no link charges (verifier MAJOR).
-    if (prixSignesRef.current[pid] === undefined && service !== null && identity !== null && identity !== undefined) {
+    const aLire = prixSignesRef.current[pid] === undefined || aRelireRef.current.has(pid);
+    if (aLire && service !== null && identity !== null && identity !== undefined) {
       void service.readListing(identity.storefrontId, pid).then((lu) => {
         if (lu.ok && lu.value !== undefined) {
           const signe = prixSigneDe(lu.value);
+          aRelireRef.current.delete(pid);
           setPrixSignes((prev) => ({ ...prev, [pid]: signe }));
         }
       });
@@ -2343,15 +2368,19 @@ export default function App() {
       versionActuelle: actuel.version,
     });
     if (!res.ok) {
+      // A 401 is the book's word: the session road is asked (verifier MINOR 3).
+      if (estSessionRefusee(res.reason)) void verifierSessionRef.current();
       setToast(raisonReseau(res.reason) ? t('marge.reseau') : t(publierRefusalToastKey(res.reason)));
       return false;
     }
     const lu = await service.readListing(identity.storefrontId, pid);
     if (lu.ok && lu.value !== undefined) {
       const signe = prixSigneDe(lu.value);
+      aRelireRef.current.delete(pid);
       setPrixSignes((prev) => ({ ...prev, [pid]: signe }));
       setToast(tf('marge.signe', { amount: formatFcfa(signe.prix) }));
     } else {
+      aRelireRef.current.add(pid);
       setToast(t('marge.incertain'));
     }
     return true;
@@ -2412,7 +2441,9 @@ export default function App() {
        * WHAT EACH DELIVERED PUBLISH CAME TO (verifier MAJOR): `published`
        * signed her marge; `idempotent` means the service recognised the
        * command id and wrote NOTHING — `remise` when the product was gone and
-       * is BACK at its ORIGINAL signed marge (RE-AJOUT). The tap road tells her
+       * is BACK at the marge that add signed (RE-AJOUT; after a price change
+       * the add is no longer the stored command, so it answers `published`
+       * at the marge it carries). The tap road tells her
        * exactly that (« de retour … au montant que vous aviez ajouté » /
        * « déjà … votre marge n'a pas changé »); the replay says the same and
        * never « à jour » over a marge the service did not sign — a kept marge

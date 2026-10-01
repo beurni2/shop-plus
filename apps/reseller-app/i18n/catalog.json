@@ -378,6 +378,12 @@
   "screenClass": "status"
  },
  {
+  "key": "marge.nouveau_gain",
+  "fr": "Votre nouveau gain : {amount}",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
   "key": "marge.nouveau_prix",
   "fr": "Nouveau prix cliente : {amount}",
   "register": "money",
@@ -415,7 +421,7 @@
  },
  {
   "key": "vitrine.prix_fixe",
-  "fr": "Ce prix est fixé : c’est celui que paie la cliente.",
+  "fr": "C’est le prix que paie la cliente.",
   "register": "money",
   "screenClass": "status"
  },

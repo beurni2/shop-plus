@@ -34,12 +34,22 @@ const SLUG = 'boutique-0001';
 const SESSION = 'SPS-AAAA-BBBB-CCCC-DDDD';
 const LISTING = `lst-${SF_ID}-${PV}`;
 
-type Porte = { mode: 'ok' | 'reseau' | 'plafond' | 'retenue'; relacher?: () => void; envois: Record<string, unknown>[] };
+type Porte = { mode: 'ok' | 'reseau' | 'plafond' | 'retenue' | 'session'; relacher?: () => void; envois: Record<string, unknown>[] };
 type Signe = { markup: number; version: number; prix: number; commission: number } | null;
 
-function monde(porte: Porte, opts: { base?: number; signe?: Signe } = {}): { routes: Route[]; etat: { signe: Signe } } {
+/**
+ * `baseServeur`: the base the SERVICE signs against — the supply can move
+ * between her preview and the signing, so the walk can tell « the card took
+ * the service's price » from « the card did its own sum ». `lecturesEnPanne`:
+ * how many signed-listing reads fail (500) after a signing.
+ */
+function monde(
+  porte: Porte,
+  opts: { base?: number; signe?: Signe; baseServeur?: number; lecturesEnPanne?: number } = {},
+): { routes: Route[]; etat: { signe: Signe; enPanne: number } } {
   const base = opts.base ?? 10_000;
-  const etat = { signe: opts.signe === undefined ? { markup: 2_000, version: 1, prix: 12_000, commission: 1_000 } : opts.signe };
+  const baseServeur = opts.baseServeur ?? base;
+  const etat = { signe: opts.signe === undefined ? { markup: 2_000, version: 1, prix: 12_000, commission: 1_000 } : opts.signe, enPanne: 0 };
   const routes: Route[] = [
     (path) =>
       path === '/supply-projections'
@@ -65,6 +75,10 @@ function monde(porte: Porte, opts: { base?: number; signe?: Signe } = {}): { rou
         : null,
     (path) => {
       if (!/^\/listings\/by-pid\/[^/]+\/[^/]+\/economics$/.test(path)) return null;
+      if (etat.enPanne > 0) {
+        etat.enPanne -= 1;
+        return { status: 500, json: { error: 'internal' } };
+      }
       const s = etat.signe;
       if (s === null) return { status: 404, json: { error: 'not_found' } };
       return {
@@ -80,9 +94,11 @@ function monde(porte: Porte, opts: { base?: number; signe?: Signe } = {}): { rou
       porte.envois.push(body ?? {});
       if (porte.mode === 'reseau') throw new TypeError('Network request failed');
       if (porte.mode === 'plafond') return { status: 400, json: { error: 'markup_over_cap', cap: 5_000 } };
+      if (porte.mode === 'session') return { status: 401, json: { error: 'unauthorized' } };
       const signer = () => {
         const m = Number(body?.['markup']);
-        etat.signe = { markup: m, version: (etat.signe?.version ?? 0) + 1, prix: base + m, commission: 1_000 };
+        etat.signe = { markup: m, version: (etat.signe?.version ?? 0) + 1, prix: baseServeur + m, commission: 1_000 };
+        etat.enPanne = opts.lecturesEnPanne ?? 0;
         return { status: 200, json: { status: 'published' } };
       };
       if (porte.mode === 'retenue') {
@@ -155,9 +171,10 @@ describe('CHANGER-MARGE-1 — her card states what the service signed', () => {
 });
 
 describe('CHANGER-MARGE-1 — « Changer ma marge » signs a new price', () => {
-  it('the control, the warning, the new price; « Signer » sends a command of its own; the card then reads the price the service signed; Partager says it', async () => {
+  it('the control, the warning, the new price; « Signer » sends a command of its own; the card then reads the price the service signed — not her preview; Partager says it', async () => {
     const porte: Porte = { mode: 'ok', envois: [] };
-    const screen = await surVitrine(monde(porte).routes);
+    // the supply moved by 100 between her preview and the signing: only a read-back can know
+    const screen = await surVitrine(monde(porte, { baseServeur: 10_100 }).routes);
     expect(margeChamps(screen), 'no field before she asks').toHaveLength(0);
     await ouvrirEtTaper(screen, '2400');
     expect(margeChamps(screen)).toHaveLength(1);
@@ -170,12 +187,14 @@ describe('CHANGER-MARGE-1 — « Changer ma marge » signs a new price', () => {
     expect(porte.envois[0]?.['markup']).toBe(2_400);
     expect(porte.envois[0]?.['commandId'], 'never the pinned publish command').toBe(`marge-${LISTING}-v2-m2400`);
     expect('customerPriceFcfa' in (porte.envois[0] ?? {}), 'the app never sends a price').toBe(false);
-    expect(screen.shows(`Nouveau prix signé : ${formatFcfa(12_400)}`)).toBe(true);
+    expect(screen.shows(`Nouveau prix signé : ${formatFcfa(12_500)}`), 'the price the SERVICE signed').toBe(true);
     expect(margeChamps(screen), 'the editor closes on the signed price').toHaveLength(0);
+    expect(screen.texts().includes(formatFcfa(12_500)), 'her card reads the price read back').toBe(true);
+    expect(screen.texts().includes(formatFcfa(12_400)), 'never her own sum').toBe(false);
     expect(screen.shows(formatFcfa(12_000)), 'the old price is gone from her card').toBe(false);
     await screen.press('Partager');
     await screen.settle();
-    expect(screen.texts().join(' | ')).toContain(`Prix : ${formatFcfa(12_400)}`);
+    expect(screen.texts().join(' | ')).toContain(`Prix : ${formatFcfa(12_500)}`);
     screen.unmount();
   });
 
@@ -229,6 +248,110 @@ describe('CHANGER-MARGE-1 — « Changer ma marge » signs a new price', () => {
     await screen.settle();
     expect(margeChamps(screen)).toHaveLength(0);
     expect(porte.envois).toHaveLength(0);
+    screen.unmount();
+  });
+});
+
+/** The ONE verifier pass on this slice; each written red first against `075efd8`. */
+describe('CHANGER-MARGE-1 — the verifier’s findings, walked', () => {
+  it('MAJOR 1 — an add still waiting on her phone: no « Changer ma marge » until it has gone (its replay would sign the old marge over the new)', async () => {
+    const { expoFileAttenteStore } = await import('../src/offline/expoStore');
+    await expoFileAttenteStore().write(JSON.stringify({
+      version: 1,
+      entries: [{ name: 'listing.publish', pid: PV, payload: { markup: 2_000, nom: 'Bazin riche' }, status: 'pending', attempts: 0, enqueuedAt: 1 }],
+    }));
+    const porte: Porte = { mode: 'reseau', envois: [] }; // the replay cannot land: the add keeps waiting
+    const screen = await surVitrine(monde(porte).routes);
+    expect(screen.shows('En attente d’envoi'), `the waiting chip; on screen: ${JSON.stringify(screen.texts())}`).toBe(true);
+    expect(screen.canPress('Changer ma marge')).toBe(false);
+    screen.unmount();
+  });
+
+  it('MAJOR 2 — the editor says her new gain first (the new price takes today’s commission): 2 600 on today’s 1 000 → « Votre nouveau gain : 3 600 FCFA », before the new price', async () => {
+    const screen = await surVitrine(
+      monde({ mode: 'ok', envois: [] }, { base: 10_500, signe: { markup: 2_500, version: 1, prix: 12_500, commission: 1_200 } }).routes,
+    );
+    await ouvrirEtTaper(screen, '2600');
+    const lignes = screen.texts();
+    const gain = lignes.findIndex((t) => t.includes(`Votre nouveau gain : ${formatFcfa(3_600)}`));
+    const prix = lignes.findIndex((t) => t.includes(`Nouveau prix cliente : ${formatFcfa(13_100)}`));
+    expect(gain, `on screen: ${JSON.stringify(lignes)}`).toBeGreaterThan(-1);
+    expect(prix).toBeGreaterThan(-1);
+    expect(gain, 'net first').toBeLessThan(prix);
+    screen.unmount();
+  });
+
+  it('MAJOR 3 + MINOR 2 — signed, but the read-back fails: « Nouveau prix envoyé… », her card does not move on its own sum, and Partager reads the price before quoting it', async () => {
+    const screen = await surVitrine(monde({ mode: 'ok', envois: [] }, { lecturesEnPanne: 1 }).routes);
+    await ouvrirEtTaper(screen, '2400');
+    await screen.press('Signer ce nouveau prix');
+    await laisser(screen);
+    expect(screen.shows('Nouveau prix envoyé. Rouvrez Ma vitrine pour le voir.')).toBe(true);
+    expect(screen.texts().includes(formatFcfa(12_400)), 'no price the service has not been read for').toBe(false);
+    await screen.press('Partager');
+    await laisser(screen);
+    expect(screen.texts().join(' | ')).toContain(`Prix : ${formatFcfa(12_400)}`);
+    screen.unmount();
+  });
+
+  it('MINOR 1 — while the new price is being signed, « Retirer de ma vitrine » waits (a removal landing first would be undone by the signing)', async () => {
+    const porte: Porte = { mode: 'retenue', envois: [] };
+    const screen = await surVitrine(monde(porte).routes);
+    await ouvrirEtTaper(screen, '2400');
+    await screen.press('Signer ce nouveau prix');
+    await screen.settle();
+    expect(screen.canPress('Retirer de ma vitrine')).toBe(false);
+    porte.relacher!();
+    await laisser(screen);
+    expect(screen.canPress('Retirer de ma vitrine')).toBe(true);
+    screen.unmount();
+  });
+
+  it('MINOR 1, the other way — while a removal is in flight, « Signer ce nouveau prix » waits (a signing landing after it would put the product back)', async () => {
+    let relacherRetrait: (() => void) | undefined;
+    const retrait: Route = (path) =>
+      path.endsWith('/items/remove')
+        ? new Promise((resolve) => { relacherRetrait = () => resolve({ status: 500, json: { error: 'boom' } }); })
+        : null;
+    const screen = await surVitrine([retrait, ...monde({ mode: 'ok', envois: [] }).routes]);
+    await ouvrirEtTaper(screen, '2400');
+    expect(screen.canPress('Signer ce nouveau prix')).toBe(true);
+    await screen.press('Retirer de ma vitrine');
+    await screen.settle();
+    expect(screen.canPress('Signer ce nouveau prix')).toBe(false);
+    relacherRetrait!();
+    await laisser(screen);
+    expect(screen.canPress('Signer ce nouveau prix'), 'the removal answered: she can sign again').toBe(true);
+    screen.unmount();
+  });
+
+  it('MINOR 3 — a session the service no longer knows is sent to the session road, as every refused write is', async () => {
+    const porte: Porte = { mode: 'session', envois: [] };
+    wire(monde(porte).routes);
+    const fils = wire(monde(porte).routes);
+    const screen = await mountApp();
+    await screen.press('Ma Vitrine');
+    await laisser(screen, 10);
+    await ouvrirEtTaper(screen, '2400');
+    await screen.press('Signer ce nouveau prix');
+    await laisser(screen);
+    expect(fils.calls.some((c) => c.path === '/reseller/session'), 'the session road is asked').toBe(true);
+    screen.unmount();
+  });
+
+  it('MINOR 4 + MINOR 6 — no « new price » before she changes the marge; no « Annuler » that does nothing while sending', async () => {
+    const porte: Porte = { mode: 'retenue', envois: [] };
+    const screen = await surVitrine(monde(porte).routes);
+    await screen.press('Changer ma marge');
+    await screen.settle();
+    expect(screen.shows('Nouveau prix cliente'), 'her signed marge is not a new price').toBe(false);
+    await screen.type('2400', 'Vous ajoutez');
+    await screen.settle();
+    await screen.press('Signer ce nouveau prix');
+    await screen.settle();
+    expect(screen.canPress('Annuler')).toBe(false);
+    porte.relacher!();
+    await laisser(screen);
     screen.unmount();
   });
 });
