@@ -1,6 +1,22 @@
 # JOURNAL — shop-plus
 Continuity ledger per CTO charter §6/§6bis. Every entry is evidence-grounded.
 
+## 2026-10-01 · AUDIT-3 — the reseller's boutique, end to end (founder order « do an extensive audit on the whole reseller's boutique ») · READ-ONLY · nothing changed
+
+**What was audited.** At `28c6ca1` (= `main`, deployed): her side — the reseller app's boutique screens (Opportunités → fiche → add, Ma Vitrine, Personnaliser, Partager, the Cercle entries) and the Worker roads she writes through; the buyers' side — every road into a boutique on the buyer site, the boutique and product pages up to the checkout hand-off, and the public reads that serve them. Half A by the CTO; half B by ONE helper under a read-only brief, whose BLOCKER and four MAJORs were re-read in the code before reporting. No repo file changed (scratch tests copied in, run, removed the same minute; `git status` clean after each); nothing live contacted. The full ledgers stay private, outside the repo.
+
+**Verdict: 1 BLOCKER · 8 MAJOR · 12 MINOR · 13 NOTE.** Sound: server-signed and server-bounded prices, write ownership on every boutique road, no supplier / commission / base price on any buyer answer, reseller text escaped on all 43 headers, a removed product cannot be bought, page budgets held. Baselines: reseller app tsc clean + 856/856; buyer site 1 398/1 398 + 130 boutique browser specs; storefront public-read suites 287/287.
+
+**Top items (plain names, no recipes).** BLOCKER — a boutique's products past the fifteenth cannot be sold from their own links (the public read describes fifteen and the page ignores the « incomplete » flag). MAJOR — moving the marge on an already-signed product changes the card and the message to the cliente without re-signing (walked); the published app shows the demo Cercle as hers (walked, production profile — his override's scope); « Enregistré » before a boutique edit lands (walked); a demo product can open on a real seller's link; a testing switch can draw a false state over a real boutique; a removed product's link says the boutique does not exist; « N ventes livrées » has no producer; the boutique and liste reads have no time limit.
+
+**The record overstates two slices.** `SLICES.md` marks SP2.1 and SP6.2 DONE; the shared product link is unsigned (deferred by design, 2026-08-21) and nothing produces the delivered count on the public read. To be corrected with the copy slice.
+
+**Correction (CODES-EFFACES-1).** My report and the entry below said the buyer site's `?demo-vitrine=` / `?demo-signed=` « also carry real product-link routing on GitHub Pages ». Wrong: `main.ts:714-729` calls them a local harness only, and the Pages fallback restores the real path. They can close like `?demo-cliente=`.
+
+**His calls (§7):** the Cercle on the published app · re-pricing · SP1.2's acceptance act · canon text vs FRAIS-ZERO and the 25 % cap · the épuisé veil vs « auto-hide » · when signed product tokens land. **Recommended order, nothing started:** VITRINE-COMPLETE-1 · PRIX-FIGE-1 · PUBLIE-SANS-DEMO-1 · ENREGISTRE-VRAI-1 · LECTURE-BORNEE-1 · VENTES-LIVREES-1 · CODE-TAPE-1 / LECTURE-LIMITEE-1 / LISTE-SA-BOUTIQUE-1 · COPIE-VRAIE-1.
+
+---
+
 ## 2026-09-30 · CODES-EFFACES-1 MERGED AND DEPLOYED on the founder's « go »
 
 **Founder order (2026-09-30).** « Go » — on the report of the entry below.
