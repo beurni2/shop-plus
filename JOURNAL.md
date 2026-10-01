@@ -1,6 +1,20 @@
 # JOURNAL — shop-plus
 Continuity ledger per CTO charter §6/§6bis. Every entry is evidence-grounded.
 
+## 2026-10-01 · VITRINE-VRAIE-1 + REVENDEUSE-VRAIE-1 MERGED AND DEPLOYED on the founder's « go »
+
+**Founder order (2026-10-01).** « go » — on the combined report of the two entries below.
+- **Worker first** (verifier N5's deploy order): **storefront-deploy 119 green**, dispatched on the branch at `8089f8b` — the exact commit `main` was then fast-forwarded to, so the live release and `main` are one commit. Read back from the live Worker: release `8089f8b`, canon 3.25.0, custody armed (all four wires); the three smokes green (checkout refuses by name, the tile road, PBKDF2 at 100 000). The per-address read limit deployed with it.
+- **Merged** `main` `28c6ca1 → 8089f8b` (fast-forward, ancestry verified), after the Worker was live.
+- **Buyer site** — pwa-preview 513 green: the published-profile build passed its payload gate and Pages deployed at 05:55:34, after the Worker (05:53:49).
+- **Reseller app** — expo-preview 546 green (the EAS preview update published).
+- **ci 725 green** — the whole gate board on `main`, including the `colis.e2e` test that failed once on my board and passed on re-run; service-canon-drift 420 green.
+- **Not read back from here:** the live buyer site and the app update (both outside this sandbox's reach). « N ventes livrées » counts deliveries validated from now on; a seller's older deliveries are counted when she opens her sales (N1, his call on a one-off backfill).
+
+**Open (his calls):** N1 one-off backfill · N2 own-phone sales in the count · N10 the marge shown on a signed card · N11 kept boutique changes after a change of shop.
+
+---
+
 ## 2026-10-01 · REVENDEUSE-VRAIE-1 (slice 2 of 2, founder « make it be 2 slices fix ») — her app tells the truth about her boutique (AUDIT-3 issues 2, 3, 9, 10, 11) · on the branch, NOT merged, NOT deployed
 
 **Founder order (2026-10-01).** « make it be 2 slices fix » — slice 2 = her app (AUDIT-3 A-01, A-03, A-04, A-05, A-06). Slice 1 (VITRINE-VRAIE-1) is the entry below.
