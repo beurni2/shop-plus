@@ -88,6 +88,9 @@ interface Scripted {
   doorLegsApresCharge?: string[];
   /** refuse `POST …/door-charge` by name, the way the service would. */
   doorChargeRefusal?: string;
+  /** PORTE-APRES-RECHARGE-1 — the amounts the ORDER carries (its own quote's
+   *  split). Default: a prepaid order (12 500 now, 0 at the door). */
+  montantsCommande?: { readonly paid: number; readonly due: number };
   /* ── VRAI-SUIVI — the delivery marks + the remise route ─────────────── */
   /** The marks per read, the LAST repeating — each entry is spread into the
    *  order body ({acceptedAt…arrivedAt, livree}). Default: none, forever. */
@@ -157,8 +160,8 @@ async function scriptService(page: Page, opts: Scripted = {}): Promise<Wire> {
         orderId,
         // THE SERVICE'S OWN TRUTH: a created order is not a paid one.
         state: opts.orderCreateState ?? 'payment_pending',
-        amountPaidAtCheckout: 12_500,
-        amountDueAtDelivery: 0,
+        amountPaidAtCheckout: opts.montantsCommande?.paid ?? 12_500,
+        amountDueAtDelivery: opts.montantsCommande?.due ?? 0,
         doorLeg: opts.doorLegs?.[0] ?? 'none',
         // VRAI-SUIVI — the bearer ref rides the CREATE, and only the create.
         buyerRef: BUYER_REF,
@@ -217,7 +220,14 @@ async function scriptService(page: Page, opts: Scripted = {}): Promise<Wire> {
       }
       const marques = opts.marques === undefined ? {} : opts.marques[Math.min(seen, opts.marques.length - 1)]!;
       marquesServies = marques;
-      return json(200, { orderId, state, amountPaidAtCheckout: 12_500, amountDueAtDelivery: 0, doorLeg, ...marques });
+      return json(200, {
+        orderId,
+        state,
+        amountPaidAtCheckout: opts.montantsCommande?.paid ?? 12_500,
+        amountDueAtDelivery: opts.montantsCommande?.due ?? 0,
+        doorLeg,
+        ...marques,
+      });
     }
     wire.quotes.push(body);
     wire.sequence.push('quote');
@@ -1145,6 +1155,104 @@ test('VRAI-SUIVI · the timeline advances on server facts alone, and the code ar
   await page.locator('[data-action="suivi-terminer"]').click();
   expect(await page.evaluate(() => localStorage.getItem('sp-commande:v1'))).toBeNull();
   await page.locator('[data-screen="C1"]').waitFor({ timeout: 10_000 });
+});
+
+/**
+ * ═══ PORTE-APRES-RECHARGE-1 (AUDIT-4 A-01, founder « go », 2026-10-01) ═══
+ *
+ * She chose « Payer le produit à la livraison ». A cheap Android kills the tab
+ * (WhatsApp, MoMo, a call) long before the rider comes. When he is at her
+ * door, her tracking must still let her PAY: « Je suis à la porte » → « Tout
+ * est bon » → the door charge, under the SAME holder the door order was
+ * created under, and the code only once the operator confirms. Before this
+ * slice the reopened tracking withheld the door road, so she could neither
+ * pay nor get her code. Same phone only: the holder stays on this phone.
+ */
+const PORTE_B: Scripted = {
+  doorAvailable: true,
+  orderStates: ['confirmed'],
+  doorLegs: ['due'],
+  doorLegsApresCharge: ['due', 'paid'],
+  marques: [MARQUES_ARRIVEE],
+  codeRemise: '654321',
+  montantsCommande: { paid: 1_000, due: 11_500 },
+};
+
+async function payerLaLivraison(page: Page): Promise<void> {
+  await askForPrice(page);
+  await toPayer(page, 'B');
+  await page.locator('[data-action="payer"]').click();
+  await page.locator('[data-etat="confirmee"]').waitFor({ timeout: 15_000 });
+}
+
+/** At her door, from the tracking she reopened: she pays, then the code. */
+async function payerALaPorteDepuisLeSuivi(page: Page, wire: Wire): Promise<void> {
+  await page.locator('[data-screen="C7"]').waitFor({ timeout: 15_000 });
+  await page.locator('[data-action="porte"]').waitFor({ timeout: 15_000 });
+  await page.locator('[data-action="porte"]').click();
+  await page.locator('[data-screen="C8"]').waitFor();
+  // What she still owes at this door — the ORDER's own figure.
+  await expect(page.locator('[data-role="owing"]')).toContainText('11 500');
+  await page.locator('[data-action="porte-bon"]').click();
+  await expect.poll(() => wire.doorCharges.length, { timeout: 10_000 }).toBe(1);
+  // The SAME holder the door order was held and created under — anything
+  // else is `reservation_held_by_another` on the real service.
+  const titulaire = wire.reserves.at(-1)!.body['holderRef'];
+  expect(typeof titulaire === 'string' && titulaire !== '').toBe(true);
+  expect(wire.doorCharges[0]!.body['holderRef']).toBe(titulaire);
+  expect(Object.keys(wire.doorCharges[0]!.body).sort()).toEqual(['commandId', 'holderRef']);
+  // The code only once the operator confirmed — never before.
+  await page.locator('[data-screen="C9"]').waitFor({ timeout: 30_000 });
+  expect((await stage(page)).replace(/\s+/g, ' ')).toContain('654 321');
+}
+
+test('PORTE-APRES-RECHARGE-1 · a reload on her tracking: « Je suis à la porte » is still hers, and she pays at her door', async ({ page }) => {
+  test.setTimeout(120_000);
+  const wire = await scriptService(page, PORTE_B);
+  await payerLaLivraison(page);
+  await page.locator('[data-action="suivre"]').click();
+  await page.locator('[data-screen="C7"]').waitFor();
+  await page.reload();
+  await payerALaPorteDepuisLeSuivi(page, wire);
+});
+
+test('PORTE-APRES-RECHARGE-1 · the tab closed: « Ma commande » reopens her tracking WITH the door', async ({ page }) => {
+  test.setTimeout(120_000);
+  const wire = await scriptService(page, PORTE_B);
+  await payerLaLivraison(page);
+  // The tab dies: its sessionStorage dies with it. Only what the phone keeps
+  // (localStorage) survives.
+  await page.evaluate(() => sessionStorage.clear());
+  await page.goto(ENTRY);
+  await page.locator('[data-screen="C1"]').waitFor();
+  const bande = page.locator('[data-role="ma-commande"]');
+  await bande.waitFor({ timeout: 15_000 });
+  await bande.click();
+  await payerALaPorteDepuisLeSuivi(page, wire);
+  // What the phone keeps names the order and its door holder — never a code,
+  // never an amount.
+  const garde = await page.evaluate(() => localStorage.getItem('sp-commande:v1') ?? '');
+  expect(garde).not.toContain('654321');
+  expect(garde).not.toContain('11500');
+});
+
+test('PORTE-APRES-RECHARGE-1 · CONTROL — a prepaid order keeps no door holder, and its reopened tracking offers no door', async ({ page }) => {
+  test.setTimeout(90_000);
+  // The door option EXISTS (a door quote, a door holder) — she chooses to pay
+  // everything now, and the phone must keep no holder for that order.
+  await scriptService(page, { doorAvailable: true, orderStates: ['confirmed'], marques: [MARQUES_ARRIVEE], codeRemise: '654321' });
+  await askForPrice(page);
+  await toPayer(page, 'A');
+  await page.locator('[data-action="payer"]').click();
+  await page.locator('[data-etat="confirmee"]').waitFor({ timeout: 15_000 });
+  const garde = await page.evaluate(() => JSON.parse(localStorage.getItem('sp-commande:v1') ?? '{}') as Record<string, unknown>);
+  expect(garde['orderId']).toBe('ord-quote-full-1');
+  expect(garde).not.toHaveProperty('titulaire');
+  await page.evaluate(() => sessionStorage.clear());
+  await page.goto(ENTRY);
+  await page.locator('[data-role="ma-commande"]').click();
+  await page.locator('[data-action="voir-code"]').waitFor({ timeout: 15_000 });
+  await expect(page.locator('[data-action="porte"]')).toHaveCount(0);
 });
 
 test('VRAI-SUIVI · re-entry — « Ma commande » reopens the REAL tracking of the stored order', async ({ page }) => {

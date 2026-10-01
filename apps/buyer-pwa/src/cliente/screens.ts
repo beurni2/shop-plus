@@ -2485,9 +2485,9 @@ export interface C7State {
    *  route stays the only authority on whether a code is answered). */
   readonly voirCode?: boolean | undefined;
   /**
-   * May « Je suis à la porte » be offered at step 5? `false` on the re-entry
-   * mount, which has no live checkout handle and therefore no door-charge
-   * road — a button whose action cannot complete is a false affordance.
+   * May « Je suis à la porte » be offered at step 5? `false` when no door
+   * charge can be started (a re-entry on a phone that kept no holder for this
+   * order) — a button whose action cannot complete is a false affordance.
    * Absent ⇒ offered (the demo and the in-flow real path, as before).
    */
   readonly porte?: boolean | undefined;

@@ -116,10 +116,10 @@ export interface ClienteInit {
    * Present ⇒ this flow opens ON AN EXISTING ORDER: it mounts at C7, polls the
    * order's own state through `etatCommande`, and asks the remise route for
    * the code through `remise`, with the buyer's stored bearer ref. There is NO
-   * live checkout handle on this path — no quote, no hold, no door charge —
-   * which is why C7 withholds « Je suis à la porte » here: a door payment
-   * cannot be started from a re-entry, and a button that cannot complete is a
-   * false affordance. The tracking and the code are the whole of it.
+   * live checkout handle on this path — no quote, no hold — so C7 offers
+   * « Je suis à la porte » only when `payerALaPorte` is passed (a holder this
+   * phone kept, PORTE-APRES-RECHARGE-1); without it the door is withheld,
+   * because a button that cannot complete is a false affordance.
    */
   readonly suivi?: {
     readonly orderId: string;
@@ -130,8 +130,9 @@ export interface ClienteInit {
      * PAYER-TOUT-1 — an article paid inside a panier pays its PRODUCT at its
      * own door, from its own tracking: the holder that paid the panier is
      * kept on the phone, so this re-entry CAN start a door payment, and
-     * « Je suis à la porte » is offered. Absent (a single re-entry) ⇒ withheld,
-     * exactly as before.
+     * « Je suis à la porte » is offered. PORTE-APRES-RECHARGE-1: a single
+     * door order passes it too when this phone kept its holder. Absent ⇒
+     * withheld.
      */
     readonly payerALaPorte?: ((orderId: string, essai: number) => Promise<OrderFetch>) | undefined;
     /**
@@ -206,6 +207,9 @@ export interface ClienteInit {
     readonly storage: Storage | undefined;
     readonly etatCommande: (orderId: string) => Promise<OrderFetch>;
     readonly remise: (orderId: string, buyerRef: string) => Promise<RemiseFetch>;
+    /** PORTE-APRES-RECHARGE-1 — her door for a resumed order, when this phone
+     *  keeps its holder (AUDIT-4 A-01); absent ⇒ the door stays withheld. */
+    readonly porte?: ((orderId: string) => ((orderId: string, essai: number) => Promise<OrderFetch>) | undefined) | undefined;
   } | undefined;
   /**
    * ═══ LISTE-MERCI — « PRÉVENIR {nom} » (founder order, 2026-08-26) ═══
@@ -304,6 +308,8 @@ interface FlowState {
     payerALaPorte: (orderId: string, essai: number) => Promise<OrderFetch>;
     /** VRAI-SUIVI — ask the remise route for the code, with her bearer ref. */
     remise: (orderId: string, buyerRef: string) => Promise<RemiseFetch>;
+    /** PORTE-APRES-RECHARGE-1 — the door order's holder, kept with her order. */
+    titulairePorte: string | undefined;
   } | null;
   /**
    * The phone's clock disagreed with a QUOTE THE SERVICE JUST ISSUED, so the
@@ -639,7 +645,9 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
    * standing law.
    */
   const porteHandle = (): ((orderId: string, essai: number) => Promise<OrderFetch>) | null =>
-    state.live !== null ? state.live.payerALaPorte : (init.suivi?.payerALaPorte ?? null);
+    state.live !== null
+      ? state.live.payerALaPorte
+      : (init.suivi?.payerALaPorte ?? (state.orderId !== null ? init.reprise?.porte?.(state.orderId) : undefined) ?? null);
 
   /**
    * THE ONE QUOTE EVERY SCREEN READS. The server's answer wins the moment it
@@ -1417,6 +1425,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
       etatCommande: fetched.etatCommande,
       payerALaPorte: fetched.payerALaPorte,
       remise: fetched.remise,
+      titulairePorte: fetched.titulairePorte,
     };
     // A NEW PRICE IS A NEW CHECKOUT. The old order id belonged to the old
     // quote; carrying it forward would let « Vérifier à nouveau » poll an order
@@ -2019,8 +2028,16 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
        */
       if (r.order.buyerRef !== undefined) {
         state.buyerRef = r.order.buyerRef;
+        // PORTE-APRES-RECHARGE-1 — a door order keeps its holder with it, so
+        // the tracking she reopens after the tab died can still pay at her door.
+        const titulaire = mode === 'B' ? live.titulairePorte : undefined;
         garderCommande(
-          { orderId: r.order.orderId, buyerRef: r.order.buyerRef, at: new Date().toISOString() },
+          {
+            orderId: r.order.orderId,
+            buyerRef: r.order.buyerRef,
+            at: new Date().toISOString(),
+            ...(titulaire !== undefined ? { titulaire } : {}),
+          },
           localStorageOrUndefined(),
         );
         init.rattacher?.({ orderId: r.order.orderId, buyerRef: r.order.buyerRef });
@@ -2953,11 +2970,11 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
    *    order-scoped `init.reprise` ports (the « Ma commande » pair). Every
    *    entry restarts the delivery watch (the e6bcc54 law), and C9 re-asks the
    *    remise route for the code — the snapshot never carried it.
-   *  · C8 resumes to C7, not C8: the door screen rides the LIVE checkout
-   *    handle (the door charge, the C8 bill) and a reload cannot resurrect
-   *    it — a « Tout est bon » that cannot complete is a false affordance, the
-   *    same withholding the re-entry mount applies to « Je suis à la porte ».
-   *    Her code stays one tap away (« Voir mon code », CODE-VISIBLE).
+   *  · C8 resumes to C7, not C8: she re-enters her door through « Je suis à
+   *    la porte », which a reload keeps only when this phone kept the door
+   *    order's holder (`init.reprise.porte`, PORTE-APRES-RECHARGE-1) — never a
+   *    « Tout est bon » that cannot complete. Her code stays one tap away
+   *    (« Voir mon code », CODE-VISIBLE).
    *  · `livree` is NOT trusted from the snapshot: if the order finished while
    *    the tab was away, the restarted watch proves it and ends the screen
    *    (C10) by its own rule.

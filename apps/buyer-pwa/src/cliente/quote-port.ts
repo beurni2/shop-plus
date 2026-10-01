@@ -1309,6 +1309,14 @@ export interface CommandeGardee {
   readonly at: string;
   /** BANDE-PAYEE — the service once said her money moved for this order: the band no longer needs to ask. */
   readonly payee?: true | undefined;
+  /**
+   * PORTE-APRES-RECHARGE-1 (AUDIT-4 A-01) — the holder a PAY-AT-THE-DOOR
+   * order was created under, so the tracking she reopens on THIS phone can
+   * still start her door payment. Absent on a prepaid order. It pays nothing
+   * by itself: the service only asks the operator to collect, and only a
+   * signed webhook says paid.
+   */
+  readonly titulaire?: string | undefined;
 }
 
 export function garderCommande(c: CommandeGardee, storage?: Storage): void {
@@ -1318,7 +1326,13 @@ export function garderCommande(c: CommandeGardee, storage?: Storage): void {
     // body in this file: what is stored is exactly what is named.
     storage.setItem(
       COMMANDE_CLE,
-      JSON.stringify({ orderId: c.orderId, buyerRef: c.buyerRef, at: c.at, ...(c.payee === true ? { payee: true } : {}) }),
+      JSON.stringify({
+        orderId: c.orderId,
+        buyerRef: c.buyerRef,
+        at: c.at,
+        ...(c.payee === true ? { payee: true } : {}),
+        ...(nonEmpty(c.titulaire) ? { titulaire: c.titulaire } : {}),
+      }),
     );
   } catch {
     /* best-effort — the order still lives on the service */
@@ -1336,7 +1350,13 @@ export function commandeGardee(storage?: Storage): CommandeGardee | undefined {
     if (v === null || typeof v !== 'object') return undefined;
     const o = v as Record<string, unknown>;
     if (!nonEmpty(o['orderId']) || !nonEmpty(o['buyerRef']) || !nonEmpty(o['at'])) return undefined;
-    return { orderId: o['orderId'], buyerRef: o['buyerRef'], at: o['at'], ...(o['payee'] === true ? { payee: true as const } : {}) };
+    return {
+      orderId: o['orderId'],
+      buyerRef: o['buyerRef'],
+      at: o['at'],
+      ...(o['payee'] === true ? { payee: true as const } : {}),
+      ...(nonEmpty(o['titulaire']) ? { titulaire: o['titulaire'] } : {}),
+    };
   } catch {
     return undefined;
   }
@@ -1368,6 +1388,28 @@ export function verdictBande(r: OrderOutcome): VerdictBande {
   if (ARGENT_PASSE.has(r.order.state)) return 'payee';
   if (SANS_ARGENT.has(r.order.state)) return 'oublier';
   return 'attendre';
+}
+
+/**
+ * PORTE-APRES-RECHARGE-1 — HER DOOR, FROM ANY TRACKING SHE REOPENS ON THIS
+ * PHONE: the door charge for `orderId` under the holder kept with it, or
+ * nothing when this phone keeps no holder for that order (a prepaid order, an
+ * order made on another phone) — and then the door road stays withheld, never
+ * faked. The command is slotted per attempt like the panier's door.
+ */
+export function porteGardee(
+  orderId: string,
+  port: Pick<QuotePort, 'doorCharge'>,
+  storage?: Storage,
+  session?: Storage,
+): ((id: string, essai: number) => Promise<OrderOutcome>) | undefined {
+  const garde = commandeGardee(storage);
+  if (garde === undefined || garde.orderId !== orderId || garde.titulaire === undefined) return undefined;
+  const titulaire = garde.titulaire;
+  return (id: string, essai: number): Promise<OrderOutcome> => {
+    const cmd = orderCommandIdFor(`${id}#porte`, essai, session);
+    return cmd === undefined ? Promise.resolve({ status: 'refused', reason: 'no_secure_random' }) : port.doorCharge(id, cmd, titulaire);
+  };
 }
 
 /** She said « C'est terminé » — the slot clears and the shortcut goes away. */

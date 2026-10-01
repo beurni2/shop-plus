@@ -303,6 +303,12 @@ export type QuoteFetch =
        */
       readonly payerALaPorte: (orderId: string, essai: number) => Promise<OrderFetch>;
       /**
+       * PORTE-APRES-RECHARGE-1 — the holder a door order is created under,
+       * present only when a door quote exists: kept with her order on the
+       * phone so a reopened tracking can still pay at her door (AUDIT-4 A-01).
+       */
+      readonly titulairePorte?: string;
+      /**
        * VRAI-SUIVI — ASK FOR THE DROP CODE with the buyer's own bearer ref
        * (returned once, on the order CREATE). A pure read: it can cause
        * nothing, and the service answers only once the arrival fact exists.
@@ -623,5 +629,6 @@ export async function fetchClienteQuote(
     },
 
     remise: (orderId: string, buyerRef: string): Promise<RemiseFetch> => port.remise(orderId, buyerRef),
+    ...(doorHold !== undefined ? { titulairePorte: doorKey } : {}),
   };
 }

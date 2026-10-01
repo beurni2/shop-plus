@@ -39,7 +39,7 @@ function monterCliente(...args: Parameters<typeof createCliente>): void {
   arreterCliente = createCliente(...args);
 }
 import { clienteProduit, clienteProduitReel, composeQuote, harnessFrancs } from './cliente/seed';
-import { commandIdFor, commandeGardee, forgetRequestKey, garderCommande, localStorageOrUndefined, oublierCommande, orderCommandIdFor, requestKeyFor, resolveQuotePort, verdictBande, villeDe } from './cliente/quote-port';
+import { commandIdFor, commandeGardee, forgetRequestKey, garderCommande, localStorageOrUndefined, oublierCommande, orderCommandIdFor, porteGardee, requestKeyFor, resolveQuotePort, verdictBande, villeDe } from './cliente/quote-port';
 import { SUIVI } from './cliente/screens';
 import { monterMesArticles, monterPanier } from './cliente/panier-montage';
 import { garderPanierPaye, oublierPanierPaye, panierPaye, resolveSuiviArticle } from './cliente/panier-port';
@@ -631,6 +631,9 @@ if (app) {
     shellRemplace = true;
     for (const child of Array.from(app.children)) child.remove();
     const port = resolveQuotePort();
+    // PORTE-APRES-RECHARGE-1 (AUDIT-4 A-01) — a pay-at-the-door order whose
+    // holder this phone kept can still be paid at her door from here.
+    const porte = porteGardee(orderId, port, localStorageOrUndefined(), sessionStorageOrUndefined());
     const suiviMain = document.createElement('main');
     monterCliente(suiviMain, {
       // C7/C9 read nothing off the product; the record deliberately stores
@@ -645,6 +648,7 @@ if (app) {
         buyerRef,
         etatCommande: (id) => port.orderState(id),
         remise: (id, ref) => port.remise(id, ref),
+        ...(porte !== undefined ? { payerALaPorte: porte } : {}),
         ...(oublier !== undefined ? { oublier } : {}),
       },
       // « C'est terminé » cleared the key; the reload lands her on the shell
@@ -1079,6 +1083,9 @@ if (app) {
             storage: sessionStorageOrUndefined(),
             etatCommande: (id) => quotePort.orderState(id),
             remise: (id, ref) => quotePort.remise(id, ref),
+            // PORTE-APRES-RECHARGE-1 — a reload keeps her door when this
+            // phone kept the order's holder.
+            porte: (id) => porteGardee(id, quotePort, localStorageOrUndefined(), sessionStorageOrUndefined()),
           },
           // LISTE-MERCI — only a fiche opened THROUGH a liste link offers the
           // gift block; the read is buyer-token-gated server-side, and the
