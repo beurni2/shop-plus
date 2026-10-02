@@ -153,10 +153,13 @@ const REFUS_VIEWS = ['generique', 'listing_unknown', 'not_found', 'listing_not_l
   // PAUSE-VENTE-1 (founder ruling 2026-09-17) — the founder paused the shop's
   // owner: no action, every in-app road meets the same pause.
   'reseller_paused',
+  // EN-LIGNE-1 (founder ruling 2026-10-02) — the shop is not en ligne: no
+  // action, every in-app road meets the same closed shop.
+  'boutique_hors_ligne',
   // PRODUIT-REFUSÉ-1 (founder order 2026-09-17) — the producer refused the
   // product at the price ask; the way out is the boutique.
   'product_unavailable'];
-const REFUS_SANS_ACTION = new Set(['no_secure_random', 'liste_contact_conflit', 'reseller_paused', 'liste_hors_boutique']);
+const REFUS_SANS_ACTION = new Set(['no_secure_random', 'liste_contact_conflit', 'reseller_paused', 'boutique_hors_ligne', 'liste_hors_boutique']);
 for (const view of REFUS_VIEWS) {
   const fields = { overline: L(), titre: S(), phrase: S() };
   if (!REFUS_SANS_ACTION.has(view)) fields.libelle = L();

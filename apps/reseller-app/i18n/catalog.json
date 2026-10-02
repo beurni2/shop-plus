@@ -342,6 +342,30 @@
   "screenClass": "label"
  },
  {
+  "key": "accueil.hors_ligne_titre",
+  "fr": "Votre boutique n’est pas en ligne",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "accueil.hors_ligne_corps",
+  "fr": "Vos clientes voient seulement son nom. Elles ne peuvent rien commander.",
+  "register": "neutral",
+  "screenClass": "instruction"
+ },
+ {
+  "key": "accueil.hors_ligne_action",
+  "fr": "Remettre ma boutique en ligne",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "accueil.hors_ligne_fait",
+  "fr": "Votre boutique est en ligne. Vos clientes peuvent commander.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
   "key": "fiche.title",
   "fr": "Opportunité",
   "register": "neutral",

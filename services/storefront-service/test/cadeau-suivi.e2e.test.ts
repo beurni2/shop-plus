@@ -74,6 +74,8 @@ beforeAll(async () => {
     method: 'POST', headers: S.bearer,
     body: JSON.stringify({ commandId: 'c-cs-1', id: 'sf-cs-1', resellerId: S.accountId, shortCode: 'CS-0001', name: 'Boutique cadeau', zone: 'Ouagadougou', category: 'Général', correlationId: 'corr-cs-1' }),
   });
+  // EN-LIGNE-1 — her app puts the shop online in the same act as creating it.
+  await mf.dispatchFetch(`http://sf/storefronts/${encodeURIComponent('sf-cs-1')}/publish`, { method: 'POST', headers: S.bearer, body: JSON.stringify({ correlationId: 'corr-en-ligne' }) });
   expect(created.status).toBe(200);
   const pub = await mf.dispatchFetch('http://sf/listings', {
     method: 'POST', headers: S.bearer,

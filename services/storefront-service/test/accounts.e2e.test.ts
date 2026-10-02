@@ -351,6 +351,8 @@ describe('RESELLER-ACCOUNTS — the session opens HER feed, and the suivi shows 
         name: 'Chez Awa', zone: 'Gounghin, Ouagadougou', category: 'Général', correlationId: `corr-${i}`, at: T0,
       }),
     });
+    // EN-LIGNE-1 — her app puts the shop online in the same act as creating it.
+    await mf.dispatchFetch(`http://c/storefronts/${encodeURIComponent(`sf-acct-${i}`)}/publish`, { method: 'POST', headers: enTantQue(s.json.session!), body: JSON.stringify({ correlationId: 'corr-en-ligne' }) });
     expect(sf.status, await sf.clone().text()).toBe(200);
     const lst = await mf.dispatchFetch('http://c/listings', {
       method: 'POST', headers: enTantQue(s.json.session!),
@@ -509,6 +511,8 @@ describe('CONTACT-WHATSAPP-1 — the registration number joins the boutique read
         category: 'Général', correlationId: `corr-wa-${i}`, at: '2026-08-23T08:00:00.000Z',
       }),
     });
+    // EN-LIGNE-1 — her app puts the shop online in the same act as creating it.
+    await mf.dispatchFetch(`http://c/storefronts/${encodeURIComponent(`sf-wa-${i}`)}/publish`, { method: 'POST', headers: enTantQue(compte.session), body: JSON.stringify({ correlationId: 'corr-en-ligne' }) });
     expect(res.status, 'setup: storefront create').toBe(200);
     // The slug is DERIVED from the short code (slugFromShortCode), the same
     // convention every sibling harness uses.
@@ -570,6 +574,8 @@ describe('CONTACT-WHATSAPP-1 — the registration number joins the boutique read
         category: 'Général', correlationId: 'corr-wa-0903', at: '2026-08-23T08:00:00.000Z',
       }),
     });
+    // EN-LIGNE-1 — her app puts the shop online in the same act as creating it.
+    await mf.dispatchFetch(`http://c/storefronts/${encodeURIComponent('sf-wa-0903')}/publish`, { method: 'POST', headers: enTantQue(s.json.session!), body: JSON.stringify({ correlationId: 'corr-en-ligne' }) });
     expect(res.status).toBe(401);
     expect(safeJson(await res.text())).toEqual({ error: 'unauthorized' });
     // and no page came into being for it

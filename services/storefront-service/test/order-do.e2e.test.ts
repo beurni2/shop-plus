@@ -331,6 +331,8 @@ async function seedShop(
       at: T0,
     }),
   });
+  // EN-LIGNE-1 — her app puts the shop online in the same act as creating it.
+  await m.dispatchFetch(`http://c/storefronts/${encodeURIComponent(`sf-order-${n}`)}/publish`, { method: 'POST', headers: S.bearer, body: JSON.stringify({ correlationId: 'corr-en-ligne' }) });
   if (created.status !== 200) throw new Error(`seed: storefront create ${created.status}`);
   const pub = await m.dispatchFetch('http://c/listings', {
     method: 'POST',

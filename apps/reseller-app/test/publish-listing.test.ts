@@ -275,7 +275,7 @@ describe('RESELLER-UX-1 — the seven-item founder walk, pinned', () => {
     // the state is fed by service.list() matched on HER storefrontId…
     expect(app).toMatch(/res\.value\.find\(\(r\) => r\.id === identity\.storefrontId\)/);
     // …or by the create response (a read-back too), never by deriveShortCode
-    expect(app).toMatch(/setLiveShop\(\{ slug: created\.value\.slug \}\)/);
+    expect(app).toMatch(/setLiveShop\(\{ slug: created\.value\.slug, enLigne: true \}\)/); // EN-LIGNE-1: online only after publish said yes
     expect(app).not.toMatch(/setLiveShop\(\{ slug: deriveShortCode/);
     expect(app).toMatch(/liveSlug=\{liveShop\?\.slug\}/);
     // « voir » opens HER public page from the read-back slug — through the ONE

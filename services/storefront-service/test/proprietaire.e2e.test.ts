@@ -217,6 +217,8 @@ describe('RESELLER-AUTH-1 — a session creates, and creates only as herself', (
     expect(a.status, a.text).toBe(200);
     expect(a.json['status']).toBe('created');
     slugA = (a.json['storefront'] as { slug: string }).slug;
+    // EN-LIGNE-1 — her app puts the shop online in the same act as creating it.
+    expect((await appel(`/storefronts/${SF_A}/publish`, { method: 'POST', headers: A.bearer, body: JSON.stringify({ correlationId: 'corr-en-ligne' }) })).status).toBe(200);
     // B, seated and honest about her own session, still cannot mint a shop that
     // names A as its owner — the payee of every sale it would ever attribute.
     const usurpe = await creer(A.accountId, 'sf-own-x', B.bearer);
@@ -562,6 +564,7 @@ describe('RESELLER-AUTH-1 — a session creates, and creates only as herself', (
     const reprise = await creerAvec(B.accountId, 'sf-own-b2', B.bearer, codeB, 'cmd-reprise');
     expect(reprise.status, reprise.text).toBe(200);
     expect(reprise.json['status']).toBe('created');
+    expect((await appel('/storefronts/sf-own-b2/publish', { method: 'POST', headers: B.bearer, body: JSON.stringify({ correlationId: 'corr-en-ligne' }) })).status).toBe(200);
     expect((await appel(`/s/${slugB}`, {})).json['id']).toBe('sf-own-b2');
     // …and now that B holds it, A cannot take it either — the law has no owner bias
     const retour = await creerAvec(A.accountId, 'sf-own-a2', A.bearer, codeB, 'cmd-retour');

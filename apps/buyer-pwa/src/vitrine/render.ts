@@ -1451,13 +1451,16 @@ export function renderVitrineInvalid(): string {
  * not-found card's (the root card takes another link). Her name is a server
  * byte and travels through `esc`.
  */
-export function renderVitrinePause(nom: string): string {
+export function renderVitrinePause(nom: string, raison?: 'hors_ligne'): string {
+  // EN-LIGNE-1 (founder ruling 2026-10-02) — the same designed card for a shop
+  // that is not en ligne, saying so in its own words.
+  const fermee = raison === 'hors_ligne';
   return wrap(
     [
-      '<div class="vt-state" data-etat="pause">',
+      `<div class="vt-state" data-etat="pause"${fermee ? ' data-raison="hors_ligne"' : ''}>`,
       `<div class="vt-picto">${iconDevanture(28, '#1C1710', 1.9)}</div>`,
-      `<h3>${tf('vit.pause_titre', { nom: esc(nom) })}</h3>`,
-      `<p>${t('vit.pause_corps')}</p>`,
+      `<h3>${tf(fermee ? 'vit.ferme_titre' : 'vit.pause_titre', { nom: esc(nom) })}</h3>`,
+      `<p>${t(fermee ? 'vit.ferme_corps' : 'vit.pause_corps')}</p>`,
       `<button type="button" class="vt-ghostbtn" data-action="decouvrir">${t('vit.decouvrir')}</button>`,
       '</div>',
     ].join(''),

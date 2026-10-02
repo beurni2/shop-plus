@@ -612,7 +612,8 @@ async function lireBoutiqueCompte(slug: string): Promise<LectureBoutique> {
       }),
     };
   } catch (e) {
-    if (e instanceof VitrinePause) return { pause: e.nom };
+    // EN-LIGNE-1 — a shop not en ligne is closed in her lists too, in its own words.
+    if (e instanceof VitrinePause) return e.raison === 'hors_ligne' ? { pause: e.nom, ferme: true } : { pause: e.nom };
     return 'hors_ligne';
   }
 }

@@ -492,6 +492,18 @@
   "screenClass": "instruction"
  },
  {
+  "key": "vit.ferme_titre",
+  "fr": "{nom} n’est pas en ligne.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "vit.ferme_corps",
+  "fr": "Cette boutique est fermée pour le moment. Revenez plus tard avec le même lien.",
+  "register": "neutral",
+  "screenClass": "instruction"
+ },
+ {
   "key": "vit.vide_titre",
   "fr": "Les articles arrivent.",
   "register": "selling",
@@ -2150,6 +2162,24 @@
  {
   "key": "cl.refus.reseller_paused.phrase",
   "fr": "La vendeuse ne prend pas de commandes pour le moment. Rien n’a été payé.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.refus.boutique_hors_ligne.overline",
+  "fr": "LA BOUTIQUE",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.refus.boutique_hors_ligne.titre",
+  "fr": "Cette boutique n’est pas en ligne.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.refus.boutique_hors_ligne.phrase",
+  "fr": "Elle ne vend rien pour le moment. Rien n’a été payé.",
   "register": "money",
   "screenClass": "status"
  },
@@ -4166,6 +4196,12 @@
  {
   "key": "compte.articles.pause",
   "fr": "Boutique en pause pour le moment.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "compte.articles.ferme",
+  "fr": "Boutique pas en ligne pour le moment.",
   "register": "neutral",
   "screenClass": "status"
  },

@@ -118,6 +118,8 @@ async function creerCommande(n: string) {
       category: 'Général', correlationId: `corr-gp-${n}`, at: T0,
     }),
   });
+  // EN-LIGNE-1 — her app puts the shop online in the same act as creating it.
+  await mf.dispatchFetch(`http://c/storefronts/${encodeURIComponent(`sf-gp-${n}`)}/publish`, { method: 'POST', headers: S.bearer, body: JSON.stringify({ correlationId: 'corr-en-ligne' }) });
   if (created.status !== 200) throw new Error(`setup: storefront ${created.status}`);
   const pub = await mf.dispatchFetch('http://c/listings', {
     method: 'POST', headers: S.bearer,

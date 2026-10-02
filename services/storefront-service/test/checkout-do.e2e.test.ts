@@ -194,6 +194,8 @@ async function seedShop(
       at: T0,
     }),
   });
+  // EN-LIGNE-1 — her app puts the shop online in the same act as creating it.
+  await mf.dispatchFetch(`http://c/storefronts/${encodeURIComponent(`sf-checkout-${n}`)}/publish`, { method: 'POST', headers: S.bearer, body: JSON.stringify({ correlationId: 'corr-en-ligne' }) });
   if (created.status !== 200) throw new Error(`seed: storefront create ${created.status}`);
   const pub = await mf.dispatchFetch('http://c/listings', {
     method: 'POST',
@@ -1294,6 +1296,8 @@ describe('CheckoutDO — the SHARED buyer wire fixture answers a reconciling quo
         at: T0,
       }),
     });
+    // EN-LIGNE-1 — her app puts the shop online in the same act as creating it.
+    await mf.dispatchFetch(`http://c/storefronts/${encodeURIComponent('sf-checkout-fixture')}/publish`, { method: 'POST', headers: S.bearer, body: JSON.stringify({ correlationId: 'corr-en-ligne' }) });
     if (created.status !== 200) throw new Error(`fixture seed: storefront create ${created.status} ${await created.text()}`);
     const pub = await mf.dispatchFetch('http://c/listings', {
       method: 'POST',
@@ -1506,6 +1510,8 @@ describe('CheckoutDO — a supply read that FAILS no longer costs her the door, 
         correlationId: `corr-${n}`, at: T0,
       }),
     });
+    // EN-LIGNE-1 — her app puts the shop online in the same act as creating it.
+    await inst.dispatchFetch(`http://c/storefronts/${encodeURIComponent(`sf-broke-${n}`)}/publish`, { method: 'POST', headers: S.bearer, body: JSON.stringify({ correlationId: 'corr-en-ligne' }) });
     if (created.status !== 200) throw new Error(`seed: storefront create ${created.status}`);
     const pub = await inst.dispatchFetch('http://c/listings', {
       method: 'POST',
@@ -1604,6 +1610,8 @@ describe('CheckoutDO — a supply read that FAILS no longer costs her the door, 
           correlationId: 'corr-abs', at: T0,
         }),
       });
+      // EN-LIGNE-1 — her app puts the shop online in the same act as creating it.
+      await inst.dispatchFetch(`http://c/storefronts/${encodeURIComponent('sf-abs')}/publish`, { method: 'POST', headers: S.bearer, body: JSON.stringify({ correlationId: 'corr-en-ligne' }) });
       const door = await doorQuoteOn(inst, { slug: shortCode.toLowerCase(), resellerId: S.accountId });
       expect([404, 422]).toContain(door.status);
       expect(door.text.includes('amountDueAtDelivery')).toBe(false);
@@ -1884,6 +1892,8 @@ describe('G4 CHECKOUT-KILL — env-armed kill switch on the real Worker', () => 
           category: 'Général', correlationId: 'corr-kill', at: T0,
         }),
       });
+      // EN-LIGNE-1 — her app puts the shop online in the same act as creating it.
+      await killedMf.dispatchFetch(`http://c/storefronts/${encodeURIComponent('sf-checkout-kill')}/publish`, { method: 'POST', headers: S.bearer, body: JSON.stringify({ correlationId: 'corr-en-ligne' }) });
       expect(created.status).toBe(200);
       const pub = await killedMf.dispatchFetch('http://c/listings', {
         method: 'POST',

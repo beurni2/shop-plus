@@ -92,6 +92,9 @@ export interface CustomizeProps {
   /** RECOMMENCER — a fresh identity + a new storefront under the shop's current
    *  name, so the address reads that name. Absent ⇒ the action stays hidden. */
   onRecommencer?: (() => void) | undefined;
+  /** EN-LIGNE-1 — put a created shop that is not en ligne back online (the
+   *  service's publish door). Absent ⇒ the action stays hidden. */
+  onRemettreEnLigne?: (() => void) | undefined;
   /** RESELLER-UX-1 item 6 — her shop's REAL slug once it is live (read back from
    * the service, never computed). Present ⇒ the publish CTA is retired and
    * « voir » opens the public page; absent ⇒ first-time flow, unchanged. */
@@ -211,7 +214,7 @@ function KHeader({ title, onBack, pill }: { title: string; onBack: () => void; p
 
 /* ------------------------------------------------------------- the stack -- */
 
-export function CustomizeStack({ onClose, onToast, storefront, onStorefrontChange, onPublishOnline, onRecommencer, onListStorefronts, serviceUnconfigured, liveSlug, onOpenBoutique, onSaveIdentity, savesPersist, shopIsLive, onUploadCover, onUploadAvatar, catalog, identiteEnAttente }: CustomizeProps) {
+export function CustomizeStack({ onClose, onToast, storefront, onStorefrontChange, onPublishOnline, onRecommencer, onRemettreEnLigne, onListStorefronts, serviceUnconfigured, liveSlug, onOpenBoutique, onSaveIdentity, savesPersist, shopIsLive, onUploadCover, onUploadAvatar, catalog, identiteEnAttente }: CustomizeProps) {
   const [route, setRoute] = useState<KRoute>('k1');
   const [sf, setSfRaw] = useState<Storefront>(storefront ?? DEFAULT_STOREFRONT);
   // PERSONNALISER-HONESTY-1 — which header save is in flight, so K4 can say
@@ -435,6 +438,7 @@ export function CustomizeStack({ onClose, onToast, storefront, onStorefrontChang
           onPublishOnline={onPublishOnline ? () => onPublishOnline(sf) : undefined}
           onListStorefronts={onListStorefronts}
           onRecommencer={onRecommencer}
+          onRemettreEnLigne={onRemettreEnLigne}
           serviceUnconfigured={serviceUnconfigured ?? false}
           liveSlug={liveSlug}
           onOpenBoutique={onOpenBoutique}
@@ -568,7 +572,7 @@ export function CustomizeStack({ onClose, onToast, storefront, onStorefrontChang
 
 /* ------------------------------------------------------------------- K1 -- */
 
-function K1({ sf, th, onBack, go, onPublishOnline, onRecommencer, onListStorefronts, serviceUnconfigured, liveSlug, onOpenBoutique, saveWired, savesPersist, shopIsLive, catalogTotal, enAttente }: { sf: Storefront; th: (typeof THEMES)[VitrineThemeKey]; onBack: () => void; go: (r: KRoute) => void; onPublishOnline?: (() => void) | undefined; onRecommencer?: (() => void) | undefined; onListStorefronts?: (() => void) | undefined; serviceUnconfigured?: boolean; liveSlug?: string | undefined; onOpenBoutique?: ((slug: string) => void) | undefined; saveWired?: boolean; savesPersist?: boolean; shopIsLive?: boolean; catalogTotal?: number | undefined; enAttente?: boolean }) {
+function K1({ sf, th, onBack, go, onPublishOnline, onRecommencer, onRemettreEnLigne, onListStorefronts, serviceUnconfigured, liveSlug, onOpenBoutique, saveWired, savesPersist, shopIsLive, catalogTotal, enAttente }: { sf: Storefront; th: (typeof THEMES)[VitrineThemeKey]; onBack: () => void; go: (r: KRoute) => void; onPublishOnline?: (() => void) | undefined; onRecommencer?: (() => void) | undefined; onRemettreEnLigne?: (() => void) | undefined; onListStorefronts?: (() => void) | undefined; serviceUnconfigured?: boolean; liveSlug?: string | undefined; onOpenBoutique?: ((slug: string) => void) | undefined; saveWired?: boolean; savesPersist?: boolean; shopIsLive?: boolean; catalogTotal?: number | undefined; enAttente?: boolean }) {
   // RECOMMENCER — the two-step stays local to K1: a destructive-adjacent act
   // needs its consequences read before its button, and a stray tap must cost
   // nothing (« Garder mon adresse » is the way out).
@@ -650,6 +654,13 @@ function K1({ sf, th, onBack, go, onPublishOnline, onRecommencer, onListStorefro
       {onPublishOnline && liveSlug === undefined && (
         <Pressable style={({ pressed }) => [S.cta, pressed && S.pressed]} onPress={onPublishOnline} accessibilityRole="button">
           <Text style={S.ctaText}>{t('k.publier.cta')}</Text>
+        </Pressable>
+      )}
+      {/* EN-LIGNE-1 — the pill above says « Pas en ligne »: her shop exists but
+          is closed to buyers (canon 3.27.0 §4.1). The way back sits under it. */}
+      {onRemettreEnLigne !== undefined && liveSlug !== undefined && !sf.discoverable && (
+        <Pressable style={({ pressed }) => [S.cta, pressed && S.pressed]} onPress={onRemettreEnLigne} accessibilityRole="button">
+          <Text style={S.ctaText}>{t('accueil.hors_ligne_action')}</Text>
         </Pressable>
       )}
       {/* RESELLER-SEAM-HONESTY-1 — the seam resolved to `null`, so this build cannot

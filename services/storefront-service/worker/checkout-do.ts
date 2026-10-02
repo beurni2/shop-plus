@@ -681,16 +681,19 @@ async function readAuthority(
   env: Env,
   slug: string,
   pid: string,
-): Promise<{ entry: ListingEntry | undefined; zoneFrom: string; resellerId?: string; curated?: readonly string[]; storefrontId?: string }> {
+): Promise<{ entry: ListingEntry | undefined; zoneFrom: string; resellerId?: string; curated?: readonly string[]; storefrontId?: string; horsLigne?: true }> {
   const sfRes = await env.STOREFRONT_DO.fetch(new Request(`https://do/s/${encodeURIComponent(slug)}`)).catch(() => undefined);
   if (sfRes === undefined || sfRes.status !== 200) return { entry: undefined, zoneFrom: '' };
   const sf = (await sfRes.json().catch(() => null)) as
-    | { id?: string; zone?: string; curatedItems?: unknown; resellerId?: unknown }
+    | { id?: string; zone?: string; curatedItems?: unknown; resellerId?: unknown; discoverable?: unknown }
     | null;
   if (sf === null || typeof sf.id !== 'string' || typeof sf.zone !== 'string') return { entry: undefined, zoneFrom: '' };
   // PAUSE-VENTE-1 — the shop's OWNER, for the access gate below: the record's
   // own `resellerId`, never the caller's `attributionResellerId` (a body field).
   const resellerId = typeof sf.resellerId === 'string' ? sf.resellerId : undefined;
+  // EN-LIGNE-1 — the shop's own en-ligne fact, for the gate below. Only an
+  // explicit `false` closes: a record written before the field existed stays open.
+  const horsLigne = sf.discoverable === false ? ({ horsLigne: true } as const) : {};
   /**
    * VITRINE-RETRAIT (founder ruling 2026-08-11) — A PRODUCT SHE HAS TAKEN OUT
    * OF HER SHOP CANNOT BE QUOTED.
@@ -732,6 +735,7 @@ async function readAuthority(
     ...(resellerId !== undefined ? { resellerId } : {}),
     ...(curated !== undefined ? { curated } : {}),
     storefrontId: sf.id,
+    ...horsLigne,
   };
 }
 
@@ -819,7 +823,20 @@ export default {
       }
 
       // 3. THE AUTHORITY READS, then the delivery price — both server-side.
-      const { entry, zoneFrom, resellerId, curated, storefrontId } = await readAuthority(env, req.slug, req.pid);
+      const { entry, zoneFrom, resellerId, curated, storefrontId, horsLigne } = await readAuthority(env, req.slug, req.pid);
+      /**
+       * ═══ EN-LIGNE-1 (founder ruling 2026-10-02, canon 3.27.0 §4.1) — A
+       * BOUTIQUE THAT IS NOT EN LIGNE SELLS NOTHING: no quote is minted. ═══
+       *
+       * The same place and the same discipline as the pause below: asked only
+       * once the listing RESOLVED (never a second existence oracle), refused
+       * BEFORE the issue, so her key is not spent and the same ask issues once
+       * she puts the shop back online. A quote issued before she was closed
+       * keeps its fifteen minutes (the order door does not re-ask) — journalled.
+       */
+      if (entry !== undefined && horsLigne === true) {
+        return refuse('boutique_hors_ligne');
+      }
       /**
        * ═══ PAUSE-VENTE-1 (founder ruling 2026-09-17) — A PAUSED RESELLER
        * SELLS NOTHING: no quote is minted for her shop. ═══

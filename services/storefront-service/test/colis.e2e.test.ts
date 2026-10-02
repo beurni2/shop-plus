@@ -208,6 +208,8 @@ async function seedShop(n: string): Promise<{ slug: string; resellerId: string }
     S.bearer,
   );
   if (created.status !== 200) throw new Error(`seed: storefront ${created.status} ${created.text}`);
+  // EN-LIGNE-1 — her app puts the shop online in the same act as creating it.
+  await post(`/storefronts/sf-colis-${n}/publish`, { correlationId: 'corr-en-ligne' }, S.bearer);
   for (const [i, v] of SUPPLY.entries()) {
     const pub = await post(
       '/listings',

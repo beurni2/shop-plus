@@ -1322,6 +1322,19 @@ const REFUS: Readonly<Record<string, RefusVue>> = {
     libelle: '',
   },
   /**
+   * EN-LIGNE-1 (founder ruling 2026-10-02) — the shop is not en ligne: no quote
+   * is minted for it. Reached only from a page opened before it closed (the
+   * boutique and the product link both draw the closed card first). No action,
+   * like the pause: every in-app road meets the same closed shop.
+   */
+  boutique_hors_ligne: {
+    overline: t('cl.refus.boutique_hors_ligne.overline'),
+    titre: t('cl.refus.boutique_hors_ligne.titre'),
+    phrase: t('cl.refus.boutique_hors_ligne.phrase'),
+    action: null,
+    libelle: '',
+  },
+  /**
    * ═══ REFUS-NOMMÉS-1 (AUDIT-SHOP-2 F-53) — THE RESERVE AND ORDER ROADS ═══
    *
    * This table knew the QUOTE road's names and nothing past it: a hold that

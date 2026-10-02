@@ -234,6 +234,8 @@ describe('combined Worker — the shim + the R2 media path, on real workerd', ()
       body: JSON.stringify(SELLER_001()),
     });
     expect(((await created.json()) as { status: string }).status).toBe('created');
+    // EN-LIGNE-1 — her app puts the shop online in the same act as creating it.
+    await mf.dispatchFetch('http://c/storefronts/sf-seller-0001/publish', { method: 'POST', headers: bearer(), body: JSON.stringify({ correlationId: 'corr-en-ligne' }) });
 
     const read = await mf.dispatchFetch('http://c/s/seller-0001', { method: 'GET' });
     expect(read.status).toBe(200);
@@ -566,6 +568,8 @@ describe('SERVICE-WRITE-AUTH-1 → ACCES-ARME-2 — the session write gate', () 
         at: '2026-07-26T08:00:00.000Z',
       }),
     });
+    // EN-LIGNE-1 — her app puts the shop online in the same act as creating it.
+    await mf.dispatchFetch(`http://c/storefronts/${encodeURIComponent('sf-del-e2e')}/publish`, { method: 'POST', headers: bearer(), body: JSON.stringify({ correlationId: 'corr-en-ligne' }) });
     expect(((await created.json()) as { status: string }).status).toBe('created');
     const del = await mf.dispatchFetch('http://c/storefronts/sf-del-e2e', { method: 'DELETE', headers: bearer() });
     expect(del.status).toBe(200);
@@ -623,6 +627,8 @@ describe('SERVICE-WRITE-AUTH-1 → ACCES-ARME-2 — the session write gate', () 
         at: T0,
       }),
     });
+    // EN-LIGNE-1 — her app puts the shop online in the same act as creating it.
+    await mf.dispatchFetch(`http://c/storefronts/${encodeURIComponent('sf-ident-e2e')}/publish`, { method: 'POST', headers: bearer(), body: JSON.stringify({ correlationId: 'corr-en-ligne' }) });
     expect(((await created.json()) as { status: string }).status).toBe('created');
     const saved = await mf.dispatchFetch('http://c/storefronts/sf-ident-e2e/identity', {
       method: 'POST',
@@ -654,6 +660,8 @@ describe('SERVICE-WRITE-AUTH-1 → ACCES-ARME-2 — the session write gate', () 
         at: T0,
       }),
     });
+    // EN-LIGNE-1 — her app puts the shop online in the same act as creating it.
+    await mf.dispatchFetch(`http://c/storefronts/${encodeURIComponent('sf-cover-e2e')}/publish`, { method: 'POST', headers: bearer(), body: JSON.stringify({ correlationId: 'corr-en-ligne' }) });
     const up = await mf.dispatchFetch('http://c/media/upload?kind=cover&storefrontId=sf-cover-e2e', {
       method: 'POST',
       headers: bearer(),
@@ -922,6 +930,8 @@ describe('REAL-PRODUCT-RENDER-1 (a2) — publish states membership; the read pat
 
   it('PUBLISH APPENDS THE PID to her canon curatedItems (membership), and republish does not append twice', async () => {
     await mf.dispatchFetch('http://c/storefronts', { method: 'POST', headers: bearer(), body: JSON.stringify(SF_A2()) });
+    // EN-LIGNE-1 — her app puts the shop online in the same act as creating it.
+    await mf.dispatchFetch('http://c/storefronts/sf-a2-0001/publish', { method: 'POST', headers: bearer(), body: JSON.stringify({ correlationId: 'corr-en-ligne' }) });
     const pub = await mf.dispatchFetch('http://c/listings', { method: 'POST', headers: bearer(), body: publishCmd() });
     expect(((await pub.json()) as { status: string }).status).toBe('published');
 
@@ -1195,6 +1205,8 @@ describe('REAL-PRODUCT-RENDER-1 (a2) — publish states membership; the read pat
         at: T0,
       }),
     });
+    // EN-LIGNE-1 — her app puts the shop online in the same act as creating it.
+    await mf.dispatchFetch(`http://c/storefronts/${encodeURIComponent('sf-lapse-0001')}/publish`, { method: 'POST', headers: bearer(), body: JSON.stringify({ correlationId: 'corr-en-ligne' }) });
     const pub = await mf.dispatchFetch('http://c/listings', {
       method: 'POST',
       headers: bearer(),

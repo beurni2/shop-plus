@@ -264,6 +264,8 @@ async function createdDoorOrder(n: string): Promise<{ orderId: string; quoteId: 
       category: 'Général', correlationId: `corr-pc-${n}`, at: T0,
     }),
   });
+  // EN-LIGNE-1 — her app puts the shop online in the same act as creating it.
+  await mf.dispatchFetch(`http://c/storefronts/${encodeURIComponent(`sf-pc-${n}`)}/publish`, { method: 'POST', headers: S.bearer, body: JSON.stringify({ correlationId: 'corr-en-ligne' }) });
   if (created.status !== 200) throw new Error(`setup: storefront ${created.status}`);
   const pub = await mf.dispatchFetch('http://c/listings', {
     method: 'POST', headers: S.bearer,

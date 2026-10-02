@@ -341,7 +341,7 @@ export function mountVitrine(
   // not-found (`undefined`), or « pas de connexion » (`'offline'`, never a
   // value the port's own return type carries). PAUSE-VENTE-1 adds the shop's
   // PAUSE, with her name — the port raises it the way it raises offline.
-  type RenderInput = Resolved | 'offline' | { readonly pause: string };
+  type RenderInput = Resolved | 'offline' | { readonly pause: string; readonly raison?: 'hors_ligne' };
   /** The one shape below that carries a storefront — the two sentinels do not. */
   const estBoutique = (r: RenderInput): r is NonNullable<Resolved> =>
     r !== undefined && r !== null && r !== 'offline' && !('pause' in r);
@@ -588,6 +588,8 @@ export function mountVitrine(
     // (the founder's cut is a fact about the shop, not a lever), and the
     // `?demo-vitrine-etat=pause` lever draws it over a resolved shop's name.
     const enPause = resolved !== undefined && resolved !== null && resolved !== 'offline' && 'pause' in resolved ? resolved.pause : undefined;
+    // EN-LIGNE-1 — which closure the card names.
+    const fermeture = resolved !== undefined && resolved !== null && resolved !== 'offline' && 'pause' in resolved ? resolved.raison : undefined;
     const resolu = estBoutique(resolved) ? resolved : undefined;
     const etat = horsLigne ? 'offline' : enPause !== undefined ? 'pause' : etatForRender(etatDemande, resolu !== undefined);
     // APERÇU NU — applied HERE, at the single point every render reads the
@@ -616,7 +618,7 @@ export function mountVitrine(
         root.innerHTML = renderVitrineInvalid();
         break;
       case 'pause':
-        root.innerHTML = renderVitrinePause(enPause ?? sf?.name ?? '');
+        root.innerHTML = renderVitrinePause(enPause ?? sf?.name ?? '', fermeture);
         break;
       case 'empty':
         root.innerHTML = renderVitrineEmpty(sf!, resolu!.trust, { fromProduct }, entete);
@@ -705,8 +707,9 @@ export function mountVitrine(
     } catch (e) {
       if (e instanceof VitrinePause) {
         // PAUSE-VENTE-1 — the shop rests: her name rides to the card, no
-        // storefront does (nothing to draw a header from).
-        resolved = { pause: e.nom };
+        // storefront does (nothing to draw a header from). EN-LIGNE-1 — and
+        // which closure it is.
+        resolved = e.raison === 'hors_ligne' ? { pause: e.nom, raison: 'hors_ligne' } : { pause: e.nom };
       } else {
         if (!(e instanceof VitrineOffline)) throw e;
         raisonHorsLigne = e.raison;

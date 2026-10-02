@@ -124,6 +124,8 @@ async function seedShop(n: string): Promise<{ slug: string; resellerId: string; 
       correlationId: `corr-${n}`, at: T0,
     }),
   });
+  // EN-LIGNE-1 — her app puts the shop online in the same act as creating it.
+  await mf.dispatchFetch(`http://c/storefronts/${encodeURIComponent(`sf-disp-${n}`)}/publish`, { method: 'POST', headers: S.bearer, body: JSON.stringify({ correlationId: 'corr-en-ligne' }) });
   if (created.status !== 200) throw new Error(`seed: storefront ${created.status}`);
   const pub = await mf.dispatchFetch('http://c/listings', {
     method: 'POST',
@@ -679,6 +681,8 @@ describe('RF-1a B2 — a row lost at confirmation time is repaired by the next w
           correlationId: `corr-${N}`, at: T0,
         }),
       });
+      // EN-LIGNE-1 — her app puts the shop online in the same act as creating it.
+      await blind.dispatchFetch(`http://c/storefronts/${encodeURIComponent(`sf-disp-${N}`)}/publish`, { method: 'POST', headers: S.bearer, body: JSON.stringify({ correlationId: 'corr-en-ligne' }) });
       expect(created.status).toBe(200);
       const pub = await blind.dispatchFetch('http://c/listings', {
         method: 'POST',
@@ -815,6 +819,8 @@ describe('RF-1a B3 — a feed longer than the fan-out cap is truncated and SAYS 
         correlationId: 'corr-cap', at: T0,
       }),
     });
+    // EN-LIGNE-1 — her app puts the shop online in the same act as creating it.
+    await capped.dispatchFetch(`http://c/storefronts/${encodeURIComponent('sf-cap')}/publish`, { method: 'POST', headers: S.bearer, body: JSON.stringify({ correlationId: 'corr-en-ligne' }) });
     expect(seeded.status).toBe(200);
     const pub = await capped.dispatchFetch('http://c/listings', {
       method: 'POST', headers: S.bearer,
@@ -957,6 +963,8 @@ describe('READINESS-RETURN-1c — preparation news arrives and reaches her feed'
         correlationId: 'corr-rr1c', at: T0,
       }),
     });
+    // EN-LIGNE-1 — her app puts the shop online in the same act as creating it.
+    await world.dispatchFetch(`http://c/storefronts/${encodeURIComponent('sf-rr1c')}/publish`, { method: 'POST', headers: S.bearer, body: JSON.stringify({ correlationId: 'corr-en-ligne' }) });
     expect(sf.status).toBe(200);
     const pub = await world.dispatchFetch('http://c/listings', {
       method: 'POST', headers: S.bearer,

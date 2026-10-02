@@ -191,6 +191,8 @@ async function seedShop(m: Miniflare, n: string): Promise<Shop> {
     S.bearer,
   );
   if (created.status !== 200) throw new Error(`seed: storefront ${created.status} ${created.text}`);
+  // EN-LIGNE-1 — her app puts the shop online in the same act as creating it.
+  await post(m, `/storefronts/sf-grp-${n}/publish`, { correlationId: 'corr-en-ligne' }, S.bearer);
   for (const [i, v] of SUPPLY.entries()) {
     const pub = await post(
       m,

@@ -92,6 +92,8 @@ async function unCompteAvecUneVente(n: string): Promise<{ accountId: string; ord
       name: 'Boutique du fondateur', zone: 'Ouagadougou', category: 'Général', correlationId: `corr-${n}`, at: T0,
     }),
   });
+  // EN-LIGNE-1 — her app puts the shop online in the same act as creating it.
+  await mf.dispatchFetch(`http://c/storefronts/${encodeURIComponent(`sf-suivi-${n}`)}/publish`, { method: 'POST', headers: S.bearer, body: JSON.stringify({ correlationId: 'corr-en-ligne' }) });
   if (sf.status !== 200) throw new Error(`setup: storefront ${sf.status} ${await sf.text()}`);
   const lst = await mf.dispatchFetch('http://c/listings', {
     method: 'POST', headers: S.bearer,

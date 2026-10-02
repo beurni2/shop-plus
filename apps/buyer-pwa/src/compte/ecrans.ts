@@ -100,7 +100,7 @@ export interface ProduitCompte {
 export interface BoutiqueCompte extends BoutiquePorte {
   readonly produits: readonly ProduitCompte[];
 }
-export type LectureBoutique = BoutiqueCompte | { readonly pause: string } | 'hors_ligne' | 'introuvable';
+export type LectureBoutique = BoutiqueCompte | { readonly pause: string; readonly ferme?: true } | 'hors_ligne' | 'introuvable';
 
 const NOM_MAX = 60;
 
@@ -476,7 +476,7 @@ function carteBoutique(g: GroupeArticles, lecture: LectureBoutique | 'chargement
     return [
       `<article class="compte-boutique compte-boutique-muette" data-boutique="${slug}">`,
       `<header class="compte-boutique-tete"><span class="compte-boutique-avatar" aria-hidden="true">${esc(nomAccueil(lecture.pause).charAt(0).toUpperCase())}</span>`,
-      `<span class="compte-boutique-mots"><span class="compte-boutique-nom">${esc(lecture.pause)}</span><span class="compte-boutique-lieu">${t('compte.articles.pause')}</span></span></header>`,
+      `<span class="compte-boutique-mots"><span class="compte-boutique-nom">${esc(lecture.pause)}</span><span class="compte-boutique-lieu">${t(lecture.ferme === true ? 'compte.articles.ferme' : 'compte.articles.pause')}</span></span></header>`,
       '</article>',
     ].join('');
   }

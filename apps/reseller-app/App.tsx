@@ -1148,7 +1148,10 @@ export default function App() {
    * or SHARED. Sharing was the sharpest instance — a live product shared under the
    * demo slug opened a stranger's demo shop, which is exactly what the founder saw.
    */
-  const [liveShop, setLiveShop] = useState<{ slug: string } | null | undefined>(undefined);
+  // EN-LIGNE-1 (founder, 2026-10-02; canon 3.27.0 §4.1) — `enLigne` is the
+  // service's own `discoverable`: a shop that is not en ligne is CLOSED to
+  // buyers, so the « En ligne » mark may only ever say what the list said.
+  const [liveShop, setLiveShop] = useState<{ slug: string; enLigne: boolean } | null | undefined>(undefined);
   /** F-18 — TRUE after a directory read failed and no answer has landed since. */
   const liveShopEnFaute = useRef(false);
   useEffect(() => {
@@ -1174,7 +1177,7 @@ export default function App() {
       }
       liveShopEnFaute.current = false;
       const mine = res.value.find((r) => r.id === identity.storefrontId);
-      setLiveShop(mine !== undefined ? { slug: mine.slug } : null);
+      setLiveShop(mine !== undefined ? { slug: mine.slug, enLigne: mine.discoverable === true } : null);
     });
     return () => {
       live = false;
@@ -1569,7 +1572,7 @@ export default function App() {
       // just confirmed. The response IS a read-back; the adopter's updatedAt
       // guard keeps ordering deterministic.
       if (created.value.storefront !== undefined) adopterStorefront(created.value.storefront);
-      setLiveShop({ slug: created.value.slug }); // the create response IS a read-back
+      setLiveShop({ slug: created.value.slug, enLigne: true }); // the create response IS a read-back; publish answered yes above
       setToast(tf('k.publier.en_ligne', { slug: created.value.slug }));
     },
     [service, identity, adopterStorefront],
@@ -2248,9 +2251,25 @@ export default function App() {
       return setToast(t('k.publier.en_ligne_sans_slug'));
     }
     if (created.value.storefront !== undefined) adopterStorefront(created.value.storefront);
-    setLiveShop({ slug: created.value.slug });
+    setLiveShop({ slug: created.value.slug, enLigne: true });
     setToast(tf('k.publier.en_ligne', { slug: created.value.slug }));
   }, [service, compte, identity, liveStorefront, adopterStorefront]);
+
+  /**
+   * EN-LIGNE-1 — the way back for a shop that is not en ligne (never put
+   * online, or taken offline since): the same publish door her first « Mettre
+   * ma boutique en ligne » uses. The mark returns only on the service's yes.
+   */
+  const remettreEnLigne = useCallback(async () => {
+    if (service === null) return setToast(t('k.publier.non_relie'));
+    if (identity === null || identity === undefined) return setToast(t('k.publier.identite_attente'));
+    setToast(t('k.publier.envoi'));
+    const pub = await service.publish(identity.storefrontId, identity.correlationId);
+    if (!pub.ok) return direRefusPublication(pub.reason);
+    if (pub.value.storefront !== undefined) adopterStorefront(pub.value.storefront);
+    setLiveShop((held) => (held !== null && held !== undefined ? { ...held, enLigne: true } : held));
+    setToast(t('accueil.hors_ligne_fait'));
+  }, [service, identity, adopterStorefront]);
 
   useEffect(() => {
     void (async () => {
@@ -2772,7 +2791,7 @@ export default function App() {
                 {liveStorefront !== null && liveStorefront !== undefined ? (
                   <View style={styles.homeSubRow}>
                     <Text style={styles.homeSubName} numberOfLines={1}>{liveStorefront.name}</Text>
-                    {liveShop !== null && liveShop !== undefined ? <MarqueEnLigne /> : null}
+                    {liveShop?.enLigne === true ? <MarqueEnLigne /> : null}
                     {liveStorefront.zone !== '' ? (
                       <Text style={styles.homeSubZone} numberOfLines={1}>{` · ${liveStorefront.zone}`}</Text>
                     ) : null}
@@ -2788,6 +2807,16 @@ export default function App() {
                 tagline is said HERE and only here: a plain Text in a stretch
                 column, so it wraps and reads whole (the header's one-line slot
                 could only ever cut it). */}
+            {/* EN-LIGNE-1 — her shop is CLOSED to buyers while it is not en
+                ligne: the accueil says so first, with the one way back. */}
+            {liveShop?.enLigne === false && liveStorefront !== null && liveStorefront !== undefined ? (
+              <Card style={styles.ledgerSilence}>
+                <Text style={styles.cardTitle}>{t('accueil.hors_ligne_titre')}</Text>
+                <Text style={styles.ledgerCardSub}>{t('accueil.hors_ligne_corps')}</Text>
+                <SecondaryButton label={t('accueil.hors_ligne_action')} onPress={() => { void remettreEnLigne(); }} />
+              </Card>
+            ) : null}
+
             <Text style={styles.greeting}>{t('accueil.bonjour')}</Text>
             <Text style={styles.homeTagline}>{t('accueil.tagline')}</Text>
 
@@ -3255,7 +3284,7 @@ export default function App() {
                 {liveStorefront !== null && liveStorefront !== undefined ? (
                   <View style={styles.homeSubRow}>
                     <Text style={styles.homeSubName} numberOfLines={1}>{liveStorefront.name}</Text>
-                    {liveShop !== null && liveShop !== undefined ? <MarqueEnLigne /> : null}
+                    {liveShop?.enLigne === true ? <MarqueEnLigne /> : null}
                   </View>
                 ) : null}
               </View>
@@ -3321,7 +3350,7 @@ export default function App() {
                       {liveStorefront !== null && liveStorefront !== undefined ? (
                         <View style={styles.homeSubRow}>
                           <Text style={styles.homeSubName} numberOfLines={1}>{liveStorefront.name}</Text>
-                          {liveShop !== null && liveShop !== undefined ? <MarqueEnLigne /> : null}
+                          {liveShop?.enLigne === true ? <MarqueEnLigne /> : null}
                         </View>
                       ) : null}
                     </View>
@@ -3450,7 +3479,7 @@ export default function App() {
                   </View>
                   <View style={styles.shareShopRow}>
                     <Text style={styles.shareShopName} numberOfLines={1}>{partage.nomBoutique}</Text>
-                    <MarqueEnLigne />
+                    {liveShop?.enLigne === true ? <MarqueEnLigne /> : null}
                   </View>
                   <Text style={styles.cardTitle}>{partage.offre.productName}</Text>
                   <Text style={styles.shareHeroPrice}>{tf('share.prix', { amount: formatFcfa(partage.vue.client) })}</Text>
@@ -3677,6 +3706,7 @@ export default function App() {
             // here, so the row could only refuse her; while the account is still
             // being read from the phone, nothing is offered yet.
             onRecommencer={compte === null ? () => { void recommencer(); } : undefined}
+            onRemettreEnLigne={() => { void remettreEnLigne(); }}
             onListStorefronts={listOnline}
             serviceUnconfigured={service === null}
             // PERSONNALISER-REAL-1 — HER shop, read back from the service, and the

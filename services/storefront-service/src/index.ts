@@ -275,6 +275,18 @@ async function handleStorefrontRead(slug: string, env?: StorefrontServiceEnv, qu
     return Response.json({ service: SERVICE_NAME, error: 'not_found' }, { status: 404 });
   }
   /**
+   * EN-LIGNE-1 (founder ruling 2026-10-02, canon 3.27.0 §4.1) — A BOUTIQUE THAT
+   * IS NOT EN LIGNE IS CLOSED. Never put online, or unpublished since (hers or
+   * the founder's road): the buyer reads her name and « pas en ligne », and
+   * nothing she could shop from — no curation, no products, no contact. Only an
+   * explicit `false` closes: a record written before the field existed stays
+   * open (a young field must never close a shop). Asked before the pause: it
+   * costs no hop.
+   */
+  if (storefront.discoverable === false) {
+    return Response.json({ service: SERVICE_NAME, horsLigne: true, name: storefront.name, slug: storefront.slug }, { status: 200 });
+  }
+  /**
    * PAUSE-VENTE-1 (founder ruling 2026-09-17: « paused resellers can not sell
    * anything until they are reactivated ») — HER PAGE SAYS SO. A paused
    * owner's boutique answers a designed pause, not her products: a page that

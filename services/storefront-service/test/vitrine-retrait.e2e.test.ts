@@ -91,6 +91,8 @@ describe('VITRINE-RETRAIT — the removal reaches the buyer’s page', () => {
   it('a removed product leaves the boutique, with its pin and its section row', async () => {
     const created = await post('/storefronts', creation(S.accountId));
     expect(created.status, await created.clone().text()).toBe(200);
+    // EN-LIGNE-1 — her app puts the shop online in the same act as creating it.
+    await post(`/storefronts/${SF_ID}/publish`, { correlationId: 'corr-en-ligne' });
 
     // Three products in her shop, through the REAL membership write.
     for (const pid of ['pv-a', 'pv-b', 'pv-c']) {
