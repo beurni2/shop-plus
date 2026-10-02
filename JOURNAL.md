@@ -1,6 +1,19 @@
 # JOURNAL — shop-plus
 Continuity ledger per CTO charter §6/§6bis. Every entry is evidence-grounded.
 
+## 2026-10-02 · EN-LIGNE-1 · VERIFIEE-MERITEE-1 · PORTE-AUTRE-TELEPHONE-1 MERGED AND DEPLOYED on the founder's « go »
+
+**Founder order (2026-10-02).** « go » — on the combined report of the entry below.
+- **Canon first:** `platform-contracts` `main` fast-forwarded `f5380c8 → d6f3882` (canon 3.27.0), **ci 162 green**; its journal entry `7459af0` on its branch and `main`.
+- **Worker next:** **storefront-deploy 122 green**, dispatched on the branch at `76bbb96` — the exact commit `main` was then fast-forwarded to. Read back from the live Worker: release `76bbb96`, canon 3.27.0, custody armed (all four wires); the three smokes green (checkout refuses by name, the tile road, PBKDF2 at 100 000).
+- **Merged** `main` `1ccc3c8 → 76bbb96` (fast-forward, ancestry verified), after the Worker was live.
+- **Buyer site** — pwa-preview 517 green: the payload gate passed on the deploy build and Pages deployed at 09:54:29, after the Worker (09:52:23).
+- **Reseller app** — expo-preview 550 green (the EAS preview update published: the « En ligne » mark follows the service, « Remettre ma boutique en ligne »).
+- service-canon-drift 425 green. **ci 729 green** on the first attempt — the whole gate board on `main`.
+- **Not read back from here:** the live buyer site and the app update (both outside this sandbox's reach). From this deploy on, every shop whose record says `discoverable: false` — including legacy « Privée » shops — answers buyers « pas en ligne » until she presses « Remettre ma boutique en ligne ».
+
+---
+
 ## 2026-10-02 · EN-LIGNE-1 · VERIFIEE-MERITEE-1 · PORTE-AUTRE-TELEPHONE-1 (founder « … fix this », 2026-10-02) — the three calls left open by AUDIT-4 · on the branch, NOT merged, NOT deployed
 
 **Founder order (2026-10-02).** « a boutique marked « Pas en ligne » still opens for buyers, door payment from another phone stays off, and « Vendeuse vérifiée » is unchanged. fix this » — and, asked which reading of « Vendeuse vérifiée » he wanted, « Earned by a delivery ». Recorded first as canon **3.27.0** (`platform-contracts` d6f3882, on its branch: Shop+ Build Spec §4.1 — a vitrine not en ligne is closed to buyers, and the mention is earned by one delivered sale; SP6 fourth ruling — a signed-in door order's key kept beside it in « Mes commandes »), Shop+ repinned at 1cdc906 (docs only, drift-check OK).
