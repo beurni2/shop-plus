@@ -121,12 +121,14 @@ test.describe('issue 1 — every product of a big boutique reaches the buyer', (
 });
 
 test.describe('issues 4, 6 and 17 — a link that is not (or no longer) an article of hers', () => {
-  test('a removed article: « n’est plus en vente chez … » and the one act leads to HER boutique', async ({ page }) => {
+  test('a removed article: « {nom} ne vend plus cet article. » and the one act leads to HER boutique', async ({ page }) => {
     const errors = await service(page, (url) => repondre(3, url));
     await page.goto(`/?/s/${SLUG}&pid=p9`);
     const carte = page.locator('[data-role="article-retire"]');
     await expect(carte).toBeVisible();
-    await expect(carte).toContainText('Chez Aïcha Mode');
+    // AUDIT-4 B-08 — her name stands alone: never « … chez Chez Aïcha Mode ».
+    await expect(carte).toContainText('Chez Aïcha Mode ne vend plus cet article.');
+    await expect(carte).not.toContainText('chez Chez');
     await expect(page.locator('.vt-root[data-etat="invalid"]')).toHaveCount(0);
     await carte.locator('[data-action="voir-boutique"]').click();
     await expect(page.locator('.vt-root[data-etat="ready"]')).toBeVisible();
@@ -434,4 +436,91 @@ test.describe('PHOTOS-LEGERES-1 — her cover and portrait are asked small', () 
       expect(errors).toEqual([]);
     });
   }
+});
+
+/* ═══ COPIE-ACCES-1 (AUDIT-4 B-05) — her code in capitals, as the poster prints
+ * it and as people type it, opens her boutique and her product link ═══ */
+test.describe('B-05 — a link in capitals still reaches her', () => {
+  test('/v/AICHA-4821 opens her boutique, read under the lowercase address', async ({ page }) => {
+    const lus: string[] = [];
+    const errors = await service(page, (url) => repondre(3, url), lus);
+    await page.goto(`/?/v/${SLUG.toUpperCase()}`);
+    await expect(page.locator('.vt-root[data-etat="ready"]')).toBeVisible();
+    await expect.poll(async () => (await pidsAffiches(page)).length).toBe(3);
+    expect(lus.every((l) => l.includes(`/s/${SLUG}`)), JSON.stringify(lus)).toBe(true);
+    expect(errors).toEqual([]);
+  });
+
+  test('/s/AICHA-4821?pid=p1 opens the product page, not the root card, read under the lowercase address', async ({ page }) => {
+    const lus: string[] = [];
+    const errors = await service(page, (url) => repondre(3, url), lus);
+    await page.goto(`/?/s/${SLUG.toUpperCase()}&pid=p1`);
+    await expect(page.locator('main.cl-root [data-screen="C1"]')).toBeVisible();
+    expect(lus.length, 'the product page never read her boutique').toBeGreaterThan(0);
+    expect(lus.every((l) => l.includes(`/s/${SLUG}`)), JSON.stringify(lus)).toBe(true);
+    expect(errors).toEqual([]);
+  });
+});
+
+/* ═══ COPIE-ACCES-1 (AUDIT-4 B-06) — every way out and every card, by keyboard ═══
+ * The state cards' one action was a <span> no keyboard or switch could reach,
+ * and the tile's heart, bag and voice chip sat inside the tile's <button>. The
+ * walk presses only Tab and Enter — no click — and asserts she reaches the
+ * next step. It claims nothing about how the focus ring looks. */
+async function tabJusqua(page: Page, cible: string, max = 40): Promise<void> {
+  for (let i = 0; i < max; i += 1) {
+    await page.keyboard.press('Tab');
+    if (await page.evaluate((sel) => document.activeElement?.matches(sel) ?? false, cible)) return;
+  }
+  throw new Error(`Tab never reached ${cible}`);
+}
+
+test.describe('B-06 — by keyboard alone', () => {
+  test('the offline card: Tab reaches « Réessayer », Enter retries, the boutique opens', async ({ page }) => {
+    let enLigne = false;
+    const errors = await service(page, (url) => (enLigne ? repondre(3, url) : 'pendre'));
+    await page.route('**/api/s/**', async (route) => {
+      if (!enLigne) return route.abort('failed');
+      return route.fallback();
+    });
+    await page.goto(`/?/v/${SLUG}`);
+    await expect(page.locator('.vt-root [data-action="reessayer"]')).toBeVisible({ timeout: 15_000 });
+    enLigne = true;
+    await tabJusqua(page, '.vt-root [data-action="reessayer"]');
+    await page.keyboard.press('Enter');
+    await expect(page.locator('.vt-root[data-etat="ready"]')).toBeVisible();
+    expect(errors).toEqual([]);
+  });
+
+  test('a product card of the grid: Tab reaches it, Enter opens THAT product; the heart answers Enter on its own', async ({ page }) => {
+    const errors = await service(page, (url) => repondre(3, url));
+    await page.goto(`/?/v/${SLUG}`);
+    await expect(page.locator('.vt-root[data-etat="ready"]')).toBeVisible();
+    await tabJusqua(page, '.vt-root [data-action="favori"]');
+    const coeur = page.locator(':focus');
+    const avant = await coeur.getAttribute('aria-pressed');
+    await page.keyboard.press('Enter');
+    await expect(coeur).not.toHaveAttribute('aria-pressed', avant ?? '');
+    await expect(page.locator('main.cl-root')).toHaveCount(0); // the heart did not open the product
+    // A GRID card by name: Tab wraps round the page, so « any card » would be
+    // satisfied by the « à la une » card even if no grid card were reachable.
+    await tabJusqua(page, '.vt-grid [data-action="produit"]');
+    const pid = await page.locator(':focus').getAttribute('data-pid');
+    await page.keyboard.press('Enter');
+    await expect(page.locator('main.cl-root [data-screen="C1"]')).toBeVisible();
+    await expect(page.locator('.cl-prodtitle')).toHaveText(`Article ${String(pid).slice(1)}`);
+    expect(errors).toEqual([]);
+  });
+
+  test('the « à la une » card: Tab reaches it, Enter opens THAT product', async ({ page }) => {
+    const errors = await service(page, (url) => repondre(3, url));
+    await page.goto(`/?/v/${SLUG}`);
+    await expect(page.locator('.vt-root[data-etat="ready"]')).toBeVisible();
+    await tabJusqua(page, '.vt-featured[data-action="produit"]');
+    const pid = await page.locator(':focus').getAttribute('data-pid');
+    await page.keyboard.press('Enter');
+    await expect(page.locator('main.cl-root [data-screen="C1"]')).toBeVisible();
+    await expect(page.locator('.cl-prodtitle')).toHaveText(`Article ${String(pid).slice(1)}`);
+    expect(errors).toEqual([]);
+  });
 });

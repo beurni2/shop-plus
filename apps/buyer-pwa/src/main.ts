@@ -40,7 +40,7 @@ function monterCliente(...args: Parameters<typeof createCliente>): void {
   arreterCliente = createCliente(...args);
 }
 import { clienteProduit, clienteProduitReel, composeQuote, harnessFrancs } from './cliente/seed';
-import { commandIdFor, commandeGardee, commandesGardees, forgetRequestKey, garderCommande, localStorageOrUndefined, oublierCommande, oublierPorte, orderCommandIdFor, porteGardee, requestKeyFor, resolveQuotePort, verdictBande, villeDe, type CommandeGardee } from './cliente/quote-port';
+import { commandIdFor, commandeGardee, commandesGardees, forgetRequestKey, garderCommande, localStorageOrUndefined, oublierCommande, oublierPorte, orderCommandIdFor, porteGardee, requestKeyFor, resolveQuotePort, resolveSuiviCadeau, verdictBande, villeDe, type CommandeGardee } from './cliente/quote-port';
 import { SUIVI } from './cliente/screens';
 import { monterMesArticles, monterMesCommandes, monterPanier } from './cliente/panier-montage';
 import { garderPanierPaye, oublierPanierPaye, panierPaye, paniersPayes, resolveSuiviArticle, type PanierPaye } from './cliente/panier-port';
@@ -749,7 +749,7 @@ if (app) {
 
   if (cadeauId !== null && /^[A-Za-z0-9][A-Za-z0-9_-]{0,191}$/.test(cadeauId)) {
     const main = document.createElement('main');
-    mountCadeau(main, cadeauId, resolveQuotePort());
+    mountCadeau(main, cadeauId, resolveSuiviCadeau());
     app.append(main);
   } else if (signedSlug) {
     const profil = params.get('demo-signed-profil') === 'prive' ? 'private' : 'default';

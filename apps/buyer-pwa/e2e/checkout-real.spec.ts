@@ -55,6 +55,8 @@ const DOOR_QUOTE = {
 interface Scripted {
   /** ms the FULL quote stays valid, from the moment it is issued. */
   ttlMs?: number;
+  /** AUDIT-4 A-03 — the product price the service quotes now (her page showed 11 500). */
+  produitDevis?: number;
   /** answer the door ask with a real quote (default: refuse, production truth) */
   doorAvailable?: boolean;
   /** hold the door ask this long (a stall) */
@@ -243,8 +245,12 @@ async function scriptService(page: Page, opts: Scripted = {}): Promise<Wire> {
       return json(200, { ...DOOR_QUOTE, expiry: new Date(Date.now() + ttl).toISOString() });
     }
     issued += 1;
+    const produit = opts.produitDevis ?? FULL_QUOTE.productSubtotal;
     return json(200, {
       ...FULL_QUOTE,
+      productSubtotal: produit,
+      buyerTotal: produit + FULL_QUOTE.deliveryFee,
+      amountPaidAtCheckout: produit + FULL_QUOTE.deliveryFee,
       quoteId: `quote-full-${issued}`,
       expiry: new Date(Date.now() + ttl).toISOString(),
     });
@@ -2474,4 +2480,29 @@ test('GEO-ACHAT-1 · a fix landing AFTER she moved on is DROPPED — no pin with
   await page.locator('[data-etat="attente-operateur"]').waitFor({ timeout: 10_000 });
   const contact = wire.orders[0]!.body['contact'] as Record<string, unknown>;
   expect(Object.keys(contact).sort()).toEqual(['phone', 'quartier', 'repere']);
+});
+
+/* ═══ COPIE-ACCES-1 (AUDIT-4 A-03) — the price moved while her page was open ═══
+ * Since CHANGER-MARGE-1 a seller can re-sign her price while a buyer sits on
+ * the page. The quote is the truth; the delivery step now says, in figures,
+ * that it differs from what the page showed — before she chooses how to pay. */
+test('A-03 — a quote above the page price is said on the delivery step, with both figures; she can still go on', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(String(e.message ?? e)));
+  await scriptService(page, { produitDevis: 12_400 });
+  await askForPrice(page);
+  const note = page.locator('[data-screen="C4"] [data-role="prix-change"]');
+  await expect(note).toBeVisible();
+  await expect(note).toContainText('12 400');
+  await expect(note).toContainText('11 500');
+  await page.locator('[data-action="continuer-c4"]').click();
+  await expect(page.locator('[data-screen="C5"]')).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+test('A-03 — CONTROL: the same price as the page says nothing', async ({ page }) => {
+  await scriptService(page);
+  await askForPrice(page);
+  await expect(page.locator('[data-screen="C4"]')).toBeVisible();
+  await expect(page.locator('[data-role="prix-change"]')).toHaveCount(0);
 });

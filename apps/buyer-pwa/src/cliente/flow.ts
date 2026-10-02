@@ -1246,6 +1246,10 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
           ...(init.panier !== undefined
             ? { panier: { lignes: init.panier.lignes(), ...(init.panier.livraisons?.() !== undefined ? { livraisons: init.panier.livraisons()! } : {}) } }
             : {}),
+          // AUDIT-4 A-03 — only the service's own price is compared, never a demo composition.
+          ...(init.panier === undefined && state.serverQuote !== null && state.serverQuote.produitFcfa !== m.priceFcfa
+            ? { prixChange: { avant: m.priceFcfa, maintenant: state.serverQuote.produitFcfa } }
+            : {}),
         });
       case 'C5':
         return q === null ? renderRefus('') : renderC5(m, q, {

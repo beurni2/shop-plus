@@ -427,16 +427,18 @@ export default {
      * carries a first name + wa.me digits and nothing else.
      */
     const isOrderListeMerci = /^\/checkout\/order\/[^/]+\/liste-merci$/.test(pathname);
+    /** AUDIT-4 A-04 — the gift link's read: the delivery steps, no amount (order-do.ts). */
+    const isOrderSuivi = /^\/checkout\/order\/[^/]+\/suivi$/.test(pathname);
     const isPublicQuote =
       (request.method === 'POST' && (isCheckoutQuote || isCheckoutReserve)) ||
       (request.method === 'GET' && isCheckoutQuoteById);
     const isPublicOrder =
       (request.method === 'POST' && (isOrderCreate || isOrderDoorCharge)) ||
-      (request.method === 'GET' && (isOrderById || isOrderRemise || isOrderListeMerci));
+      (request.method === 'GET' && (isOrderById || isOrderRemise || isOrderListeMerci || isOrderSuivi));
     if (
       request.method === 'OPTIONS' &&
       (isCheckoutQuote || isCheckoutQuoteById || isCheckoutReserve || isOrderCreate || isOrderById ||
-        isOrderDoorCharge || isOrderRemise || isOrderListeMerci)
+        isOrderDoorCharge || isOrderRemise || isOrderListeMerci || isOrderSuivi)
     ) {
       return checkoutPreflight();
     }

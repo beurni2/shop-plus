@@ -267,6 +267,8 @@ export const CLIENTE_STYLES = `
   .cl-trust-link .cl-trust-ic, .cl-trust-link .cl-trust-chev { color: var(--vt-accent); display: inline-flex; flex: none; }
   .cl-trust-link-txt { flex: 1; font-size: 13.5px; font-weight: 700; color: var(--vt-accent); }
   .cl-epuise-card { margin-top: 12px; padding: 13px 15px; border-radius: 16px; background: #F1E7D3; color: #4A3F33; font-size: 12.5px; line-height: 1.55; }
+  /* AUDIT-4 A-03 — the price moved since her page: the same calm card, said before she pays. */
+  .cl-prix-change { margin-top: 12px; padding: 13px 15px; border-radius: 16px; background: #F1E7D3; color: #4A3F33; font-size: 13px; line-height: 1.55; }
   /* CONTACT-WHATSAPP-1 — the whisper row to the seller: same anatomy as the
      trust card above it (Commander stays the ONE primary action). An anchor,
      not a button — the OS opens WhatsApp, no JS in between. */

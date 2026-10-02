@@ -1021,6 +1021,12 @@ export interface C4State {
     /** COLIS-FOURNISSEUR-1 — the deliveries the SERVICE counted (one per package). Absent ⇒ one per article. */
     readonly livraisons?: number | undefined;
   } | undefined;
+  /**
+   * AUDIT-4 A-03 — the price the service just quoted is not the one her page
+   * showed (she changed her price, or the supplier's moved, while the page was
+   * open). Said here, in plain figures, before she chooses how to pay.
+   */
+  readonly prixChange?: { readonly avant: number; readonly maintenant: number } | undefined;
 }
 
 /** COLIS-FOURNISSEUR-1 — « 1 livraison » or « N livraisons », counted by the service. */
@@ -1078,6 +1084,9 @@ export function renderC4(q: ClienteQuote, s: C4State): string {
           ].join(''),
     '</div>',
     `<div class="cl-law">${t('cl.c4.loi')}</div>`,
+    s.prixChange !== undefined
+      ? `<div class="cl-prix-change" data-role="prix-change">${tf('cl.c4.prix_change', { maintenant: `<v>${fmtFCFA(s.prixChange.maintenant)}</v>`, avant: `<v>${fmtFCFA(s.prixChange.avant)}</v>` })}</div>`
+      : '',
     s.panier !== undefined ? renderLignesPanier(s.panier.lignes) : '',
     s.ligneUnique === true ? ligne : options.map((o) => {
       const on = s.delivery === o.k;

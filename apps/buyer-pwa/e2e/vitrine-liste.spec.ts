@@ -567,16 +567,24 @@ test('GIFT — the friend only pays: C3 never mounts, « Livré chez Awa, à son
 
 test('CADEAU — the creator’s tracking link renders the delivery’s facts, and Actualiser re-asks', async ({ page }) => {
   let marques: Record<string, unknown> = { acceptedAt: '2026-08-26T10:00:00Z' };
-  await page.route('**/checkout/order/ord-w1', (route: Route) =>
-    route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        orderId: 'ord-w1', state: 'confirmed', amountPaidAtCheckout: 12_500,
-        amountDueAtDelivery: 0, doorLeg: 'none', ...marques,
-      }),
-    }),
-  );
+  // AUDIT-4 A-04 — every order read the page makes is recorded: the gift link
+  // must ask the amount-free `/suivi` and never the order view with its sums.
+  const lus: string[] = [];
+  await page.route('**/checkout/order/**', (route: Route) => {
+    const chemin = new URL(route.request().url()).pathname;
+    lus.push(chemin);
+    if (chemin.endsWith('/checkout/order/ord-w1/suivi')) {
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ state: 'confirmed', ...marques }) });
+    }
+    if (chemin.endsWith('/checkout/order/ord-w1')) {
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ orderId: 'ord-w1', state: 'confirmed', amountPaidAtCheckout: 12_500, amountDueAtDelivery: 0, doorLeg: 'none', ...marques }),
+      });
+    }
+    return route.fallback();
+  });
   await page.goto(`${BASE}/?cadeau=ord-w1`);
   const carte = page.locator('[data-role="cadeau-suivi"]');
   await expect(carte).toBeVisible();
@@ -588,9 +596,11 @@ test('CADEAU — the creator’s tracking link renders the delivery’s facts, a
   marques = { acceptedAt: '2026-08-26T10:00:00Z', readyAt: '2026-08-26T11:00:00Z', departedAt: '2026-08-26T12:00:00Z' };
   await page.locator('[data-action="cadeau-actualiser"]').click();
   await expect(page.locator('[data-role="cadeau-etat"]')).toHaveText('En route');
+  expect(lus.length, 'the page never asked').toBeGreaterThan(0);
+  expect(lus.filter((c) => !c.endsWith('/suivi')), 'the gift link read the order view, which carries what was paid').toEqual([]);
 
   // a link that names nothing lands on the honest introuvable
-  await page.route('**/checkout/order/ord-perdu', (route: Route) =>
+  await page.route('**/checkout/order/ord-perdu/suivi', (route: Route) =>
     route.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ error: 'unknown_order' }) }),
   );
   await page.goto(`${BASE}/?cadeau=ord-perdu`);

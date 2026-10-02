@@ -42,6 +42,8 @@ describe('F-56 — every control on the buyer flow is a ≥ 44px target', () => 
     // the vitrine's back button
     expect(regle(VITRINE_STYLES, '.vt-topbtn')).toMatch(/width: 44px; height: 44px/);
     expect(regle(VITRINE_STYLES, '.vt-topbar')).toContain('height: 44px');
+    // AUDIT-4 B-07 — the tile's « Note vocale » chip
+    expect(regle(VITRINE_STYLES, '.vt-tile-voix')).toContain('min-height: 44px');
     // and none of the named controls keeps a 40px box
     for (const sel of ['.cl-shield', '.cl-round-btn', '.cl-voice-done-play', '.cl-chip', '.cl-rec-stop', '.cl-voir', '.cl-refaire']) {
       expect(regle(CLIENTE_STYLES, sel), sel).not.toContain('40px');

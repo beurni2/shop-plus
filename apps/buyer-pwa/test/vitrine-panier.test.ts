@@ -162,12 +162,13 @@ describe('the button — every in-stock article can be put in the panier from th
   it('in-stock tiles carry the panier button IN THE PRICE ROW; a stored pid renders it pressed', () => {
     togglePanier('chez-awa-1', 'p3');
     const page = html();
-    // The TILE button (span class vt-tile-pan…), not the band's « retirer » —
+    // The TILE button (<button> class vt-tile-pan… — a real button since
+    // AUDIT-4 B-06), not the band's « retirer » —
     // both carry the same action, only the button shows the pressed state.
-    expect(page).toMatch(/<div class="vt-tile-price"><v>[^<]*<\/v><\/div><span class="vt-tile-pan vt-pan-on"[^>]*data-action="panier" data-pid="p3"[^>]*aria-pressed="true"/);
-    expect(page).toMatch(/<div class="vt-tile-price"><v>[^<]*<\/v><\/div><span class="vt-tile-pan"[^>]*data-action="panier" data-pid="p2"[^>]*aria-pressed="false"/);
+    expect(page).toMatch(/<div class="vt-tile-price"><v>[^<]*<\/v><\/div><button type="button" class="vt-tile-pan vt-pan-on"[^>]*data-action="panier" data-pid="p3"[^>]*aria-pressed="true"/);
+    expect(page).toMatch(/<div class="vt-tile-price"><v>[^<]*<\/v><\/div><button type="button" class="vt-tile-pan"[^>]*data-action="panier" data-pid="p2"[^>]*aria-pressed="false"/);
     // The featured card (p1) carries the same button beside ITS price.
-    expect(page).toMatch(/<div class="vt-featured-pricerow"><b class="vt-featured-price"><v>[^<]*<\/v><\/b><span class="vt-tile-pan"[^>]*data-action="panier" data-pid="p1"/);
+    expect(page).toMatch(/<div class="vt-featured-pricerow"><b class="vt-featured-price"><v>[^<]*<\/v><\/b><button type="button" class="vt-tile-pan"[^>]*data-action="panier" data-pid="p1"/);
   });
 
   it('the art carries the heart alone — no white chip, no WhatsApp tap, no decorative « go » disc left behind', () => {

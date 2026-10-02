@@ -57,11 +57,29 @@ describe('renderCadeau — the four screens', () => {
   });
 });
 
-describe('etatDeLecture — the port answer becomes a screen honestly', () => {
-  it('order → suivi; unreachable → hors-ligne; refused and unreadable → introuvable', () => {
-    expect(etatDeLecture({ status: 'order', order: commande() }).etape).toBe('suivi');
+describe('etatDeLecture — the gift read becomes a screen honestly', () => {
+  it('suivi → suivi; unreachable → hors-ligne; introuvable → introuvable', () => {
+    expect(etatDeLecture({ status: 'suivi', suivi: { state: 'confirmed' } }).etape).toBe('suivi');
     expect(etatDeLecture({ status: 'unreachable' }).etape).toBe('hors-ligne');
-    expect(etatDeLecture({ status: 'refused', reason: 'unknown_order' }).etape).toBe('introuvable');
-    expect(etatDeLecture({ status: 'unreadable' }).etape).toBe('introuvable');
+    expect(etatDeLecture({ status: 'introuvable' }).etape).toBe('introuvable');
+  });
+});
+
+describe('AUDIT-4 A-04 — the gift read asks /suivi and keeps only where the parcel is', () => {
+  it('asks the amount-free route, keeps the steps, drops anything else the wire carried', async () => {
+    const vus: string[] = [];
+    const avant = globalThis.fetch;
+    globalThis.fetch = (async (input: string | URL | Request) => {
+      vus.push(String(input));
+      return new Response(JSON.stringify({ state: 'confirmed', acceptedAt: '2026-08-26T10:00:00Z', readyAt: 'pas-une-date', amountPaidAtCheckout: 12_500, livree: 'true' }), { status: 200 });
+    }) as typeof fetch;
+    try {
+      const { httpSuiviCadeau } = await import('../src/cliente/quote-port');
+      const r = await httpSuiviCadeau('https://svc.example/')('ord-1');
+      expect(vus).toEqual(['https://svc.example/checkout/order/ord-1/suivi']);
+      expect(r).toEqual({ status: 'suivi', suivi: { state: 'confirmed', acceptedAt: '2026-08-26T10:00:00Z' } });
+    } finally {
+      globalThis.fetch = avant;
+    }
   });
 });

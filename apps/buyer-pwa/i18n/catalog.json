@@ -439,7 +439,7 @@
  },
  {
   "key": "vit.article_retire_titre",
-  "fr": "Cet article n’est plus en vente chez {nom}.",
+  "fr": "{nom} ne vend plus cet article.",
   "register": "selling",
   "screenClass": "status"
  },
@@ -3022,6 +3022,12 @@
   "fr": "Le prix de la course est fixé par Séra. Il est affiché à part — jamais caché dans le prix du produit.",
   "register": "money",
   "screenClass": "status"
+ },
+ {
+  "key": "cl.c4.prix_change",
+  "fr": "Le prix de cet article vient de changer : {maintenant} au lieu de {avant}. C’est ce nouveau prix que vous payez.",
+  "register": "money",
+  "screenClass": "checkout"
  },
  {
   "key": "cl.c4.citation",

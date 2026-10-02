@@ -628,7 +628,7 @@ describe('VOIX-VISIBLE — the buyer can tell there is a voice to hear', () => {
     expect(html).toContain('vt-tile-voix-mot');
     expect(html).toContain('0:05');
     // …and the rules that were already right are untouched
-    expect(html).toContain('role="button"'); // never a nested <button>
+    expect(html).toContain('<button type="button" class="vt-tile-voix"'); // AUDIT-4 B-06: a real button; the card around it is no longer one
     expect(html).toContain('data-action="voix-produit-play"');
   });
 

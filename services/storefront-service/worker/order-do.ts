@@ -5530,6 +5530,29 @@ export default {
       return Response.json({ ok: false }, { status: 404 });
     }
 
+    /**
+     * AUDIT-4 A-04 — THE GIFT LINK'S READ. `?cadeau={orderId}` is forwarded to
+     * the liste's creator and to whoever she shows it; the order view above
+     * carries what was paid, what is due and any refund. This read answers
+     * where the parcel is and nothing else — an allowlist, so a field added to
+     * the view later stays out of it until someone writes it here.
+     */
+    const suiviCadeau = /^\/checkout\/order\/([^/]+)\/suivi$/.exec(pathname);
+    if (suiviCadeau && request.method === 'GET') {
+      const orderId = decodeId(suiviCadeau[1]!);
+      if (orderId === undefined || !ID_ALPHABET.test(orderId)) return badRequest('bad_field', 'orderId');
+      const res = await orderStub(env, orderId).fetch(new Request('https://do/entry'));
+      const body = (await res.json().catch(() => null)) as { ok?: boolean; reason?: string; view?: Record<string, unknown> } | null;
+      if (body === null || body.ok !== true || body.view === undefined) {
+        return refuse(body?.reason ?? 'unknown_order');
+      }
+      const suivi: Record<string, unknown> = {};
+      for (const cle of ['state', 'acceptedAt', 'readyAt', 'departedAt', 'arrivedAt', 'livree'] as const) {
+        if (body.view[cle] !== undefined) suivi[cle] = body.view[cle];
+      }
+      return Response.json(suivi, { status: 200 });
+    }
+
     const byId = /^\/checkout\/order\/([^/]+)$/.exec(pathname);
     if (byId && request.method === 'GET') {
       const orderId = decodeId(byId[1]!);

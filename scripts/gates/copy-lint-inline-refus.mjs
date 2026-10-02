@@ -215,6 +215,7 @@ const ECRANS = {
   'cl.c4.preuve_scelle': M('neutral', L()), 'cl.c4.preuve_livre': M('neutral', L()), 'cl.c4.titre': M('neutral', L()),
   'cl.c4.livree_a': M('neutral', L()), 'cl.c4.livre_chez': M('money', S(['{nom}'])), 'cl.c4.position_gps': M('neutral', L()),
   'cl.c4.point_exact': M('neutral', S()), 'cl.c4.modifier': M('neutral', L()), 'cl.c4.loi': M('money', S()), 'cl.c4.citation': M('money', S()),
+  'cl.c4.prix_change': M('money', C(['{maintenant}', '{avant}'])),
   // REFUS — the screen title
   'cl.refus.titre_ecran': M('neutral', L()),
   // C5 — the payment

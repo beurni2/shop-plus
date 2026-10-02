@@ -83,3 +83,11 @@ test('F-57 — C3\'s fields resolve by their name; a new screen leaves the stage
   await expect(repere).toBeFocused();
   await expect(repere).toHaveValue('Face à la pharmacie');
 });
+
+test('AUDIT-4 B-07 — the « Note vocale » chip on a product tile meets a 44px thumb', async ({ page }) => {
+  await page.goto('/?demo-vitrine=aicha-4821');
+  await expect(page.locator('.vt-root[data-etat="ready"]')).toBeVisible();
+  const puces = await page.locator('.vt-tile [data-action="voix-produit-play"]').evaluateAll((els) => els.map((el) => el.getBoundingClientRect().height));
+  expect(puces.length, 'no voice chip on a tile to measure').toBeGreaterThan(0);
+  for (const h of puces) expect(h).toBeGreaterThanOrEqual(43.5);
+});

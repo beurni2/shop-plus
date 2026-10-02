@@ -1063,6 +1063,87 @@ export function resolveQuotePort(produitFcfa?: number): QuotePort {
   return base ? httpQuotePort(base) : demoQuotePort(produitFcfa);
 }
 
+/* ─────────────────────────── the gift link's read ─────────────────────────── */
+
+/**
+ * AUDIT-4 A-04 — WHAT `?cadeau={orderId}` MAY READ: where the parcel is, never
+ * what was paid. The order view carries amounts and any refund; the liste's
+ * creator — or anyone she forwards the link to — has no business with them,
+ * so the gift page asks `GET /checkout/order/{id}/suivi`, which the Worker
+ * builds from an allowlist of these keys alone.
+ */
+export interface SuiviCadeau {
+  readonly state: string;
+  readonly acceptedAt?: string;
+  readonly readyAt?: string;
+  readonly departedAt?: string;
+  readonly arrivedAt?: string;
+  readonly livree?: true;
+}
+export type SuiviCadeauOutcome =
+  | { readonly status: 'suivi'; readonly suivi: SuiviCadeau }
+  | { readonly status: 'unreachable' }
+  | { readonly status: 'introuvable' };
+export type LireSuiviCadeau = (orderId: string) => Promise<SuiviCadeauOutcome>;
+
+export function httpSuiviCadeau(baseUrl: string): LireSuiviCadeau {
+  const base = baseUrl.replace(/\/+$/, '');
+  return async (orderId) => {
+    let url: string;
+    try {
+      url = `${base}/checkout/order/${encodeURIComponent(orderId)}/suivi`;
+    } catch {
+      return { status: 'introuvable' };
+    }
+    let res: Response;
+    try {
+      res = await fetch(url, { method: 'GET' });
+    } catch {
+      return { status: 'unreachable' };
+    }
+    const brut: unknown = await res.json().catch(() => undefined);
+    if (!res.ok || brut === null || typeof brut !== 'object' || !nonEmpty((brut as Record<string, unknown>)['state'])) {
+      return { status: 'introuvable' };
+    }
+    const o = brut as Record<string, unknown>;
+    // The marks one by one, as `readOrder` reads them: a bad one is dropped alone.
+    const marques = { acceptedAt: marqueIso(o['acceptedAt']), readyAt: marqueIso(o['readyAt']), departedAt: marqueIso(o['departedAt']), arrivedAt: marqueIso(o['arrivedAt']) };
+    return {
+      status: 'suivi',
+      suivi: {
+        state: o['state'] as string,
+        ...Object.fromEntries(Object.entries(marques).filter(([, v]) => v !== undefined)),
+        ...(o['livree'] === true ? { livree: true as const } : {}),
+      },
+    };
+  };
+}
+
+/** The real read iff a service base is configured (`resolveQuotePort`'s rule);
+ *  the harness reads its own demo order's facts otherwise. */
+export function resolveSuiviCadeau(): LireSuiviCadeau {
+  const env = (import.meta as { env?: { VITE_STOREFRONT_BASE?: string } }).env;
+  const base = env?.VITE_STOREFRONT_BASE;
+  if (base) return httpSuiviCadeau(base);
+  const demo = demoQuotePort();
+  return async (orderId) => {
+    const r = await demo.orderState(orderId);
+    if (r.status !== 'order') return r.status === 'unreachable' ? { status: 'unreachable' } : { status: 'introuvable' };
+    const { state, acceptedAt, readyAt, departedAt, arrivedAt, livree } = r.order;
+    return {
+      status: 'suivi',
+      suivi: {
+        state,
+        ...(acceptedAt !== undefined ? { acceptedAt } : {}),
+        ...(readyAt !== undefined ? { readyAt } : {}),
+        ...(departedAt !== undefined ? { departedAt } : {}),
+        ...(arrivedAt !== undefined ? { arrivedAt } : {}),
+        ...(livree === true ? { livree: true as const } : {}),
+      },
+    };
+  };
+}
+
 /* ─────────────────────────────── the zone wire ───────────────────────────── */
 
 /**

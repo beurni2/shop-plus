@@ -59,14 +59,14 @@ describe('renderVoicePlayer — product page « Note vocale » (tap to play, dur
   });
 });
 
-describe('renderVoiceChip — the tile affordance is a span (never a nested button)', () => {
-  it('renders a role="button" span with the play action + duration, no nested <button>', () => {
+describe('renderVoiceChip — the tile affordance is a real button (AUDIT-4 B-06)', () => {
+  it('renders a <button type="button"> with the play action + duration; the card around it is an <article>, so nothing nests', () => {
     const chip = renderVoiceChip(READY);
-    expect(chip).toContain('<span');
-    expect(chip).toContain('role="button"');
+    expect(chip.startsWith('<button type="button" class="vt-tile-voix"')).toBe(true);
+    expect(chip).not.toContain('role="button"');
     expect(chip).toContain('data-action="voix-produit-play"');
     expect(chip).toContain('0:12');
-    expect(chip).not.toContain('<button'); // must not nest a button inside the tile button
+    expect((chip.match(/<button/g) ?? []).length, 'one button, no button inside it').toBe(1);
   });
 
   it('no chip for a non-ready or absent note', () => {

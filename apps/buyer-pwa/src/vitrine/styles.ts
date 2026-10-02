@@ -13,6 +13,15 @@
  */
 
 export const VITRINE_STYLES = `
+  /* AUDIT-4 B-06 — the controls that were <span role="button"> are real
+     buttons now, reachable by keyboard and switch access. This hands each the
+     bare box the span had; the rules below then style it exactly as before.
+     FIRST in the sheet on purpose: same specificity, so every later rule wins. */
+  .vt-fav, .vt-tile-pan, .vt-tile-voix, .vt-ghostbtn, .vt-primbtn, .vt-head-link {
+    -webkit-appearance: none; appearance: none; box-sizing: content-box;
+    margin: 0; padding: 0; border: 0; background: none;
+    font: inherit; color: inherit; letter-spacing: inherit; text-align: inherit; text-transform: inherit;
+  }
   .vt-root {
     /* BOUTIQUE-BLANC (founder order 2026-08-14): « the buyer facing boutique
        whitening it but without touching the en-tête/headers section ». The
@@ -555,7 +564,8 @@ export const VITRINE_STYLES = `
 
   /* C-VIT4 — la tuile produit v2. */
   .vt-tile {
-    display: block; text-align: left; width: 100%;
+    /* An <article> since B-06: border-box, the box the <button> it was had by default. */
+    display: block; text-align: left; width: 100%; box-sizing: border-box;
     border: 1px solid #EDE4D3; border-radius: 18px; background: #FFFFFF;
     box-shadow: 0 1px 2px rgba(28, 22, 15, 0.04);
     padding: 0; overflow: hidden; cursor: pointer;
@@ -661,8 +671,8 @@ export const VITRINE_STYLES = `
   .vt-tile-livree { margin-top: 3px; font-size: 10.5px; font-weight: 600; color: #6F6355; }
 
   /* « Note vocale » — the tile voice chip (tap-to-play; the play triangle +
-     duration). A role="button" <span> inside the tile <button>: its own tap
-     target, themed to the accent. The delegated handler plays it; the tile's
+     duration). A real <button> inside the product card (an <article> since
+     AUDIT-4 B-06): its own tap target, themed to the accent. The delegated handler plays it; the tile's
      « produit » navigation never fires on a voice tap (closest() wins here). */
   /* VOIX-VISIBLE (founder 2026-08-04) — it was a small pill showing only a play
      glyph and « 0:05 », which reads as a timestamp, not as an invitation: a
@@ -673,7 +683,8 @@ export const VITRINE_STYLES = `
      handler, still no autoplay. */
   .vt-tile-voix {
     display: flex; width: 100%; box-sizing: border-box; align-items: center; gap: 7px; margin-top: 8px;
-    min-height: 36px; padding: 5px 12px 5px 7px; border-radius: 999px;
+    /* AUDIT-4 B-07 — §5 « ≥ 44px touch targets »: it was 36px, the one control under the floor. */
+    min-height: 44px; padding: 5px 12px 5px 7px; border-radius: 999px;
     background: var(--vt-soft); color: var(--vt-deep); cursor: pointer;
     font-family: 'Instrument Sans', system-ui, sans-serif;
     font-size: 11.5px; font-weight: 700; letter-spacing: .2px;
@@ -693,7 +704,7 @@ export const VITRINE_STYLES = `
 
   /* C-VIT5 — tuile à la une (pleine largeur). */
   .vt-featured {
-    display: block; text-align: left; width: 100%;
+    display: block; text-align: left; width: 100%; box-sizing: border-box;
     border-radius: 20px; background: #FFFFFF; border: 0; padding: 0; overflow: hidden;
     box-shadow: 0 1px 2px rgba(28,22,15,.04), 0 10px 30px -16px rgba(28,22,15,.14);
     cursor: pointer; font: inherit; color: inherit; margin-top: 12px;

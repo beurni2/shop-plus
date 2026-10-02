@@ -214,7 +214,7 @@ export function hero(sf: Storefront, trust: VitrineTrust, opts: { compact?: bool
 function sectionHead(glyph: string, title: string, linkLabel?: string, anchor?: string, count?: number): string {
   const link =
     linkLabel !== undefined && anchor !== undefined
-      ? `<span class="vt-head-link" role="button" data-action="ancre" data-cible="${anchor}">${linkLabel}${iconChevron(12, '#6F6355', 2.2)}</span>`
+      ? `<button type="button" class="vt-head-link" data-action="ancre" data-cible="${anchor}">${linkLabel}${iconChevron(12, '#6F6355', 2.2)}</button>`
       : '';
   const n = count !== undefined ? `<i class="vt-head-n">· <v>${count}</v></i>` : '';
   return `<div class="vt-head"><span class="vt-head-glyph">${glyph}</span><b class="vt-head-title">${title}</b>${n}<span class="vt-head-spacer"></span>${link}</div>`;
@@ -296,11 +296,12 @@ function tileArt(veiled: boolean, assetRefs: readonly string[] = [], taille: Tai
 /** C-VIT4 — tuile produit v2. Épuisé: voile + tampon, muette (aria-disabled).
  * A `ready` voice note adds the compact « Note vocale » chip (in-stock tiles only —
  * an épuisé tile is muette and carries no interactive child). */
-/** The wishlist heart — role=button inside the tile button (voice-chip
- *  precedent: closest() routes its tap to `favori`, never to `produit`). */
+/** The wishlist heart — a real button inside the product card (AUDIT-4 B-06:
+ *  the card is no longer a button, so nothing interactive is nested in one);
+ *  closest() routes its tap to `favori`, never to `produit`. */
 function fav(pid: string): string {
   const on = isFavorite(pid);
-  return `<span class="vt-fav${on ? ' vt-fav-on' : ''}" role="button" tabindex="0" data-action="favori" data-pid="${esc(pid)}" aria-pressed="${on}" aria-label="${t('vit.favori_aria')}">${iconHeart(16, '#1C1710', 1.9)}</span>`;
+  return `<button type="button" class="vt-fav${on ? ' vt-fav-on' : ''}" data-action="favori" data-pid="${esc(pid)}" aria-pressed="${on}" aria-label="${t('vit.favori_aria')}">${iconHeart(16, '#1C1710', 1.9)}</button>`;
 }
 
 /** PANIER-BOUTON-1 (founder 2026-09-20: « remove the white add to cart button
@@ -313,14 +314,17 @@ function fav(pid: string): string {
  *  carries the heart alone. */
 function panBouton(slug: string, pid: string): string {
   const on = inPanier(slug, pid);
-  return `<span class="vt-tile-pan${on ? ' vt-pan-on' : ''}" role="button" tabindex="0" data-action="panier" data-pid="${esc(pid)}" aria-pressed="${on}" aria-label="${t('vit.panier_aria')}">${iconBag(15, 'currentColor', 2)}</span>`;
+  return `<button type="button" class="vt-tile-pan${on ? ' vt-pan-on' : ''}" data-action="panier" data-pid="${esc(pid)}" aria-pressed="${on}" aria-label="${t('vit.panier_aria')}">${iconBag(15, 'currentColor', 2)}</button>`;
 }
 
 function tile(p: VitrineProduct, note: ProductVoiceNote | undefined, slug: string): string {
   const cls = p.inStock ? 'vt-tile' : 'vt-tile vt-tile-epuise';
+  // AUDIT-4 B-06 — the card is a link a keyboard can reach (Enter opens it,
+  // flows.ts), not a <button>: its heart, bag and voice chip are buttons of
+  // their own, and a button may not hold buttons.
   const attrs = p.inStock
-    ? `data-action="produit" data-pid="${esc(p.pid)}"`
-    : 'aria-disabled="true" disabled';
+    ? `data-action="produit" data-pid="${esc(p.pid)}" role="link" tabindex="0"`
+    : 'aria-disabled="true"';
   // NORTH-STAR-1 — the heart is REAL (favorites.ts) and, since
   // PANIER-VITRINE-1, so is the panier button: both device-local, both honest,
   // because a decorative chip would be a dead button. Neither renders on an
@@ -329,7 +333,7 @@ function tile(p: VitrineProduct, note: ProductVoiceNote | undefined, slug: strin
   // as unmeasured, reaffirmed, rendered as given. No WhatsApp tap on a tile
   // since PANIER-BOUTON-1: that option lives on the buyer's own product page.
   return [
-    `<button class="${cls}" data-role="vitrine-produit" ${attrs}>`,
+    `<article class="${cls}" data-role="vitrine-produit" ${attrs}>`,
     `<div class="vt-artwrap">${produitArt(p, !p.inStock)}${p.inStock ? fav(p.pid) : ''}</div>`,
     '<div class="vt-tile-body">',
     `<div class="vt-tile-name"><v>${esc(p.name)}</v></div>`,
@@ -340,7 +344,7 @@ function tile(p: VitrineProduct, note: ProductVoiceNote | undefined, slug: strin
     p.inStock ? `<div class="vt-tile-livree">${t('vit.livraison_2448')}</div>` : '',
     p.inStock ? renderVoiceChip(note) : '',
     '</div>',
-    '</button>',
+    '</article>',
   ].join('');
 }
 
@@ -429,7 +433,7 @@ function featuredTile(p: VitrineProduct, note: ProductVoiceNote | undefined, pin
   // PANIER-BOUTON-1 — the same one control as the grid, in the same place:
   // beside the price. The art keeps the badge and the heart, nothing else.
   return [
-    `<button class="vt-featured" data-role="vitrine-a-la-une" data-action="produit" data-pid="${esc(p.pid)}">`,
+    `<article class="vt-featured" data-role="vitrine-a-la-une" data-action="produit" data-pid="${esc(p.pid)}" role="link" tabindex="0">`,
     `<div class="vt-featured-artwrap">${featuredArt(p)}${pinnedByHer ? `<span class="vt-featured-badge">${t('vit.a_la_une')}</span>` : ''}${fav(p.pid)}</div>`,
     '<div class="vt-featured-body">',
     `<span class="vt-featured-name"><v>${esc(p.name)}</v></span>`,
@@ -438,7 +442,7 @@ function featuredTile(p: VitrineProduct, note: ProductVoiceNote | undefined, pin
     renderVoiceChip(note),
     `<span class="vt-featured-cta">${t('vit.commander')}</span>`,
     '</div>',
-    '</button>',
+    '</article>',
   ].join('');
 }
 
@@ -1193,7 +1197,7 @@ export function renderVitrineReady(
   // shown just now are SAID, never silently missing from the grid.
   if (opts.incomplet === true) {
     parts.push(
-      `<div class="vt-incomplet" data-role="vitrine-incomplet"><span>${t('vit.articles_incomplet')}</span><span class="vt-ghostbtn" role="button" data-action="reessayer">${t('vit.reessayer')}</span></div>`,
+      `<div class="vt-incomplet" data-role="vitrine-incomplet"><span>${t('vit.articles_incomplet')}</span><button type="button" class="vt-ghostbtn" data-action="reessayer">${t('vit.reessayer')}</button></div>`,
     );
   }
 
@@ -1342,8 +1346,14 @@ export function renderVitrineIndisponible(
       iconDevanture(40, '#8A7D6B', 1.7),
       `<div class="vt-empty-titre">${t('vit.articles_indispo_titre')}</div>`,
       `<div class="vt-empty-corps">${t('vit.articles_indispo_corps')}</div>`,
-      `<span class="vt-ghostbtn" role="button" data-action="reessayer">${t('vit.reessayer')}</span>`,
+      `<button type="button" class="vt-ghostbtn" data-action="reessayer">${t('vit.reessayer')}</button>`,
       '</div>',
+      // AUDIT-4 B-04 — §4.1: « Livré par Séra » and « Paiement protégé » stand
+      // on every buyer surface; the compact headers carry neither, so the same
+      // band as the empty state says them here.
+      `<div class="vt-band" data-role="vitrine-bande">${tf('vit.bande', {
+        lien: `<b>${t('vit.bande_lien')}</b>`,
+      })} ${t('vit.bande_recap')}</div>`,
     ].join(''),
   );
 }
@@ -1358,14 +1368,14 @@ export function renderVitrineIndisponible(
  */
 export function renderArticleAbsent(kind: 'retire' | 'indisponible', nom: string): string {
   const retire = kind === 'retire';
-  const voir = `<span class="${retire ? 'vt-primbtn' : 'vt-ghostbtn'}" role="button" data-action="voir-boutique">${t('vit.voir_boutique')}</span>`;
+  const voir = `<button type="button" class="${retire ? 'vt-primbtn' : 'vt-ghostbtn'}" data-action="voir-boutique">${t('vit.voir_boutique')}</button>`;
   return wrap(
     [
       `<div class="vt-state" data-role="${retire ? 'article-retire' : 'article-indisponible'}">`,
       `<div class="vt-picto">${iconDevanture(28, '#1C1710', 1.9)}</div>`,
       `<h3>${retire ? tf('vit.article_retire_titre', { nom: esc(nom) }) : t('vit.article_indispo_titre')}</h3>`,
       `<p>${t(retire ? 'vit.article_retire_corps' : 'vit.indisponible_corps')}</p>`,
-      retire ? voir : `<span class="vt-primbtn" role="button" data-action="reessayer">${t('vit.reessayer')}</span>${voir}`,
+      retire ? voir : `<button type="button" class="vt-primbtn" data-action="reessayer">${t('vit.reessayer')}</button>${voir}`,
       '</div>',
     ].join(''),
   );
@@ -1405,7 +1415,7 @@ export function renderVitrineOffline(raison: 'reseau' | 'service' = 'reseau'): s
       `<div class="vt-picto">${iconWifiOff(30, '#1C1710', 1.9)}</div>`,
       `<h3>${t(service ? 'vit.indisponible_titre' : 'vit.horsligne_titre')}</h3>`,
       `<p>${t(service ? 'vit.indisponible_corps' : 'vit.horsligne_corps')}</p>`,
-      `<span class="vt-ghostbtn" role="button" data-action="reessayer">${t('vit.reessayer')}</span>`,
+      `<button type="button" class="vt-ghostbtn" data-action="reessayer">${t('vit.reessayer')}</button>`,
       '</div>',
     ].join(''),
   );
@@ -1419,7 +1429,7 @@ export function renderVitrineInvalid(): string {
       `<div class="vt-picto">${iconBrokenLink(28, '#1C1710', 1.9)}</div>`,
       `<h3>${t('vit.invalide_titre')}</h3>`,
       `<p>${t('vit.invalide_corps')}</p>`,
-      `<span class="vt-ghostbtn" role="button" data-action="decouvrir">${t('vit.decouvrir')}</span>`,
+      `<button type="button" class="vt-ghostbtn" data-action="decouvrir">${t('vit.decouvrir')}</button>`,
       '</div>',
     ].join(''),
   );
@@ -1441,7 +1451,7 @@ export function renderVitrinePause(nom: string): string {
       `<div class="vt-picto">${iconDevanture(28, '#1C1710', 1.9)}</div>`,
       `<h3>${tf('vit.pause_titre', { nom: esc(nom) })}</h3>`,
       `<p>${t('vit.pause_corps')}</p>`,
-      `<span class="vt-ghostbtn" role="button" data-action="decouvrir">${t('vit.decouvrir')}</span>`,
+      `<button type="button" class="vt-ghostbtn" data-action="decouvrir">${t('vit.decouvrir')}</button>`,
       '</div>',
     ].join(''),
   );

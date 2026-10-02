@@ -51,20 +51,21 @@ export function renderVoicePlayer(note: ProductVoiceNote | undefined): string {
   ].join('');
 }
 
-/** Vitrine tile — the compact chip. It lives INSIDE the tile <button>, so it is
- * a <span role="button"> (never a nested <button>); the ONE delegated handler
- * (wireVoicePlay) plays it, and because closest() returns this span first the
- * tile's own « produit » navigation never fires on a voice tap. */
+/** Vitrine tile — the compact chip, a real <button> (AUDIT-4 B-06: the card
+ * around it is an <article> now, so a keyboard reaches it and Enter or Space
+ * plays it); the ONE delegated handler (wireVoicePlay) plays it, and because
+ * closest() returns this button first the card's own « produit » navigation
+ * never fires on a voice tap. */
 export function renderVoiceChip(note: ProductVoiceNote | undefined): string {
   if (!isPlayable(note)) return '';
   return [
-    `<span class="vt-tile-voix" role="button" tabindex="0" data-action="voix-produit-play" data-voix-url="${esc(note.url)}" aria-label="${t('voix_produit.aria')}">`,
+    `<button type="button" class="vt-tile-voix" data-action="voix-produit-play" data-voix-url="${esc(note.url)}" aria-label="${t('voix_produit.aria')}">`,
     icon('ecouter', 'vt-tile-voix-icon'),
     // VOIX-VISIBLE — the WORD, not just the clock. « 0:05 » alone reads as a
     // timestamp; a buyer scanning a grid has no reason to tap it.
     `<span class="vt-tile-voix-mot">${t('voix_produit.ecouter')}</span>`,
     `<span class="vt-tile-voix-dur">${fmtVoiceDuration(note.durationMs)}</span>`,
-    '</span>',
+    '</button>',
   ].join('');
 }
 

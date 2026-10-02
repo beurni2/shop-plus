@@ -20,7 +20,7 @@
  */
 
 import { t } from './i18n';
-import type { OrderOutcome, QuotePort, ServerOrder } from './cliente/quote-port';
+import type { LireSuiviCadeau, ServerOrder, SuiviCadeauOutcome } from './cliente/quote-port';
 
 /* The `.cd-*` rules live in main.ts's token-driven stylesheet, beside the
  * `.cd-*` family — this module renders MARKUP ONLY (the markup-only law,
@@ -31,7 +31,7 @@ export type CadeauEtat =
   | { readonly etape: 'chargement' }
   | { readonly etape: 'hors-ligne' }
   | { readonly etape: 'introuvable' }
-  | { readonly etape: 'suivi'; readonly commande: ServerOrder };
+  | { readonly etape: 'suivi'; readonly commande: CadeauFacts };
 
 /** LISTE-CADEAUX — the exact facts the état line reads, named so the
  *  creator's « Mes cadeaux » sheet can reuse THIS law over its own wire
@@ -90,15 +90,16 @@ export function renderCadeau(etat: CadeauEtat): string {
 }
 
 /** The one honest mapping from a port answer to a screen. */
-export function etatDeLecture(r: OrderOutcome): CadeauEtat {
-  if (r.status === 'order') return { etape: 'suivi', commande: r.order };
+export function etatDeLecture(r: SuiviCadeauOutcome): CadeauEtat {
+  if (r.status === 'suivi') return { etape: 'suivi', commande: r.suivi };
   if (r.status === 'unreachable') return { etape: 'hors-ligne' };
-  // refused (unknown order) and unreadable both land on the honest
+  // an unknown order and an unreadable answer both land on the honest
   // introuvable: a mangled link must say so, never spin forever.
   return { etape: 'introuvable' };
 }
 
-export function mountCadeau(host: HTMLElement, orderId: string, port: QuotePort): void {
+/** AUDIT-4 A-04 — `lire` is the gift read (`/suivi`): the delivery's steps, no amount. */
+export function mountCadeau(host: HTMLElement, orderId: string, lire: LireSuiviCadeau): void {
   const root = document.createElement('div');
   root.setAttribute('data-screen', 'cadeau');
   host.appendChild(root);
@@ -108,7 +109,7 @@ export function mountCadeau(host: HTMLElement, orderId: string, port: QuotePort)
   };
   const charger = (): void => {
     render({ etape: 'chargement' });
-    void port.orderState(orderId).then((r) => render(etatDeLecture(r)));
+    void lire(orderId).then((r) => render(etatDeLecture(r)));
   };
   root.addEventListener('click', (ev) => {
     const target = (ev.target as HTMLElement).closest('[data-action="cadeau-actualiser"]');

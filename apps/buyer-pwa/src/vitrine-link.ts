@@ -25,8 +25,10 @@ import { DEMO_STORES, demoDeliveredSaleEvents, demoStoreEvents } from './demo-st
  * the app boots). Returns the slug (`aicha-4821`) or undefined.
  */
 export function vitrineSlugFromPath(pathname: string): string | undefined {
-  const m = /\/v\/([a-z0-9-]+)\/?$/.exec(pathname);
-  return m ? m[1] : undefined;
+  // AUDIT-4 B-05 — the poster prints her code in capitals and people type it
+  // that way; §4.1 « insensible à la casse … slug d'URL en minuscules ».
+  const m = /\/v\/([a-z0-9-]+)\/?$/i.exec(pathname);
+  return m ? m[1]!.toLowerCase() : undefined;
 }
 
 /**
@@ -79,8 +81,8 @@ export function signedHref(pathname: string, slug: string, pid: string): string 
  * rides a `?pid=` alongside it.
  */
 export function signedProductSlugFromPath(pathname: string): string | undefined {
-  const m = /\/s\/([a-z0-9-]+)\/?$/.exec(pathname);
-  return m ? m[1] : undefined;
+  const m = /\/s\/([a-z0-9-]+)\/?$/i.exec(pathname);
+  return m ? m[1]!.toLowerCase() : undefined;
 }
 
 /**

@@ -772,6 +772,17 @@ export function mountVitrine(
   root.addEventListener('input', miroirCarte);
   root.addEventListener('change', miroirCarte);
 
+  // AUDIT-4 B-06 — a product card is a link a keyboard reaches; Enter on the
+  // card itself opens it, as a tap does. Its heart, bag and voice chip are
+  // real buttons, which the browser already answers.
+  root.addEventListener('keydown', (ev) => {
+    const el = ev.target as HTMLElement;
+    if (ev.key === 'Enter' && el.getAttribute('role') === 'link' && el.getAttribute('data-action') === 'produit') {
+      ev.preventDefault();
+      el.click();
+    }
+  });
+
   root.addEventListener('click', (ev) => {
     const target = (ev.target as HTMLElement).closest('[data-action]');
     if (!target) return;
