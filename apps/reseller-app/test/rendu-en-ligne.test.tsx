@@ -169,6 +169,81 @@ describe('EN-LIGNE-1 — her app tells the truth about a closed shop, and opens 
     screen.unmount();
   });
 
+  it('her FIRST « Mettre ma boutique en ligne »: once the service put it online, Personnaliser says so — never « Pas en ligne », never the way back (verifier m1)', async () => {
+    let creee = false;
+    let ouverte = false;
+    const w = wire([
+      (path) =>
+        path === '/supply-projections'
+          ? { status: 200, json: { offers: [offer()], diagnostic: { status: 'ok', refusals: [] } } }
+          : null,
+      (path, body) => {
+        if (path !== '/storefronts') return null;
+        if (body !== null) {
+          creee = true;
+          // The create answers the shop as created: not yet online (decideCreate).
+          return { status: 200, json: { status: 'created', storefront: storefront(false, '2026-10-02T08:00:00.000Z') } };
+        }
+        return { status: 200, json: (creee ? [{ id: SF_ID, slug: SLUG, name: NOM, discoverable: ouverte }] : []) as never };
+      },
+      (path) => {
+        if (!/^\/storefronts\/[^/]+\/publish$/.test(path)) return null;
+        ouverte = true;
+        return { status: 200, json: { status: 'changed', storefront: storefront(true, '2026-10-02T08:00:01.000Z') } };
+      },
+      (path) =>
+        /^\/storefronts\/[^/]+$/.test(path)
+          ? creee ? { status: 200, json: storefront(ouverte, '2026-10-02T08:00:01.000Z') as never } : { status: 404, json: { error: 'not_found' } }
+          : null,
+    ]);
+    const screen = await mountApp();
+    await screen.settle();
+    await screen.press('Ma Vitrine', 1);
+    await screen.settle();
+    await screen.press('Personnaliser ma boutique');
+    await screen.settle();
+    await screen.press('Identité');
+    await screen.settle();
+    await screen.type(NOM, 'NOM DE LA BOUTIQUE');
+    await screen.type('Ouagadougou', 'QUARTIER');
+    await screen.press('Enregistrer');
+    await screen.settle();
+    await screen.press('Mettre ma boutique en ligne');
+    await screen.settle();
+    await screen.settle();
+    expect(w.calls.filter((c) => /\/publish$/.test(c.path)), 'the publish went out').toHaveLength(1);
+    expect(screen.shows('Pas en ligne'), `on screen: ${JSON.stringify(screen.texts().slice(0, 20))}`).toBe(false);
+    expect(screen.canPress(BOUTON), 'no way back offered for a shop that is online').toBe(false);
+    screen.unmount();
+  });
+
+  it('taken offline while her app is open (the founder, or her other phone): the next read of her shop takes the mark down everywhere and offers the way back (verifier m2)', async () => {
+    let ouverte = true;
+    wire([
+      (path) =>
+        path === '/supply-projections'
+          ? { status: 200, json: { offers: [offer()], diagnostic: { status: 'ok', refusals: [] } } }
+          : null,
+      (path) => (path === '/storefronts' ? { status: 200, json: [{ id: SF_ID, slug: SLUG, name: NOM, discoverable: ouverte }] as never } : null),
+      (path) => (/^\/storefronts\/[^/]+$/.test(path) ? { status: 200, json: storefront(ouverte, ouverte ? '2026-08-15T08:00:00.000Z' : '2026-10-02T09:00:00.000Z') as never } : null),
+    ]);
+    const screen = await mountApp();
+    await screen.settle();
+    expect(screen.texts().join(' | ')).toContain('En ligne');
+    ouverte = false; // unpublished elsewhere, mid-session
+    await screen.press('Ma Vitrine', 0);
+    await screen.settle();
+    await screen.settle();
+    expect(screen.texts().join(' | '), 'Ma Vitrine re-read her shop: no mark').not.toContain('En ligne');
+    await screen.press('Accueil');
+    await screen.settle();
+    const lu = screen.texts().join(' | ');
+    expect(lu, 'the accueil agrees').not.toContain('En ligne');
+    expect(lu).toContain(CARTE);
+    expect(screen.canPress(BOUTON)).toBe(true);
+    screen.unmount();
+  });
+
   it('CONTROL — a shop en ligne wears the mark and shows no card', async () => {
     wire(monde(true));
     const screen = await mountApp();

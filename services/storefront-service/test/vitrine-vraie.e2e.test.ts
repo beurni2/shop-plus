@@ -214,7 +214,8 @@ describe('VITRINE-VRAIE-1 — every product of a big boutique reaches the buyer'
     expect(lien.status).toBe(200);
     expect(pidsDe(lien.body)).toEqual([pidN(N)]);
     expect(lien.body['suite']).toBeUndefined();
-    expect(lien.body['ventesLivrees'], 'a product link never draws the count, so it is not read').toBeUndefined();
+    // VERIFIEE-MERITEE-1 — the product link carries her count: its page earns « Vendeuse vérifiée » from it.
+    expect(lien.body['ventesLivrees'], 'a product link carries her delivered-sales count').toBe(0);
     const panier = await lire(`/s/${shop.slug}?pid=${pidN(N)},${pidN(3)},pv-pas-chez-elle`);
     expect(pidsDe(panier.body)).toEqual([pidN(N), pidN(3)]);
     const etranger = await lire(`/s/${shop.slug}?pid=pv-pas-chez-elle`);
@@ -374,12 +375,20 @@ describe('VERIFIEE-MERITEE-1 — « Vendeuse vérifiée » is earned by a delive
         if (r === undefined) throw new Error('her boutique did not resolve');
         return renderEntete(r.storefront.headerStyle, r.storefront, r.trust, {});
       };
+      // The PRODUCT LINK's own read (what her shared links open) carries the same count.
+      const lienProduit = async (): Promise<number> => {
+        const r = await httpStorefrontPort('http://c').resolve(b.slug, { pids: [pidN(1)] });
+        if (r === undefined) throw new Error('her product link did not resolve');
+        return r.trust.deliveredCount;
+      };
       const sans = await entete();
       expect(sans).toContain('data-role="vitrine-identity"');
       expect(sans).not.toContain('Vendeuse vérifiée');
+      expect(await lienProduit()).toBe(0);
       await vendreEtLivrer(S, b.slug, pidN(1), '0009');
       expect((await lire(`/s/${b.slug}`)).body['ventesLivrees']).toBe(1);
       expect(await entete()).toContain('Vendeuse vérifiée');
+      expect(await lienProduit(), 'the product link learns the delivery too').toBe(1);
     } finally {
       globalThis.fetch = avant;
     }

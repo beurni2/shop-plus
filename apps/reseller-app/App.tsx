@@ -1196,6 +1196,18 @@ export default function App() {
    */
   const [liveStorefront, setLiveStorefront] = useState<Storefront | null | undefined>(undefined);
   /**
+   * EN-LIGNE-1 (verifier m2) — is her shop online, from the FRESHEST read this
+   * app holds: her shop as last read (re-read on entering Ma Vitrine and
+   * Personnaliser, and adopted from every publish), else the list's row. One
+   * value for every screen, so the accueil and Personnaliser never disagree.
+   */
+  const enLigne: boolean | undefined =
+    liveShop === null || liveShop === undefined
+      ? undefined
+      : liveStorefront !== null && liveStorefront !== undefined
+        ? liveStorefront.discoverable === true
+        : liveShop.enLigne;
+  /**
    * REVENDEUSE-VRAIE-1 (verifier BLOCKER) — Personnaliser opens on her shop AS
    * IT WILL BE once her kept change lands, not as stored: opened on the stored
    * values, her next edit (every save carries all six fields) sent the stored
@@ -1572,6 +1584,8 @@ export default function App() {
       // just confirmed. The response IS a read-back; the adopter's updatedAt
       // guard keeps ordering deterministic.
       if (created.value.storefront !== undefined) adopterStorefront(created.value.storefront);
+      // EN-LIGNE-1 (verifier m1) — the publish answered the shop online: that is the newer read-back.
+      if (pub.value.storefront !== undefined) adopterStorefront(pub.value.storefront);
       setLiveShop({ slug: created.value.slug, enLigne: true }); // the create response IS a read-back; publish answered yes above
       setToast(tf('k.publier.en_ligne', { slug: created.value.slug }));
     },
@@ -2251,6 +2265,7 @@ export default function App() {
       return setToast(t('k.publier.en_ligne_sans_slug'));
     }
     if (created.value.storefront !== undefined) adopterStorefront(created.value.storefront);
+    if (pub.value.storefront !== undefined) adopterStorefront(pub.value.storefront);
     setLiveShop({ slug: created.value.slug, enLigne: true });
     setToast(tf('k.publier.en_ligne', { slug: created.value.slug }));
   }, [service, compte, identity, liveStorefront, adopterStorefront]);
@@ -2791,7 +2806,7 @@ export default function App() {
                 {liveStorefront !== null && liveStorefront !== undefined ? (
                   <View style={styles.homeSubRow}>
                     <Text style={styles.homeSubName} numberOfLines={1}>{liveStorefront.name}</Text>
-                    {liveShop?.enLigne === true ? <MarqueEnLigne /> : null}
+                    {enLigne === true ? <MarqueEnLigne /> : null}
                     {liveStorefront.zone !== '' ? (
                       <Text style={styles.homeSubZone} numberOfLines={1}>{` · ${liveStorefront.zone}`}</Text>
                     ) : null}
@@ -2809,7 +2824,7 @@ export default function App() {
                 could only ever cut it). */}
             {/* EN-LIGNE-1 — her shop is CLOSED to buyers while it is not en
                 ligne: the accueil says so first, with the one way back. */}
-            {liveShop?.enLigne === false && liveStorefront !== null && liveStorefront !== undefined ? (
+            {enLigne === false && liveStorefront !== null && liveStorefront !== undefined ? (
               <Card style={styles.ledgerSilence}>
                 <Text style={styles.cardTitle}>{t('accueil.hors_ligne_titre')}</Text>
                 <Text style={styles.ledgerCardSub}>{t('accueil.hors_ligne_corps')}</Text>
@@ -3284,7 +3299,7 @@ export default function App() {
                 {liveStorefront !== null && liveStorefront !== undefined ? (
                   <View style={styles.homeSubRow}>
                     <Text style={styles.homeSubName} numberOfLines={1}>{liveStorefront.name}</Text>
-                    {liveShop?.enLigne === true ? <MarqueEnLigne /> : null}
+                    {enLigne === true ? <MarqueEnLigne /> : null}
                   </View>
                 ) : null}
               </View>
@@ -3350,7 +3365,7 @@ export default function App() {
                       {liveStorefront !== null && liveStorefront !== undefined ? (
                         <View style={styles.homeSubRow}>
                           <Text style={styles.homeSubName} numberOfLines={1}>{liveStorefront.name}</Text>
-                          {liveShop?.enLigne === true ? <MarqueEnLigne /> : null}
+                          {enLigne === true ? <MarqueEnLigne /> : null}
                         </View>
                       ) : null}
                     </View>
@@ -3479,7 +3494,7 @@ export default function App() {
                   </View>
                   <View style={styles.shareShopRow}>
                     <Text style={styles.shareShopName} numberOfLines={1}>{partage.nomBoutique}</Text>
-                    {liveShop?.enLigne === true ? <MarqueEnLigne /> : null}
+                    {enLigne === true ? <MarqueEnLigne /> : null}
                   </View>
                   <Text style={styles.cardTitle}>{partage.offre.productName}</Text>
                   <Text style={styles.shareHeroPrice}>{tf('share.prix', { amount: formatFcfa(partage.vue.client) })}</Text>

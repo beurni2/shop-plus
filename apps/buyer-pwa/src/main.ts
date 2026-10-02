@@ -733,7 +733,8 @@ if (app) {
   // THE SIGNED PRODUCT DEEP-LINK — `/s/{slug}`, « the one she sends » (§6.2.1
   // Arrival; SP-I09). It opens the OFFER (the signed product page), never the
   // directory. Resolved through the SAME storefront port as `/v/` — no second
-  // scheme — so a privée vitrine (discoverable:false) still resolves (loi 4).
+  // scheme — so a vitrine that is not en ligne answers the same closed card
+  // (EN-LIGNE-1, canon 3.27.0 §4.1).
   // The `?demo-signed=` param is a LOCAL/GATE harness (like `?demo-vitrine`),
   // never the shared link; the shared link is the path the 404.html SPA-fallback
   // restores before boot. `?pid=` names the offered product; `demo-signed-profil`

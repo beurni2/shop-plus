@@ -317,9 +317,11 @@ async function handleStorefrontRead(slug: string, env?: StorefrontServiceEnv, qu
   const fenetre = fenetreDeLecture(storefront.curatedItems, query);
   const { products, incomplet } = await describeProducts(storefront.id, fenetre.pids, env);
   // SP8 — her delivered sales, on the FIRST page only (the rest of the pages
-  // need no second copy, and the budget below counts this hop once). A product
-  // link (`?pid=`) never draws the count, so it never pays the hop (verifier N6).
-  const premiereLecture = fenetre.depuis === 0 && (query?.get('pid') ?? '') === '';
+  // need no second copy, and the budget below counts this hop once).
+  // VERIFIEE-MERITEE-1 (canon 3.27.0 §4.1) — a product link (`?pid=`) reads it
+  // too: its page earns « Vendeuse vérifiée » from this count. At most
+  // MAX_PIDS_DEMANDES products there, so 6 + 3·10 = 36 hops, inside the 50.
+  const premiereLecture = fenetre.depuis === 0;
   const ventesLivrees =
     premiereLecture && env?.LIVREES !== undefined
       ? await env.LIVREES.compte(storefront.resellerId).catch(() => undefined)

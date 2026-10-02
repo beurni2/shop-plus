@@ -140,7 +140,7 @@ let keySeq = 0;
 const freshKey = (): string => `rk-le-${String((keySeq += 1)).padStart(4, '0')}-${'x'.repeat(10)}`;
 
 /** One boutique with BOTH supply articles published — the liste's ground. */
-async function boutique(n: string): Promise<{ slug: string; resellerId: string }> {
+async function boutique(n: string): Promise<{ slug: string; resellerId: string; bearer: Record<string, string> }> {
   const S = await seance(mf, `le${n}`);
   const created = await mf.dispatchFetch('http://c/storefronts', {
     method: 'POST', headers: S.bearer,
@@ -164,7 +164,7 @@ async function boutique(n: string): Promise<{ slug: string; resellerId: string }
     });
     if (((await pub.json()) as { status?: string }).status !== 'published') throw new Error('setup: listing');
   }
-  return { slug: `le-${n}`, resellerId: S.accountId };
+  return { slug: `le-${n}`, resellerId: S.accountId, bearer: S.bearer };
 }
 
 async function creerListe(
@@ -1224,4 +1224,39 @@ describe('DURCISSEMENT-SERVICE-1 (F-27) — unmatched liste shapes answer a LOCA
     // and the doors themselves still open — the local not-found took nothing
     expect((await lireListe(token)).status).toBe(200);
   });
+});
+
+/**
+ * EN-LIGNE-1 (verifier m3; canon 3.27.0 §4.1 « ni articles ») — a boutique
+ * that is not en ligne takes no liste. The liste doors read the shop through
+ * its own record, which still answers a closed shop whole: create and update
+ * are refused by name, with ONE answer whether the product is hers or not, so
+ * neither door tells a stranger what a closed shop holds.
+ */
+describe('EN-LIGNE-1 — the liste doors are closed with the boutique', () => {
+  it('create and update are refused « boutique_hors_ligne », the same whatever the product', async () => {
+    const b = await boutique('0099');
+    const made = await creerListe(b.slug, 'Awa', ['pv-le-1']);
+    expect(made.status, made.text).toBe(200);
+    const token = made.json['token'] as string;
+    const editCle = made.json['editCle'] as string;
+    const ferme = await mf.dispatchFetch('http://c/storefronts/sf-le-0099/unpublish', { method: 'POST', headers: b.bearer, body: JSON.stringify({ correlationId: 'corr-fermer' }) });
+    expect(ferme.status).toBe(200);
+
+    const sienne = await creerListe(b.slug, 'Awa', ['pv-le-1']);
+    const pasSienne = await creerListe(b.slug, 'Awa', ['pv-ailleurs']);
+    expect(sienne.status).toBe(422);
+    expect(sienne.json).toEqual({ ok: false, reason: 'boutique_hors_ligne' });
+    expect(pasSienne.status, 'no oracle on what a closed shop holds').toBe(sienne.status);
+    expect(pasSienne.json).toEqual(sienne.json);
+
+    const maj = await mf.dispatchFetch(`http://c/listes/${token}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ editCle, pids: ['pv-le-2'] }),
+    });
+    expect(maj.status).toBe(422);
+    expect(safeJson(await maj.text())).toEqual({ ok: false, reason: 'boutique_hors_ligne' });
+    // Her liste itself is untouched: still the one article she wished for.
+    expect(((await lireListe(token)).json['liste'] as { articles: { pid: string }[] }).articles.map((a) => a.pid)).toEqual(['pv-le-1']);
+  }, 120_000);
 });

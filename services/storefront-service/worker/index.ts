@@ -730,8 +730,7 @@ export default {
         }
         // THE BOUTIQUE IS RESOLVED THROUGH ITS OWN SLUG ROAD — the same
         // pointer→entry read `GET /s/{slug}` uses, so an unknown slug is the
-        // same honest not-found and a private vitrine still resolves (the
-        // signed-link law). The pids must be a SUBSET of her curatedItems:
+        // same honest not-found. The pids must be a SUBSET of her curatedItems:
         // a liste can only ever wish for what the shop actually sells.
         const sfRes = await sfRouter.fetch(new Request(`https://svc/s/${encodeURIComponent(asked.value.slug)}`), env);
         if (sfRes.status !== 200) {
@@ -739,7 +738,13 @@ export default {
         }
         // The DO road answers the storefront FLAT (`/entry` returns
         // `entry.storefront`), so membership reads at the top level.
-        const entry = (await sfRes.json().catch(() => null)) as { curatedItems?: unknown } | null;
+        const entry = (await sfRes.json().catch(() => null)) as { curatedItems?: unknown; discoverable?: unknown } | null;
+        // EN-LIGNE-1 (canon 3.27.0 §4.1) — a boutique not en ligne takes no
+        // liste, refused BEFORE membership so the answer never says what a
+        // closed shop holds.
+        if (entry?.discoverable === false) {
+          return neverCache(Response.json({ ok: false, reason: 'boutique_hors_ligne' }, { status: 422 }));
+        }
         const curated = entry?.curatedItems;
         const curatedSet = new Set(Array.isArray(curated) ? (curated as string[]) : []);
         for (const pid of asked.value.pids) {
@@ -901,7 +906,10 @@ export default {
         if (typeof slugListe === 'string') {
           const sfRes = await sfRouter.fetch(new Request(`https://svc/s/${encodeURIComponent(slugListe)}`), env);
           if (sfRes.status === 200) {
-            const entry = (await sfRes.json().catch(() => null)) as { curatedItems?: unknown } | null;
+            const entry = (await sfRes.json().catch(() => null)) as { curatedItems?: unknown; discoverable?: unknown } | null;
+            if (entry?.discoverable === false) {
+              return neverCache(Response.json({ ok: false, reason: 'boutique_hors_ligne' }, { status: 422 }));
+            }
             const curatedSet = new Set(Array.isArray(entry?.curatedItems) ? (entry.curatedItems as string[]) : []);
             for (const pid of askedUpdate.value.pids) {
               if (!curatedSet.has(pid)) {
