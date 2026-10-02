@@ -6,6 +6,7 @@ import {
   etatPhoto,
   framePhoto,
   hasPhoto,
+  siVerifiee,
   ventesLine,
   verifieeBare,
   type Vals,
@@ -108,7 +109,7 @@ function render(v: Vals): string {
       ? `<div class="pp-bienv"><span class="pp-bienv-t"><v>${v.tagline}</v></span><span class="pp-tiret" aria-hidden="true"></span></div>`
       : '',
     `<div class="pp-name${v.longName ? ' vt-ent-long' : ''}">${v.tail}</div>`,
-    `<div class="pp-verif"><span class="pp-verif-i">${iconCheckEnt(9, '#F6F1FB', 3.4)}</span><span>${verifieeBare()}</span></div>`,
+    siVerifiee(v, `<div class="pp-verif"><span class="pp-verif-i">${iconCheckEnt(9, '#F6F1FB', 3.4)}</span><span>${verifieeBare()}</span></div>`),
     `<div class="pp-zone">${iconPinEnt(12, '#7C4DC4', 2.2)}<span><v>${v.zone}</v></span></div>`,
     v.showProof
       ? `<div class="pp-proof-wrap"><span class="pp-proof">${papillonPreuve()}<span class="pp-proof-l" data-role="reputation">${ventesLine(v)}</span>${

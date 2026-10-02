@@ -6,9 +6,10 @@ import {
   etatPhoto,
   framePhoto,
   hasPhoto,
+  siVerifiee,
   ventesLine,
-  zoneLine,
   weldSeal,
+  zoneLine,
   type Vals,
 } from '../entetes';
 import type { EnteteUnit } from './registry';
@@ -59,10 +60,10 @@ function render(v: Vals): string {
     v.hasAvatar
       ? framePhoto({ ...v, hasCover: false }, '50% 32%')
       : `<span class="gr-av-mono">${v.mono}</span>`,
-    `<span class="gr-av-badge" aria-hidden="true">${iconCheckEnt(9, '#F2C8CF', 3.6)}</span>`,
+    siVerifiee(v, `<span class="gr-av-badge" aria-hidden="true">${iconCheckEnt(9, '#F2C8CF', 3.6)}</span>`),
     '</div>',
     '<div class="gr-col" data-role="vitrine-identity">',
-    `<div class="gr-name">${weldSeal(v.tail, `<span class="gr-seal" aria-hidden="true"><span class="gr-seal-d">${iconCheckEnt(11, '#FFFFFF', 3.4)}</span><span class="gr-seal-f"></span></span>`)}</div>`,
+    `<div class="gr-name">${weldSeal(v.tail, siVerifiee(v, `<span class="gr-seal" aria-hidden="true"><span class="gr-seal-d">${iconCheckEnt(11, '#FFFFFF', 3.4)}</span><span class="gr-seal-f"></span></span>`))}</div>`,
     v.hasTag ? `<div class="gr-bienv"><v>${v.tagline}</v></div>` : '',
     // the dashed rule with its lozenge — the invitation's divider
     '<div class="gr-rule" aria-hidden="true"><span></span><i></i><span></span></div>',

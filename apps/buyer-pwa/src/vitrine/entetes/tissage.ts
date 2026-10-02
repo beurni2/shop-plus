@@ -7,6 +7,7 @@ import {
   etatPhoto,
   framePhoto,
   hasPhoto,
+  siVerifiee,
   ventesLine,
   verifieeBare,
   type Vals,
@@ -47,7 +48,7 @@ function render(v: Vals): string {
     `<div class="ti-bienv"><span class="ti-bienv-t">${t('vit.bienvenue')}</span><span class="ti-brosse" aria-hidden="true"></span></div>`,
     // Relevé « Carte info » — carte #0F2717 r16 à filet or : vérifié, zone, preuve.
     '<div class="ti-carte">',
-    `<div class="ti-verif">${iconShieldEnt(15, '#D9A441', 2)}<span>${verifieeBare()}</span><span class="ti-coche" aria-hidden="true">${iconCheckEnt(11, '#F1E9D6', 3.2)}</span></div>`,
+    siVerifiee(v, `<div class="ti-verif">${iconShieldEnt(15, '#D9A441', 2)}<span>${verifieeBare()}</span><span class="ti-coche" aria-hidden="true">${iconCheckEnt(11, '#F1E9D6', 3.2)}</span></div>`),
     `<div class="ti-zone">${iconPinEnt(13, '#D9A441', 2.2)}<span><v>${v.zone}</v></span></div>`,
     v.showProof
       ? [

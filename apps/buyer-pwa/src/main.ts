@@ -606,6 +606,7 @@ async function lireBoutiqueCompte(slug: string): Promise<LectureBoutique> {
       nom: sf.name, lieu: sf.zone, theme: sf.theme,
       ...(portrait !== undefined ? { portrait } : {}),
       ...(cadrage !== undefined ? { cadrage } : {}),
+      ...(r.trust.deliveredCount >= 1 ? { verifiee: true } : {}),
       produits: (r.products ?? []).map((p) => {
         const photo = p.assetRefs.find((ref) => ref !== '');
         return { pid: p.pid, nom: p.name, disponible: p.inStock, ...(photo !== undefined ? { photo: vignette(photo) } : {}) };
@@ -962,7 +963,12 @@ if (app) {
         // CONTACT-WHATSAPP-1 — the resolved contact rides INTO the product
         // model here, the one seam between the boutique read and the fiche.
         const { produit } = clienteProduitReel(
-          { ...resolved.storefront, ...(resolved.whatsapp !== undefined ? { whatsapp: resolved.whatsapp } : {}) },
+          {
+            ...resolved.storefront,
+            ...(resolved.whatsapp !== undefined ? { whatsapp: resolved.whatsapp } : {}),
+            // VERIFIEE-MERITEE-1 — earned by one sale Séra delivered (canon 3.27.0 §4.1).
+            verifiee: resolved.trust.deliveredCount >= 1,
+          },
           product,
           resolved.notes[product.pid],
         );
@@ -1310,6 +1316,7 @@ if (app) {
             nom: sf.name, lieu: sf.zone, theme: sf.theme,
             ...(portrait !== undefined ? { portrait } : {}),
             ...(cadrage !== undefined ? { cadrage } : {}),
+            ...(r.trust.deliveredCount >= 1 ? { verifiee: true } : {}),
           };
         }).catch(() => undefined),
         ouvrirSuivi: suiviDepuisCompte,

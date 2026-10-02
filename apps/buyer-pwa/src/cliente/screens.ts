@@ -77,6 +77,9 @@ export interface ClienteProduit {
   /** CONTACT-WHATSAPP-1 — the reseller's wa.me-ready digits (server-vouched,
    * active account only). Absent = no contact row renders. */
   readonly whatsapp?: string;
+  /** VERIFIEE-MERITEE-1 (canon 3.27.0 §4.1) — true only once Séra has delivered
+   *  one of her sales. Absent = not earned or not known: C1 claims nothing. */
+  readonly verifiee?: boolean;
   readonly inStock: boolean;
 }
 
@@ -720,7 +723,7 @@ export function renderC1(m: ClienteProduit, o: { epuise: boolean; sansVoix: bool
     '<div class="cl-head">',
     `<div class="cl-avatar">${esc(m.prenom.charAt(0).toUpperCase())}</div>`,
     `<div class="cl-idcol"><div class="cl-shopname">${esc(m.shopName)}</div>`,
-    `<div class="cl-verirow"><span class="cl-veri-txt">${t('cl.c1.vendeuse_verifiee')}</span> <span class="cl-veri-check">${iconCheck(13, 2.6)}</span><span class="cl-dotsep">·</span><button class="cl-voir" data-action="voir-boutique" data-slug="${esc(m.slug)}">${t('cl.c1.voir_boutique')}</button></div></div>`,
+    `<div class="cl-verirow">${m.verifiee === true ? `<span class="cl-veri-txt">${t('cl.c1.vendeuse_verifiee')}</span> <span class="cl-veri-check">${iconCheck(13, 2.6)}</span><span class="cl-dotsep">·</span>` : ''}<button class="cl-voir" data-action="voir-boutique" data-slug="${esc(m.slug)}">${t('cl.c1.voir_boutique')}</button></div></div>`,
     `<button class="cl-shield" data-action="ouvrir-protections" aria-label="${t('cl.protections.titre')}">${iconShieldCheck(18, 1.9)}</button>`,
     '</div>',
     photoFrame(m, out, o.diapo ?? 0),

@@ -6,6 +6,7 @@ import {
   etatPhoto,
   framePhoto,
   hasPhoto,
+  siVerifiee,
   ventesLine,
   verifieeBare,
   type Vals,
@@ -85,7 +86,7 @@ function render(v: Vals): string {
     liane(),
     v.hasTag ? `<div class="cb-bienv"><span class="cb-bienv-t"><v>${v.tagline}</v></span></div>` : '',
     `<div class="cb-name${v.longName ? ' vt-ent-long' : ''}">${v.tail}</div>`,
-    `<div class="cb-verif"><span class="cb-verif-i">${iconCheckEnt(9, '#FFF6E3', 3.4)}</span><span>${verifieeBare()}</span></div>`,
+    siVerifiee(v, `<div class="cb-verif"><span class="cb-verif-i">${iconCheckEnt(9, '#FFF6E3', 3.4)}</span><span>${verifieeBare()}</span></div>`),
     `<div class="cb-zone">${iconPinEnt(12, '#5C3A14', 2.2)}<span><v>${v.zone}</v></span></div>`,
     v.showProof
       ? `<div class="cb-proof-wrap"><span class="cb-proof"><span class="cb-proof-l" data-role="reputation">${ventesLine(v)}</span>${

@@ -371,7 +371,8 @@ describe('MEDIA-2 — the portrait is RENDERED, not replaced by an initial', () 
     const sf = { ...base, avatar: { mode: 'monogram' as const } };
     const html = renderVitrineReady(sf as never, trust, { fromProduct: false }, {}, []);
     expect(html).not.toContain('vt-avatar-img');
-    expect(html).toMatch(/<span class="vt-avatar">A<span class="vt-avatar-badge"/);
+    // VERIFIEE-MERITEE-1 — no delivery here, so no tick rides the initial.
+    expect(html).toMatch(/<span class="vt-avatar">A<\/span>/);
   });
 
   it('PHOTO MODE WITHOUT A URL FALLS BACK TO THE INITIAL — never an <img> pointing nowhere', () => {
@@ -379,7 +380,8 @@ describe('MEDIA-2 — the portrait is RENDERED, not replaced by an initial', () 
     const html = renderVitrineReady(sf as never, trust, { fromProduct: false }, {}, []);
     expect(html).not.toContain('vt-avatar-img');
     expect(html).not.toContain('src=""');
-    expect(html).toMatch(/<span class="vt-avatar">A<span class="vt-avatar-badge"/);
+    // VERIFIEE-MERITEE-1 — no delivery here, so no tick rides the initial.
+    expect(html).toMatch(/<span class="vt-avatar">A<\/span>/);
   });
 
   it('THE PORTRAIT URL IS ESCAPED', () => {

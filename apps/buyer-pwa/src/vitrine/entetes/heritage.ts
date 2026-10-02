@@ -6,6 +6,7 @@ import {
   controls,
   coverImg,
   etat,
+  siVerifiee,
   verifieeBare,
   zoneLine,
   type Vals,
@@ -35,7 +36,7 @@ function render(v: Vals): string {
       : `<div class="he-photo-motif"><span class="he-photo-mono">${v.mono}</span></div>`,
     // L'étincelle haut-droit : point radial + deux rais.
     '<span class="he-etin-p"></span><span class="he-etin-v"></span><span class="he-etin-h"></span>',
-    `<span class="he-chip-v">${iconShieldEnt(14, '#E6C983', 2.1)}<span>${verifieeBare()}</span></span>`,
+    siVerifiee(v, `<span class="he-chip-v">${iconShieldEnt(14, '#E6C983', 2.1)}<span>${verifieeBare()}</span></span>`),
     v.nouvelle
       ? `<span class="he-chip-n" data-role="chip-nouvelle">${iconStarEnt(14, '#C79A45')}<span>${t('vit.nouvelle_vendeuse')}</span></span>`
       : '',
@@ -44,7 +45,7 @@ function render(v: Vals): string {
     '<div class="he-arch" data-role="vitrine-identity">',
     '<div class="he-med">',
     v.hasAvatar ? `<span class="he-med-photo">${avatarImg(v)}</span>` : `<span class="he-med-mono">${v.mono}</span>`,
-    `<span class="he-med-b">${iconCheckEnt(13, '#E6C983', 3.2)}</span>`,
+    siVerifiee(v, `<span class="he-med-b">${iconCheckEnt(13, '#E6C983', 3.2)}</span>`),
     '</div>',
     `<div class="he-namerow">${iconSparkle(17, '#C79A45')}<span class="he-name"><v>${v.name}</v></span><span class="he-etoile-m">${iconSparkle(17, '#C79A45')}</span></div>`,
     v.hasTag

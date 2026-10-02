@@ -169,7 +169,10 @@ export function hero(sf: Storefront, trust: VitrineTrust, opts: { compact?: bool
   // MEDIA-2 — her portrait or the monogram; photo-mode-without-url falls back.
   // Round 4 (founder mockup): the gold-ringed monogram with the little check
   // bubble riding the circle's edge — the vérifiée mark next to her portrait.
-  const badge = `<span class="vt-avatar-badge">${iconCheck(9, '#F6F0E4', 3)}</span>`;
+  // VERIFIEE-MERITEE-1 (canon 3.27.0 §4.1) — the mention and both vérifiée
+  // marks are earned by one sale Séra delivered; an unknown count claims nothing.
+  const verifiee = trust.deliveredCount >= 1;
+  const badge = verifiee ? `<span class="vt-avatar-badge">${iconCheck(9, '#F6F0E4', 3)}</span>` : '';
   // ENTETES-C — her portrait framing, only when present (same law as the cover).
   const avatarPos = focusPosition(sf.avatar.focus);
   const avatar =
@@ -179,10 +182,10 @@ export function hero(sf: Storefront, trust: VitrineTrust, opts: { compact?: bool
   const panel = [
     '<div class="vt-hero-id" data-role="vitrine-identity">',
     avatar,
-    `<div class="vt-namerow"><v>${esc(sf.name)}</v><span class="vt-rosette">${iconCheck(12, '#FFFFFF', 3)}</span></div>`,
+    `<div class="vt-namerow"><v>${esc(sf.name)}</v>${verifiee ? `<span class="vt-rosette">${iconCheck(12, '#FFFFFF', 3)}</span>` : ''}</div>`,
   ];
   if (!opts.compact && sf.tagline) panel.push(`<div class="vt-tagline"><v>${esc(sf.tagline)}</v></div>`);
-  panel.push(`<div class="vt-zone">${iconPin(13, '#C89A3F', 2)}${t('vit.verifiee')} <v>${esc(sf.zone)}</v></div>`);
+  panel.push(`<div class="vt-zone">${iconPin(13, '#C89A3F', 2)}${verifiee ? `${t('vit.verifiee')} ` : ''}<v>${esc(sf.zone)}</v></div>`);
   if (!opts.compact) {
     if (sf.bio) panel.push(`<div class="vt-bio"><v>${esc(sf.bio)}</v></div>`);
     if (trust.deliveredCount >= 1) {

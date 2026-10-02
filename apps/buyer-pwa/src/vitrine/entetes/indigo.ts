@@ -6,6 +6,7 @@ import {
   etatPhoto,
   framePhoto,
   hasPhoto,
+  siVerifiee,
   ventesLine,
   verifieeBare,
   weldSeal,
@@ -60,9 +61,9 @@ function render(v: Vals): string {
     // …and the identity rides UP over the veil (−92px), which is why it comes
     // after the photo in the DOM and still paints above it.
     '<div class="in-col" data-role="vitrine-identity">',
-    `<div class="in-name">${weldSeal(v.tail, `<span class="in-seal" aria-hidden="true"><span class="in-seal-f"></span>${iconCheckEnt(11, '#0D133A', 3.4)}</span>`)}</div>`,
+    `<div class="in-name">${weldSeal(v.tail, siVerifiee(v, `<span class="in-seal" aria-hidden="true"><span class="in-seal-f"></span>${iconCheckEnt(11, '#0D133A', 3.4)}</span>`))}</div>`,
     v.hasTag ? `<div class="in-bienv"><v>${v.tagline}</v></div>` : '',
-    `<div class="in-verif"><span class="in-chip">${iconShieldEnt(14, '#4CC9F0', 2)}<span>${verifieeBare()}</span></span></div>`,
+    siVerifiee(v, `<div class="in-verif"><span class="in-chip">${iconShieldEnt(14, '#4CC9F0', 2)}<span>${verifieeBare()}</span></span></div>`),
     `<div class="in-zone">${iconPinEnt(12, '#4CC9F0', 2.2)}<span><v>${v.zone}</v></span></div>`,
     zigzag(),
     v.hasBio ? `<div class="in-bio"><v>${v.bio}</v></div>` : '',

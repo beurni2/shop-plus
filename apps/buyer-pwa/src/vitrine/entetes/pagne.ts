@@ -6,6 +6,7 @@ import {
   etatPhoto,
   framePhoto,
   hasPhoto,
+  siVerifiee,
   ventesLine,
   verifieeBare,
   type Vals,
@@ -99,7 +100,7 @@ function render(v: Vals): string {
     v.hasTag ? `<div class="pg-bienv"><span class="pg-bienv-t">${coeur(13)}<v>${v.tagline}</v></span></div>` : '',
     `<div class="pg-name${v.longName ? ' vt-ent-long' : ''}">${v.tail}</div>`,
     '<span class="pg-perles" aria-hidden="true"><i></i><i></i><i></i></span>',
-    `<div class="pg-verif"><span class="pg-verif-i">${iconCheckEnt(9, '#FFFFFF', 3.4)}</span><span>${verifieeBare()}</span></div>`,
+    siVerifiee(v, `<div class="pg-verif"><span class="pg-verif-i">${iconCheckEnt(9, '#FFFFFF', 3.4)}</span><span>${verifieeBare()}</span></div>`),
     `<div class="pg-zone">${iconPinEnt(12, '#178073', 2.2)}<span><v>${v.zone}</v></span></div>`,
     v.showProof
       ? `<div class="pg-proof-wrap"><span class="pg-proof"><span class="pg-proof-l" data-role="reputation">${ventesLine(v)}</span>${

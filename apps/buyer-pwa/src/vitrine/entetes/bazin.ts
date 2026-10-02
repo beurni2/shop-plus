@@ -6,6 +6,7 @@ import {
   etatPhoto,
   framePhoto,
   hasPhoto,
+  siVerifiee,
   ventesLine,
   verifieeBare,
   type Vals,
@@ -66,7 +67,7 @@ function render(v: Vals): string {
       ? `<div class="bz-bienv"><span class="bz-bienv-t"><v>${v.tagline}</v></span><span class="bz-hem" aria-hidden="true"></span></div>`
       : '',
     `<div class="bz-name${v.longName ? ' vt-ent-long' : ''}">${v.tail}</div>`,
-    `<div class="bz-verif"><span class="bz-verif-i">${iconCheckEnt(9, '#1B1F4E', 3.4)}</span><span>${verifieeBare()}</span></div>`,
+    siVerifiee(v, `<div class="bz-verif"><span class="bz-verif-i">${iconCheckEnt(9, '#1B1F4E', 3.4)}</span><span>${verifieeBare()}</span></div>`),
     `<div class="bz-zone">${iconPinEnt(12, '#9BA6D8', 2.2)}<span><v>${v.zone}</v></span></div>`,
     v.showProof
       ? `<div class="bz-proof-wrap"><span class="bz-proof"><span class="bz-proof-l" data-role="reputation">${ventesLine(v)}</span>${

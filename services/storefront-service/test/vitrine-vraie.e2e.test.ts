@@ -349,3 +349,39 @@ describe('VITRINE-VRAIE-1 — a delivery validated BEFORE the count existed is c
     expect((await lire(`/s/${b.slug}`)).body['ventesLivrees'], 'counted from her own sales read').toBe(1);
   }, 120_000);
 });
+
+/**
+ * VERIFIEE-MERITEE-1 (founder ruling 2026-10-02; canon 3.27.0 §4.1) — the
+ * mention follows the count THIS Worker produces, read through the BUYER app's
+ * own boutique port and drawn by its own header (imported, never re-implemented):
+ * no delivery, no « Vendeuse vérifiée »; Séra's validated delivery earns it.
+ */
+describe('VERIFIEE-MERITEE-1 — « Vendeuse vérifiée » is earned by a delivery, end to end', () => {
+  it('her header says nothing of it before her first delivered sale, and says it after', async () => {
+    const S = await seance(mf, 'vv9');
+    const b = await boutique(S, '0009', 2);
+    const avant = globalThis.fetch;
+    globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+      const { signal: _signal, ...reste } = init ?? {};
+      return (await mf.dispatchFetch(url, reste as never)) as unknown as Response;
+    }) as typeof fetch;
+    try {
+      const { httpStorefrontPort } = await import('../../../apps/buyer-pwa/src/vitrine/profile.js');
+      const { renderEntete } = await import('../../../apps/buyer-pwa/src/vitrine/entetes.js');
+      const entete = async (): Promise<string> => {
+        const r = await httpStorefrontPort('http://c').resolve(b.slug);
+        if (r === undefined) throw new Error('her boutique did not resolve');
+        return renderEntete(r.storefront.headerStyle, r.storefront, r.trust, {});
+      };
+      const sans = await entete();
+      expect(sans).toContain('data-role="vitrine-identity"');
+      expect(sans).not.toContain('Vendeuse vérifiée');
+      await vendreEtLivrer(S, b.slug, pidN(1), '0009');
+      expect((await lire(`/s/${b.slug}`)).body['ventesLivrees']).toBe(1);
+      expect(await entete()).toContain('Vendeuse vérifiée');
+    } finally {
+      globalThis.fetch = avant;
+    }
+  }, 120_000);
+});

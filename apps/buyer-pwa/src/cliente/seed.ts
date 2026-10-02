@@ -122,6 +122,8 @@ export const ROBE: ClienteProduit = {
   assetRefs: [],
   voiceDuree: '0:12',
   voiceUrl: DEMO_VOICE_REF,
+  // The demo seller's boutique carries the demo's sixteen deliveries.
+  verifiee: true,
   inStock: true,
 };
 
@@ -150,7 +152,7 @@ function dureeLabel(ms: number): string {
  * seed: name · HER price · stock · real voice note, mapped into the C1 model.
  */
 export function clienteProduitReel(
-  storefront: { name: string; slug: string; theme: VitrineThemeKey; zone: string; whatsapp?: string },
+  storefront: { name: string; slug: string; theme: VitrineThemeKey; zone: string; whatsapp?: string; verifiee?: boolean },
   product: VitrineProduct,
   note: ProductVoiceNote | undefined,
 ): { produit: ClienteProduit; theme: VitrineThemeKey } {
@@ -181,6 +183,8 @@ export function clienteProduitReel(
       // CONTACT-WHATSAPP-1 — same conditional-spread rule as `category`:
       // absent stays ABSENT, and C1 renders no contact row at all.
       ...(storefront.whatsapp !== undefined ? { whatsapp: storefront.whatsapp } : {}),
+      // VERIFIEE-MERITEE-1 — the mention rides only when a delivery earned it.
+      ...(storefront.verifiee === true ? { verifiee: true } : {}),
     },
     theme: storefront.theme,
   };

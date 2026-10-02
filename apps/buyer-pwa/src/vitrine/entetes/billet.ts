@@ -6,6 +6,7 @@ import {
   etatPhoto,
   framePhoto,
   hasPhoto,
+  siVerifiee,
   ventesLine,
   verifieeBare,
   type Vals,
@@ -57,7 +58,7 @@ function render(v: Vals): string {
       ? `<div class="bi-bienv"><span class="bi-bienv-t"><v>${v.tagline}</v></span><span class="bi-micro" aria-hidden="true"></span></div>`
       : '',
     `<div class="bi-name${v.longName ? ' vt-ent-long' : ''}">${v.tail}</div>`,
-    `<div class="bi-verif"><span class="bi-verif-i">${iconCheckEnt(9, '#EDE6D2', 3.4)}</span><span>${verifieeBare()}</span></div>`,
+    siVerifiee(v, `<div class="bi-verif"><span class="bi-verif-i">${iconCheckEnt(9, '#EDE6D2', 3.4)}</span><span>${verifieeBare()}</span></div>`),
     `<div class="bi-zone">${iconPinEnt(12, '#1F5148', 2.2)}<span><v>${v.zone}</v></span></div>`,
     v.showProof
       ? `<div class="bi-proof-wrap"><span class="bi-proof"><span class="bi-proof-l" data-role="reputation">${ventesLine(v)}</span>${

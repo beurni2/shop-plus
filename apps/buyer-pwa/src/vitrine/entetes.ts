@@ -166,6 +166,10 @@ export interface Vals {
   readonly avatarFocus: string | undefined;
   readonly delivN: number;
   readonly showProof: boolean;
+  /** VERIFIEE-MERITEE-1 (canon 3.27.0 §4.1) — « Vendeuse vérifiée » and every
+   *  vérifiée mark are EARNED: at least one sale delivered by Séra. A count the
+   *  service did not give is 0 here, so it claims nothing. */
+  readonly verifiee: boolean;
   readonly rating: string;
   readonly reviewCount: number;
   readonly showStars: boolean;
@@ -206,6 +210,7 @@ export function vals(sf: Storefront, trust: VitrineTrust, opts: EnteteOpts): Val
     avatarFocus: focusPosition(sf.avatar.focus),
     delivN: trust.deliveredCount,
     showProof: !compact && trust.deliveredCount >= 1,
+    verifiee: trust.deliveredCount >= 1,
     rating: esc(trust.rating),
     reviewCount: trust.reviewCount,
     showStars: !compact && trust.reviewCount >= AVIS_FLOOR,
@@ -314,8 +319,13 @@ export const coverImg = (v: Vals, pos: string): string =>
 export const avatarImg = (v: Vals): string =>
   `<img class="vt-avatar-img" src="${v.avatarUrl}" alt="${t('vit.avatar_alt')}" loading="lazy" decoding="async"${v.avatarFocus !== undefined ? ` style="object-position:${v.avatarFocus}"` : ''}>`;
 
-/** « Vendeuse vérifiée · {zone} » — the catalog string plus her real zone. */
-export const zoneLine = (v: Vals, pin: string): string => `${pin}${t('vit.verifiee')} <v>${v.zone}</v>`;
+/** « Vendeuse vérifiée · {zone} » — the catalog string plus her real zone;
+ *  her zone alone until a delivery has earned the mention (VERIFIEE-MERITEE-1). */
+export const zoneLine = (v: Vals, pin: string): string => `${pin}${v.verifiee ? `${t('vit.verifiee')} ` : ''}<v>${v.zone}</v>`;
+
+/** VERIFIEE-MERITEE-1 — a vérifiée mark (tick, seal, badge, chip) is drawn
+ *  only once a delivery has earned it; before, nothing stands in its place. */
+export const siVerifiee = (v: Vals, marque: string): string => (v.verifiee ? marque : '');
 
 /** The catalog's zone label without its trailing separator — Héritage's photo
  *  chip carries the bare « Vendeuse vérifiée ». Derived, never re-authored. */

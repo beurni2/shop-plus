@@ -6,6 +6,7 @@ import {
   etatPhoto,
   framePhoto,
   hasPhoto,
+  siVerifiee,
   ventesLine,
   verifieeBare,
   type Vals,
@@ -103,7 +104,7 @@ function render(v: Vals): string {
       ? `<div class="hb-bienv"><span class="hb-bienv-t"><v>${v.tagline}</v></span><span class="hb-tiret" aria-hidden="true"></span></div>`
       : '',
     `<div class="hb-name${v.longName ? ' vt-ent-long' : ''}">${v.tail}</div>`,
-    `<div class="hb-verif"><span class="hb-verif-i">${iconCheckEnt(9, '#FFEEF0', 3.4)}</span><span>${verifieeBare()}</span></div>`,
+    siVerifiee(v, `<div class="hb-verif"><span class="hb-verif-i">${iconCheckEnt(9, '#FFEEF0', 3.4)}</span><span>${verifieeBare()}</span></div>`),
     `<div class="hb-zone">${iconPinEnt(12, '#A81B41', 2.2)}<span><v>${v.zone}</v></span></div>`,
     v.showProof
       ? `<div class="hb-proof-wrap"><span class="hb-proof">${fleurPreuve()}<span class="hb-proof-l" data-role="reputation">${ventesLine(v)}</span>${

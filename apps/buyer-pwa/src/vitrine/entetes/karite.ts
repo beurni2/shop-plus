@@ -6,6 +6,7 @@ import {
   etatPhoto,
   framePhoto,
   hasPhoto,
+  siVerifiee,
   ventesLine,
   verifieeBare,
   type Vals,
@@ -77,7 +78,7 @@ function render(v: Vals): string {
       : '',
     `<div class="ka-name${v.longName ? ' vt-ent-long' : ''}">${v.tail}</div>`,
     branche(),
-    `<div class="ka-verif"><span class="ka-verif-i">${iconCheckEnt(9, '#FFFFFF', 3.4)}</span><span>${verifieeBare()}</span></div>`,
+    siVerifiee(v, `<div class="ka-verif"><span class="ka-verif-i">${iconCheckEnt(9, '#FFFFFF', 3.4)}</span><span>${verifieeBare()}</span></div>`),
     `<div class="ka-zone">${iconPinSolid(12, '#C98F2D', '#FCF6E8')}<span><v>${v.zone}</v></span></div>`,
     v.showProof
       ? `<div class="ka-proof-wrap"><span class="ka-proof"><span class="ka-proof-l" data-role="reputation">${ventesLine(v)}</span>${

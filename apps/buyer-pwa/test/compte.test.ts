@@ -229,7 +229,8 @@ describe('the screens', () => {
     expect(shop).toContain('data-etat="shop"');
     expect(shop).toContain('>Bienvenue sur Shop+</h2>');
     expect(shop.match(/Shop\+/g)).toHaveLength(1);
-    const elle = renderPorteTete({ nom: 'Chez Aïcha Mode', lieu: 'Gounghin, Ouagadougou', theme: 'foret' });
+    // VERIFIEE-MERITEE-1 — a boutique whose first delivery earned the mention.
+    const elle = renderPorteTete({ nom: 'Chez Aïcha Mode', lieu: 'Gounghin, Ouagadougou', theme: 'foret', verifiee: true });
     expect(elle).toContain('data-etat="boutique"');
     expect(elle).toContain('>Bienvenue chez Aïcha Mode</h2>');
     expect(elle).toContain('>Vendeuse vérifiée · Gounghin, Ouagadougou</p>');

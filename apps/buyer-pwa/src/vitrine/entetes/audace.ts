@@ -6,6 +6,7 @@ import {
   etatPhoto,
   framePhoto,
   hasPhoto,
+  siVerifiee,
   ventesLine,
   weldSeal,
   zoneLine,
@@ -72,7 +73,7 @@ function render(v: Vals): string {
     '</div>',
     '<span class="au-tri-s" aria-hidden="true"></span>',
     '<div class="au-col" data-role="vitrine-identity">',
-    `<div class="au-name${v.longName ? ' vt-ent-long' : ''}">${weldSeal(v.tail, `<span class="au-seal" aria-hidden="true"><span class="au-seal-d">${iconCheckEnt(12, '#FFFFFF', 3.4)}</span><span class="au-seal-f"></span></span>`)}</div>`,
+    `<div class="au-name${v.longName ? ' vt-ent-long' : ''}">${weldSeal(v.tail, siVerifiee(v, `<span class="au-seal" aria-hidden="true"><span class="au-seal-d">${iconCheckEnt(12, '#FFFFFF', 3.4)}</span><span class="au-seal-f"></span></span>`))}</div>`,
     v.hasTag ? `<div class="au-bienv"><v>${v.tagline}</v><span class="au-barre" aria-hidden="true"></span></div>` : '',
     `<div class="au-zone">${zoneLine(v, iconPinSolid(12, '#2563EB', '#0F1D2B'))}</div>`,
     v.showProof

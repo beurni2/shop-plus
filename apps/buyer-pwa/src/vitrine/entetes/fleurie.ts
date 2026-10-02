@@ -6,6 +6,7 @@ import {
   etatPhoto,
   framePhoto,
   hasPhoto,
+  siVerifiee,
   ventesLine,
   weldSeal,
   zoneLine,
@@ -79,7 +80,7 @@ function render(v: Vals): string {
     '</div>',
     noeud(),
     '</div>',
-    `<div class="fl-name${v.longName ? ' vt-ent-long' : ''}">${weldSeal(v.tail, `<span class="fl-seal" aria-hidden="true"><span class="fl-seal-d">${iconCheckEnt(10, '#FFFFFF', 3.4)}</span><span class="fl-seal-f"></span></span>`)}</div>`,
+    `<div class="fl-name${v.longName ? ' vt-ent-long' : ''}">${weldSeal(v.tail, siVerifiee(v, `<span class="fl-seal" aria-hidden="true"><span class="fl-seal-d">${iconCheckEnt(10, '#FFFFFF', 3.4)}</span><span class="fl-seal-f"></span></span>`))}</div>`,
     v.hasTag
       ? `<div class="fl-bienv"><span class="fl-tiret" aria-hidden="true"></span><span class="fl-bienv-t"><v>${v.tagline}</v></span><span class="fl-tiret" aria-hidden="true"></span></div>`
       : '',

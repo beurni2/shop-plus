@@ -116,6 +116,9 @@ export interface BoutiquePorte {
   readonly portrait?: string;
   /** Her portrait's own framing (« x% y% »), as her boutique crops it. */
   readonly cadrage?: string;
+  /** VERIFIEE-MERITEE-1 (canon 3.27.0 §4.1) — true only once Séra has delivered
+   *  one of her sales; absent, these screens claim nothing. */
+  readonly verifiee?: boolean;
 }
 
 /** The service's own phone rule (`cleAcheteur`), mirrored so she hears about
@@ -236,7 +239,7 @@ export function renderPorteTete(b?: BoutiquePorte | 'attente'): string {
   const nom = nomAccueil(b.nom);
   // ONE vérifiée mark, as her boutique draws it: the tick riding her portrait
   // or monogram, in her own accent — never a second tick beside it.
-  const bulle = `<span class="porte-avatar-bulle">${icon('coche', 'porte-bulle-glyphe')}</span>`;
+  const bulle = b.verifiee === true ? `<span class="porte-avatar-bulle">${icon('coche', 'porte-bulle-glyphe')}</span>` : '';
   const cadrage = b.cadrage !== undefined ? ` style="object-position:${esc(b.cadrage)}"` : '';
   const avatar = b.portrait !== undefined
     ? `<span class="porte-avatar porte-avatar-photo" data-role="porte-avatar"><img class="porte-avatar-img" src="${esc(b.portrait)}" alt="${t('vit.avatar_alt')}" decoding="async"${cadrage}>${bulle}</span>`
@@ -245,7 +248,7 @@ export function renderPorteTete(b?: BoutiquePorte | 'attente'): string {
     '<div class="porte-tete" data-role="porte-tete" data-etat="boutique">',
     '<div class="porte-identite">',
     avatar,
-    b.lieu !== '' ? `<p class="porte-verifiee" data-role="porte-verifiee">${t('vit.verifiee')} ${esc(b.lieu)}</p>` : '',
+    b.lieu !== '' ? `<p class="porte-verifiee" data-role="porte-verifiee">${b.verifiee === true ? `${t('vit.verifiee')} ` : ''}${esc(b.lieu)}</p>` : '',
     '</div>',
     `<h2 class="porte-titre" data-role="compte-porte-titre">${tf('compte.porte.titre_boutique', { boutique: esc(nom) })}</h2>`,
     sous,
@@ -490,7 +493,7 @@ function carteBoutique(g: GroupeArticles, lecture: LectureBoutique | 'chargement
     '<header class="compte-boutique-tete">',
     avatarBoutique(lecture),
     `<span class="compte-boutique-mots"><span class="compte-boutique-nom">${esc(lecture.nom)}</span>`,
-    lecture.lieu !== '' ? `<span class="compte-boutique-lieu">${t('vit.verifiee')} ${esc(lecture.lieu)}</span>` : '',
+    lecture.lieu !== '' ? `<span class="compte-boutique-lieu">${lecture.verifiee === true ? `${t('vit.verifiee')} ` : ''}${esc(lecture.lieu)}</span>` : '',
     '</span>',
     produits.length > 0 ? `<span class="compte-boutique-nombre">${nombre}</span>` : '',
     '</header>',

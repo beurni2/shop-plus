@@ -917,7 +917,8 @@ test('a basket paid while signed in: her number is filled, and every article joi
 test('PORTE-BELLE — the doors wear her boutique: her monogram, « Vendeuse vérifiée · » her city, her habillage — then three true reasons and the doors in order', async ({ page }) => {
   const livre = new Livre();
   const erreurs = await ouvrir(page, livre, '/?/v/aicha-4821', async () => {
-    await page.route('**/api/s/**', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ...BOUTIQUE, theme: 'foret' }) }));
+    // VERIFIEE-MERITEE-1 — her first deliveries earned the mention (the count the Worker sends).
+    await page.route('**/api/s/**', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ...BOUTIQUE, theme: 'foret', ventesLivrees: 2 }) }));
   });
   const tete = page.locator('[data-role="porte-tete"]');
   await expect(tete).toHaveAttribute('data-etat', 'boutique');
@@ -1393,6 +1394,9 @@ test('MON-COMPTE-PLUS — « Mon compte » shows her panier and her coups de cœ
   await expect(panier.locator('[data-boutique="mariam-1203"]')).toContainText('Sac en raphia');
   await expect(panier.locator('[data-boutique="aicha-4821"]')).toContainText('Bazin riche brodé');
   await expect(panier.locator('[data-boutique="aicha-4821"]'), 'only what SHE kept').not.toContainText('Pagne');
+  // VERIFIEE-MERITEE-1 — neither boutique has a delivered sale here: her city, never the mention.
+  await expect(panier.locator('[data-boutique="mariam-1203"] .compte-boutique-lieu')).toHaveText('Bobo-Dioulasso');
+  await expect(panier).not.toContainText('Vendeuse vérifiée');
   const favoris = page.locator('[data-role="compte-favoris"]');
   await expect(favoris.locator('article.compte-boutique')).toHaveCount(1);
   await expect(favoris).toContainText('Pagne wax hollandais');

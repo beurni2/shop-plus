@@ -6,6 +6,7 @@ import {
   etatPhoto,
   framePhoto,
   hasPhoto,
+  siVerifiee,
   ventesLine,
   verifieeBare,
   type Vals,
@@ -117,7 +118,7 @@ function render(v: Vals): string {
       ? `<div class="gu-bienv"><span class="gu-bienv-t"><v>${v.tagline}</v></span><span class="gu-tiret" aria-hidden="true"></span></div>`
       : '',
     `<div class="gu-name${v.longName ? ' vt-ent-long' : ''}">${v.tail}</div>`,
-    `<div class="gu-verif"><span class="gu-verif-i">${iconCheckEnt(9, '#FFF8EE', 3.4)}</span><span>${verifieeBare()}</span></div>`,
+    siVerifiee(v, `<div class="gu-verif"><span class="gu-verif-i">${iconCheckEnt(9, '#FFF8EE', 3.4)}</span><span>${verifieeBare()}</span></div>`),
     `<div class="gu-zone">${iconPinEnt(12, '#B0396A', 2.2)}<span><v>${v.zone}</v></span></div>`,
     v.showProof
       ? `<div class="gu-proof-wrap"><span class="gu-proof">${miniGuirlande()}<span class="gu-proof-l" data-role="reputation">${ventesLine(v)}</span>${

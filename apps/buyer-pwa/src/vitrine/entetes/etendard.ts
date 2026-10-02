@@ -7,6 +7,7 @@ import {
   etatPhoto,
   framePhoto,
   hasPhoto,
+  siVerifiee,
   ventesLine,
   verifieeBare,
   type Vals,
@@ -56,7 +57,7 @@ function render(v: Vals): string {
     `<div class="et-bienv-wrap"><span class="et-bienv"><span class="et-bienv-t">${t('vit.bienvenue')}</span></span></div>`,
     // Relevé « Carte info » — carte noire déchirée : coche, épingle, filet, preuve.
     '<div class="et-carte">',
-    `<div class="et-verif">${iconCheckEnt(17, '#2E9C52', 2.2)}<span>${verifieeBare()}</span></div>`,
+    siVerifiee(v, `<div class="et-verif">${iconCheckEnt(17, '#2E9C52', 2.2)}<span>${verifieeBare()}</span></div>`),
     `<div class="et-zone">${iconPinSolid(14, '#D9A31C', '#121212')}<span><v>${v.zone}</v></span></div>`,
     v.showProof
       ? [

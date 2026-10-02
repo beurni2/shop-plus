@@ -331,6 +331,7 @@ describe('« Mon panier » and « Mes coups de cœur » — by boutique, never a
   const lien = (slug: string) => `?/v/${slug}`;
   const aicha: LectureBoutique = {
     nom: 'Chez Aïcha <Mode>', lieu: 'Ouagadougou', theme: 'indigo',
+    verifiee: true, // VERIFIEE-MERITEE-1 — her first delivery earned the mention
     produits: [
       { pid: 'pv-1', nom: 'Bazin <brodé>', photo: 'https://img/p1.jpg?a=1&b=2', disponible: true },
       { pid: 'pv-2', nom: 'Pagne wax', disponible: false },

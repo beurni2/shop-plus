@@ -6,6 +6,7 @@ import {
   etatPhoto,
   framePhoto,
   hasPhoto,
+  siVerifiee,
   ventesLine,
   verifieeBare,
   type Vals,
@@ -66,7 +67,7 @@ function render(v: Vals): string {
     v.hasTag
       ? `<div class="ho-bienv"><span class="ho-bienv-t"><v>${v.tagline}</v></span><span class="ho-spectre" aria-hidden="true"></span></div>`
       : '',
-    `<div class="ho-verif"><span class="ho-verif-i">${iconCheckEnt(9, '#17171E', 3.4)}</span><span>${verifieeBare()}</span></div>`,
+    siVerifiee(v, `<div class="ho-verif"><span class="ho-verif-i">${iconCheckEnt(9, '#17171E', 3.4)}</span><span>${verifieeBare()}</span></div>`),
     `<div class="ho-zone">${iconPinEnt(12, '#B9AAE8', 2.2)}<span><v>${v.zone}</v></span></div>`,
     v.showProof
       ? `<div class="ho-proof-wrap"><span class="ho-proof">${puce()}<span class="ho-proof-l" data-role="reputation">${ventesLine(v)}</span>${

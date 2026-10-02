@@ -7,6 +7,7 @@ import {
   etatPhoto,
   framePhoto,
   hasPhoto,
+  siVerifiee,
   ventesLine,
   verifieeBare,
   type Vals,
@@ -48,7 +49,7 @@ function render(v: Vals): string {
     `<div class="te-name${v.longName ? ' vt-ent-long' : ''}">${v.tail}</div>`,
     '<span class="te-brosse" aria-hidden="true"></span>',
     `<div class="te-bienv-wrap"><span class="te-bienv"><span class="te-couture" aria-hidden="true"></span><span class="te-accroc" aria-hidden="true"></span><span class="te-bienv-t">${t('vit.bienvenue')}</span></span></div>`,
-    `<div class="te-verif">${iconShieldEnt(15, '#D9A441', 2)}<span>${verifieeBare()}</span>${iconSparkle(12, '#D9A441')}</div>`,
+    siVerifiee(v, `<div class="te-verif">${iconShieldEnt(15, '#D9A441', 2)}<span>${verifieeBare()}</span>${iconSparkle(12, '#D9A441')}</div>`),
     `<div class="te-zone">${iconPinSolid(14, '#F5EFE4', '#A65A33')}<span><v>${v.zone}</v></span></div>`,
     v.showProof
       ? [

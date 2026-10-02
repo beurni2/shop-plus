@@ -6,6 +6,7 @@ import {
   etatPhoto,
   framePhoto,
   hasPhoto,
+  siVerifiee,
   ventesLine,
   weldSeal,
   zoneLine,
@@ -60,9 +61,9 @@ function render(v: Vals): string {
     v.hasAvatar
       ? framePhoto({ ...v, hasCover: false }, '50% 32%')
       : `<span class="kr-av-mono">${v.mono}</span>`,
-    `<span class="kr-av-badge" aria-hidden="true">${iconCheckEnt(9, '#FFFFFF', 3.6)}</span>`,
+    siVerifiee(v, `<span class="kr-av-badge" aria-hidden="true">${iconCheckEnt(9, '#FFFFFF', 3.6)}</span>`),
     '</div>',
-    `<div class="kr-name${v.longName ? ' vt-ent-long' : ''}">${weldSeal(v.tail, `<span class="kr-seal" aria-hidden="true"><span class="kr-seal-d">${iconCheckEnt(10, '#FFFFFF', 3.4)}</span><span class="kr-seal-f"></span></span>`)}</div>`,
+    `<div class="kr-name${v.longName ? ' vt-ent-long' : ''}">${weldSeal(v.tail, siVerifiee(v, `<span class="kr-seal" aria-hidden="true"><span class="kr-seal-d">${iconCheckEnt(10, '#FFFFFF', 3.4)}</span><span class="kr-seal-f"></span></span>`))}</div>`,
     v.hasTag ? `<div class="kr-bienv"><v>${v.tagline}</v></div>` : '',
     // « Vendeuse vérifiée · {zone} » STAMPED — the style's verification mark
     `<div class="kr-tampon"><span>${zoneLine(v, iconPinEnt(10, '#A73625', 2.6))}</span></div>`,

@@ -6,6 +6,7 @@ import {
   etatPhoto,
   framePhoto,
   hasPhoto,
+  siVerifiee,
   ventesLine,
   verifieeBare,
   type Vals,
@@ -86,7 +87,7 @@ function render(v: Vals): string {
       ? `<div class="dt-bienv"><span class="dt-bienv-t"><v>${v.tagline}</v></span><span class="dt-bati" aria-hidden="true"></span></div>`
       : '',
     `<div class="dt-name${v.longName ? ' vt-ent-long' : ''}">${v.tail}</div>`,
-    `<div class="dt-verif"><span class="dt-verif-i">${iconCheckEnt(9, '#FBEFF0', 3.4)}</span><span>${verifieeBare()}</span></div>`,
+    siVerifiee(v, `<div class="dt-verif"><span class="dt-verif-i">${iconCheckEnt(9, '#FBEFF0', 3.4)}</span><span>${verifieeBare()}</span></div>`),
     `<div class="dt-zone">${iconPinEnt(12, '#C46E7F', 2.2)}<span><v>${v.zone}</v></span></div>`,
     v.showProof
       ? `<div class="dt-proof-wrap"><span class="dt-proof">${pointsCroix()}<span class="dt-proof-l" data-role="reputation">${ventesLine(v)}</span>${

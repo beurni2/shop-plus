@@ -6,6 +6,7 @@ import {
   controls,
   coverImg,
   etat,
+  siVerifiee,
   zoneLine,
   type Vals,
 } from '../entetes';
@@ -41,9 +42,9 @@ function render(v: Vals): string {
     v.hasAvatar
       ? `<span class="ry-av-photo">${avatarImg(v)}</span>`
       : `<span class="ry-av-mono">${v.mono}</span>`,
-    `<span class="ry-av-badge">${iconCheckEnt(11, '#E9CF8F', 3.2)}</span>`,
+    siVerifiee(v, `<span class="ry-av-badge">${iconCheckEnt(11, '#E9CF8F', 3.2)}</span>`),
     '</div>',
-    `<div class="ry-name${v.longName ? ' vt-ent-long' : ''}"><v>${v.name}</v><span class="ry-seal"><span class="ry-seal-d">${iconCheckEnt(14, '#FFFFFF', 3.6)}</span><span class="ry-seal-r"></span></span></div>`,
+    `<div class="ry-name${v.longName ? ' vt-ent-long' : ''}"><v>${v.name}</v>${siVerifiee(v, `<span class="ry-seal"><span class="ry-seal-d">${iconCheckEnt(14, '#FFFFFF', 3.6)}</span><span class="ry-seal-r"></span></span>`)}</div>`,
     v.hasTag ? `<div class="ry-tag"><v>${v.tagline}</v></div>` : '',
     `<div class="ry-zone">${zoneLine(v, iconPinEnt(13, '#D4739C', 2.2))}</div>`,
     '</div>',
