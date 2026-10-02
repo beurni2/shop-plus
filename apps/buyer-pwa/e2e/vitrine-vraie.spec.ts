@@ -462,6 +462,34 @@ test.describe('B-05 — a link in capitals still reaches her', () => {
   });
 });
 
+/* COPIE-ACCES-1 verifier MAJOR 2 — landing was not enough: every link the page
+ * builds onward from a capitals address must leave it too, or « Ouvrir une
+ * autre boutique » loops back to the same card and a product tap nests paths. */
+test.describe('B-05 — onward from a link in capitals', () => {
+  test('from /v/AICHA-4821 a product tap goes to /s/aicha-4821, not under the capitals path', async ({ page }) => {
+    const errors = await service(page, (url) => repondre(3, url));
+    await page.goto(`/?/v/${SLUG.toUpperCase()}`);
+    await expect(page.locator('.vt-root[data-etat="ready"]')).toBeVisible();
+    await page.locator('.vt-grid [data-action="produit"]').first().click();
+    await expect(page.locator('main.cl-root [data-screen="C1"]')).toBeVisible();
+    expect(new URL(page.url()).pathname).toBe(`/s/${SLUG}`);
+    expect(errors).toEqual([]);
+  });
+
+  test('an unknown boutique typed in capitals: « Ouvrir une autre boutique » reaches the home card', async ({ page }) => {
+    const errors = await service(page, (url) => repondre(3, url));
+    await page.route('**/api/s/nope-0000**', (route: Route) =>
+      route.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ status: 'not_found' }) }),
+    );
+    await page.goto('/?/v/NOPE-0000');
+    await expect(page.locator('.vt-root[data-etat="invalid"]')).toBeVisible();
+    await page.locator('[data-action="decouvrir"]').click();
+    await expect(page.locator('[data-screen="racine"]')).toBeVisible();
+    expect(new URL(page.url()).pathname).toBe('/');
+    expect(errors).toEqual([]);
+  });
+});
+
 /* ═══ COPIE-ACCES-1 (AUDIT-4 B-06) — every way out and every card, by keyboard ═══
  * The state cards' one action was a <span> no keyboard or switch could reach,
  * and the tile's heart, bag and voice chip sat inside the tile's <button>. The

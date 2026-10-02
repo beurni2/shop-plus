@@ -1095,11 +1095,17 @@ export function httpSuiviCadeau(baseUrl: string): LireSuiviCadeau {
     } catch {
       return { status: 'introuvable' };
     }
+    // It fires by itself on load, so it carries `orderState`'s bound: a socket
+    // that never answers ends on « hors ligne » and its « Actualiser ».
     let res: Response;
+    const ctrl = typeof AbortController === 'function' ? new AbortController() : null;
+    const stall = ctrl === null ? null : setTimeout(() => ctrl.abort(), LECTURE_COMMANDE_TIMEOUT_MS);
     try {
-      res = await fetch(url, { method: 'GET' });
+      res = await fetch(url, ctrl === null ? { method: 'GET' } : { method: 'GET', signal: ctrl.signal });
     } catch {
       return { status: 'unreachable' };
+    } finally {
+      if (stall !== null) clearTimeout(stall);
     }
     const brut: unknown = await res.json().catch(() => undefined);
     if (!res.ok || brut === null || typeof brut !== 'object' || !nonEmpty((brut as Record<string, unknown>)['state'])) {

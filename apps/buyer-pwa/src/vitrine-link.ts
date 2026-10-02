@@ -43,7 +43,9 @@ export function vitrineSlugFromPath(pathname: string): string | undefined {
  */
 export function deployBaseFromPath(pathname: string): string {
   return pathname
-    .replace(/\/(?:s|v)\/[a-z0-9-]+\/?$/, '') // a `/s/{slug}` or `/v/{slug}` route
+    // a `/s/{slug}` or `/v/{slug}` route — in capitals too (AUDIT-4 B-05), or
+    // every link built from a capitals address would nest under it
+    .replace(/\/(?:s|v)\/[a-z0-9-]+\/?$/i, '')
     .replace(/\/boutiques\/?$/, '') // the retired directory path (RACINE-HONNETE-1)
     .replace(/\/index\.html$/, '')
     .replace(/\/$/, '');

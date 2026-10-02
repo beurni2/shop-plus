@@ -321,9 +321,13 @@ function tile(p: VitrineProduct, note: ProductVoiceNote | undefined, slug: strin
   const cls = p.inStock ? 'vt-tile' : 'vt-tile vt-tile-epuise';
   // AUDIT-4 B-06 — the card is a link a keyboard can reach (Enter opens it,
   // flows.ts), not a <button>: its heart, bag and voice chip are buttons of
-  // their own, and a button may not hold buttons.
+  // their own, and a button may not hold buttons. A <div>, because <article>
+  // may not take role="link"; named by its name and price alone, so the
+  // heart's and bag's labels are not read out as the link's name.
+  const nomId = `vt-nom-${esc(p.pid)}`;
+  const prixId = `vt-prix-${esc(p.pid)}`;
   const attrs = p.inStock
-    ? `data-action="produit" data-pid="${esc(p.pid)}" role="link" tabindex="0"`
+    ? `data-action="produit" data-pid="${esc(p.pid)}" role="link" tabindex="0" aria-labelledby="${nomId} ${prixId}"`
     : 'aria-disabled="true"';
   // NORTH-STAR-1 — the heart is REAL (favorites.ts) and, since
   // PANIER-VITRINE-1, so is the panier button: both device-local, both honest,
@@ -333,18 +337,18 @@ function tile(p: VitrineProduct, note: ProductVoiceNote | undefined, slug: strin
   // as unmeasured, reaffirmed, rendered as given. No WhatsApp tap on a tile
   // since PANIER-BOUTON-1: that option lives on the buyer's own product page.
   return [
-    `<article class="${cls}" data-role="vitrine-produit" ${attrs}>`,
+    `<div class="${cls}" data-role="vitrine-produit" ${attrs}>`,
     `<div class="vt-artwrap">${produitArt(p, !p.inStock)}${p.inStock ? fav(p.pid) : ''}</div>`,
     '<div class="vt-tile-body">',
-    `<div class="vt-tile-name"><v>${esc(p.name)}</v></div>`,
+    `<div class="vt-tile-name"${p.inStock ? ` id="${nomId}"` : ''}><v>${esc(p.name)}</v></div>`,
     '<div class="vt-tile-pricerow">',
-    `<div class="vt-tile-price"><v>${fmtFcfa(p.priceFcfa)}</v></div>`,
+    `<div class="vt-tile-price"${p.inStock ? ` id="${prixId}"` : ''}><v>${fmtFcfa(p.priceFcfa)}</v></div>`,
     p.inStock ? panBouton(slug, p.pid) : '',
     '</div>',
     p.inStock ? `<div class="vt-tile-livree">${t('vit.livraison_2448')}</div>` : '',
     p.inStock ? renderVoiceChip(note) : '',
     '</div>',
-    '</article>',
+    '</div>',
   ].join('');
 }
 
@@ -432,17 +436,20 @@ function grille(prods: readonly VitrineProduct[], notes: ProductVoiceNotes, slug
 function featuredTile(p: VitrineProduct, note: ProductVoiceNote | undefined, pinnedByHer: boolean, slug: string): string {
   // PANIER-BOUTON-1 — the same one control as the grid, in the same place:
   // beside the price. The art keeps the badge and the heart, nothing else.
+  // B-06 — a named <div> link, as the grid's card (its own ids: never the grid's).
+  const nomId = `vt-une-nom-${esc(p.pid)}`;
+  const prixId = `vt-une-prix-${esc(p.pid)}`;
   return [
-    `<article class="vt-featured" data-role="vitrine-a-la-une" data-action="produit" data-pid="${esc(p.pid)}" role="link" tabindex="0">`,
+    `<div class="vt-featured" data-role="vitrine-a-la-une" data-action="produit" data-pid="${esc(p.pid)}" role="link" tabindex="0" aria-labelledby="${nomId} ${prixId}">`,
     `<div class="vt-featured-artwrap">${featuredArt(p)}${pinnedByHer ? `<span class="vt-featured-badge">${t('vit.a_la_une')}</span>` : ''}${fav(p.pid)}</div>`,
     '<div class="vt-featured-body">',
-    `<span class="vt-featured-name"><v>${esc(p.name)}</v></span>`,
-    `<div class="vt-featured-pricerow"><b class="vt-featured-price"><v>${fmtFcfa(p.priceFcfa)}</v></b>${panBouton(slug, p.pid)}</div>`,
+    `<span class="vt-featured-name" id="${nomId}"><v>${esc(p.name)}</v></span>`,
+    `<div class="vt-featured-pricerow"><b class="vt-featured-price" id="${prixId}"><v>${fmtFcfa(p.priceFcfa)}</v></b>${panBouton(slug, p.pid)}</div>`,
     `<span class="vt-featured-livree">${t('vit.livraison_2448')}</span>`,
     renderVoiceChip(note),
     `<span class="vt-featured-cta">${t('vit.commander')}</span>`,
     '</div>',
-    '</article>',
+    '</div>',
   ].join('');
 }
 

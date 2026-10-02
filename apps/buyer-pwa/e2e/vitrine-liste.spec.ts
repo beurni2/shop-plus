@@ -565,6 +565,19 @@ test('GIFT — the friend only pays: C3 never mounts, « Livré chez Awa, à son
   await page.locator('[data-screen="C6"]').waitFor({ timeout: 15_000 });
 });
 
+// COPIE-ACCES-1 verifier MAJOR 1 — the gift read fires by itself on load; on a
+// socket that never answers it must still end on a card with « Actualiser ».
+test('CADEAU — a gift read that never answers ends on « Actualiser », never on an endless loading card', async ({ page }) => {
+  test.setTimeout(45_000);
+  await page.route('**/checkout/order/**', () => { /* never answers */ });
+  await page.goto(`${BASE}/?cadeau=ord-lent`);
+  const actualiser = page.locator('[data-action="cadeau-actualiser"]');
+  await expect(actualiser).toBeVisible({ timeout: 25_000 });
+  // and pressing it asks again — the way out is wired, not drawn
+  await actualiser.click();
+  await expect(actualiser).toBeVisible({ timeout: 25_000 });
+});
+
 test('CADEAU — the creator’s tracking link renders the delivery’s facts, and Actualiser re-asks', async ({ page }) => {
   let marques: Record<string, unknown> = { acceptedAt: '2026-08-26T10:00:00Z' };
   // AUDIT-4 A-04 — every order read the page makes is recorded: the gift link

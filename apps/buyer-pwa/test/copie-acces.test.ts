@@ -3,7 +3,7 @@ import type { Storefront } from '@platform/contracts';
 import { renderVitrineEmpty, renderVitrineIndisponible, renderVitrineReady } from '../src/vitrine/render';
 import { ENTETE_KEYS } from '../src/vitrine/entetes';
 import { loadAllEntetes } from '../src/vitrine/entetes/registry';
-import { signedProductSlugFromPath, vitrineSlugFromPath } from '../src/vitrine-link';
+import { deployBaseFromPath, signedProductSlugFromPath, vitrineSlugFromPath } from '../src/vitrine-link';
 
 /**
  * COPIE-ACCES-1 (AUDIT-4 minors) — the unit half. The walks are in
@@ -44,6 +44,9 @@ describe('B-05 — her code in capitals is still her address, read in lowercase'
     expect(vitrineSlugFromPath('/v/Fatou-1234/')).toBe('fatou-1234');
     expect(signedProductSlugFromPath('/shop-plus/s/FATOU-1234')).toBe('fatou-1234');
     expect(vitrineSlugFromPath('/v/fatou 1234')).toBeUndefined();
+    // verifier MAJOR 2 — the outbound base is read off the same address, capitals included
+    expect(deployBaseFromPath('/shop-plus/v/FATOU-1234')).toBe('/shop-plus');
+    expect(deployBaseFromPath('/shop-plus/s/FATOU-1234/')).toBe('/shop-plus');
   });
 });
 
@@ -84,9 +87,17 @@ describe('B-06 — no control a keyboard cannot reach, and no button inside a bu
       }
     }
     const ready = pages[0]!;
-    expect(ready).toMatch(/<article class="vt-tile" data-role="vitrine-produit" data-action="produit" data-pid="p2" role="link" tabindex="0">/);
-    expect(ready).toMatch(/<article class="vt-featured" data-role="vitrine-a-la-une" data-action="produit" data-pid="p1" role="link" tabindex="0">/);
+    // a <div role="link"> (an <article> may not take that role), named by its
+    // own name and price — never by the heart's or bag's labels inside it
+    expect(ready).toMatch(/<div class="vt-tile" data-role="vitrine-produit" data-action="produit" data-pid="p2" role="link" tabindex="0" aria-labelledby="vt-nom-p2 vt-prix-p2">/);
+    expect(ready).toMatch(/<div class="vt-featured" data-role="vitrine-a-la-une" data-action="produit" data-pid="p1" role="link" tabindex="0" aria-labelledby="vt-une-nom-p1 vt-une-prix-p1">/);
+    expect(ready).not.toContain('<article');
+    for (const id of ['vt-nom-p2', 'vt-prix-p2', 'vt-une-nom-p1', 'vt-une-prix-p1']) {
+      expect(ready.split(`id="${id}"`).length - 1, `${id} names exactly one element`).toBe(1);
+    }
+    expect(ready).toMatch(/id="vt-nom-p2"><v>Sac<\/v>/);
+    expect(ready).toMatch(/id="vt-prix-p2"><v>5\s000\sFCFA<\/v>/);
     // an épuisé card is not a link and is not focusable
-    expect(ready).toMatch(/<article class="vt-tile vt-tile-epuise" data-role="vitrine-produit" aria-disabled="true">/);
+    expect(ready).toMatch(/<div class="vt-tile vt-tile-epuise" data-role="vitrine-produit" aria-disabled="true">/);
   });
 });

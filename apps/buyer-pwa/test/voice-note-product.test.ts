@@ -60,7 +60,7 @@ describe('renderVoicePlayer — product page « Note vocale » (tap to play, dur
 });
 
 describe('renderVoiceChip — the tile affordance is a real button (AUDIT-4 B-06)', () => {
-  it('renders a <button type="button"> with the play action + duration; the card around it is an <article>, so nothing nests', () => {
+  it('renders a <button type="button"> with the play action + duration; the card around it is a <div role="link">, so nothing nests', () => {
     const chip = renderVoiceChip(READY);
     expect(chip.startsWith('<button type="button" class="vt-tile-voix"')).toBe(true);
     expect(chip).not.toContain('role="button"');

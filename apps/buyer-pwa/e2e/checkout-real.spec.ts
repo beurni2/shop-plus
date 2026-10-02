@@ -2506,3 +2506,19 @@ test('A-03 — CONTROL: the same price as the page says nothing', async ({ page 
   await expect(page.locator('[data-screen="C4"]')).toBeVisible();
   await expect(page.locator('[data-role="prix-change"]')).toHaveCount(0);
 });
+
+/* COPIE-ACCES-1 verifier NOTE 2 — after a reload that lands her straight back on
+ * the delivery step, this visit never showed her the page's price, and the page
+ * may have been re-read at a newer one: comparing the two could name a change
+ * she never saw, backwards. The note speaks only of a price she was shown. */
+test('A-03 — a reload that resumes on the delivery step says no price change, and she can still go on', async ({ page }) => {
+  await scriptService(page, { produitDevis: 12_400 });
+  await askForPrice(page);
+  await expect(page.locator('[data-screen="C4"] [data-role="prix-change"]')).toBeVisible();
+  await page.reload();
+  await page.locator('[data-screen="C4"]').waitFor({ timeout: 15_000 });
+  await expect(page.locator('[data-role="prix-change"]')).toHaveCount(0);
+  // she can still go on
+  await page.locator('[data-action="continuer-c4"]').click();
+  await expect(page.locator('[data-screen="C5"]')).toBeVisible();
+});

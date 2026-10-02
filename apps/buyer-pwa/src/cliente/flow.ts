@@ -885,6 +885,12 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
    * pressing Retour.
    */
   let generation = 0;
+  /** AUDIT-4 A-03 — has this visit shown her the page's price? A reload that
+   *  resumes on C4–C6 has not, and the page may since have been re-read at a
+   *  newer price, so the « price changed » note waits until C1 has been drawn.
+   *  (The reload snapshot may carry no amount — reprise.ts — so the price she
+   *  saw before the reload cannot be kept.) */
+  let prixPageVu = true;
 
   /**
    * ═══ DIAPO-C1 — SP2.3 « Lazy slideshow + fallback: queued, cancellable, static fallback » ═══
@@ -1247,7 +1253,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
             ? { panier: { lignes: init.panier.lignes(), ...(init.panier.livraisons?.() !== undefined ? { livraisons: init.panier.livraisons()! } : {}) } }
             : {}),
           // AUDIT-4 A-03 — only the service's own price is compared, never a demo composition.
-          ...(init.panier === undefined && state.serverQuote !== null && state.serverQuote.produitFcfa !== m.priceFcfa
+          ...(init.panier === undefined && prixPageVu && state.serverQuote !== null && state.serverQuote.produitFcfa !== m.priceFcfa
             ? { prixChange: { avant: m.priceFcfa, maintenant: state.serverQuote.produitFcfa } }
             : {}),
         });
@@ -2165,6 +2171,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
     // (a toast alone triggers one), and cutting her own note because a chip
     // moved would be its own defect. The face is re-applied instead.
     const noteEnCours = noteAudio !== null && !noteAudio.paused;
+    if (state.screen === 'C1' && !state.loading && state.refus === null) prixPageVu = true;
     container.innerHTML = [
       '<div class="cl-status"></div>',
       '<div class="cl-lisere"></div>',
@@ -3014,6 +3021,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
       state.screen = r.ecran;
       state.orderId = r.orderId;
       state.buyerRef = r.buyerRef;
+      prixPageVu = false;
       void demanderLePrix(false, false, r);
       return;
     }

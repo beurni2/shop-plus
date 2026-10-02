@@ -564,7 +564,7 @@ export const VITRINE_STYLES = `
 
   /* C-VIT4 — la tuile produit v2. */
   .vt-tile {
-    /* An <article> since B-06: border-box, the box the <button> it was had by default. */
+    /* A <div role="link"> since B-06: border-box, the box the <button> it was had by default. */
     display: block; text-align: left; width: 100%; box-sizing: border-box;
     border: 1px solid #EDE4D3; border-radius: 18px; background: #FFFFFF;
     box-shadow: 0 1px 2px rgba(28, 22, 15, 0.04);
@@ -671,7 +671,7 @@ export const VITRINE_STYLES = `
   .vt-tile-livree { margin-top: 3px; font-size: 10.5px; font-weight: 600; color: #6F6355; }
 
   /* « Note vocale » — the tile voice chip (tap-to-play; the play triangle +
-     duration). A real <button> inside the product card (an <article> since
+     duration). A real <button> inside the product card (a <div role="link"> since
      AUDIT-4 B-06): its own tap target, themed to the accent. The delegated handler plays it; the tile's
      « produit » navigation never fires on a voice tap (closest() wins here). */
   /* VOIX-VISIBLE (founder 2026-08-04) — it was a small pill showing only a play

@@ -52,7 +52,7 @@ export function renderVoicePlayer(note: ProductVoiceNote | undefined): string {
 }
 
 /** Vitrine tile — the compact chip, a real <button> (AUDIT-4 B-06: the card
- * around it is an <article> now, so a keyboard reaches it and Enter or Space
+ * around it is a <div role="link"> now, so a keyboard reaches it and Enter or Space
  * plays it); the ONE delegated handler (wireVoicePlay) plays it, and because
  * closest() returns this button first the card's own « produit » navigation
  * never fires on a voice tap. */
