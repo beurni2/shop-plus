@@ -25,7 +25,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@platform/contracts": "git+https://github.com/beurni2/platform-contracts.git#aba11c1305edeeef132698bdf4908e1a37188104&path:packages/contracts",
+    "@platform/contracts": "git+https://github.com/beurni2/platform-contracts.git#d6f3882c1529b8cf40c09aafab629cd6f2eab565&path:packages/contracts",
     "zod": "^4.1.5"
   },
   "devDependencies": {

@@ -144,7 +144,7 @@ She sees **2 000 FCFA**, never "2 500 FCFA gross (minus fees)". Gross-first disp
 
 | Secret | Held by | Proves |
 |---|---|---|
-| **Readiness challenge** | Supplier → server | The package is genuinely prepared |
+| **Readiness challenge** | Server → supplier's app → server (never displayed) | The « prêt » is one fresh act, not a replay — the photo shows the package; one challenge per package |
 | **Pickup verification** | Rider, at the supplier | The goods objectively match the locked order |
 | **`HandoffAuthorization`** | the signed handoff authorization (Option B door confirmation / break-glass) | never substitutable — a rider's word is not payment truth |
 | **`buyerDropCode`** | The buyer alone | The buyer actually received it |
@@ -241,7 +241,7 @@ The supplier sets **B** and **C**, and sees the whole waterfall before committin
 
 ## B+6 — Fulfillment & package readiness *(the first secret)*
 
-**Flow:** funded order arrives → supplier prepares → **confirms "Produit prêt"** with readiness evidence (photo + challenge response) → the order becomes dispatchable.
+**Flow:** funded order arrives → supplier prepares → **confirms "Produit prêt"** with readiness evidence (the photo, sent with the server's single-use readiness challenge — never displayed or typed; one per package) → the order becomes dispatchable.
 
 **B+I-06:** Séra is **not** called until readiness is confirmed. A rider sent to a supplier who hasn't packed is a wasted trip charged to nobody — so it must not happen.
 **The forbidden shortcut:** readiness evidence **must never contain the `buyerDropCode`**.
