@@ -1,6 +1,20 @@
 # JOURNAL — shop-plus
 Continuity ledger per CTO charter §6/§6bis. Every entry is evidence-grounded.
 
+## 2026-10-02 · AUDIT-4 FIXES MERGED AND DEPLOYED on the founder's « go » — PORTE-APRES-RECHARGE-1 · COMMANDES-GARDEES-1 · ENTETE-BORNEE-1 · PHOTOS-LEGERES-1 · COPIE-ACCES-1
+
+**Founder order (2026-10-02).** « go » — on the combined report of the five entries below.
+- **Worker first:** **storefront-deploy 121 green**, dispatched on the branch at `1ccc3c8` — the exact commit `main` was then fast-forwarded to. Read back from the live Worker: release `1ccc3c8`, canon 3.25.0, custody armed (all four wires); the three smokes green (checkout refuses by name, the tile road, PBKDF2 at 100 000). The gift read (`/checkout/order/{id}/suivi`) and the small-copy media routes deployed with it.
+- **Merged** `main` `a408ac2 → 1ccc3c8` (fast-forward, ancestry verified), after the Worker was live.
+- **Buyer site** — pwa-preview 516 green: the payload gate passed on the deploy build and Pages deployed at 02:45:21, after the Worker (02:43:11).
+- **Reseller app** — expo-preview 549 green (the EAS preview update published; her app now sends the small copy of a new cover or portrait).
+- service-canon-drift 424 green. **ci 728 green** on the first attempt — the whole gate board on `main`.
+- **Not read back from here:** the live buyer site and the app update (both outside this sandbox's reach); no small copy exists yet on the live bucket until a seller picks a new photo.
+
+**Open (his calls):** the order view still public by id (COPIE-ACCES-1 NOTE 1) · B-03 « Pas en ligne » open to buyers · door payment from « Mes commandes » on another phone · « Vendeuse vérifiée ».
+
+---
+
 ## 2026-10-02 · COPIE-ACCES-1 (AUDIT-4 A-03, A-04, B-04 – B-08, founder « go with your recommendation ») — the seven minors: a price that moved is said, the gift link shows no sums, every exit reachable by keyboard · on the branch, NOT merged, NOT deployed
 
 **Founder order (2026-10-01).** « go with your recommendation » — AUDIT-4's recommended order; this is item 5, the minors in one slice.
