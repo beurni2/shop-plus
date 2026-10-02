@@ -72,8 +72,8 @@ export interface OptsCompte {
    *  the doors greet her by the shop she opened, in its own colours. Absent
    *  or unanswered, « Shop+ ». */
   readonly boutique?: Promise<BoutiquePorte | undefined>;
-  /** « Mes commandes » — open one order's tracking (the host mounts it). */
-  readonly ouvrirSuivi?: (orderId: string, buyerRef: string) => void;
+  /** « Mes commandes » — open one order's tracking (the host mounts it), with its door's key when her account kept one. */
+  readonly ouvrirSuivi?: (orderId: string, buyerRef: string, porte?: string) => void;
   /** Opened as a layer over a product or a payment: « Retour » goes back to
    *  that page, not to a boutique. */
   readonly enCalque?: boolean;
@@ -864,7 +864,7 @@ export function monterCompte(main: HTMLElement, opts: OptsCompte): void {
         break;
       case 'compte-suivre': {
         const c = commandes.find((x) => x.orderId === el.getAttribute('data-order'));
-        if (c !== undefined) opts.ouvrirSuivi?.(c.orderId, c.buyerRef);
+        if (c !== undefined) opts.ouvrirSuivi?.(c.orderId, c.buyerRef, c.porte);
         break;
       }
       case 'compte-invitee':

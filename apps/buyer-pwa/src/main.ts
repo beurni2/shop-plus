@@ -630,13 +630,14 @@ if (app) {
    */
   /** BANDE-PAYEE (verifier minor 2) — a whole screen took the shell's place: a band whose read lands late stays out of it. */
   let shellRemplace = false;
-  const ouvrirSuivi = (orderId: string, buyerRef: string, oublier?: () => void): void => {
+  const ouvrirSuivi = (orderId: string, buyerRef: string, oublier?: () => void, porteCompte?: string): void => {
     shellRemplace = true;
     for (const child of Array.from(app.children)) child.remove();
     const port = resolveQuotePort();
     // PORTE-APRES-RECHARGE-1 (AUDIT-4 A-01) — a pay-at-the-door order whose
-    // holder this phone kept can still be paid at her door from here.
-    const porte = porteGardee(orderId, port, localStorageOrUndefined(), sessionStorageOrUndefined());
+    // holder this phone kept can still be paid at her door from here;
+    // PORTE-AUTRE-TELEPHONE-1 — or whose key her account kept, on any phone.
+    const porte = porteGardee(orderId, port, localStorageOrUndefined(), sessionStorageOrUndefined(), porteCompte);
     const suiviMain = document.createElement('main');
     monterCliente(suiviMain, {
       // C7/C9 read nothing off the product; the record deliberately stores
@@ -663,10 +664,10 @@ if (app) {
     app.append(suiviMain);
   };
   /** « Mes commandes » → her order's tracking; the phone's shortcut is forgotten only if it is this order's. */
-  const suiviDepuisCompte = (orderId: string, buyerRef: string): void =>
+  const suiviDepuisCompte = (orderId: string, buyerRef: string, porte?: string): void =>
     ouvrirSuivi(orderId, buyerRef, () => {
       oublierCommande(orderId, localStorageOrUndefined());
-    });
+    }, porte);
   /**
    * BANDEAUX-RETIRÉS (founder order 2026-08-14): « remove … the one on
    * buyer's payment pwa ». The WO-4.2E sandbox ribbon stood here,

@@ -187,7 +187,7 @@ export interface ClienteInit {
    *  (`payee`) once the service says her money moved: only then does a
    *  signed-in buyer's « Mes commandes » list it (MES-COMMANDES-PAYEES). Best
    *  effort; the order never waits on it. */
-  readonly rattacher?: ((c: { readonly orderId: string; readonly buyerRef: string; readonly payee?: true }) => void) | undefined;
+  readonly rattacher?: ((c: { readonly orderId: string; readonly buyerRef: string; readonly porte?: string; readonly payee?: true }) => void) | undefined;
   /**
    * ═══ REPRISE-PWA — THE TAB'S JOURNEY SURVIVES A REFRESH (2026-08-13) ═══
    *
@@ -2051,7 +2051,12 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
         if (mode === 'B' && live.titulairePorte !== undefined) {
           garderPorte(r.order.orderId, live.titulairePorte, localStorageOrUndefined());
         }
-        init.rattacher?.({ orderId: r.order.orderId, buyerRef: r.order.buyerRef });
+        // PORTE-AUTRE-TELEPHONE-1 — a door order's key goes to her account with it.
+        init.rattacher?.({
+          orderId: r.order.orderId,
+          buyerRef: r.order.buyerRef,
+          ...(mode === 'B' && live.titulairePorte !== undefined ? { porte: live.titulairePorte } : {}),
+        });
       }
       const etat = etatDeC6(r.order.state);
       // PRIVEE-APRES-CONFIRMATION — the server's word is recorded BEFORE the

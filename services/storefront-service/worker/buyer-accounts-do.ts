@@ -64,11 +64,19 @@ const REFERENCE = /^[A-Za-z0-9_:.-]{1,191}$/;
 
 /** An order she made while signed in: enough to reopen its tracking from any
  *  phone — the order's id and her own read token for it. No amount, no
- *  product, no address; the order never reads this book. */
+ *  product, no address; the order never reads this book.
+ *
+ *  PORTE-AUTRE-TELEPHONE-1 (canon 3.27.0 SP6, fourth ruling) — for an order
+ *  she chose to pay at the door, `porte` is the holder its door quote was
+ *  reserved under, so « Mes commandes » on any phone she signs in on can pay
+ *  at that door. It only lets the provider ask her for that order's product
+ *  leg; it moves no money, and only the signed webhook says paid. It goes
+ *  with the list, and with the account. */
 export interface CommandeLiee {
   readonly orderId: string;
   readonly buyerRef: string;
   readonly at: string;
+  readonly porte?: string;
 }
 
 /**
@@ -467,10 +475,12 @@ export class BuyerAccountsDO {
           const o = c as Record<string, unknown> | null;
           const orderId = o?.['orderId'];
           const buyerRef = o?.['buyerRef'];
+          const porte = o?.['porte'];
           if (typeof orderId !== 'string' || !REFERENCE.test(orderId) || typeof buyerRef !== 'string' || !REFERENCE.test(buyerRef)) {
             return refus('bad_field', 400, 'ajouter');
           }
-          ajouter.push({ orderId, buyerRef, at });
+          if (porte !== undefined && (typeof porte !== 'string' || !REFERENCE.test(porte))) return refus('bad_field', 400, 'ajouter');
+          ajouter.push({ orderId, buyerRef, at, ...(porte !== undefined ? { porte } : {}) });
         }
       }
       const resolue = await this.resoudreSession(body['session']);

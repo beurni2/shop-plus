@@ -1554,7 +1554,11 @@ export function oublierPorte(orderId: string, storage?: Storage): void {
  * HER DOOR, FROM ANY TRACKING SHE REOPENS ON THIS PHONE: the door charge for
  * `orderId` under the holder kept for it, or nothing when this phone keeps no
  * holder for that order (a prepaid order, an order made on another phone) —
- * and then the door road stays withheld, never faked. The command is slotted
+ * and then the door road stays withheld, never faked.
+ *
+ * PORTE-AUTRE-TELEPHONE-1 (canon 3.27.0 SP6, fourth ruling) — `titulaireCompte`
+ * is the key her account kept beside a door order she made while signed in,
+ * as « Mes commandes » reads it: on a phone that kept nothing, it is her door. The command is slotted
  * on the ORDER and the attempt — the same slot the checkout tab uses
  * (verifier minor 2), so a reload replays her own request instead of asking
  * again.
@@ -1564,9 +1568,9 @@ export function porteGardee(
   port: Pick<QuotePort, 'doorCharge'>,
   storage?: Storage,
   session?: Storage,
+  titulaireCompte?: string,
 ): ((id: string, essai: number) => Promise<OrderOutcome>) | undefined {
-  if (storage === undefined) return undefined;
-  const titulaire = portesGardees(storage).find((e) => e.orderId === orderId)?.titulaire;
+  const titulaire = (storage !== undefined ? portesGardees(storage).find((e) => e.orderId === orderId)?.titulaire : undefined) ?? titulaireCompte;
   if (titulaire === undefined) return undefined;
   return (id: string, essai: number): Promise<OrderOutcome> => {
     const cmd = orderCommandIdFor(`${id}#porte`, essai, session);

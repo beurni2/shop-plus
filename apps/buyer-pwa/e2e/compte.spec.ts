@@ -71,7 +71,7 @@ class Livre {
   comptes = new Map<string, Compte>();
   /** COMPTE-CLIENTE-2 — the founder's live recovery codes, by phone key. */
   codes = new Map<string, string>();
-  commandes = new Map<string, { orderId: string; buyerRef: string; at: string }[]>();
+  commandes = new Map<string, { orderId: string; buyerRef: string; at: string; porte?: string }[]>();
   /** MON-COMPTE-PLUS — her panier and her hearts, by phone key. */
   articles = new Map<string, { panier: Article[]; favoris: Article[] }>();
   sessions = new Map<string, string>();
@@ -151,9 +151,10 @@ class Livre {
         return json(200, { ok: true });
       }
       const avant = this.commandes.get(k) ?? [];
-      const neuves = ((corps['ajouter'] as { orderId: string; buyerRef: string }[] | undefined) ?? [])
+      // PORTE-AUTRE-TELEPHONE-1 — the book's real shape: a door order keeps its key (`porte`).
+      const neuves = ((corps['ajouter'] as { orderId: string; buyerRef: string; porte?: string }[] | undefined) ?? [])
         .filter((a) => !avant.some((b) => b.orderId === a.orderId))
-        .map((a) => ({ orderId: a.orderId, buyerRef: a.buyerRef, at: '2026-09-24T08:00:00.000Z' }));
+        .map((a) => ({ orderId: a.orderId, buyerRef: a.buyerRef, at: '2026-09-24T08:00:00.000Z', ...(a.porte !== undefined ? { porte: a.porte } : {}) }));
       const liste = [...neuves.reverse(), ...avant].slice(0, 50);
       this.commandes.set(k, liste);
       return json(200, { ok: true, commandes: liste });
@@ -598,6 +599,154 @@ test('« Mes commandes »: her orders from any phone, newest first — a tap ope
   await expect(page.locator('[data-screen="C7"]')).toBeVisible();
   // The row and the tracking it opens say the same reference.
   await expect(page.locator('[data-screen="C7"] .cl-cmd')).toHaveText('Réf. QUOTE1');
+  expect(erreurs).toEqual([]);
+});
+
+/* ═══ PORTE-AUTRE-TELEPHONE-1 — her door from « Mes commandes » on ANOTHER phone ═══
+ *
+ * Founder, 2026-10-02: « door payment from another phone stays off … fix
+ * this » (canon 3.27.0 SP6, fourth ruling). This phone kept NOTHING of the
+ * order — no holder, no order — only her session. Her account lists the
+ * order with its door's key; the rider is at her door: « Je suis à la porte »
+ * → « Tout est bon » → the door charge under THAT key, and the code only once
+ * the operator confirms. The control: an order whose row carries no key (she
+ * prepaid it) offers no door. */
+function porteAilleurs(page: Page): { vu: { doorCharges: Record<string, unknown>[]; doorLeg: string }; servir: () => Promise<void> } {
+  const vu = { doorCharges: [] as Record<string, unknown>[], doorLeg: 'due' };
+  const servir = async (): Promise<void> => {
+  await page.route('**/checkout/**', async (route) => {
+    const req = route.request();
+    const url = req.url();
+    const json = (status: number, body: unknown) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
+    const id = decodeURIComponent(url.split('/checkout/order/')[1]?.split('/')[0] ?? '');
+    const vue = () => ({
+      orderId: id, state: 'confirmed', amountPaidAtCheckout: 1_000, amountDueAtDelivery: 11_500,
+      doorLeg: id === 'ord-quote-porte-1' ? vu.doorLeg : 'none',
+      acceptedAt: '2026-10-02T08:00:00.000Z', readyAt: '2026-10-02T08:10:00.000Z', departedAt: '2026-10-02T08:20:00.000Z', arrivedAt: '2026-10-02T08:30:00.000Z',
+    });
+    if (/\/door-charge$/.test(url) && req.method() === 'POST') {
+      vu.doorCharges.push(JSON.parse(req.postData() ?? '{}') as Record<string, unknown>);
+      return json(200, vue());
+    }
+    if (/\/remise$/.test(url)) return json(404, { ok: false });
+    if (/\/checkout\/order\/[^/]+$/.test(url) && req.method() === 'GET') return json(200, vue());
+    return json(404, { ok: false });
+  });
+  };
+  return { vu, servir };
+}
+
+test('PORTE-AUTRE-TELEPHONE-1 — on a phone that kept nothing, « Mes commandes » opens her door order and « Je suis à la porte » pays under the key her account kept', async ({ page }) => {
+  const livre = new Livre();
+  await dejaConnectee(page, livre);
+  livre.commandes.set('70123456', [
+    { orderId: 'ord-quote-porte-1', buyerRef: 'REF-PORTE-1', at: '2026-10-02T08:00:00.000Z', porte: 'TITULAIRE-DU-COMPTE-1' },
+  ]);
+  const { vu: wire, servir } = porteAilleurs(page);
+  const erreurs = await ouvrir(page, livre, '/?/v/aicha-4821', servir);
+  // This phone keeps no door holder of its own — the road can only come from her account.
+  expect(await page.evaluate(() => localStorage.getItem('sp-portes:v1'))).toBeNull();
+  await bande(page).click();
+  await page.locator('[data-action="compte-suivre"]').click();
+  await expect(page.locator('[data-screen="C7"]')).toBeVisible();
+  const porte = page.locator('[data-action="porte"]');
+  await expect(porte, 'her door is offered').toBeVisible();
+  await porte.click();
+  await expect(page.locator('[data-screen="C8"]')).toBeVisible();
+  await expect(page.locator('[data-role="owing"]')).toContainText('11 500');
+  await page.locator('[data-action="porte-bon"]').click();
+  await expect.poll(() => wire.doorCharges.length, { timeout: 10_000 }).toBe(1);
+  expect(wire.doorCharges[0]!['holderRef'], 'the key her account kept').toBe('TITULAIRE-DU-COMPTE-1');
+  expect(Object.keys(wire.doorCharges[0]!).sort()).toEqual(['commandId', 'holderRef']);
+  // The key never reaches the page's words.
+  expect(await page.content()).not.toContain('TITULAIRE-DU-COMPTE-1');
+  expect(erreurs).toEqual([]);
+});
+
+test('PORTE-AUTRE-TELEPHONE-1 — the same road from « Mon compte » opened OVER a product page: her door order offers its door', async ({ page }) => {
+  const livre = new Livre();
+  await dejaConnectee(page, livre);
+  livre.commandes.set('70123456', [
+    { orderId: 'ord-quote-porte-1', buyerRef: 'REF-PORTE-1', at: '2026-10-02T08:00:00.000Z', porte: 'TITULAIRE-DU-COMPTE-1' },
+  ]);
+  const { vu: wire, servir } = porteAilleurs(page);
+  const erreurs = await ouvrir(page, livre, '/?/s/aicha-4821&pid=p1', servir);
+  await expect(page.locator('[data-screen="C1"]')).toBeVisible();
+  await bande(page).click();
+  const calque = page.locator('[data-role="compte-voile"]');
+  await calque.locator('[data-action="compte-suivre"]').click();
+  await expect(page.locator('[data-screen="C7"]')).toBeVisible();
+  await page.locator('[data-action="porte"]').click();
+  await page.locator('[data-action="porte-bon"]').click();
+  await expect.poll(() => wire.doorCharges.length, { timeout: 10_000 }).toBe(1);
+  expect(wire.doorCharges[0]!['holderRef']).toBe('TITULAIRE-DU-COMPTE-1');
+  expect(erreurs).toEqual([]);
+});
+
+test('PORTE-AUTRE-TELEPHONE-1 · CONTROL — an order whose row carries no key (she prepaid it) opens its tracking with no door', async ({ page }) => {
+  const livre = new Livre();
+  await dejaConnectee(page, livre);
+  livre.commandes.set('70123456', [{ orderId: 'ord-quote-prepaye-1', buyerRef: 'REF-PREPAYE-1', at: '2026-10-02T08:00:00.000Z' }]);
+  const erreurs = await ouvrir(page, livre, '/?/v/aicha-4821', porteAilleurs(page).servir);
+  await bande(page).click();
+  await page.locator('[data-action="compte-suivre"]').click();
+  await expect(page.locator('[data-screen="C7"]')).toBeVisible();
+  await expect(page.locator('[data-action="porte"]')).toHaveCount(0);
+  expect(erreurs).toEqual([]);
+});
+
+test('PORTE-AUTRE-TELEPHONE-1 — paid at the door while signed in: the order joins « Mes commandes » WITH the key it was held under, once the delivery fees are confirmed', async ({ page }) => {
+  const livre = new Livre();
+  await dejaConnectee(page, livre);
+  const vu = { reserves: [] as Record<string, unknown>[], etat: 'payment_pending' };
+  const erreurs = await ouvrir(page, livre, '/?/s/aicha-4821&pid=p1', async () => {
+    await page.route('**/checkout/**', async (route) => {
+      const req = route.request();
+      const url = req.url();
+      const json = (status: number, body: unknown) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
+      const corps = JSON.parse(req.postData() ?? '{}') as Record<string, unknown>;
+      const expiry = new Date(Date.now() + 15 * 60_000).toISOString();
+      if (/\/reserve$/.test(url)) {
+        vu.reserves.push(corps);
+        return json(200, { status: 'reserved', reservationId: `res-${vu.reserves.length}` });
+      }
+      if (/\/checkout\/order$/.test(url) && req.method() === 'POST') {
+        return json(200, { orderId: `ord-${String(corps['quoteId'])}`, state: 'payment_pending', amountPaidAtCheckout: 1_000, amountDueAtDelivery: 11_500, doorLeg: 'due', buyerRef: BUYER_REF });
+      }
+      if (/\/checkout\/order\/[^/]+$/.test(url) && req.method() === 'GET') {
+        return json(200, { orderId: decodeURIComponent(url.split('/').pop()!), state: vu.etat, amountPaidAtCheckout: 1_000, amountDueAtDelivery: 11_500, doorLeg: 'due' });
+      }
+      if (/\/remise$/.test(url)) return json(404, { ok: false });
+      if (corps['paymentMode'] === 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR') {
+        return json(200, {
+          quoteId: 'quote-porte-compte-1', paymentMode: 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR', productSubtotal: 11_500, deliveryFee: 1_000, buyerTotal: 12_500,
+          amountPaidAtCheckout: 1_000, amountDueAtDelivery: 11_500, expiry,
+        });
+      }
+      return json(200, {
+        quoteId: 'quote-plein-compte-1', paymentMode: 'FULL_PREPAY', productSubtotal: 11_500, deliveryFee: 1_000, buyerTotal: 12_500,
+        amountPaidAtCheckout: 12_500, amountDueAtDelivery: 0, expiry,
+      });
+    });
+  });
+  await page.locator('[data-action="commander"]').click();
+  await page.locator('[data-screen="C3"]').waitFor();
+  await page.locator('[data-action="zone"][data-zone="Gounghin"]').click();
+  await page.locator('[data-role="repere"]').fill('Face à la pharmacie du marché');
+  await page.locator('[data-action="continuer-c3"]').click();
+  await page.locator('[data-screen="C4"]').waitFor({ timeout: 15_000 });
+  await page.locator('[data-action="continuer-c4"]').click();
+  await page.locator('[data-screen="C5"]').waitFor();
+  await page.locator('[data-action="choix-paiement"][data-mode="B"]').click();
+  await page.locator('[data-action="payer"]').click();
+  await expect(page.locator('[data-screen="C6"]')).toBeVisible();
+  // The operator confirms her delivery fees: the order joins her account, with its door's key.
+  vu.etat = 'confirmed';
+  await page.locator('[data-etat="confirmee"]').waitFor({ timeout: 20_000 });
+  const titulaire = vu.reserves.at(-1)?.['holderRef'];
+  expect(typeof titulaire === 'string' && titulaire !== '').toBe(true);
+  await expect.poll(() => livre.commandes.get('70123456')?.map((c) => [c.orderId, c.porte])).toEqual([['ord-quote-porte-compte-1', titulaire]]);
+  expect(await page.content()).not.toContain(String(titulaire));
   expect(erreurs).toEqual([]);
 });
 

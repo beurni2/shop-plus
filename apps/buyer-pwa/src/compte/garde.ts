@@ -132,6 +132,8 @@ export interface LienDu {
   readonly orderId: string;
   readonly buyerRef: string;
   readonly session: string;
+  /** PORTE-AUTRE-TELEPHONE-1 — a door order's key, sent with the link. */
+  readonly porte?: string;
 }
 
 function lireLiens(s: Stockage): LienDu[] {
@@ -144,7 +146,7 @@ function lireLiens(s: Stockage): LienDu[] {
       const o = x !== null && typeof x === 'object' ? (x as Record<string, unknown>) : {};
       return typeof o['orderId'] === 'string' && o['orderId'] !== '' && typeof o['buyerRef'] === 'string' && o['buyerRef'] !== '' &&
         typeof o['session'] === 'string' && SESSION.test(o['session'])
-        ? [{ orderId: o['orderId'], buyerRef: o['buyerRef'], session: o['session'] }]
+        ? [{ orderId: o['orderId'], buyerRef: o['buyerRef'], session: o['session'], ...(typeof o['porte'] === 'string' && o['porte'] !== '' ? { porte: o['porte'] } : {}) }]
         : [];
     });
   } catch {
@@ -155,7 +157,7 @@ function lireLiens(s: Stockage): LienDu[] {
 function ecrireLiens(s: Stockage, liens: readonly LienDu[]): void {
   try {
     if (liens.length === 0) s?.removeItem(CLE_LIENS);
-    else s?.setItem(CLE_LIENS, JSON.stringify(liens.map((l) => ({ orderId: l.orderId, buyerRef: l.buyerRef, session: l.session }))));
+    else s?.setItem(CLE_LIENS, JSON.stringify(liens.map((l) => ({ orderId: l.orderId, buyerRef: l.buyerRef, session: l.session, ...(l.porte !== undefined ? { porte: l.porte } : {}) }))));
   } catch {
     /* the store refused — the page that made the order still holds it */
   }

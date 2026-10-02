@@ -632,3 +632,36 @@ describe('sp-paniers-payes:v1 — every paid panier this phone keeps', () => {
     expect(() => oublierPanierPaye('g', dead)).not.toThrow();
   });
 });
+
+describe('PORTE-AUTRE-TELEPHONE-1 — a panier paid at the door tells her account the key of each article it can open', () => {
+  it('a door panier: each single article carries the panier key; an article inside a package does not; a prepaid panier carries none', async () => {
+    const run = async (mode: 'A' | 'B', colis: readonly { packageId: string; orderIds: readonly string[] }[] = []) => {
+      const svc = service({
+        payer: {
+          status: 'groupe',
+          groupe: {
+            groupId: 'grp-abc', state: 'payment_pending', amountPaidAtCheckout: 2_500, amountDueAtDelivery: 36_500, articles: [],
+            commandes: [{ orderId: `ord-q-p1-${mode}`, buyerRef: 'ref-1' }, { orderId: `ord-q-p2-${mode}`, buyerRef: 'ref-2' }],
+            ...(colis.length > 0 ? { colis } : {}),
+          },
+        } as never,
+      });
+      const dits: { orderId: string; porte?: string; payee?: true }[] = [];
+      const s = creerSourcePanier({
+        port: svc.port, slug: 'aicha-4821', ville: 'Ouagadougou', resellerId: 'rs-1', articles: ARTICLES,
+        session: memoire(), garde: memoire(), doorGraceMs: 50, rattacher: (c) => { dits.push(c); },
+      });
+      const r = await s.quoteSource('Gounghin');
+      if (r.status !== 'ready') throw new Error('price');
+      expect((await r.reserve(mode)).status).toBe('reserved');
+      await r.commander(mode, 0);
+      return { dits, titulaire: svc.j.payes[0]!.holderRef };
+    };
+    const porte = await run('B');
+    expect(porte.dits.map((d) => [d.orderId, d.porte])).toEqual([['ord-q-p1-B', porte.titulaire], ['ord-q-p2-B', porte.titulaire]]);
+    const colis = await run('B', [{ packageId: 'pk-1', orderIds: ['ord-q-p2-B'] }]);
+    expect(colis.dits.map((d) => [d.orderId, d.porte])).toEqual([['ord-q-p1-B', colis.titulaire], ['ord-q-p2-B', undefined]]);
+    const prepaye = await run('A');
+    expect(prepaye.dits.every((d) => d.porte === undefined)).toBe(true);
+  });
+});

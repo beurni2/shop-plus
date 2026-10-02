@@ -304,6 +304,19 @@ describe('COMPTE-CLIENTE-2 — the wire', () => {
     for (const a of appels) expect(new Headers(a.init.headers).get('Authorization')).toBe(`Bearer ${SESSION}`);
   });
 
+  it('PORTE-AUTRE-TELEPHONE-1 — a door order\'s key rides the add and comes back on the read; a row without one stays without', async () => {
+    const liste = [
+      { orderId: 'ord-p', buyerRef: 'ref-p', at: '2026-10-02T08:00:00.000Z', porte: 'TITULAIRE-1' },
+      { orderId: 'ord-a', buyerRef: 'ref-a', at: '2026-10-01T08:00:00.000Z' },
+    ];
+    const { appels } = faux(() => Response.json({ ok: true, commandes: liste }));
+    expect(await port.commandes(SESSION)).toEqual({ kind: 'ok', value: liste });
+    await port.commandes(SESSION, [{ orderId: 'ord-p', buyerRef: 'ref-p', porte: 'TITULAIRE-1' }, { orderId: 'ord-a', buyerRef: 'ref-a' }]);
+    expect(JSON.parse(appels[1]!.init.body as string)).toEqual({
+      ajouter: [{ orderId: 'ord-p', buyerRef: 'ref-p', porte: 'TITULAIRE-1' }, { orderId: 'ord-a', buyerRef: 'ref-a' }],
+    });
+  });
+
   it('delete sends only her current password, on her Bearer', async () => {
     const { appels } = faux(() => Response.json({ ok: true }));
     expect(await port.supprimer(SESSION, 'mon-mot-actuel')).toEqual({ kind: 'ok', value: true });
@@ -397,6 +410,19 @@ describe('COMPTE-CLIENTE-2 · MES-COMMANDES-PAYEES — her orders join « Mes co
     await attendre();
     expect(envoyes).toEqual([{ session: SESSION, ajouter: [{ orderId: 'ord-1', buyerRef: 'r1' }] }]);
     expect(liensDus(local, onglet).map((l) => l.orderId)).toEqual(['ord-2']);
+  });
+
+  it('PORTE-AUTRE-TELEPHONE-1 — a door order\'s key is remembered with the owed link, survives a fresh page, and is sent with it once « paid »', async () => {
+    const local = memoire();
+    const onglet = memoire();
+    garderSession(local, { session: SESSION, prenom: 'Awa' });
+    const { envoyes, port } = livre();
+    creerRattacheur(port, local, onglet)({ orderId: 'ord-p', buyerRef: 'r-p', porte: 'TITULAIRE-1' });
+    expect(liensDus(local, onglet)).toEqual([{ orderId: 'ord-p', buyerRef: 'r-p', session: SESSION, porte: 'TITULAIRE-1' }]);
+    // A fresh page (the tab that paid closed): the stored link still carries it.
+    creerRattacheur(port, local, onglet)({ orderId: 'ord-p', buyerRef: 'r-p', payee: true });
+    await attendre();
+    expect(envoyes).toEqual([{ session: SESSION, ajouter: [{ orderId: 'ord-p', buyerRef: 'r-p', porte: 'TITULAIRE-1' }] }]);
   });
 
   it('the link goes under the session that MADE the order — never whoever is signed in now; a session ended since drops it', async () => {

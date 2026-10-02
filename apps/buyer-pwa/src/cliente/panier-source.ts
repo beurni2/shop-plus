@@ -196,7 +196,7 @@ export function creerSourcePanier(args: {
   /** COMPTE-CLIENTE-2 — told each article's order once the payment keeps it,
    *  then again (`payee`) once it is confirmed: only then does a signed-in
    *  buyer's « Mes commandes » list them (MES-COMMANDES-PAYEES). Best effort. */
-  readonly rattacher?: (c: { readonly orderId: string; readonly buyerRef: string; readonly payee?: true }) => void;
+  readonly rattacher?: (c: { readonly orderId: string; readonly buyerRef: string; readonly porte?: string; readonly payee?: true }) => void;
 }): SourcePanier {
   const { port, articles } = args;
   // The panier's composition names its PAYMENT: the same articles, the same pay command.
@@ -211,6 +211,8 @@ export function creerSourcePanier(args: {
   let livraisons: number | undefined;
   let colis: readonly ColisPaye[] = [];
   let groupIdCourant: string | null = null;
+  /** The mode her panier was paid in on this page — a door panier's articles carry its key to her account. */
+  let modeCourant: ModePaiement | null = null;
   /** quoteId → the article's name, so a refusal and a paid order can name it. */
   const noms = new Map<string, string>();
   /** quoteId → the article's product, so the paid record can name it. */
@@ -274,7 +276,13 @@ export function creerSourcePanier(args: {
         { groupId: g.groupId, holderRef: titulaire, at: new Date().toISOString(), slug: args.slug, articles: payes, ...(colis.length > 0 ? { colis } : {}) },
         args.garde,
       );
-      for (const a of payes) args.rattacher?.({ orderId: a.orderId, buyerRef: a.buyerRef });
+      // PORTE-AUTRE-TELEPHONE-1 — an article paid at its own door carries the
+      // panier's key to her account; an article inside a package does not:
+      // its door is the package's one payment, which a key alone cannot open.
+      for (const a of payes) {
+        const seule = !colis.some((c) => c.orderIds.includes(a.orderId));
+        args.rattacher?.({ orderId: a.orderId, buyerRef: a.buyerRef, ...(modeCourant === 'B' && seule ? { porte: titulaire } : {}) });
+      }
     }
     // Paid AND confirmed: these articles leave her boutique's panier, and
     // their quotes with them — the next panier with one of them is a new sale.
@@ -456,6 +464,7 @@ export function creerSourcePanier(args: {
         if (cmd === undefined) return { status: 'refused', reason: 'no_secure_random' };
         // Recorded BEFORE the payment leaves: from here an order may exist on these quotes.
         ecrireLie(args.slug, cibles.map((q) => q.quoteId), args.session);
+        modeCourant = mode;
         return commeCommande(await port.payer(cibles.map((q) => q.quoteId), cmd, titulaire, contact), titulaire);
       },
       etatCommande: async (groupId: string): Promise<OrderFetch> => commeCommande(await port.etat(groupId), titulaire),

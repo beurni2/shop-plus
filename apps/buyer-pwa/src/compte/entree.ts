@@ -32,8 +32,8 @@ export interface OptsEntree {
   readonly monterBoutique: () => void;
   /** COMPTE-CLIENTE-2 / PORTE-BELLE — her boutique, from the SAME read that draws it. */
   readonly boutique?: Promise<BoutiquePorte | undefined>;
-  /** « Mes commandes » — open one order's tracking. */
-  readonly ouvrirSuivi?: (orderId: string, buyerRef: string) => void;
+  /** « Mes commandes » — open one order's tracking (with its door's key, when her account kept one). */
+  readonly ouvrirSuivi?: (orderId: string, buyerRef: string, porte?: string) => void;
   /** MON-COMPTE-PLUS — « Mon panier » / « Mes coups de cœur »: read a boutique
    *  and link back into it. */
   readonly lireBoutique?: (slug: string) => Promise<LectureBoutique>;
@@ -175,7 +175,7 @@ export function monterBandeCompte(
     document.body.classList.add('compte-voile-ouvert');
     monterCompte(main, {
       port: opts.port, local: opts.local, onglet: opts.onglet, ecran, versBoutique: fermer, enCalque: true,
-      ...(opts.ouvrirSuivi !== undefined ? { ouvrirSuivi: (orderId: string, buyerRef: string) => { fermer(); opts.ouvrirSuivi?.(orderId, buyerRef); } } : {}),
+      ...(opts.ouvrirSuivi !== undefined ? { ouvrirSuivi: (orderId: string, buyerRef: string, porte?: string) => { fermer(); opts.ouvrirSuivi?.(orderId, buyerRef, porte); } } : {}),
       ...plus(opts),
     });
   };
@@ -198,7 +198,7 @@ export function monterBandeCompte(
  * never joins her list. The page keeps what it was told too, so a store that
  * refuses every write costs the next visit, never the payment seen here.
  */
-export type Rattacheur = (c: { readonly orderId: string; readonly buyerRef: string; readonly payee?: true }) => void;
+export type Rattacheur = (c: { readonly orderId: string; readonly buyerRef: string; readonly porte?: string; readonly payee?: true }) => void;
 
 export function creerRattacheur(
   port: ComptePort,
@@ -217,7 +217,7 @@ export function creerRattacheur(
       marquerDecidee(onglet, c.orderId);
       const g = sessionActive(local, onglet);
       if (g === undefined) return;
-      const l = { orderId: c.orderId, buyerRef: c.buyerRef, session: g.session };
+      const l = { orderId: c.orderId, buyerRef: c.buyerRef, session: g.session, ...(c.porte !== undefined ? { porte: c.porte } : {}) };
       dus.set(c.orderId, l);
       retenirLien(local, onglet, l);
       return;
@@ -231,7 +231,7 @@ export function creerRattacheur(
     if (l === undefined || envoyes.has(c.orderId)) return;
     envoyes.add(c.orderId);
     void port
-      .commandes(l.session, [{ orderId: l.orderId, buyerRef: l.buyerRef }])
+      .commandes(l.session, [{ orderId: l.orderId, buyerRef: l.buyerRef, ...(l.porte !== undefined ? { porte: l.porte } : {}) }])
       .then((r) => {
         // No network, or the book could not answer (a server error reads
         // « indisponible », verifier minor 3): still owed — the next « paid »

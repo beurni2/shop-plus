@@ -50,6 +50,8 @@ export interface CommandeCompte {
   readonly orderId: string;
   readonly buyerRef: string;
   readonly at: string;
+  /** PORTE-AUTRE-TELEPHONE-1 — a door order's key, so any phone she signs in on can pay that door. */
+  readonly porte?: string;
 }
 
 /** MON-COMPTE-PLUS (canon 3.24.0) — an article of her panier or her hearts,
@@ -80,7 +82,7 @@ export interface ComptePort {
    *  password: the number starts clean for whoever holds it. */
   recuperer(phone: string, code: string, newPassword: string, noms: { readonly firstName: string; readonly lastName: string }): Promise<Resultat<{ profil: ProfilCliente; session: string }>>;
   /** « Mes commandes » — read, or add then read (at most ten added at once). */
-  commandes(session: string, ajouter?: readonly { readonly orderId: string; readonly buyerRef: string }[]): Promise<Resultat<readonly CommandeCompte[]>>;
+  commandes(session: string, ajouter?: readonly { readonly orderId: string; readonly buyerRef: string; readonly porte?: string }[]): Promise<Resultat<readonly CommandeCompte[]>>;
   supprimer(session: string, currentPassword: string): Promise<Resultat<true>>;
   /** MON-COMPTE-PLUS — her panier and hearts: read, or change then read (fifty at most at once). */
   articles(session: string, operations?: readonly OperationArticle[]): Promise<Resultat<ArticlesCompte>>;
@@ -114,7 +116,8 @@ function lireCommandes(body: Record<string, unknown>): readonly CommandeCompte[]
     const orderId = texte(o?.['orderId']);
     const buyerRef = texte(o?.['buyerRef']);
     const at = texte(o?.['at']);
-    if (orderId !== undefined && buyerRef !== undefined && at !== undefined) out.push({ orderId, buyerRef, at });
+    const porte = texte(o?.['porte']);
+    if (orderId !== undefined && buyerRef !== undefined && at !== undefined) out.push({ orderId, buyerRef, at, ...(porte !== undefined ? { porte } : {}) });
   }
   return out;
 }
@@ -205,7 +208,7 @@ export function httpComptePort(base: string): ComptePort {
     },
     async commandes(session, ajouter) {
       const corps = ajouter !== undefined && ajouter.length > 0
-        ? { ajouter: ajouter.slice(0, 10).map((c) => ({ orderId: c.orderId, buyerRef: c.buyerRef })) }
+        ? { ajouter: ajouter.slice(0, 10).map((c) => ({ orderId: c.orderId, buyerRef: c.buyerRef, ...(c.porte !== undefined ? { porte: c.porte } : {}) })) }
         : {};
       return lire(await appeler('orders', corps, session, LECTURE_PROFIL_TIMEOUT_MS), lireCommandes);
     },
