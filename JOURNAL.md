@@ -1,6 +1,18 @@
 # JOURNAL — shop-plus
 Continuity ledger per CTO charter §6/§6bis. Every entry is evidence-grounded.
 
+## 2026-11-26 · CERCLE-FERME-1 — MERGED
+
+**Founder.** « Release all three » (2026-11-26 21:17 UTC, decision card), which named for Shop+: merge; merging publishes the reseller app by itself.
+
+**No deploy.** No Worker changed in this slice.
+
+**Merge.** main re-checked unchanged at `2c63572`; PR #5 merged as `e0bb283`. On main: expo-preview 556 (reseller app) green · pwa-preview 523 (buyer site, unchanged) green · service-canon-drift 487 green · ci 741 green.
+
+**Still open.** The `useCercle` controller still starts on every mount with the demo seed in memory, and nothing reachable renders it (kept for SP9).
+
+---
+
 ## 2026-11-26 · CERCLE-FERME-1 — the demo Cercle has no door until the Cercle is built · lane P4 · on the branch, NOT merged
 
 **Founder ruling (2026-11-26, project chat):** « hide the demo « Mon Cercle » card until the Cercle is built ». Started on his « go » (19:26 UTC).
