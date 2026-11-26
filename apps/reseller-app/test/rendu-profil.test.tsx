@@ -655,9 +655,13 @@ describe('CERCLE-FERME-1 — the demo Cercle opens from no row on her page (foun
     expect(screen.canPress('Mon Cercle'), `on screen: ${JSON.stringify(screen.texts())}`).toBe(false);
     expect(screen.shows('Vos campagnes et votre réputation.')).toBe(false);
     await screen.press('Mes informations');
-    expect(screen.canPress('Retour')).toBe(true);
+    // The LEAF: its form, prefilled — the hub has no field at all.
+    expect(valeurs(screen), 'the informations leaf did not open').toEqual(['Awa Traoré', '70 11 22 33', 'awa@example.bf']);
     await screen.press('Retour');
-    expect(screen.shows('Mes informations')).toBe(true);
+    // The HUB again: no field left, and her way out, which only the hub carries.
+    expect(champs(screen), `Retour did not leave the leaf: ${JSON.stringify(screen.texts())}`).toHaveLength(0);
+    expect(screen.shows('Mon profil')).toBe(true);
+    expect(screen.canPress('Me déconnecter')).toBe(true);
     screen.unmount();
   });
 
@@ -673,7 +677,7 @@ describe('CERCLE-FERME-1 — the demo Cercle opens from no row on her page (foun
     screen.unmount();
   });
 
-  it('no control on her page lands on the Cercle hub — live book, no compte, dead wire; every one pressed, each on a fresh mount', async () => {
+  it('no control on her page lands on the Cercle hub — live book, no compte, dead wire, pause; every one pressed, each on a fresh mount', async () => {
     // Each mount starts from the same device and a fresh app: « Me déconnecter »
     // erases her account, so the next mount must not inherit the previous press.
     const surProfil = (avecCompte: boolean, drapeaux: Drapeaux = {}) => async (): Promise<Screen> => {
@@ -688,6 +692,7 @@ describe('CERCLE-FERME-1 — the demo Cercle opens from no row on her page (foun
     };
     expect(await balayer(surProfil(true)), 'live book').toEqual([]);
     expect(await balayer(surProfil(true, { profilMort: true })), 'dead wire').toEqual([]);
+    expect(await balayer(surProfil(true, { profilCoupe: true })), 'pause').toEqual([]);
     expect(await balayer(surProfil(false)), 'no compte').toEqual([]);
   });
 });

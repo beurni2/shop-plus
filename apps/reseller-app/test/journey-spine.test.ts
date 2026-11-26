@@ -6,6 +6,8 @@ import { JOURNEY, START, type Screen } from '../src/journey.js';
 /**
  * WO-4.1 spine coverage: the walkable-world promise as assertions. Every
  * screen must be reachable from START by touch (BFS over the journey map),
+ * except exactly the six Cercle screens, which stay mounted with no door
+ * (CERCLE-FERME-1) and must stay unreachable,
  * every edge must point at a real screen, and the App must render every
  * screen the map names (source-level pin — a screen in the map with no
  * render block would be a dead end the founder can reach).
