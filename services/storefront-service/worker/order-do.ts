@@ -3952,11 +3952,17 @@ export class OrderDO {
     const alerts = held?.alerts ?? [];
     const elements = alerts.map((a) => ({ classe: classeAlerte(a), le: isoOuNull(a.envelope.serverTime) }));
     const gardes = new Set(alerts.map((a) => a.envelope.command_id));
-    if (stuck !== undefined && !gardes.has(stuck.commandId)) elements.push({ classe: 'stuck_paiement', le: isoOuNull(stuck.emittedAt) });
+    let remontees = 0;
+    if (stuck !== undefined && !gardes.has(stuck.commandId)) {
+      elements.push({ classe: 'stuck_paiement', le: isoOuNull(stuck.emittedAt) });
+      remontees += 1;
+    }
     if (stuckFournisseur !== undefined && !gardes.has(stuckFournisseur.commandId)) {
       elements.push({ classe: 'stuck_fournisseur', le: isoOuNull(stuckFournisseur.emittedAt) });
+      remontees += 1;
     }
-    const coupees = held?.dropped ?? 0;
+    // A stuck mark the cap clipped is counted in `dropped` AND shown again from its own key: count it once.
+    const coupees = Math.max(0, (held?.dropped ?? 0) - remontees);
     return elements.length === 0 && coupees === 0 ? null : { elements, coupees };
   }
 
