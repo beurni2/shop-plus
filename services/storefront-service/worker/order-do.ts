@@ -358,8 +358,9 @@ interface HoldReleaseRow {
  * `checkStuckSaga`; its once-mark is persisted HERE because the spine is
  * rebuilt from the log on every request and would forget. It rides this
  * object's alarm: armed at every entry into `payment_pending`, re-derived
- * from the log on every tick, sunk into the durable alert record the
- * operator already reads. ⏳ THE TTL IS SPEC-SILENT: 15 minutes is WO-2.3's
+ * from the log on every tick, sunk into the durable alert record — which
+ * the founder reads on his Boutik+ Commandes tab, through this order's
+ * key-C dispatch row (`aVerifier`). ⏳ THE TTL IS SPEC-SILENT: 15 minutes is WO-2.3's
  * seed value and the quote's own life (a payment pending longer than the
  * price it pays for is stuck) — applied as the documented safest default
  * and flagged in the journal; `STUCK_SAGA_TTL_MS` (env; the seam test's
@@ -377,6 +378,25 @@ export const STUCK_SAGA_TTL_MS = 15 * 60_000;
  * never learned. Same alarm, same durable record, its own once-mark.
  */
 const STUCK_SUPPLIER_KEY = 'saga-stuck-supplier';
+
+/** The class the founder's console names an alert by: a reconciliation
+ *  alert's own scenario, or where a stuck saga is stuck. */
+function classeAlerte(a: PlatformEvent): string {
+  const p = a.payload as Record<string, unknown>;
+  if (a.name === 'saga.stuck.v1') {
+    if (p['stuck_in'] === 'payment_pending') return 'stuck_paiement';
+    if (p['stuck_in'] === 'confirmed') return 'stuck_fournisseur';
+    if (p['stuck_in'] === 'refund') return 'stuck_remboursement';
+    return 'autre';
+  }
+  return typeof p['alert'] === 'string' && p['alert'] !== '' ? p['alert'] : 'autre';
+}
+
+/** One time format on the row, whichever clock wrote it; an unreadable time is null. */
+function isoOuNull(t: string): string | null {
+  const ms = Date.parse(t);
+  return Number.isNaN(ms) ? null : new Date(ms).toISOString();
+}
 /**
  * VRAI-SUIVI — SÉRA'S TRANSIT MARKS, as this order received them through the
  * `/fulfillment/transit` door: `en_route` → `departedAt`, `arrivee` →
@@ -1449,6 +1469,7 @@ export class OrderDO {
         productVersionId: origin.fulfillment?.productVersionId ?? '',
         zoneTo: origin.fulfillment?.zoneTo ?? '',
         remboursement: await this.remboursementAvecPorte(spine, origin.orderId),
+        aVerifier: await this.aVerifierPourOperateur(),
       });
     }
 
@@ -3914,6 +3935,29 @@ export class OrderDO {
       return { etat: 'bloque', raison: r.raison };
     }
     return propre;
+  }
+
+  /**
+   * The founder's « À vérifier » on this order, read from the durable alert
+   * record and nothing else: each kept alert as its class and its time, the
+   * count the record's cap could not keep, and a stuck mark the cap clipped
+   * (its own key still holds it). Only a class and a time leave this object —
+   * never an amount, a contact, a provider key or the alert's body. `null` is
+   * « nothing to check ».
+   */
+  private async aVerifierPourOperateur(): Promise<{ elements: { classe: string; le: string | null }[]; coupees: number } | null> {
+    const held = await this.state.storage.get<{ alerts: PlatformEvent[]; dropped: number }>(RECON_ALERTS_KEY);
+    const stuck = await this.state.storage.get<{ emittedAt: string; commandId: string }>(STUCK_SAGA_KEY);
+    const stuckFournisseur = await this.state.storage.get<{ emittedAt: string; commandId: string }>(STUCK_SUPPLIER_KEY);
+    const alerts = held?.alerts ?? [];
+    const elements = alerts.map((a) => ({ classe: classeAlerte(a), le: isoOuNull(a.envelope.serverTime) }));
+    const gardes = new Set(alerts.map((a) => a.envelope.command_id));
+    if (stuck !== undefined && !gardes.has(stuck.commandId)) elements.push({ classe: 'stuck_paiement', le: isoOuNull(stuck.emittedAt) });
+    if (stuckFournisseur !== undefined && !gardes.has(stuckFournisseur.commandId)) {
+      elements.push({ classe: 'stuck_fournisseur', le: isoOuNull(stuckFournisseur.emittedAt) });
+    }
+    const coupees = held?.dropped ?? 0;
+    return elements.length === 0 && coupees === 0 ? null : { elements, coupees };
   }
 
   /**
