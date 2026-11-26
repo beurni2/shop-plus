@@ -1,6 +1,29 @@
 # JOURNAL — shop-plus
 Continuity ledger per CTO charter §6/§6bis. Every entry is evidence-grounded.
 
+## 2026-11-26 · P1 — « Mes gains » shows each sale at the rung the server records · on the branch, NOT merged, NOT deployed
+
+**Lane.** P1 (Wave 1), built in its own lane session on `claude/project-thread-i3ol9j`: `7198c27`, then the one-pass review fixes `4e7cf3b`. Merged here `--no-ff` at `2e8f95e`, lane shas kept. 13 files, all on the written claim (widened at the review hand-back to `apps/reseller-app/src/sales/*`).
+
+**Rule now protected.** Build Spec SP-I04 (« Earnings MUST display Quote/Ledger/Settlement projections only (net), never a live recomputation ») and Plan SP6.1 (« Projected/Locked/Eligible/Payable/Processing/Paid/Held/Adjusted (net, traced) »), with Contract §10.5 money register (rule 4: « what is paid, what is kept, when money moves »).
+
+**What changed.**
+- Storefront Worker: her sales row (`worker/order-do.ts`, `/entry/reseller/{id}`) adds `refusee: true` only when the order's refund record exists, its decision is not `livraison_acceptee`, AND the ledger holds no obligation for the order (the acceptance rule the refund decision already applies). `projectVente` (`worker/index.ts`) forwards `livree` and `refusee`, only as literal `true`. No spine, state machine, refund logic, payout line or canon shape touched.
+- Reseller app: the reader (`src/sales/feed-service.ts`) takes all eight canon order states and the two facts; the model (`gains-model.ts`) puts a delivered sale on Eligible, a delivered sale outranks a refusal fact, a §6.5 hold still outranks both; refunded and refused-before-delivery sales are counted apart, on no rung; `paid`/before-payment map to Projected, `cancelled` with the failed payments; reachability stays derived (states × delivery fact). « Mes gains » says the refused and refunded lines in one/many forms. « Mes ventes » and the home preview (`feed-model.ts`, `feed-screen.ts`) leave refused-before-delivery and refunded sales out of the list and its total and say each on its own line; the « not a sale » count covers only rows that truly are not sales.
+- Strings (register money): `gains.locked_texte` « La commande est confirmée. Ce gain sera à vous dès que Séra confirmera la livraison. » · `gains.eligible_texte` « Livraison confirmée par Séra. Le versement n'est pas encore en place : ce gain vous attend. » · `gains.refusees_une` / `gains.refusees_n` · `gains.remboursees_une` / `gains.remboursees_n` · `ventes.refusees_plusieurs` / `ventes.remboursees_plusieurs` (« Mes ventes » paints its notices without a number, so more than one is said without the count). `gains.sans_obligation` unchanged.
+
+**Evidence (lane).** Seam on the real Worker (`services/storefront-service/test/gains-verite.e2e.test.ts`, read through her app's own `HttpResellerFeed` + `vueDesGains`, the ledger asked first): six roads green, the first four red on main — door payment refused with the fee kept, off Locked; delivered and validated, two obligations in the ledger, her line Eligible at that line's net; full prepay refused with the refund in flight, off Locked; refunded read and counted; validated then refused, readable and unreadable: obligations still two, no `refusee` on her row, Eligible, refused count 0. Screen walk on the mounted App (`apps/reseller-app/test/rendu-gains-verite.test.tsx`, three walks): each row where the server puts it; « Accueil » pressable and back to « Gains »; « Tout voir » opens « Mes ventes » with one « PAYÉE » chip, the refused and refunded lines said. Unit pins in `gains.test.ts` (states × delivered × refused; the reader takes every canon `ORDER_STATUSES` state and refuses an unknown one) and `accueil.test.ts`. Mutations, each anchor matched once, restored byte-identical: 15 red across both commits; dropping the `livraison_acceptee` clause survives by construction (the obligations clause implies it).
+
+**Evidence (coordinator, re-run on `4e7cf3b`).** Seam 6/6. Mutations, anchor matched once, red, restored byte-identical: the row's obligations clause removed → the validated-then-refused road red; the model's delivered-first rule removed → 4 red (home ×2, gains ×2). **Board of record** (`pnpm build`, then `run-gates.sh`, 105 gates): reseller-app 915/915 · storefront-service 951/951 · typecheck clean · copy-lint clean; red only on the two recorded baselines — `dependency-audit-positive` (the library warnings, their own slice) and `playwright-e2e` on the same two buyer fallback-font tests (`cliente.spec.ts:474`, `:909`) as the baseline board; 329 Playwright tests passed.
+
+**Verifier.** One fresh-context pass, handled once: 0 blocker · 2 major · 3 minor · 6 note. Fixed in `4e7cf3b` or recorded with the coordinator; not re-inspected.
+
+**Release order.** The storefront Worker is deployed first, from this branch, on the founder's word; then the merge publishes the reseller app. (An old app on the new Worker behaves as today; a new app on the old Worker would misread one short-lived case.)
+
+**Open, named.** The founder's Suivi count and the console Gains tab still count refused confirmed sales · « Mes ventes » says « Des ventes… » without the count (its notices are painted without numbers) · « Prêt à être versé » is lit, and its text says plainly that the payout is not in place yet.
+
+---
+
 ## 2026-11-26 · Wave 0 MERGED on the founder's « go » (RÈGLES-UNIFIÉES-1 · LOCK-LABELS-1)
 
 **Founder order (2026-11-26, 03:00 UTC).** « you can go » — on the Wave 0 report (RÈGLES-UNIFIÉES-1 in all five repositories; LOCK-LABELS-1 in Shop+, which also carried the 2026-10-02 journal commit `90e3653`).
