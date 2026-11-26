@@ -328,6 +328,11 @@ describe('REACHABILITY — a screen nobody mounts fails here (the C-ENT lesson)'
     // D2 — the Accueil card is no longer mounted, and nothing in the App walks into the hub.
     expect(app).not.toMatch(/<CercleAccueilCard/);
     expect(app).not.toMatch(/go\('cercle'\)/);
+    // …nor any other road: `toHub` sets the stack without the journey map, so
+    // neither it nor `go` may name any of the six closed screens.
+    for (const s of CERCLE_SCREENS) {
+      expect(app, `a road into the closed Cercle: ${s}`).not.toMatch(new RegExp(`\\b(?:go|toHub)\\(\\s*'${s}'`));
+    }
     // D3/D4/D5 — the deltas are mounted in their carrier screens.
     // VENTE-DETAIL-RETIRÉ (AUDIT-SHOP-2 F-42) — THE D3 DELTA LOST ITS CARRIER
     // TOO: the sale-detail screen that rendered « −camp » under the net hero

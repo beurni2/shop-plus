@@ -118,9 +118,10 @@ const navColor = (active: boolean): string => (active ? shopColour.deep : shared
  * left behind for a future screen to rediscover and trust. */
 
 /** The dock hubs — Accueil · Opportunités · Ma Vitrine · Gains · Profil
- * (CERCLE-PROFIL-1, founder order 2026-08-25: the Cercle tab is retired; the
- * hub now opens from the Profil screen's own row, and from the accueil card
- * as before). Tabs are waypoint resets, never journey edges. */
+ * (CERCLE-PROFIL-1, founder order 2026-08-25: the Cercle tab is retired;
+ * CERCLE-FERME-1, founder 2026-11-26: the Cercle hub has no door at all — its
+ * six screens stay mounted under the SP9 scoped override and no tab, row or
+ * card opens them). Tabs are waypoint resets, never journey edges. */
 const HUBS: readonly Screen[] = ['accueil', 'opportunites', 'vitrine', 'gains', 'profil'];
 
 /** Screens whose frame renders a big 28/800 title IN-CONTENT (planche) — the
@@ -5178,12 +5179,10 @@ function EcranProfil({ compte, profil, onRecharger, onInfos, onRayons, onMdp, on
       <Text style={styles.screenTitle}>{t('profil.titre')}</Text>
 
       {compte === null && (
-        <>
-          <Card style={styles.profilCarte}>
-            <Overline>{t('profil.sans_compte')}</Overline>
-            <Text style={styles.message}>{t('profil.sans_compte_texte')}</Text>
-          </Card>
-        </>
+        <Card style={styles.profilCarte}>
+          <Overline>{t('profil.sans_compte')}</Overline>
+          <Text style={styles.message}>{t('profil.sans_compte_texte')}</Text>
+        </Card>
       )}
 
       {compte !== null && compte !== undefined && (
