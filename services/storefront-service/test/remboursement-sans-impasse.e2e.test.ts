@@ -342,7 +342,7 @@ describe('no payout line for an order being refunded or whose door leg is not pa
     expect(`${v.status} ${v.text}`).toBe('409 {"ok":false,"reason":"eligibility_after_refund"}');
     expect(await lignesDe(orderId), 'no payout line').toEqual([]);
     expect((await auditDe(orderId)).inputCount, 'the refused input is never logged').toBe(avant);
-    expect(((await vueDe(orderId))['suivi'] as Record<string, unknown>)['livree']).toBe(false);
+    expect((await vueDe(orderId))['livree'], 'her tracking does not say delivered').toBe(false);
     expect(await alertesDe(orderId, 'eligibility_after_refund')).toHaveLength(1);
 
     const encore = await sera(valide(orderId));
@@ -363,6 +363,23 @@ describe('no payout line for an order being refunded or whose door leg is not pa
     expect((await auditDe(orderId)).remboursement).toMatchObject({ decision: 'livraison_acceptee', lignes: [] });
     const avant = (await auditDe(orderId)).inputCount;
 
+    const frais = await sera(valide(orderId, `eligibility-${orderId}-fresh`));
+    expect(`${frais.status} ${frais.text}`).toBe('200 {"ok":true,"status":"duplicate"}');
+    expect(await lignesDe(orderId)).toHaveLength(2);
+    expect((await auditDe(orderId)).inputCount).toBe(avant);
+    expect(await alertesDe(orderId, 'eligibility_after_refund')).toEqual([]);
+  }, 60_000);
+
+  it('R4c — delivered first, then a garbled refusal, then Séra redelivers « delivered » (same id and fresh id): the redelivery answers as before, no refusal alert', async () => {
+    const orderId = await commandePayee('0007');
+    const v = await sera(valide(orderId));
+    expect(`${v.status} ${v.text}`).toBe('200 {"ok":true,"status":"recorded","obligations":2}');
+    expect((await sera(refusIllisible(orderId))).status).toBe(200);
+    expect((await auditDe(orderId)).remboursement).toMatchObject({ decision: 'refus_illisible', lignes: [] });
+    const avant = (await auditDe(orderId)).inputCount;
+
+    const meme = await sera(valide(orderId));
+    expect(`${meme.status} ${meme.text}`).toBe('200 {"ok":true,"status":"duplicate"}');
     const frais = await sera(valide(orderId, `eligibility-${orderId}-fresh`));
     expect(`${frais.status} ${frais.text}`).toBe('200 {"ok":true,"status":"duplicate"}');
     expect(await lignesDe(orderId)).toHaveLength(2);

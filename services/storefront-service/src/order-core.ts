@@ -735,7 +735,11 @@ export function applyOrderInput(spine: OrderSpine, input: OrderInput): ApplyOutc
       const outcome = spine.onEligibilityEvent(input.event);
       return outcome.applied
         ? { applied: true, duplicate: outcome.duplicate }
-        : { applied: false, reason: outcome.reason };
+        : {
+            applied: false,
+            reason: outcome.reason,
+            ...(outcome.alert !== undefined ? { alert: outcome.alert } : {}),
+          };
     }
     /**
      * SP4.2a — THE DOOR LEG. The vault does every check that matters and this

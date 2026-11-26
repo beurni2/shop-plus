@@ -1581,6 +1581,8 @@ export class OrderDO {
       const input: OrderInput = { kind: 'eligibility', event };
       const outcome = applyOrderInput(spine, input);
       if (!outcome.applied) {
+        // A funded leg missing is told to the operator before Séra hears 409.
+        if (outcome.alert !== undefined) await this.sinkReconAlerts([outcome.alert]);
         return Response.json({ ok: false, reason: outcome.reason }, { status: 409 });
       }
       if (outcome.duplicate) {
@@ -1611,6 +1613,27 @@ export class OrderDO {
         // VITRINE-VRAIE-1 — and a delivered mark the first signal failed to leave.
         await this.marquerLivree(quote.attributionResellerId, origin.orderId);
         return Response.json({ ok: true, status: 'duplicate' });
+      }
+      // No payout line for an order being refunded (§6.3: a refund exists only
+      // before acceptance). After the duplicate branch, so a redelivery for an
+      // order delivered first and refused after still answers as before; the
+      // refusal rows count alone only in the gap before the refund record is
+      // written. Safest default: canon does not say which fact wins when
+      // « delivered » follows a refusal, so none is written. Séra retries a
+      // 409 hourly; the alert stays one per order.
+      const remboursementNote = await this.state.storage.get<RemboursementStocke>(REFUND_KEY);
+      if (
+        remboursementNote !== undefined
+          ? remboursementNote.decision !== 'livraison_acceptee'
+          : (await this.state.storage.get(BOUTIK_REFUSED_KEY)) !== undefined ||
+            (await this.state.storage.get(FOURNISSEUR_REFUS_KEY)) !== undefined
+      ) {
+        await this.sinkReconAlerts([
+          spine.alerteEligibilite('eligibility_after_refund', PlatformEventSchema.parse(event), {
+            refund_decision: remboursementNote?.decision ?? null,
+          }),
+        ]);
+        return Response.json({ ok: false, reason: 'eligibility_after_refund' }, { status: 409 });
       }
       // BOUTIK-SUIVI — the supplier's « Livré et terminé » screen is fed from
       // HERE, in the same atomic batch as the log: a delivery this object

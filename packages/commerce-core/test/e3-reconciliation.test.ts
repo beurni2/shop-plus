@@ -295,6 +295,25 @@ describe('E3 — reconcileOrder: the pass compares the records and names every d
     expect(reconcileOrder(truth, { serverTime: LATER(5) })).toEqual([]);
   });
 
+  it('PAYOUT LINES while the door leg is still due are named', () => {
+    const { spine, quote } = confirmedSpine('pl1', 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR');
+    const truth = spine.reconciliationSnapshot();
+    expect(truth.doorLeg).toBe('due');
+    const lines = spine.ledger.recordObligationsOnEligibility('ord-pl1', quote, 'supplier-1').obligations;
+    const doorDue: ReconciliationSnapshot = { ...truth, obligations: lines };
+    expect(scenariosOf(reconcileOrder(doorDue, { serverTime: LATER(5) }))).toEqual(['obligations_while_door_leg_due']);
+  });
+
+  it('PAYOUT LINES on a refunded order are named; the same lines on the clean delivered order stay []', () => {
+    const { spine, quote } = confirmedSpine('pl2');
+    const lines = spine.ledger.recordObligationsOnEligibility('ord-pl2', quote, 'supplier-1').obligations;
+    const delivered = spine.reconciliationSnapshot();
+    expect(delivered.obligations).toEqual(lines);
+    expect(reconcileOrder(delivered, { serverTime: LATER(5) })).toEqual([]);
+    const refunded: ReconciliationSnapshot = { ...delivered, state: 'refunded' };
+    expect(scenariosOf(reconcileOrder(refunded, { serverTime: LATER(5) }))).toEqual(['obligations_on_refunded_order']);
+  });
+
   it('OBLIGATIONS diverging from the immutable Quote are named — amounts and parties are COPIES, and a wrong copy is an alert', () => {
     const { spine, quote } = confirmedSpine('ob1');
     const truth = spine.reconciliationSnapshot();
