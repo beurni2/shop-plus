@@ -1487,7 +1487,7 @@ export class OrderSpine {
    * SettlementObligations copied from the Quote (step 14). Idempotent;
    * refuses closed before confirmation.
    */
-  onEligibilityEvent(raw: unknown): SpineOutcome {
+  onEligibilityEvent(raw: unknown, opts?: { readonly fromLog?: boolean }): SpineOutcome {
     const parsed = PlatformEventSchema.safeParse(raw);
     if (!parsed.success) return { applied: false, reason: 'not_a_platform_event' };
     const event = parsed.data;
@@ -1506,7 +1506,9 @@ export class OrderSpine {
     // SP-I13 / §6.3 — a pay-at-door order is `confirmed` on its delivery fee
     // alone; the product is paid at the door. Until the provider confirmed that
     // leg there is nothing to pay the supplier and the reseller from.
-    if (this.quote.paymentMode === 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR' && this.doorLeg !== 'paid') {
+    // A logged input was admitted under the rules of its day: replay re-applies
+    // it and never re-judges it, or a rebuild would silently drop written lines.
+    if (opts?.fromLog !== true && this.quote.paymentMode === 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR' && this.doorLeg !== 'paid') {
       return {
         applied: false,
         reason: 'eligibility_before_funded_legs',
