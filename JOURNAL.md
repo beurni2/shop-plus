@@ -1,6 +1,55 @@
 # JOURNAL — shop-plus
 Continuity ledger per CTO charter §6/§6bis. Every entry is evidence-grounded.
 
+## 2026-11-26 · QUOTE-NET-VENDEUR-1 — no quote when the commission leaves the seller nothing · lane P5 · on the branch, NOT merged, NOT deployed
+
+**Founder.** « Start batch 1 » (2026-11-26 22:03 UTC, decision card), on the fix plan he asked for.
+
+**Spec.**
+- SP-I12 (Shop spec l.52): « Checkout MUST use the canonical waterfall (§5.4) ».
+- §5.4 (l.95): « sellerNet = B − C − sellerPlatformFee ».
+- B+I-12 (Boutik spec l.56), zero deposit, as Boutik+ `offer.ts` applies it when it creates an offer: a commission that leaves the seller nothing (or less) would make him pay to sell.
+- The fee is canon's: `computeWaterfall` has charged 0 % since FRAIS-ZERO-1 (2026-08-25). The check calls canon, so it follows canon's fee and names no rate.
+
+**Built.** Lane P5 built `10a0f59`, then `db35ad8` from the one review below. Both were merged here `--no-ff` (`3c65c1e`, `32d999e`).
+
+**What changed.**
+- **`services/storefront-service/src/checkout-core.ts`.** In `decideIssueQuote`, inside its existing `try` and before the vault, the four stored amounts go once through canon's `computeWaterfall`. When its `sellerNet` is 0 or less, the quote is refused with the existing `stored_amounts_incoherent`. Otherwise the same four amounts go on to `issueQuoteFrom` as before.
+  - It is the one issuer: gifts and packages go through it; group payment and order start only read stored quotes.
+  - Inside the `try`, a throw from canon still becomes `quote_not_issuable`, never a 500.
+  - The payment mode cannot move the seller net, so the check reads it once, before the vault decides the mode.
+  - Three comments the change made false were rewritten: the file's money law, the note on why `stored_amounts_incoherent` exists, and the numbered order of checks (a new step 6, before the vault, so it outranks the kill switch, the mode and the door gate).
+- No new name, no new string, no second formula, no screen change. The buyer gets the existing sentence for that refusal (« Nous ne pouvons pas afficher le prix. »).
+- Every amount a quote above the floor carries is unchanged: the §5.4 baseline and the one-franc case are pinned to main's bytes.
+
+**Tests.**
+- `checkout-core.test.ts`: refusals at C = B and C > B; the one-franc case quotes; the baseline byte-identical; the refusal wins over a killed checkout.
+- `quote-net-vendeur.e2e.test.ts`, on the real combined Worker (Miniflare). A stand-in Boutik+ producer serves a projection with C ≥ B; its label says Boutik+ never sends that for an offer created today, though an older stored offer may carry it. For B 1 000 with C 1 500, and for C = B:
+  - publish is accepted, the quote is refused by name;
+  - the Worker's records hold no quote;
+  - reserve answers 404 `not_found`, and the quote object's own reservation record reads `none`;
+  - order answers 404 `quote_unknown`, and no order object exists.
+  - The control (C 999) quotes, its stored quote leaves the seller exactly 1 franc, it reserves (200), and the same reservation record then reads `reserved`, so `none` above is a real answer.
+- Red first: 5 failed on main's code. The review's stronger record assertions were green on arrival, since the behaviour did not change; they now ask the record, not only the answer.
+
+**Mutations** (anchor matched once in `checkout-core.ts`, bundle rebuilt, file restored byte-identical):
+- `<= 0` made `< 0`: red, 2 (C = B, unit and real Worker).
+- The check removed: red, 5.
+- The check moved after the vault, with the vault deciding first: red, 1 (`checkout_killed` instead of `stored_amounts_incoherent`). An unconditional check after the pure issuer was an equivalent mutant and is reported, not dropped.
+- Re-run here on `32d999e`, the check made unreachable: red, 2 (`expected 200 to be 422` on both refused cases), control green.
+
+**Board** on `32d999e`, after `pnpm build`: every gate green except the two known font reds (`cliente.spec.ts` :474 and :909, which fail only where sans-serif is Inter); storefront-service 980 passed, buyer-pwa 1 557, reseller-app 917, commerce-core 217, buyer Playwright 329 passed.
+
+**The one independent review:** 0 blockers, 0 major, 2 minor, 7 notes, handled once.
+- Fixed: the refused reserve and order pinned by status and reason, and the reservation asked of its own record; three comments made true; the stand-in's label made exact.
+- Journalled: for this refusal the buyer's only button is « Réessayer », which cannot succeed because the stored B and C do not change, and in a basket the refusal does not name the article to remove. Publishing still accepts such a listing, so a reseller can share a link that can never sell. The rule follows canon's fee, so a future non-zero seller fee would make listings with a small B − C unsellable here while Boutik+ still sends them, with nobody told.
+
+The slice was not re-inspected after the fixes.
+
+**Release.** `storefront-deploy` from the branch, then merge. Other open items for this slice are held in the private batch record until its fix deploys.
+
+---
+
 ## 2026-11-26 · CERCLE-FERME-1 — MERGED
 
 **Founder.** « Release all three » (2026-11-26 21:17 UTC, decision card), which named for Shop+: merge; merging publishes the reseller app by itself.
