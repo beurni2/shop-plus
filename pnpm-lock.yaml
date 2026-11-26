@@ -1586,11 +1586,11 @@ packages:
 
   '@platform/certification@https://codeload.github.com/beurni2/platform-contracts/tar.gz/d6f3882c1529b8cf40c09aafab629cd6f2eab565#path:packages/certification':
     resolution: {path: packages/certification, tarball: https://codeload.github.com/beurni2/platform-contracts/tar.gz/d6f3882c1529b8cf40c09aafab629cd6f2eab565}
-    version: 3.25.0
+    version: 3.27.0
 
   '@platform/contracts@https://codeload.github.com/beurni2/platform-contracts/tar.gz/d6f3882c1529b8cf40c09aafab629cd6f2eab565#path:packages/contracts':
     resolution: {path: packages/contracts, tarball: https://codeload.github.com/beurni2/platform-contracts/tar.gz/d6f3882c1529b8cf40c09aafab629cd6f2eab565}
-    version: 3.25.0
+    version: 3.27.0
     hasBin: true
 
   '@platform/i18n@https://codeload.github.com/beurni2/platform-contracts/tar.gz/cfff2c58e6327b41f5e9a73329b9edb1f5a9c6b7#path:packages/i18n':
@@ -1600,7 +1600,7 @@ packages:
 
   '@platform/kernel-types@https://codeload.github.com/beurni2/platform-contracts/tar.gz/d6f3882c1529b8cf40c09aafab629cd6f2eab565#path:packages/kernel-types':
     resolution: {path: packages/kernel-types, tarball: https://codeload.github.com/beurni2/platform-contracts/tar.gz/d6f3882c1529b8cf40c09aafab629cd6f2eab565}
-    version: 3.25.0
+    version: 3.27.0
 
   '@platform/recorded-answers@https://codeload.github.com/beurni2/platform-contracts/tar.gz/e2e1584bd9fc3645ccdb08897c3f30d01ac4df6f#path:packages/recorded-answers':
     resolution: {path: packages/recorded-answers, tarball: https://codeload.github.com/beurni2/platform-contracts/tar.gz/e2e1584bd9fc3645ccdb08897c3f30d01ac4df6f}
