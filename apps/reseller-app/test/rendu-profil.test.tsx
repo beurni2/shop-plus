@@ -694,7 +694,7 @@ describe('CERCLE-FERME-1 — the demo Cercle opens from no row on her page (foun
     expect(await balayer(surProfil(true, { profilMort: true })), 'dead wire').toEqual([]);
     expect(await balayer(surProfil(true, { profilCoupe: true })), 'pause').toEqual([]);
     expect(await balayer(surProfil(false)), 'no compte').toEqual([]);
-  });
+  }, 60_000); // four sweeps, each a fresh full-app mount per control: three times the house budget for one full-app walk (rendu-file-attente)
 });
 
 describe('RAYONS-HERITES-1 — an id-era rayon on her account is ONE chip, ticked; her next save writes the label', () => {

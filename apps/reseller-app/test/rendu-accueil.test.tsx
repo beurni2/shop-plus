@@ -394,7 +394,7 @@ describe('ACCUEIL-PRO — the first screen carries real bytes or honest silence'
       return surAccueil(routes);
     });
     expect(sansCompte, 'these home controls open the demo Cercle hub (no account)').toEqual([]);
-  });
+  }, 20_000); // a fresh full-app mount per control — the house budget for a full-app walk (rendu-file-attente)
 
   it('BADGE-FIABLE — one failed launch read must not hide the vérifié mark all session', async () => {
     /**

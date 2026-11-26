@@ -55,6 +55,8 @@ Continuity ledger per CTO charter §6/§6bis. Every entry is evidence-grounded.
 
 The slice was not re-inspected after the fixes.
 
+**CI on the pull request.** The first run went red: the new Profil sweep (four sweeps, a fresh full-app mount per control, 1.9 s here) ran past the 5 s default on GitHub's runner, and the work it left running broke three later tests in the same file. Both sweeps now carry an explicit budget, as the app's other full-app walks do: 60 s for the Profil sweep, 20 s for the home sweep (the house budget in `rendu-file-attente`). No assertion changed. Reseller app 917/917 and `tsc` 0 again.
+
 **Release.** No Worker deploy. Merging publishes the reseller app through `expo-preview.yml` (`pwa-preview.yml` publishes the buyer site). This corrects the brief, which named both.
 
 **Still open.** The `useCercle` controller still starts on every mount with the demo seed in memory, and nothing reachable renders it (kept for SP9).
