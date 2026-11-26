@@ -18,7 +18,7 @@
  *
  * No total. No « solde ». No payout claim, no payout date, and no action —
  * because Ten Laws #2 and the plan's own rule against any cash-out mean there
- * is nothing on this screen to act on. Six of the eight rungs cannot be reached by
+ * is nothing on this screen to act on. Five of the eight rungs cannot be reached by
  * any input (see `gains-model.ts`), and they render QUIET AND LABELLED rather
  * than as empty buckets — « pas encore » with a sentence saying what has to
  * happen, never a zero that reads as « you have earned nothing ».
@@ -37,7 +37,7 @@ export interface PalierLigne {
   readonly compteKey: string;
   /** Substitution for `compteKey` when it carries `{n}`; absent otherwise. */
   readonly compteN?: string;
-  /** TRUE for the six rungs no fact can reach yet — the screen dims these and
+  /** TRUE for the rungs no fact can reach yet — the screen dims these and
    *  shows `gains.etape_absente` instead of a franc figure. */
   readonly enSommeil: boolean;
 }
@@ -171,6 +171,15 @@ export function ecranDesGains(vue: GainsVue): GainsEcran {
       if (vue.sansObligation > 0) {
         noticeKeys.push('gains.sans_obligation');
         noticeParams['gains.sans_obligation'] = { n: String(vue.sansObligation) };
+      }
+      // A sale that ended before delivery is on no rung; it is SAID, never dropped.
+      if (vue.refusees > 0) {
+        noticeKeys.push('gains.refusees');
+        noticeParams['gains.refusees'] = { n: String(vue.refusees) };
+      }
+      if (vue.remboursees > 0) {
+        noticeKeys.push('gains.remboursees');
+        noticeParams['gains.remboursees'] = { n: String(vue.remboursees) };
       }
       // ALWAYS LAST, ALWAYS PRESENT: the sentence that keeps this screen from
       // reading as an account. It is not a notice about a problem — it is the

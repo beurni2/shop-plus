@@ -2707,7 +2707,7 @@
  },
  {
   "key": "gains.locked_texte",
-  "fr": "Le paiement est confirmé. Ce montant est à vous et ne bouge plus.",
+  "fr": "La commande est confirmée. Ce gain sera à vous dès que Séra confirme la livraison.",
   "register": "money",
   "screenClass": "status"
  },
@@ -2864,6 +2864,18 @@
  {
   "key": "gains.sans_obligation",
   "fr": "{n} commande(s) sans paiement confirmé. Elles ne comptent pas ici.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "gains.refusees",
+  "fr": "{n} vente(s) arrêtée(s) avant la livraison : pas de gain sur ces ventes.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "gains.remboursees",
+  "fr": "{n} vente(s) remboursée(s) à la cliente : pas de gain sur ces ventes.",
   "register": "money",
   "screenClass": "status"
  },
