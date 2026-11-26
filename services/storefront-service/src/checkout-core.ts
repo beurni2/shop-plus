@@ -1,4 +1,4 @@
-import { QuoteSchema, type DeliveryFeeQuote, type Quote } from '@platform/contracts';
+import { QuoteSchema, computeWaterfall, type DeliveryFeeQuote, type Quote } from '@platform/contracts';
 import {
   ELIGIBILITE_SANS_HISTORIQUE,
   ImmutableQuoteStore,
@@ -368,12 +368,16 @@ export function decideIssueQuote(deps: CheckoutDeps, input: IssueQuoteInput): Is
   // value, never retries, never repairs. A quote that could not be issued does
   // not exist.
   try {
-    return issueQuoteFrom(deps, entry, request, {
-      sellerBasePrice,
-      sellerFundedCommission,
-      resellerMarkup,
-      deliveryFee,
-    }, input.supply);
+    // A commission that leaves the seller nothing makes him pay to sell
+    // (B+I-12). Refused when the canon waterfall's own seller net is ≤ 0, so
+    // the rule follows canon's fee, whatever it is; Boutik+ refuses the same
+    // offer by the same arithmetic. The mode cannot move the seller net; the
+    // vault still decides the mode below.
+    const amounts = { sellerBasePrice, sellerFundedCommission, resellerMarkup, deliveryFee };
+    if (computeWaterfall({ ...amounts, paymentMode: 'FULL_PREPAY' }).sellerNet <= 0) {
+      return { ok: false, reason: 'stored_amounts_incoherent' };
+    }
+    return issueQuoteFrom(deps, entry, request, amounts, input.supply);
   } catch {
     return { ok: false, reason: 'quote_not_issuable' };
   }
