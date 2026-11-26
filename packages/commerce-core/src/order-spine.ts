@@ -114,7 +114,14 @@ export type SpineRefusalReason =
   | 'no_escrow_for_refund'
   | 'refund_leg_unknown'
   | 'refund_exceeds_leg'
-  | 'conflicting_refund';
+  | 'conflicting_refund'
+  /**
+   * Séra's validated delivery on a pay-at-door order whose door leg the
+   * provider has not confirmed: SP-I13's funded legs are not all there, so no
+   * payout line may be written. Internal, never canon; not consumed, so the
+   * same event is accepted once the door payment is confirmed.
+   */
+  | 'eligibility_before_funded_legs';
 
 export type SpineOutcome =
   | { applied: true; duplicate: boolean }
@@ -1377,7 +1384,7 @@ export class OrderSpine {
    * provider truth contradicting local knowledge. Deterministic per causing
    * webhook (`recon-whk-${its command_id}`), so a redelivered refusal re-mints
    * the SAME alert and the durable sink dedupes instead of counting. The
-   * `whk`/`door`/`pass` namespaces are mutually non-prefixing ON PURPOSE
+   * `whk`/`door`/`pass`/`elig` namespaces are mutually non-prefixing ON PURPOSE
    * (verifier MINOR): the causing command_id is attacker-influenced, and a
    * crafted one must never be able to occupy ANOTHER class's dedupe key. Every
    * figure in the payload is COPIED (Ten Laws #1/#2) — from the webhook, the
@@ -1422,6 +1429,36 @@ export class OrderSpine {
     };
   }
 
+  /**
+   * A delivery Séra validated that this order may not turn into payout lines
+   * (its refund or refusal is on record, or a funded leg is missing). One alert
+   * per order and scenario, whatever id Séra's retries carry, in its own
+   * `recon-elig-` namespace; the causing event's id is copied, not keyed on.
+   */
+  alerteEligibilite(
+    scenario: 'eligibility_after_refund' | 'eligibility_before_funded_legs',
+    cause: PlatformEvent,
+    extra: Record<string, unknown>,
+  ): PlatformEvent {
+    return PlatformEventSchema.parse({
+      name: 'reconciliation.alert.v1',
+      envelope: {
+        command_id: `recon-elig-${scenario}-${this.orderId ?? this.journeyState.correlationId}`,
+        correlation_id: this.journeyState.correlationId,
+        aggregateVersion: this.journeyState.aggregateVersion,
+        actor: 'commerce-core:ops',
+        serverTime: cause.envelope.serverTime,
+        version: '1',
+      },
+      payload: {
+        ...this.journeyState.chain,
+        alert: scenario,
+        provider_command_id: cause.envelope.command_id,
+        ...extra,
+      },
+    });
+  }
+
   /** Contract §6 alert: provider door truth contradicting local state. */
   private doorMismatchAlert(event: PlatformEvent): PlatformEvent {
     return PlatformEventSchema.parse({
@@ -1450,7 +1487,7 @@ export class OrderSpine {
    * SettlementObligations copied from the Quote (step 14). Idempotent;
    * refuses closed before confirmation.
    */
-  onEligibilityEvent(raw: unknown): SpineOutcome {
+  onEligibilityEvent(raw: unknown, opts?: { readonly fromLog?: boolean }): SpineOutcome {
     const parsed = PlatformEventSchema.safeParse(raw);
     if (!parsed.success) return { applied: false, reason: 'not_a_platform_event' };
     const event = parsed.data;
@@ -1465,6 +1502,21 @@ export class OrderSpine {
     }
     if (this.journeyState.state !== 'confirmed' || this.orderId === undefined) {
       return { applied: false, reason: 'out_of_order' };
+    }
+    // SP-I13 / §6.3 — a pay-at-door order is `confirmed` on its delivery fee
+    // alone; the product is paid at the door. Until the provider confirmed that
+    // leg there is nothing to pay the supplier and the reseller from.
+    // A logged input was admitted under the rules of its day: replay re-applies
+    // it and never re-judges it, or a rebuild would silently drop written lines.
+    if (opts?.fromLog !== true && this.quote.paymentMode === 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR' && this.doorLeg !== 'paid') {
+      return {
+        applied: false,
+        reason: 'eligibility_before_funded_legs',
+        alert: this.alerteEligibilite('eligibility_before_funded_legs', event, {
+          local_door_leg: this.doorLeg,
+          payment_mode: this.quote.paymentMode,
+        }),
+      };
     }
     // SE-LIVE-5b — THE SIGNAL CARRIES THE SUPPLIER, exactly as OrderOrigin's
     // own comment demanded when it left `supplierRef` empty: the storefront

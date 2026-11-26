@@ -1581,6 +1581,8 @@ export class OrderDO {
       const input: OrderInput = { kind: 'eligibility', event };
       const outcome = applyOrderInput(spine, input);
       if (!outcome.applied) {
+        // A funded leg missing is told to the operator before Séra hears 409.
+        if (outcome.alert !== undefined) await this.sinkReconAlerts([outcome.alert]);
         return Response.json({ ok: false, reason: outcome.reason }, { status: 409 });
       }
       if (outcome.duplicate) {
@@ -1611,6 +1613,27 @@ export class OrderDO {
         // VITRINE-VRAIE-1 — and a delivered mark the first signal failed to leave.
         await this.marquerLivree(quote.attributionResellerId, origin.orderId);
         return Response.json({ ok: true, status: 'duplicate' });
+      }
+      // No payout line for an order being refunded (§6.3: a refund exists only
+      // before acceptance). After the duplicate branch, so a redelivery for an
+      // order delivered first and refused after still answers as before; the
+      // refusal rows count alone only in the gap before the refund record is
+      // written. Safest default: canon does not say which fact wins when
+      // « delivered » follows a refusal, so none is written. Séra retries a
+      // 409 hourly; the alert stays one per order.
+      const remboursementNote = await this.state.storage.get<RemboursementStocke>(REFUND_KEY);
+      if (
+        remboursementNote !== undefined
+          ? remboursementNote.decision !== 'livraison_acceptee'
+          : (await this.state.storage.get(BOUTIK_REFUSED_KEY)) !== undefined ||
+            (await this.state.storage.get(FOURNISSEUR_REFUS_KEY)) !== undefined
+      ) {
+        await this.sinkReconAlerts([
+          spine.alerteEligibilite('eligibility_after_refund', PlatformEventSchema.parse(event), {
+            refund_decision: remboursementNote?.decision ?? null,
+          }),
+        ]);
+        return Response.json({ ok: false, reason: 'eligibility_after_refund' }, { status: 409 });
       }
       // BOUTIK-SUIVI — the supplier's « Livré et terminé » screen is fed from
       // HERE, in the same atomic batch as the log: a delivery this object
@@ -4706,9 +4729,20 @@ export class OrderDO {
    * REMBOURSEMENT-2 — the ONE opening, whatever ended the order: Séra's
    * refused course or the supplier's refusal. First-wins across both: an
    * order is refunded once.
+   *
+   * A record that decided nothing — an unreadable fact, or an order not yet
+   * paid — holds no line and no key, so it is not a refund: the next READABLE
+   * refusal decides in its place, or she would wait for ever on a fact nobody
+   * can read. A record with a decision (`ouvert`, `livraison_acceptee`) stays.
    */
   private async ouvrirRemboursementAvec(refus: RefusCourse | undefined, source: string | null): Promise<void> {
-    if ((await this.state.storage.get(REFUND_KEY)) !== undefined) return;
+    const existant = await this.state.storage.get<RemboursementStocke>(REFUND_KEY);
+    if (
+      existant !== undefined &&
+      !(refus !== undefined && (existant.decision === 'refus_illisible' || existant.decision === 'pas_paye'))
+    ) {
+      return;
+    }
     const origin = await this.state.storage.get<StoredOrigin>(ORIGIN_KEY);
     const quote = origin === undefined ? undefined : parseStoredQuote(origin.quoteBytes);
     if (origin === undefined || quote === undefined) return;
@@ -4739,6 +4773,12 @@ export class OrderDO {
       lignes: plan.lignes.map((l) => ({ ...l, refundKey: mintRefundKey(), etat: 'a_demander', essais: 0 })),
     };
     await this.state.storage.put(REFUND_KEY, record);
+    // A re-decided refund arrives on a redelivery branch, which re-arms only an
+    // order with no alarm at all; an alarm booked later for another wire would
+    // leave these new lines unasked until it fires.
+    if (existant !== undefined && record.lignes.length > 0) {
+      await this.state.storage.setAlarm(Date.now()).catch(() => undefined);
+    }
   }
 
   /**

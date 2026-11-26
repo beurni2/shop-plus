@@ -127,13 +127,24 @@ export function reconcileOrder(
     });
   }
 
-  // §5.6: obligations exist only for a confirmed order (refunded keeps its
-  // history — the E3 refund saga owns reversal), exactly two, each a faithful
-  // COPY of the Quote's nets to a non-empty payee (audit G1's law).
+  // §5.6: obligations exist only for a confirmed order, exactly two, each a
+  // faithful COPY of the Quote's nets to a non-empty payee (audit G1's law).
+  // A refund happens only before acceptance (§6.3 finality), so payout lines on
+  // a refunded order, or before the door leg is paid (SP-I13), are divergences
+  // in their own name — never reversed here, only named.
   if (snapshot.obligations.length > 0) {
-    if (snapshot.state !== 'confirmed' && snapshot.state !== 'refunded') {
+    if (snapshot.state === 'refunded') {
+      mint('obligations_on_refunded_order', anchor, {
+        obligation_parties: snapshot.obligations.map((o) => o.party),
+      });
+    } else if (snapshot.state !== 'confirmed') {
       mint('obligations_without_confirmed_order', anchor, {
         obligation_parties: snapshot.obligations.map((o) => o.party),
+      });
+    }
+    if (snapshot.doorLeg === 'due') {
+      mint('obligations_while_door_leg_due', anchor, {
+        expected_amount: snapshot.quote.amountDueAtDelivery,
       });
     }
     const supplierOk = snapshot.obligations.some(

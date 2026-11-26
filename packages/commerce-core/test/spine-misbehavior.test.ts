@@ -19,6 +19,21 @@ import {
 
 const T = '2026-07-09T12:00:00.000Z';
 
+/** §6.1 gate context so a door-mode quote is issuable at all (e3-reconciliation's pattern). */
+const DOOR_GATE = {
+  eligibility: { buyerRef: 'buyer-spine-1', state: 'allowed', buyerRefusalCount: 0, buyerRiskState: 'normal', requiredDeposit: 0 },
+  sellerTier: 'verified',
+  category: 'fashion_bags_fabrics',
+  zoneTo: 'ouaga-centre',
+  policy: {
+    version: 'option-b-policy.v0-conservative+test-zone',
+    priceCapFcfa: 25_000,
+    minSellerTier: 'verified',
+    inspectableCategories: ['fashion_bags_fabrics', 'shoes', 'sealed_beauty_cosmetics'],
+    networkReliableZones: ['ouaga-centre'],
+  },
+};
+
 function issuedQuote(): Quote {
   const outcome = issueQuote(
     { flags: EMPTY_SNAPSHOT, now: () => new Date(T), newId: () => 'q-spine' },
@@ -327,6 +342,42 @@ describe('§3 misbehavior — Séra eligibility mock vs the spine', () => {
     spine.confirmOrder({ command_id: 'c-confirm', actor: 'a', serverTime: T });
     expect(spine.onEligibilityEvent(plan[0]!.event)).toEqual({ applied: true, duplicate: false });
     expect(spine.ledger.obligationsFor('ord-1')).toHaveLength(2);
+  });
+
+  it('PAY AT THE DOOR, door leg still due: eligibility refuses by name with an alert and writes nothing; after a valid door payment the SAME event is accepted', () => {
+    const outcome = issueQuote(
+      { flags: EMPTY_SNAPSHOT, now: () => new Date(T), newId: () => 'q-spine-door' },
+      {
+        listingRef: 'l1', offerRef: 'o1', attributionResellerId: 'reseller-9', ...WORKED_BASELINE_INPUT,
+        paymentMode: 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR', payAtDoor: DOOR_GATE, nowIso: T,
+      },
+    );
+    if (!outcome.ok || outcome.quote.paymentMode !== 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR') throw new Error('setup: door quote');
+    const quote = outcome.quote;
+    const spine = confirmedSpine(quote);
+    expect(spine.doorLegState).toBe('due');
+    const { plan } = validatedPlan({});
+    const event = { ...plan[0]!.event, payload: { ...(plan[0]!.event.payload as object), supplier_ref: 'supplier-1' } };
+
+    const refused = spine.onEligibilityEvent(event as never);
+    expect(refused).toMatchObject({ applied: false, reason: 'eligibility_before_funded_legs' });
+    const alert = (refused as { alert?: { name: string; envelope: { command_id: string }; payload: Record<string, unknown> } }).alert;
+    expect(alert?.name).toBe('reconciliation.alert.v1');
+    expect(alert?.envelope.command_id).toBe('recon-elig-eligibility_before_funded_legs-ord-1');
+    expect(alert?.payload).toMatchObject({ alert: 'eligibility_before_funded_legs', local_door_leg: 'due' });
+    expect(spine.ledger.obligationsFor('ord-1')).toHaveLength(0);
+
+    const door = new MockPaymentProvider({});
+    door.initiateCharge({ orderId: 'ord-1', paymentAttemptId: 'door-att-1', amount: quote.amountDueAtDelivery, correlationId: 'corr-spine', requestedAtIso: T, legType: 'door' });
+    const doorEvent = door.webhookDeliveryPlan().find((d) => d.event.name === 'payment.door_leg_confirmed.v1')!.event;
+    expect(spine.onProviderDoorPaymentEvent(doorEvent).applied).toBe(true);
+    expect(spine.doorLegState).toBe('paid');
+
+    expect(spine.onEligibilityEvent(event as never)).toEqual({ applied: true, duplicate: false });
+    const obligations = spine.ledger.obligationsFor('ord-1');
+    expect(obligations).toHaveLength(2);
+    expect(obligations.find((o) => o.party.startsWith('supplier:'))!.amount).toBe(quote.sellerNet);
+    expect(obligations.find((o) => o.party.startsWith('reseller:'))!.amount).toBe(quote.resellerNet);
   });
 
   it('DELAYED: the plan carries the delay; obligations exist only after delivery', () => {

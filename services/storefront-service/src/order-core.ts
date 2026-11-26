@@ -650,7 +650,7 @@ export function rebuildOrderSpine(
     actor: origin.actor,
     serverTime: origin.createdAt,
   });
-  for (const input of inputs) applyOrderInput(spine, input);
+  for (const input of inputs) applyOrderInput(spine, input, { fromLog: true });
   return spine;
 }
 
@@ -671,7 +671,12 @@ export type ApplyOutcome =
  * ONE INPUT → THE VAULT'S OWN VERDICT, normalised. Not one rule lives here: every
  * branch delegates, and the refusal name that comes back is the vault's.
  */
-export function applyOrderInput(spine: OrderSpine, input: OrderInput): ApplyOutcome {
+export function applyOrderInput(
+  spine: OrderSpine,
+  input: OrderInput,
+  /** Set only by `rebuildOrderSpine`: the input was admitted when it was logged. */
+  opts?: { readonly fromLog?: boolean },
+): ApplyOutcome {
   switch (input.kind) {
     case 'advance': {
       const outcome = spine.advance({
@@ -732,10 +737,14 @@ export function applyOrderInput(spine: OrderSpine, input: OrderInput): ApplyOutc
           };
     }
     case 'eligibility': {
-      const outcome = spine.onEligibilityEvent(input.event);
+      const outcome = spine.onEligibilityEvent(input.event, opts);
       return outcome.applied
         ? { applied: true, duplicate: outcome.duplicate }
-        : { applied: false, reason: outcome.reason };
+        : {
+            applied: false,
+            reason: outcome.reason,
+            ...(outcome.alert !== undefined ? { alert: outcome.alert } : {}),
+          };
     }
     /**
      * SP4.2a — THE DOOR LEG. The vault does every check that matters and this
