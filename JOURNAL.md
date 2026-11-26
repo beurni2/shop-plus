@@ -1,6 +1,32 @@
 # JOURNAL — shop-plus
 Continuity ledger per CTO charter §6/§6bis. Every entry is evidence-grounded.
 
+## 2026-11-26 · LIBRAIRIES-1 — shell-quote 1.12.0 and zod 4.6.7 · on the branch, NOT merged, NOT deployed
+
+**What and why.** The `dependency-audit` gate has been red on `main` since two library advisories were published: shell-quote (under the reseller app's React Native developer tools) and zod. This is the same update Boutik+ took (its lock at `12affd8`, identical integrity hashes). Built by the coordinator in its own worktree (`71294b2`), merged here `--no-ff`.
+
+**Diff.** Two files. `packages/supply-consumer/package.json`: zod `^4.1.5` → `^4.6.7` (the repo's only zod specifier). `pnpm-lock.yaml`: shell-quote 1.10.0 → 1.12.0 and zod 4.4.3 → 4.6.7, the four pinned canon packages resolving to the same zod (14 lines in, 14 out). No package added or removed; no canon pin, override or workspace change. zod 3.25.76 stays under the Expo build tool only (allow-listed).
+
+**Evidence (board of record, `pnpm build` then `run-gates.sh`, 105 gates).** `dependency-audit OK` (critical 0; the 39 high are all under the allow-listed Expo build tooling); its negative fixture still fails and the not-a-report case still exits 2. Typecheck 21/21. Tests: buyer-pwa 1557 · reseller-app 915 · storefront-service 951 · commerce-core 214 · attribution-service 45 · the rest green. Red only on `playwright-e2e`: the same two buyer fallback-font tests (`cliente.spec.ts:474`, `:909`) that fail where the machine's default sans-serif is Inter; 329 passed.
+
+**What ships where.** The buyer site's files are byte-identical to `main`'s build (first load 317 247 B of the 327 680 B ceiling), and the reseller app's bundle hash is unchanged: the merge republishes both with no change. The storefront Worker DOES change: it takes zod 4.6.7 and grows from 225.5 KB to 262.8 KB compressed (+37 KB, about 17 %; mostly zod's new schema compiler, which nothing here calls). No signed budget covers the Worker; it is far below the platform's limits. The fixed zod reaches production only at the next storefront deploy (workflow_dispatch), not at the merge.
+
+**Verifier.** One fresh-context pass, handled once: 0 blocker · 0 major · 0 minor · 2 notes, both about saying the two facts above plainly (the Worker grows; the merge alone does not deploy it). Its side-by-side probe of the pinned contracts, kernel and i18n schemas under both zod versions (110 schemas × 28 edge inputs) found no accept/refuse change, no issue-code or path change and identical JSON Schema output; one message wording differs (« received Infinity »), which nothing compares. Not re-inspected.
+
+**Open.** The COLIS-2 five-second wait made load-safe (its own slice).
+
+## 2026-11-26 · P1 — « Mes gains » truth · DEPLOYED and MERGED
+
+**Founder.** « Go on all three » (2026-11-26 05:22 UTC, decision card), which named for Shop+: deploy the storefront, then merge PR #1, main re-checked first.
+
+**Deploy first.** storefront-deploy 123 from the designated branch at `3877273`: canon 3.27.0 asserted, smokes OK, the live health check reports release `3877273`. Before dispatching, the runtime diff from the last storefront deploy (`76bbb96`) to this head was read: lock-screen labels plus this slice, nothing else.
+
+**PR gates.** On the PR head the colis COLIS-2 step timed out once on a 5 s wait under runner load (not this slice's code); the failed jobs were re-run once and it passed. Playwright 331 green. dependency-audit stays red, the same baseline as main; it is not this slice's and the PR says so once.
+
+**Merge.** main re-checked unchanged at `49c80d9`; merged as `9d091f8`. On main: expo-preview 552 (reseller app publish) green, pwa-preview 519 (buyer site) green, service-canon-drift 482 green; ci 732 expected red only on dependency-audit.
+
+**Still open.** The library update that turns dependency-audit green (the same fix Boutik+ took; it may move the web budgets). The COLIS-2 wait made load-safe. Founder follow-ups from the lane: the Suivi and console Gains counts, and the « Mes ventes » count line. The lane branch is retired; new work starts from main.
+
 ## 2026-11-26 · P1 — « Mes gains » shows each sale at the rung the server records · on the branch, NOT merged, NOT deployed
 
 **Lane.** P1 (Wave 1), built in its own lane session on `claude/project-thread-i3ol9j`: `7198c27`, then the one-pass review fixes `4e7cf3b`. Merged here `--no-ff` at `2e8f95e`, lane shas kept. 13 files, all on the written claim (widened at the review hand-back to `apps/reseller-app/src/sales/*`).

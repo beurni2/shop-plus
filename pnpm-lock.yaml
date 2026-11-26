@@ -256,8 +256,8 @@ importers:
         specifier: git+https://github.com/beurni2/platform-contracts.git#d6f3882c1529b8cf40c09aafab629cd6f2eab565&path:packages/contracts
         version: https://codeload.github.com/beurni2/platform-contracts/tar.gz/d6f3882c1529b8cf40c09aafab629cd6f2eab565#path:packages/contracts
       zod:
-        specifier: ^4.1.5
-        version: 4.4.3
+        specifier: ^4.6.7
+        version: 4.6.7
     devDependencies:
       typescript:
         specifier: ^5.9.2
@@ -3346,8 +3346,8 @@ packages:
     resolution: {integrity: sha512-7++dFhtcx3353uBaq8DDR4NuxBetBzC7ZQOhmTQInHEd6bSrXdiEyzCvG07Z44UYdLShWUyXt5M/yhz8ekcb1A==}
     engines: {node: '>=8'}
 
-  shell-quote@1.10.0:
-    resolution: {integrity: sha512-w1aiOKwKuRgtwAReIIj89puqg+I7GvX4IbLrvmhXbzQsj1+Zwi4VO3+fa6ZF91TWSjIxoEkKnMeHcLEODK5ZXA==}
+  shell-quote@1.12.0:
+    resolution: {integrity: sha512-PcByqNyT/38F2kDNi006HAMRJaULuBzq/FOsw3qdZvX/GA9W/jamDaRskgHjubHiftXK5sIFxLNkvrXUwcof6Q==}
     engines: {node: '>= 0.4'}
 
   siginfo@2.0.0:
@@ -3767,8 +3767,8 @@ packages:
   zod@3.25.76:
     resolution: {integrity: sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ==}
 
-  zod@4.4.3:
-    resolution: {integrity: sha512-ytENFjIJFl2UwYglde2jchW2Hwm4GJFLDiSXWdTrJQBIN9Fcyp7n4DhxJEiWNAJMV1/BqWfW/kkg71UDcHJyTQ==}
+  zod@4.6.7:
+    resolution: {integrity: sha512-g8W2D2kU6a8untc053fX1uVBKzM7yqAxW/3zwk83+6RyF2+SKOuV+c0wBDhUwzV1PaGapmZH+rmcUzPf+3CGwg==}
 
 snapshots:
 
@@ -5026,20 +5026,20 @@ snapshots:
     dependencies:
       '@platform/contracts': https://codeload.github.com/beurni2/platform-contracts/tar.gz/d6f3882c1529b8cf40c09aafab629cd6f2eab565#path:packages/contracts
       '@platform/ui-tokens': https://codeload.github.com/beurni2/platform-contracts/tar.gz/be2199c95d27e6ae5f6c7381c12e18a9796d9800#path:packages/ui-tokens
-      zod: 4.4.3
+      zod: 4.6.7
 
   '@platform/contracts@https://codeload.github.com/beurni2/platform-contracts/tar.gz/d6f3882c1529b8cf40c09aafab629cd6f2eab565#path:packages/contracts':
     dependencies:
       '@platform/kernel-types': https://codeload.github.com/beurni2/platform-contracts/tar.gz/d6f3882c1529b8cf40c09aafab629cd6f2eab565#path:packages/kernel-types
-      zod: 4.4.3
+      zod: 4.6.7
 
   '@platform/i18n@https://codeload.github.com/beurni2/platform-contracts/tar.gz/cfff2c58e6327b41f5e9a73329b9edb1f5a9c6b7#path:packages/i18n':
     dependencies:
-      zod: 4.4.3
+      zod: 4.6.7
 
   '@platform/kernel-types@https://codeload.github.com/beurni2/platform-contracts/tar.gz/d6f3882c1529b8cf40c09aafab629cd6f2eab565#path:packages/kernel-types':
     dependencies:
-      zod: 4.4.3
+      zod: 4.6.7
 
   '@platform/recorded-answers@https://codeload.github.com/beurni2/platform-contracts/tar.gz/e2e1584bd9fc3645ccdb08897c3f30d01ac4df6f#path:packages/recorded-answers': {}
 
@@ -6800,7 +6800,7 @@ snapshots:
 
   react-devtools-core@6.1.5:
     dependencies:
-      shell-quote: 1.10.0
+      shell-quote: 1.12.0
       ws: 7.5.11
     transitivePeerDependencies:
       - bufferutil
@@ -7064,7 +7064,7 @@ snapshots:
 
   shebang-regex@3.0.0: {}
 
-  shell-quote@1.10.0: {}
+  shell-quote@1.12.0: {}
 
   siginfo@2.0.0: {}
 
@@ -7434,4 +7434,4 @@ snapshots:
 
   zod@3.25.76: {}
 
-  zod@4.4.3: {}
+  zod@4.6.7: {}
