@@ -1,6 +1,107 @@
 # JOURNAL — shop-plus
 Continuity ledger per CTO charter §6/§6bis. Every entry is evidence-grounded.
 
+## 2026-11-26 · A-VERIFIER-1 — each key-C dispatch row says what the founder must check; the dead-letter door answers its counts alone · lane P · on the branch, NOT merged, NOT deployed
+
+**Spec.**
+- Execution Contract §6, « **Alert when (minimum):** a reservation stays held after payment failure · a paid order has no supplier decision · … ».
+- Execution Contract §8 item 7, « **Alerts reach a named operator.** ».
+- Execution Contract E2 exit, « … the **defined recovery state + a reconciliation alert** · … · DLQ + stuck-saga detection live ».
+- Shop-Plus-Build-Spec §7 SP6, « **A refund that cannot finish by itself is told to the founder, on his console** »; the refund pill is unchanged.
+- SP-I03.
+- Contract §10.5.
+
+**Built.** Lane P built `a8691a3`. The coordinator's pin `3455cf0` was merged into it as `cdb1af9`, and the result was merged here `--no-ff` as `88251fe`. The verifier's fixes `6020efc` were merged here `--no-ff` as `08a51dd`. The slice has four files: `order-do.ts`, `index.ts`, the dispatch seam's key list, and a new seam test.
+- `/entry/dispatch` gains one field, `aVerifier: null | {elements:[{classe, le}], coupees}`. It is read only from the order object's durable alert record and its two stuck marks.
+  - `classe` is the reconciliation alert's own name, or `stuck_paiement` / `stuck_fournisseur` / `stuck_remboursement`.
+  - `le` is one ISO time, or `null` when it is unreadable.
+  - `coupees` is what the row cannot show: the count the record's cap clipped, less any stuck mark shown again from its own key, never below 0.
+  - A stuck mark that the cap clipped still shows, through its own key, and is counted once.
+  - No amount, contact, provider key or event body leaves the object.
+  - `null` means nothing to check.
+  - The refund field and every other key are unchanged.
+- `/checkout/dlq?compte=1`, with exactly that value, answers `{ok, held, dropped, oversize}`, numbers only, after the same key-C check. Any other query is the full read, unchanged. No new route.
+- The comment over the stuck-saga record now says who reads it: the founder, on his Boutik+ Commandes tab.
+
+**Canon step (coordinator).** The recorded answers gained the new dispatch forms (`aVerifier`) and the dead-letter door's three forms (full book, counts, 401). They come from Shop+'s own record run, never written by hand. This is platform-contracts `b5fec57`. The storefront's pin moved to it in `3455cf0` (`package.json` plus the lock entry only).
+
+**Evidence.**
+- New `test/a-verifier.e2e.test.ts` runs on the real bundled Worker. Red on main: the row had no such field. It covers:
+  - a doctored-amount confirmation, a late genuine payment after a timed-out charge, and a payment pending past its limit, each with its class;
+  - a clean order with nothing;
+  - a redelivered alert, shown once at the provider's time;
+  - a blocked refund that keeps its refund status exactly;
+  - a full record that carries its clipped count: 52 doctored confirmations plus a stuck mark is 53 alerts, the row shows 51 and `coupees` is 2;
+  - a paid order with the buyer's contact whose supplier is never told (the certified Boutik+ door's own outage knob): `stuck_fournisseur`, the contact on its own field, nothing else;
+  - the same on a record the cap already filled: the clipped supplier mark shows once, and `elements + coupees` is 53;
+  - a refund the provider accepted and never confirmed: `stuck_remboursement`, the refund status exactly `bloque / sans_confirmation`, and the contact. This runs as the file's last test, after the capture, because that row form is not in the recorded answers yet (see below);
+  - the shape: a class and one ISO time, nothing else;
+  - `?compte=1` answers numbers only, refused without key C exactly like the full read. Every other query (`?compte=2`, `?compte=`, `?compte=1&x=1`, `?Compte=1`) is the full read.
+  - A test drives the Boutik+ console's own port, bundled from its clone, against the Worker. Every class reads through it, and the dead-letter count answers 1. It then compares the captured page the console walk reads with the live one, WHOLE, row by row. Only the values the Worker's own clock or random source writes are masked, each still checked against its pattern: `orderId`, `createdAt`, and the time of the four classes the Worker's clock stamps (the three stuck marks and `refusal_fact_unreadable`). Every time the test pins is compared exactly. It skips only where no Boutik+ clone exists (GitHub CI); there 10 pass and 1 skips, and every recorded form is given.
+- Mutations, 5 here and 14 across the slice: all red, each anchor matched once and restored byte-identical. In this file they were: the row hard-coded to `null`, the stuck mark dropped, the clipped count not carried, the clipped count back to the raw cap count (3 tests red), and one byte of the capture changed (the comparison red).
+- Coordinator re-run on `08a51dd`: the seam 11/11 with the clone; the raw-cap-count mutation red (3) and one captured `zoneTo` changed red (1), each restored by `cmp`.
+- **Coordinator board of record on `08a51dd`** (`pnpm install --frozen-lockfile`, `pnpm build`, `TURBO_CONCURRENCY=1 run-gates.sh`). Every gate is green except `playwright-e2e`, and that one fails only on the two known buyer fallback-font tests (`cliente.spec.ts:474`, `:909`), which fail where the machine's sans-serif is Inter; 329 passed. They are reproduced on a checkout without the slice and are green on GitHub.
+  - The storefront suite passed 972/972, with the seam's 11 included. It ran through turbo against the sibling Boutik+ checkout on its integrated head `5f75df2`. Turbo passes only declared environment variables, so the seam reads the sibling checkout, not `BOUTIK_PLUS_REPO`.
+  - The earlier board on `88251fe` went red on that one port test, because the sibling still held the console from before the slice. This board supersedes it.
+  - The recorded-answers gate is green: dispatch 4 forms, dead-letter 3.
+
+**Verifier.** One fresh-context pass. It was given only the spec quotes, the brief with its definition of done, the rulings, and the three diffs (`078243a..b5fec57`, `9870d3b..88251fe`, `fa6af67..7af12ea`). It read the code and ran no suite. Verdict: 0 blockers, 6 should-fix, 7 notes.
+
+It found sound:
+- no personal data, amount, provider key or event body in the row;
+- the key list grows by exactly `aVerifier`;
+- the refund field and the refund pill are untouched;
+- the strict reader: an unknown class becomes « autre », and a bad field never costs the row;
+- the count door: key C first, exactly `?compte=1`, numbers only, every other query byte-identical;
+- an unreadable count is never shown as 0;
+- each order is counted once;
+- the seam drives the real port, and the walk mounts the real screen;
+- the strings, the scope and the release order.
+
+Each finding was handled once, and the slice was not re-inspected:
+- *Should-fix, fixed: sentences about the current state.* Alerts are never cleared, so a payment that answered late, or a refund confirmed later, read false. Every such sentence now says what happened then: 16 texts, not only the 4 named.
+- *Should-fix, fixed: the capture comparison.* The seam compared only the keys and a few fields of the captured page. It now compares each row whole. It masks only what the Worker's own clock and random source write, and checks each masked value against its pattern. One changed byte goes red.
+- *Should-fix, fixed: « never her contact ».* That walk assertion could not fail, because no captured row carried a contact. Two new captured orders now carry one, the seam's own input. The walk asserts that none of it reaches the screen, and a mutation that renders the phone goes red.
+- *Should-fix, fixed: missing on-screen checks.* The clean state, the exact pill count and the refund pill under an unreadable count were not asserted on screen. Added:
+  - a clean-tab walk;
+  - an exact count of 6 pills under « À traiter »;
+  - the refund pill check.
+
+  Two mutations each go red: showing the count line on 0, and giving in-book rows an empty alert object.
+- *Should-fix, fixed: the off-book sentence.* « pas encore dans le carnet » was false when the book read is partial or when he removed the order. It is now « n'apparaît pas dans le carnet ci-dessous », which is true in every case. There is no logic change, so flagged orders stay visible.
+- *Should-fix, fixed: the clipped count.* A stuck mark that the cap clipped was shown again from its own key, and still counted as clipped. The count now leaves it out: 53 alerts, 51 shown, 2 clipped.
+- *Journalled: redelivered clipped alerts.* Above its cap, the alert record counts a redelivered clipped alert again. This predates the slice. It is closed on screen, because the clipped line carries no number. The record itself is out of scope.
+- *Journalled: alert names.* The class name comes only from fixed names in the code, at every place that mints an alert. A check for a case that cannot occur is out under the working law. A stored alert with no body cannot occur today either.
+- *Journalled: a ruled deviation.* The refund walk's object form on `ord-bloquee` goes beyond the C2 ruling that existing walks only gain `aVerifier: null`. It was ruled at the time, because no recorded null form exists for that row, and it is listed here.
+- *Fixed in part, rest journalled: Worker roads never raised end to end.*
+  - The supplier-never-told road, and its clipped re-show, are now raised on the real Worker and read through the console's port.
+  - The refund-never-confirmed road is raised and asserted on the Worker's door and through the port, but as the file's last test, off the capture. Its row (`confirmed` with `bloque / sans_confirmation`) is not a recorded form yet, so no Boutik+ walk may read it. Recording it is a canon step for a later slice.
+- *Journalled: alert times.* A webhook alert's time is the provider's own signed time, as ruled. A future time reads « À l'instant ».
+- *Journalled: reloads.* During a reload, the count keeps the last one read until this pass answers, like the rest of the tab's quiet refresh.
+- *Journalled: release.* The platform-contracts merge must keep its commit, never a squash, because both pins point at it. A full record opens as 50 identical sentences; grouping them is the named follow-on.
+
+**Known behaviour, reported to the founder.** A checkout started and never paid becomes a stuck-payment alert after 15 minutes (`STUCK_SAGA_TTL_MS`, the documented safest default) and keeps it. So its order shows « À vérifier » on his tab from then on. Follow-on: let him mark an alert as checked, or group unanswered payments.
+
+**Release.** On the founder's word:
+1. The platform-contracts PR merges first, because the pin points at its commit.
+2. The storefront Worker deploys from this branch and is checked.
+3. This PR merges.
+4. Then the Boutik+ PR merges and its console publishes from main.
+
+**Still open (own slices).** Clearing or acknowledging an alert. A push channel (night alerts by SMS, ruled separately). The reconciliation pass's console route.
+
+## 2026-11-26 · REMBOURSEMENT-SANS-IMPASSE-1 — DEPLOYED and MERGED
+
+**Founder.** « Deploy and merge both » (2026-11-26 08:48 UTC, decision card), which named for Shop+: put the storefront server live from the branch and check it, then merge PR #3.
+
+**Deploy first.** storefront-deploy 125 from the designated branch at `2330115`: canon 3.27.0 asserted, the four custody wires present, smokes OK (checkout refuses by name, tiles live, password hashing at 100 000), and the live health check reports release `2330115`.
+
+**Merge.** main re-checked unchanged at `e374d8a`; merged as `04411bb`. On main: ci 736 green · pwa-preview 521 (buyer site) green · expo-preview 554 (reseller app) green · service-canon-drift 484 green.
+
+**⏳ still flagged to the founder.** « Delivered » after a refusal on record is refused by name with one alert (the safest default in the entry below); he has not ruled otherwise.
+
+**Still open.** The founder's view of these alerts on his console (next slice); a console route that runs the reconciliation pass; the COLIS-2 five-second wait made load-safe.
+
 ## 2026-11-26 · REMBOURSEMENT-SANS-IMPASSE-1 — a refund never dead-ends; no payout lines for a refunded order or an unpaid door leg · lane P · on the branch, NOT merged, NOT deployed
 
 **Spec.** Shop-Plus-Build-Spec SP-I13 (« no confirmed order without the **required funded legs** for its mode »); §6.3 (« the buyer enters the **drop code last, after** any door payment is provider-confirmed; **same/next-day payout** »); §7 SP6 Refund (« Each paid leg is refunded ONCE, under its own refund key minted once and durable before the provider is asked … **A refund that cannot finish by itself is told to the founder, on his console** »).
