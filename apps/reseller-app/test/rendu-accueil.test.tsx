@@ -1,6 +1,6 @@
-import { act } from 'react-test-renderer';
+import { act, type ReactTestInstance } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { mountApp, wire, wiredEnv, type Route } from './rendu';
+import { mountApp, wire, wiredEnv, type Route, type Screen } from './rendu';
 import { resetFiles } from './doubles/expo-file-system';
 
 /**
@@ -15,7 +15,9 @@ import { resetFiles } from './doubles/expo-file-system';
  *   1. the header is HER shop — name, zone, the badge only when live;
  *   2. no shop resolved → an honest sentence, NO badge, NO borrowed name;
  *   3. the one primary action still reaches the product grid;
- *   4. the Cercle card invites without inventing a number, and still opens;
+ *   4. no door into the demo Cercle: the SP9 screens stay mounted under the
+ *      founder's scoped override, but nothing on the home screen opens them
+ *      (founder, 2026-11-26: hide it until the Cercle is built);
  *   5. none of the retired demo bytes can come back.
  */
 
@@ -87,6 +89,74 @@ const routesNonListee: Route[] = [
   (path) => (path === '/storefronts' ? { status: 200, json: [] as never } : null),
   routes[2]!,
 ];
+
+/** Her account on the device, as the entrance writes it (same store as rendu-profil). */
+async function seedCompte(): Promise<void> {
+  const { expoAccessCodeStore } = await import('../src/sales/code-store');
+  await expoAccessCodeStore('reseller-compte.v1.txt').write(JSON.stringify({ accountId: 'rs-7777', name: 'Awa Traoré', state: 'active' }));
+  await expoAccessCodeStore().write('SPS-AAAA-BBBB-CCCC-DDDD');
+}
+
+/** The same world, with the account book answering her session. */
+const routesAvecCompte: Route[] = [
+  ...routes,
+  (path) =>
+    path === '/reseller/session'
+      ? { status: 200, json: { ok: true, accountId: 'rs-7777', name: 'Awa Traoré', state: 'active' } }
+      : null,
+];
+
+/** The hub's OWN sentence: only the mounted Cercle hub prints it. */
+const HUB_CERCLE = 'vos membres, vos campagnes.';
+
+/** Every control a thumb can press, innermost, in render order — the same
+ *  rule the harness's `press` uses, without needing a label in advance. */
+function controles(screen: Screen): ReactTestInstance[] {
+  const atteignable = (n: ReactTestInstance): boolean => {
+    for (let c: ReactTestInstance | null = n; c !== null; c = (c.parent as ReactTestInstance | null) ?? null) {
+      if (c.props['pointerEvents'] === 'none') return false;
+    }
+    return true;
+  };
+  const tous = screen.tree.root.findAll(
+    (n) => typeof n.props['onPress'] === 'function' && n.props['disabled'] !== true && atteignable(n),
+  );
+  return tous.filter((h) => !tous.some((o) => o !== h && h.findAll((n) => n === o).length > 0));
+}
+
+const nomDe = (n: ReactTestInstance): string => {
+  const morceaux: string[] = [];
+  const marche = (enfants: readonly (ReactTestInstance | string)[]): void => {
+    for (const e of enfants) typeof e === 'string' ? morceaux.push(e) : marche(e.children);
+  };
+  marche(n.children);
+  const a11y = n.props['accessibilityLabel'];
+  return `${morceaux.join('')}${typeof a11y === 'string' ? ` [${a11y}]` : ''}`;
+};
+
+/** Press every control of a freshly mounted screen, one per mount, and name
+ *  each one after which the Cercle hub is on screen. */
+async function balayer(monter: () => Promise<Screen>): Promise<string[]> {
+  const premier = await monter();
+  const noms = controles(premier).map(nomDe);
+  premier.unmount();
+  expect(noms.length, 'the sweep must see the screen’s controls').toBeGreaterThan(3);
+  const atterrit: string[] = [];
+  for (let i = 0; i < noms.length; i += 1) {
+    const screen = await monter();
+    const c = controles(screen)[i];
+    expect(c, `control #${i} (${noms[i]}) is gone on a fresh mount`).toBeDefined();
+    expect(nomDe(c!), `control #${i} is a different control on a fresh mount`).toBe(noms[i]);
+    await act(async () => {
+      (c!.props['onPress'] as () => void)();
+      await Promise.resolve();
+    });
+    for (let k = 0; k < 4; k += 1) await screen.settle();
+    if (screen.shows(HUB_CERCLE)) atterrit.push(noms[i]!);
+    screen.unmount();
+  }
+  return atterrit;
+}
 
 async function surAccueil(r: Route[] = routes) {
   wire(r);
@@ -292,24 +362,38 @@ describe('ACCUEIL-PRO — the first screen carries real bytes or honest silence'
     screen.unmount();
   });
 
-  it('the Cercle card invites without inventing a number — and still opens the hub', async () => {
-    const screen = await surAccueil();
-    expect(screen.shows('Vendez ensemble, dans votre quartier.')).toBe(true);
-    expect(screen.texts().join(' | '), 'no member count on the home card').not.toContain('membres');
-    await screen.press('Mon Cercle');
-    await screen.settle();
-    /**
-     * The HUB's own subtitle, not `texts().length > 0` — that count is
-     * permanently satisfied by the accueil's own texts (the exact defect
-     * rendu-opportunites already convicted for the dock tabs), and `go()`
-     * returns silently on a missing journey edge, so only a hub-exclusive
-     * byte proves the card actually navigated.
-     */
-    expect(
-      screen.shows('vos membres, vos campagnes.'),
-      `the Cercle hub did not mount: ${JSON.stringify(screen.texts().slice(0, 12))}`,
-    ).toBe(true);
-    screen.unmount();
+  it('no door into the demo Cercle — with no account and with one — and the primary action still works', async () => {
+    for (const avecCompte of [false, true]) {
+      resetFiles();
+      if (avecCompte) await seedCompte();
+      const screen = await surAccueil(avecCompte ? routesAvecCompte : routes);
+      expect(screen.shows('Bonjour'), `the home screen did not mount (compte: ${String(avecCompte)})`).toBe(true);
+      expect(screen.canPress('Mon Cercle'), `a Cercle door on the home screen (compte: ${String(avecCompte)})`).toBe(false);
+      expect(screen.shows('Mon Cercle')).toBe(false);
+      expect(screen.shows('Vendez ensemble, dans votre quartier.')).toBe(false);
+      // The one primary action still says its whole sentence, and still lands.
+      await screen.press('Trouver des produits à vendre');
+      await screen.settle();
+      expect(screen.shows('Bazin riche'), `the primary action did not reach the products: ${JSON.stringify(screen.texts().slice(0, 12))}`).toBe(true);
+      screen.unmount();
+    }
+  });
+
+  it('no control on the home screen lands on the Cercle hub — every one pressed, each on a fresh mount', async () => {
+    // Each mount starts from the same device and a fresh app, whatever the previous press wrote.
+    const atterrit = await balayer(async () => {
+      vi.resetModules();
+      resetFiles();
+      await seedCompte();
+      return surAccueil(routesAvecCompte);
+    });
+    expect(atterrit, 'these home controls open the demo Cercle hub').toEqual([]);
+    const sansCompte = await balayer(async () => {
+      vi.resetModules();
+      resetFiles();
+      return surAccueil(routes);
+    });
+    expect(sansCompte, 'these home controls open the demo Cercle hub (no account)').toEqual([]);
   });
 
   it('BADGE-FIABLE — one failed launch read must not hide the vérifié mark all session', async () => {
