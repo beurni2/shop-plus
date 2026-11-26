@@ -1,6 +1,34 @@
 # JOURNAL — shop-plus
 Continuity ledger per CTO charter §6/§6bis. Every entry is evidence-grounded.
 
+## 2026-11-26 · REMBOURSEMENT-SANS-IMPASSE-1 — a refund never dead-ends; no payout lines for a refunded order or an unpaid door leg · lane P · on the branch, NOT merged, NOT deployed
+
+**Spec.** Shop-Plus-Build-Spec SP-I13 (« no confirmed order without the **required funded legs** for its mode »); §6.3 (« the buyer enters the **drop code last, after** any door payment is provider-confirmed; **same/next-day payout** »); §7 SP6 Refund (« Each paid leg is refunded ONCE, under its own refund key minted once and durable before the provider is asked … **A refund that cannot finish by itself is told to the founder, on his console** »).
+
+**Built (lane P, `517ce93`, `55e8357`, `aaeafb8`, merged here `--no-ff` as `e504f41`).** Eight files: the order vault (`order-spine.ts`, `reconcile.ts`) and the storefront order object (`order-core.ts`, `order-do.ts`), plus tests.
+- A refund record that decided nothing (an unreadable refusal, or a refusal before anything was paid) is decided again by the next READABLE refusal, Séra's or the supplier's, through the existing refund road: each key minted once and stored before the provider is asked, the flusher's alarm set when the new decision opens lines. A record with a decision stays first-wins; a second unreadable fact changes nothing.
+- Séra's validated delivery writes the two payout lines only for an order whose money is there. A pay-at-door order waits for the provider-confirmed door leg: `409 eligibility_before_funded_legs`, the event not consumed, the same event accepted once the door leg lands. An order with a refund or a refusal on record answers `409 eligibility_after_refund`. Each refusal sinks one `reconciliation.alert.v1` per order (`recon-elig-` namespace) before answering; nothing is logged, relayed or marked delivered. An order delivered and then refused answers as before (pinned byte for byte).
+- Rebuilding an order from its saved inputs re-applies what was admitted and never re-judges it: the funded-leg rule binds the live admission only (`fromLog`, set by the rebuild alone), so lines written under the earlier rule are never dropped on a later read.
+- The reconciliation pass names `obligations_on_refunded_order` (the refunded allowance removed) and `obligations_while_door_leg_due`.
+
+**⏳ Safest default, flagged to the founder.** Canon does not say which fact wins when Séra's « delivered » arrives after a refusal is on record. Applied: refused by name, no payout lines written, one alert. Séra retries a non-2xx answer hourly; the alert stays one per order.
+
+**Evidence.** New `test/remboursement-sans-impasse.e2e.test.ts` drives the real bundled storefront Worker with Séra's and Boutik+'s signed events, the certified payment mock and the sandbox refund composer, and asks the order's ledger and both views for the outcome: R1, R2, R4, R5 red on main; R3, R4b, R4c (pins) green on main and after. New `test/rebuild-admis.test.ts`: a log written under the earlier rule rebuilds with both lines equal to the Quote's nets; the same eligibility applied live to a door-due order is refused by name; the log without the door payment rebuilds with its lines and the pass names it. Vault tests for the door rule and both reconcile classes. Lane: vault 217/217, storefront 961/961, both typechecks clean. 16 mutations, anchor matched once each, vault and Worker rebuilt before each, restored byte-identical: all red except one agreed equivalent (re-deciding a record already decided « livraison acceptée », which the vault decides the same way). Coordinator re-ran the e2e (7/7) and the new test (3/3), and two mutations (the door rule removed: R5 red; the rebuild without the flag: two rebuild tests red), both restored by md5. Coordinator board on the integrated head: `pnpm install --frozen-lockfile`, `pnpm build`, `TURBO_CONCURRENCY=1 run-gates.sh`, 105 gates: one red, `playwright-e2e`, exactly the two buyer fallback-font tests (`cliente.spec.ts:474`, `:909`) that fail where the machine's default sans-serif is Inter; 329 passed. Typecheck 18/18; vault 217, storefront 961, buyer-pwa 1557, reseller-app 915, attribution 45, the rest green.
+
+**Verifier (one fresh-context pass, given only the spec quotes, the brief's claim, build, definition of done, mutations and forbidden list, the coordinator's rulings and the diff).** PASS WITH FINDINGS: 0 blocker, 1 should-fix, 3 notes. Handled once, not re-inspected:
+- should-fix: the funded-leg rule also ran when an order was rebuilt from its saved inputs → fixed as above, with its own test and two mutations.
+- note: the « already decided livraison acceptée » mutation is equivalent (the vault answers « livraison acceptée » whenever lines exist); the code still forbids re-deciding it.
+- note: the half of the order-object check that reads a refusal row with no refund record yet is checked by reading, not by a failing test; it is reachable only after a crash between two writes, or for rows saved before refund records existed.
+- note (existing behaviour, unchanged): once an order's alert cap is reached, each of Séra's hourly retries adds one to the dropped-alert count.
+
+**No screen change.** Her refund card, the founder's row and her tracking see this only through the answers the seam test asserts. No walk. No decision here reads the custody binding.
+
+**Release.** The storefront Worker deploys from this branch first, on the founder's word; then the PR merges.
+
+**Still open (own slices).** The founder's view of these alerts on his console (O2); a console route that runs the reconciliation pass.
+
+---
+
 ## 2026-11-26 · LIBRAIRIES-1 — DEPLOYED and MERGED
 
 **Founder.** « Merge all three, deploy shop » (2026-11-26 07:15 UTC, decision card), which named for Shop+: deploy the storefront with the updated libraries and check it, then merge PR #2.
