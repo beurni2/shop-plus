@@ -1,6 +1,66 @@
 # JOURNAL — shop-plus
 Continuity ledger per CTO charter §6/§6bis. Every entry is evidence-grounded.
 
+## 2026-11-26 · CERCLE-FERME-1 — the demo Cercle has no door until the Cercle is built · lane P4 · on the branch, NOT merged
+
+**Founder ruling (2026-11-26, project chat):** « hide the demo « Mon Cercle » card until the Cercle is built ». Started on his « go » (19:26 UTC).
+
+**Spec.**
+- `CLAUDE.md` §3 law 8: « **Build gates gate.** Cercle (SP9), PackLab (B+9), and everything Diaspora are **build-gated** ».
+- Shop-Plus-Build-Spec l.23: « Shop+ MUST provide, **behind the Cercle build gate (§12)**: the **Cercle** feature system (SP9) … ».
+- l.228: the ⏳ gate (« ≥20 active resellers … ≥150 cumulative validated deliveries … payment-partner campaign-allocation structure confirmed … »).
+- §5: « never fake counts ».
+- The screens stay under the 2026-07-19 FOUNDER OVERRIDE (« authorizes the Cercle cluster as **UI + certified mock behind the §3.4 port ONLY** »). Only the doors close.
+
+**Built.** Lane P4 built `43f1d2c`, then `c122ad2` from the one review below. Both were merged here `--no-ff` (`7ed3433`, `51d2e35`).
+
+*Before.* The « Mon Cercle » card showed on every reseller's home screen with no condition, and a Cercle row showed on her Profil page in every account state. Both opened the demo world: invented members, « Vérifié · Séra » reviews, and an 18 000 FCFA balance marked « réglés ».
+
+*Now.*
+- **`apps/reseller-app/App.tsx`.**
+  - The home card's mount is gone, and so are the Profil row (`rangCercle`, both render sites) and the `onCercle` prop.
+  - The Profil index card shows only while loading or with a book. The two trailing separators and an empty fragment are gone.
+  - The `HUBS` docblock says what is true now.
+- **`src/journey.ts`** loses `accueil → cercle` and `profil → cercle`. `go()` follows journey edges only, so no touch reaches the six Cercle screens. They stay mounted on their routes for SP9.
+- **`i18n/catalog.json`.** `profil.cercle_aide` leaves with its last caller. `CercleAccueilCard`, its strings and its icon stay with the Cercle screens, as ruled at C1.
+- **What else became unreachable.** The share screen's campaign card is set only from Cercle screens, so it shows on no reachable screen.
+- No flag, no setting, no new string, and no door moved elsewhere.
+
+**Tests, turned around and none deleted.**
+- `rendu-accueil` and `rendu-profil` walk the real screens (only `globalThis.fetch` faked):
+  - no Cercle door with a live account, with no account, on a dead wire and in the paused state;
+  - « Trouver des produits à vendre » still opens Opportunités;
+  - her Profil rows open their prefilled leaf, and « Retour » brings her back to the hub;
+  - a sweep presses every control on fresh mounts, and none lands on the Cercle hub.
+- `journey-spine`: the unreachable set must be EXACTLY the six Cercle screens.
+- `cercle.test`: no card mount, and no `go(` or `toHub(` naming any of the six.
+
+**Evidence.**
+- Red on main: 12 failed (lane), and 26 failed / 47 passed in the coordinator's swap, where main's App also reads the removed string.
+- Reseller app 917/917 and `tsc` 0 on `51d2e35`.
+- Mutations, each anchor matched once, each file restored byte-identical:
+  - home card back: red;
+  - Profil row back: red;
+  - `accueil → cercle` alone: red;
+  - `profil → cercle` alone: red;
+  - a seventh screen in the exception list: red;
+  - « Retour » broken: red under the new round trip, green under the old one (it could not fail);
+  - `toHub('reput')` on home: red.
+- Shop+ board on `7ed3433`: every gate green except the two known font reds (`cliente.spec.ts` :474 and :909, which fail only where sans-serif is Inter); buyer Playwright 329 passed.
+
+**The one independent review:** 0 blockers, 2 should-fix, 4 notes, handled once.
+- Fixed: three comments the change made false; a round-trip assertion that could not fail.
+- Done: the paused state swept; a `toHub` pin; the empty fragment removed.
+- Kept: the sweep helpers copied in two test files, because the shared harness was off the claim.
+
+The slice was not re-inspected after the fixes.
+
+**Release.** No Worker deploy. Merging publishes the reseller app through `expo-preview.yml` (`pwa-preview.yml` publishes the buyer site). This corrects the brief, which named both.
+
+**Still open.** The `useCercle` controller still starts on every mount with the demo seed in memory, and nothing reachable renders it (kept for SP9).
+
+---
+
 ## 2026-11-26 · A-VERIFIER-1 — DEPLOYED and MERGED
 
 **Founder.** « Deploy and merge both » (2026-11-26 18:41 UTC, decision card), which named for Shop+: after the platform-contracts merge, put the storefront server live from the branch and check it, then merge PR #4.
