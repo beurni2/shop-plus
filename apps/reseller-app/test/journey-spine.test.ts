@@ -6,6 +6,8 @@ import { JOURNEY, START, type Screen } from '../src/journey.js';
 /**
  * WO-4.1 spine coverage: the walkable-world promise as assertions. Every
  * screen must be reachable from START by touch (BFS over the journey map),
+ * except exactly the six Cercle screens, which stay mounted with no door
+ * (CERCLE-FERME-1) and must stay unreachable,
  * every edge must point at a real screen, and the App must render every
  * screen the map names (source-level pin — a screen in the map with no
  * render block would be a dead end the founder can reach).
@@ -14,7 +16,15 @@ import { JOURNEY, START, type Screen } from '../src/journey.js';
 const screens = Object.keys(JOURNEY) as Screen[];
 
 describe('reseller journey spine', () => {
-  it('every screen is reachable from START', () => {
+  /**
+   * CERCLE-FERME-1 (founder, 2026-11-26: hide the demo Cercle until it is
+   * built) — the six SP9 screens stay mounted under the scoped override, but
+   * no touch reaches them. The list is EXACT both ways: a seventh screen left
+   * unreachable, or a door put back into one of these six, turns this red.
+   */
+  const SANS_PORTE: readonly Screen[] = ['cercle', 'campnew', 'campaign', 'funding', 'reput', 'membres'];
+
+  it('every screen is reachable from START — except exactly the six closed Cercle screens, which are not', () => {
     const seen = new Set<Screen>([START]);
     const queue: Screen[] = [START];
     while (queue.length > 0) {
@@ -25,7 +35,8 @@ describe('reseller journey spine', () => {
         }
       }
     }
-    for (const s of screens) expect(seen.has(s), `unreachable screen: ${s}`).toBe(true);
+    for (const s of screens.filter((x) => !SANS_PORTE.includes(x))) expect(seen.has(s), `unreachable screen: ${s}`).toBe(true);
+    expect(screens.filter((x) => !seen.has(x)).sort(), 'the unreachable set must be exactly the closed Cercle').toEqual([...SANS_PORTE].sort());
   });
 
   it('no edge dangles (every target is a declared screen)', () => {

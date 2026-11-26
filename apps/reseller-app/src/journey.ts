@@ -1,8 +1,9 @@
 /**
  * WO-4.1 — the reseller journey as DATA. The App renders a stack over this
- * map; the spine test walks it (BFS from START must reach every screen) so
- * the walkable-world promise is asserted, not assumed. No navigation
- * library: a state stack keeps the bundle inside the E4 budgets.
+ * map; the spine test walks it (BFS from START must reach every screen except
+ * exactly the six Cercle screens, which stay mounted with no door until SP9 —
+ * CERCLE-FERME-1) so the walkable-world promise is asserted, not assumed. No
+ * navigation library: a state stack keeps the bundle inside the E4 budgets.
  */
 
 export type Screen =
@@ -39,7 +40,9 @@ export const START: Screen = 'accueil';
 export const JOURNEY: Record<Screen, readonly Screen[]> = {
   // PROFIL-REVENDEUR-1 — accueil → profil rides the header (monogram + name),
   // the same gesture every phone she has held uses for « my account ».
-  accueil: ['opportunites', 'gains', 'ventes', 'cercle', 'profil'],
+  // CERCLE-FERME-1 (founder, 2026-11-26: hide the demo Cercle until it is
+  // built) — no edge into the Cercle: its home card is gone with it.
+  accueil: ['opportunites', 'gains', 'ventes', 'profil'],
   // WO-VITRINE-FLOW — Opportunités → Fiche (single product, add to vitrine) →
   // Ma vitrine → Partager.
   //
@@ -71,10 +74,11 @@ export const JOURNEY: Record<Screen, readonly Screen[]> = {
   funding: [],
   reput: [],
   membres: [],
-  // CERCLE-PROFIL-1 (founder, 2026-08-25) — the Cercle tab is retired; the
-  // hub now opens from HER page's own row (and still from the accueil card).
-  // PROFIL-PRO-1 — and the three leaves open from the hub's own rows.
-  profil: ['cercle', 'profil-infos', 'profil-rayons', 'profil-mdp'],
+  // PROFIL-PRO-1 — the three leaves open from the hub's own rows.
+  // CERCLE-FERME-1 (founder, 2026-11-26) — her page's Cercle row is closed
+  // too: the six Cercle screens above stay mounted under the SP9 scoped
+  // override, and no touch reaches them until the gate opens.
+  profil: ['profil-infos', 'profil-rayons', 'profil-mdp'],
   'profil-infos': [],
   'profil-rayons': [],
   'profil-mdp': [],

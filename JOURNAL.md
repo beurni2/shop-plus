@@ -1,6 +1,86 @@
 # JOURNAL — shop-plus
 Continuity ledger per CTO charter §6/§6bis. Every entry is evidence-grounded.
 
+## 2026-11-26 · CERCLE-FERME-1 — the demo Cercle has no door until the Cercle is built · lane P4 · on the branch, NOT merged
+
+**Founder ruling (2026-11-26, project chat):** « hide the demo « Mon Cercle » card until the Cercle is built ». Started on his « go » (19:26 UTC).
+
+**Spec.**
+- `CLAUDE.md` §3 law 8: « **Build gates gate.** Cercle (SP9), PackLab (B+9), and everything Diaspora are **build-gated** ».
+- Shop-Plus-Build-Spec l.23: « Shop+ MUST provide, **behind the Cercle build gate (§12)**: the **Cercle** feature system (SP9) … ».
+- l.228: the ⏳ gate (« ≥20 active resellers … ≥150 cumulative validated deliveries … payment-partner campaign-allocation structure confirmed … »).
+- §5: « never fake counts ».
+- The screens stay under the 2026-07-19 FOUNDER OVERRIDE (« authorizes the Cercle cluster as **UI + certified mock behind the §3.4 port ONLY** »). Only the doors close.
+
+**Built.** Lane P4 built `43f1d2c`, then `c122ad2` from the one review below. Both were merged here `--no-ff` (`7ed3433`, `51d2e35`).
+
+*Before.* The « Mon Cercle » card showed on every reseller's home screen with no condition, and a Cercle row showed on her Profil page in every account state. Both opened the demo world: invented members, « Vérifié · Séra » reviews, and an 18 000 FCFA balance marked « réglés ».
+
+*Now.*
+- **`apps/reseller-app/App.tsx`.**
+  - The home card's mount is gone, and so are the Profil row (`rangCercle`, both render sites) and the `onCercle` prop.
+  - The Profil index card shows only while loading or with a book. The two trailing separators and an empty fragment are gone.
+  - The `HUBS` docblock says what is true now.
+- **`src/journey.ts`** loses `accueil → cercle` and `profil → cercle`. `go()` follows journey edges only, so no touch reaches the six Cercle screens. They stay mounted on their routes for SP9.
+- **`i18n/catalog.json`.** `profil.cercle_aide` leaves with its last caller. `CercleAccueilCard`, its strings and its icon stay with the Cercle screens, as ruled at C1.
+- **What else became unreachable.** The share screen's campaign card is set only from Cercle screens, so it shows on no reachable screen.
+- No flag, no setting, no new string, and no door moved elsewhere.
+
+**Tests, turned around and none deleted.**
+- `rendu-accueil` and `rendu-profil` walk the real screens (only `globalThis.fetch` faked):
+  - no Cercle door with a live account, with no account, on a dead wire and in the paused state;
+  - « Trouver des produits à vendre » still opens Opportunités;
+  - her Profil rows open their prefilled leaf, and « Retour » brings her back to the hub;
+  - a sweep presses every control on fresh mounts, and none lands on the Cercle hub.
+- `journey-spine`: the unreachable set must be EXACTLY the six Cercle screens.
+- `cercle.test`: no card mount, and no `go(` or `toHub(` naming any of the six.
+
+**Evidence.**
+- Red on main: 12 failed (lane), and 26 failed / 47 passed in the coordinator's swap, where main's App also reads the removed string.
+- Reseller app 917/917 and `tsc` 0 on `51d2e35`.
+- Mutations, each anchor matched once, each file restored byte-identical:
+  - home card back: red;
+  - Profil row back: red;
+  - `accueil → cercle` alone: red;
+  - `profil → cercle` alone: red;
+  - a seventh screen in the exception list: red;
+  - « Retour » broken: red under the new round trip, green under the old one (it could not fail);
+  - `toHub('reput')` on home: red.
+- Shop+ board on `7ed3433`: every gate green except the two known font reds (`cliente.spec.ts` :474 and :909, which fail only where sans-serif is Inter); buyer Playwright 329 passed.
+
+**The one independent review:** 0 blockers, 2 should-fix, 4 notes, handled once.
+- Fixed: three comments the change made false; a round-trip assertion that could not fail.
+- Done: the paused state swept; a `toHub` pin; the empty fragment removed.
+- Kept: the sweep helpers copied in two test files, because the shared harness was off the claim.
+
+The slice was not re-inspected after the fixes.
+
+**CI on the pull request.** The first run went red: the new Profil sweep (four sweeps, a fresh full-app mount per control, 1.9 s here) ran past the 5 s default on GitHub's runner, and the work it left running broke three later tests in the same file. Both sweeps now carry an explicit budget, as the app's other full-app walks do: 60 s for the Profil sweep, 20 s for the home sweep (the house budget in `rendu-file-attente`). No assertion changed. Reseller app 917/917 and `tsc` 0 again.
+
+**Release.** No Worker deploy. Merging publishes the reseller app through `expo-preview.yml` (`pwa-preview.yml` publishes the buyer site). This corrects the brief, which named both.
+
+**Still open.** The `useCercle` controller still starts on every mount with the demo seed in memory, and nothing reachable renders it (kept for SP9).
+
+---
+
+## 2026-11-26 · A-VERIFIER-1 — DEPLOYED and MERGED
+
+**Founder.** « Deploy and merge both » (2026-11-26 18:41 UTC, decision card), which named for Shop+: after the platform-contracts merge, put the storefront server live from the branch and check it, then merge PR #4.
+
+**Contracts first.** platform-contracts PR #1 merged as the merge commit `f61b704`, so `b5fec57`, which this branch pins, is on main (ci 166 green).
+
+**Deploy.** storefront-deploy 126 (id 45878081388) from the designated branch at `74738b0`: canon 3.27.0 asserted, « CUSTODY ARMED — all four wires present on the live Worker », smokes OK (checkout refuses by name, tiles live, password hashing at 100 000), and the live health check reports release `74738b0`.
+
+**Merge.** main re-checked unchanged at `04411bb`; merged as `2c63572`. On main: pwa-preview 522 (buyer site) green · expo-preview 555 (reseller app) green · service-canon-drift 486 green · ci 738 **red on attempt 1** on one buyer browser test, then **green on attempt 2** with no change. The red test was `checkout-real.spec.ts:636` (« the retry sends a NEW command id »): the retry button was still counted 5 s after the tap. Main's tree is byte-identical to the PR head `74738b0`, whose ci 737 was green; the buyer site is untouched since `04411bb` (ci 736 green); the test file is unchanged since 2026-10-02; the same test passed 5 of 5 locally on `2c63572`. Cause, read in the test: its scripted service answers the retried order `payment_failed` too, so on a slow runner the failure screen, with its retry button, is back before the « button gone » check reads. A race in the test's timing, not in the app; no test changed. Follow-on: hold the second answer (`orderDelayMs`) or script a second state, so the check reads before it lands.
+
+**Then.** Boutik+ merged its side and published the founder's console from its main (its journal records it).
+
+**Known behaviour, as reported.** A checkout started and never paid becomes a « payment still waiting » item after 15 minutes and keeps it, so that order shows « À vérifier » on the founder's tab from then on.
+
+**Still open.** Letting the founder mark an item as checked, or grouping unanswered payments; recording the refund-never-confirmed row form so the console walk can read it; passing the Boutik+ clone path through turbo; the COLIS-2 five-second wait made load-safe; the retry-button race above.
+
+---
+
 ## 2026-11-26 · A-VERIFIER-1 — each key-C dispatch row says what the founder must check; the dead-letter door answers its counts alone · lane P · on the branch, NOT merged, NOT deployed
 
 **Spec.**

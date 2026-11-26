@@ -1,3 +1,4 @@
+import { act, type ReactTestInstance } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { mountApp, wire, wiredEnv, type Route, type Screen, type Wire } from './rendu';
 import { resetFiles } from './doubles/expo-file-system';
@@ -182,6 +183,58 @@ async function attendre(screen: Screen, fragment: string): Promise<void> {
   expect(screen.shows(fragment), `expected « ${fragment} »; on screen: ${JSON.stringify(screen.texts())}`).toBe(true);
 }
 
+/** The hub's OWN sentence: only the mounted Cercle hub prints it. */
+const HUB_CERCLE = 'vos membres, vos campagnes.';
+
+/** Every control a thumb can press, innermost, in render order — the same
+ *  rule the harness's `press` uses, without needing a label in advance. */
+function controles(screen: Screen): ReactTestInstance[] {
+  const atteignable = (n: ReactTestInstance): boolean => {
+    for (let c: ReactTestInstance | null = n; c !== null; c = (c.parent as ReactTestInstance | null) ?? null) {
+      if (c.props['pointerEvents'] === 'none') return false;
+    }
+    return true;
+  };
+  const tous = screen.tree.root.findAll(
+    (n) => typeof n.props['onPress'] === 'function' && n.props['disabled'] !== true && atteignable(n),
+  );
+  return tous.filter((h) => !tous.some((o) => o !== h && h.findAll((n) => n === o).length > 0));
+}
+
+const nomDe = (n: ReactTestInstance): string => {
+  const morceaux: string[] = [];
+  const marche = (enfants: readonly (ReactTestInstance | string)[]): void => {
+    for (const e of enfants) typeof e === 'string' ? morceaux.push(e) : marche(e.children);
+  };
+  marche(n.children);
+  const a11y = n.props['accessibilityLabel'];
+  return `${morceaux.join('')}${typeof a11y === 'string' ? ` [${a11y}]` : ''}`;
+};
+
+/** Press every control of a freshly mounted screen, one per mount, and name
+ *  each one after which the Cercle hub is on screen. */
+async function balayer(monter: () => Promise<Screen>): Promise<string[]> {
+  const premier = await monter();
+  const noms = controles(premier).map(nomDe);
+  premier.unmount();
+  expect(noms.length, 'the sweep must see the screen’s controls').toBeGreaterThan(3);
+  const atterrit: string[] = [];
+  for (let i = 0; i < noms.length; i += 1) {
+    const screen = await monter();
+    const c = controles(screen)[i];
+    expect(c, `control #${i} (${noms[i]}) is gone on a fresh mount`).toBeDefined();
+    expect(nomDe(c!), `control #${i} is a different control on a fresh mount`).toBe(noms[i]);
+    await act(async () => {
+      (c!.props['onPress'] as () => void)();
+      await Promise.resolve();
+    });
+    for (let k = 0; k < 4; k += 1) await screen.settle();
+    if (screen.shows(HUB_CERCLE)) atterrit.push(noms[i]!);
+    screen.unmount();
+  }
+  return atterrit;
+}
+
 beforeEach(() => {
   vi.resetModules();
   wiredEnv();
@@ -215,9 +268,12 @@ describe('PROFIL-PRO-1 — the hub is an INDEX: who she is, four doors with what
     expect(lues[0]!.body).toEqual({});
     expect(lues[0]!.auth).toBe(`Bearer ${SESSION}`);
     // The four doors, each with its summary from the wire.
-    for (const porte of ['Mes informations', 'Mes rayons', 'Mot de passe', 'Mon Cercle', 'Me déconnecter']) {
+    for (const porte of ['Mes informations', 'Mes rayons', 'Mot de passe', 'Me déconnecter']) {
       expect(screen.canPress(porte), `${porte} — on screen: ${JSON.stringify(screen.texts())}`).toBe(true);
     }
+    // The demo Cercle has no door on her page (founder, 2026-11-26).
+    expect(screen.canPress('Mon Cercle')).toBe(false);
+    expect(screen.shows('Mon Cercle')).toBe(false);
     expect(screen.shows('70 11 22 33'), 'her WhatsApp number is the informations door’s line').toBe(true);
     expect(screen.shows('2 rayons sur 5')).toBe(true);
     expect(screen.shows('Changez-le quand vous voulez.')).toBe(true);
@@ -487,7 +543,7 @@ describe('PROFIL-PRO-1 — « Mot de passe »: masked, one eye for both, a wrong
 });
 
 describe('PROFIL-PRO-1 — the honest states, each with a way out', () => {
-  it('no compte on the device: the honest empty state, the Cercle door, and NOT one profile read', async () => {
+  it('no compte on the device: the honest empty state, NO Cercle door, and NOT one profile read', async () => {
     const serveur = profilInitial();
     const fils = wire(routes(serveur));
     const screen = await mountApp();
@@ -495,12 +551,13 @@ describe('PROFIL-PRO-1 — the honest states, each with a way out', () => {
     await screen.press('Profil');
     expect(screen.shows('Pas encore de compte')).toBe(true);
     expect(screen.shows('Quand vous aurez un compte, votre profil vivra ici.')).toBe(true);
-    expect(screen.canPress('Mon Cercle')).toBe(true);
+    expect(screen.canPress('Mon Cercle')).toBe(false);
+    expect(screen.shows('Mon Cercle')).toBe(false);
     expect(lectures(fils)).toHaveLength(0);
     screen.unmount();
   });
 
-  it('a dead wire: the sentence, NO settings door (a door to a form she cannot save is a lie), the Cercle and the logout still live, and a retry that actually RE-CALLS', async () => {
+  it('a dead wire: the sentence, NO settings door (a door to a form she cannot save is a lie), NO Cercle door, the logout still live, and a retry that actually RE-CALLS', async () => {
     await seedCompte();
     const serveur = profilInitial();
     const drapeaux: Drapeaux = { profilMort: true };
@@ -513,7 +570,8 @@ describe('PROFIL-PRO-1 — the honest states, each with a way out', () => {
     expect(screen.canPress('Mes informations')).toBe(false);
     expect(screen.canPress('Mes rayons')).toBe(false);
     expect(screen.canPress('Mot de passe')).toBe(false);
-    expect(screen.canPress('Mon Cercle')).toBe(true);
+    expect(screen.canPress('Mon Cercle')).toBe(false);
+    expect(screen.shows('Mon Cercle')).toBe(false);
     expect(screen.canPress('Me déconnecter')).toBe(true);
 
     // The wire comes back; her retry must actually go ask again.
@@ -586,38 +644,57 @@ describe('PROFIL-PRO-1 — the honest states, each with a way out', () => {
   });
 });
 
-describe('CERCLE-PROFIL-1 — the Cercle lives on her page now, and the dock is five', () => {
-  it('the row opens the hub, and « Retour » brings her back to her profile — the whole round trip', async () => {
+describe('CERCLE-FERME-1 — the demo Cercle opens from no row on her page (founder, 2026-11-26: hide it until the Cercle is built)', () => {
+  it('with a live book: no Cercle row, and her own rows still open their leaf and bring her back', async () => {
     await seedCompte();
     const serveur = profilInitial();
     wire(routes(serveur));
     const screen = await mountApp();
     await screen.press('Profil');
 
-    expect(screen.canPress('Mon Cercle'), `on screen: ${JSON.stringify(screen.texts())}`).toBe(true);
-    await screen.press('Mon Cercle');
-    // The hub's OWN content — not the row that opened it.
-    const horsDock = screen.texts().filter((t) => !['Accueil', 'Opportunités', 'Ma Vitrine', 'Gains', 'Profil'].includes(t));
-    expect(horsDock.length, `the hub must render: ${JSON.stringify(screen.texts())}`).toBeGreaterThan(2);
-    // The way back: the Cercle is a stacked screen now, never a trap.
+    expect(screen.canPress('Mon Cercle'), `on screen: ${JSON.stringify(screen.texts())}`).toBe(false);
+    expect(screen.shows('Vos campagnes et votre réputation.')).toBe(false);
+    await screen.press('Mes informations');
+    // The LEAF: its form, prefilled — the hub has no field at all.
+    expect(valeurs(screen), 'the informations leaf did not open').toEqual(['Awa Traoré', '70 11 22 33', 'awa@example.bf']);
     await screen.press('Retour');
-    expect(screen.shows('Mes informations')).toBe(true);
+    // The HUB again: no field left, and her way out, which only the hub carries.
+    expect(champs(screen), `Retour did not leave the leaf: ${JSON.stringify(screen.texts())}`).toHaveLength(0);
+    expect(screen.shows('Mon profil')).toBe(true);
+    expect(screen.canPress('Me déconnecter')).toBe(true);
     screen.unmount();
   });
 
-  it('no compte on the device: the Cercle row is STILL there — the retired tab never asked for one', async () => {
+  it('no compte on the device: no Cercle row either — the empty state is the whole page', async () => {
     const serveur = profilInitial();
     wire(routes(serveur));
     const screen = await mountApp();
     await screen.press('Profil');
 
     expect(screen.shows('Pas encore de compte')).toBe(true);
-    expect(screen.canPress('Mon Cercle')).toBe(true);
-    await screen.press('Mon Cercle');
-    const horsDock = screen.texts().filter((t) => !['Accueil', 'Opportunités', 'Ma Vitrine', 'Gains', 'Profil'].includes(t));
-    expect(horsDock.length).toBeGreaterThan(2);
+    expect(screen.canPress('Mon Cercle')).toBe(false);
+    expect(screen.shows('Vos campagnes et votre réputation.')).toBe(false);
     screen.unmount();
   });
+
+  it('no control on her page lands on the Cercle hub — live book, no compte, dead wire, pause; every one pressed, each on a fresh mount', async () => {
+    // Each mount starts from the same device and a fresh app: « Me déconnecter »
+    // erases her account, so the next mount must not inherit the previous press.
+    const surProfil = (avecCompte: boolean, drapeaux: Drapeaux = {}) => async (): Promise<Screen> => {
+      vi.resetModules();
+      resetFiles();
+      if (avecCompte) await seedCompte();
+      wire(routes(profilInitial(), drapeaux));
+      const screen = await mountApp();
+      await screen.press('Profil');
+      for (let k = 0; k < 3; k += 1) await screen.settle();
+      return screen;
+    };
+    expect(await balayer(surProfil(true)), 'live book').toEqual([]);
+    expect(await balayer(surProfil(true, { profilMort: true })), 'dead wire').toEqual([]);
+    expect(await balayer(surProfil(true, { profilCoupe: true })), 'pause').toEqual([]);
+    expect(await balayer(surProfil(false)), 'no compte').toEqual([]);
+  }, 60_000); // four sweeps, each a fresh full-app mount per control: three times the house budget for one full-app walk (rendu-file-attente)
 });
 
 describe('RAYONS-HERITES-1 — an id-era rayon on her account is ONE chip, ticked; her next save writes the label', () => {
