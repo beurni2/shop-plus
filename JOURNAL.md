@@ -1,6 +1,18 @@
 # JOURNAL — shop-plus
 Continuity ledger per CTO charter §6/§6bis. Every entry is evidence-grounded.
 
+## 2026-11-26 · REMBOURSEMENT-SANS-IMPASSE-1 — DEPLOYED and MERGED
+
+**Founder.** « Deploy and merge both » (2026-11-26 08:48 UTC, decision card), which named for Shop+: put the storefront server live from the branch and check it, then merge PR #3.
+
+**Deploy first.** storefront-deploy 125 from the designated branch at `2330115`: canon 3.27.0 asserted, the four custody wires present, smokes OK (checkout refuses by name, tiles live, password hashing at 100 000), and the live health check reports release `2330115`.
+
+**Merge.** main re-checked unchanged at `e374d8a`; merged as `04411bb`. On main: ci 736 green · pwa-preview 521 (buyer site) green · expo-preview 554 (reseller app) green · service-canon-drift 484 green.
+
+**⏳ still flagged to the founder.** « Delivered » after a refusal on record is refused by name with one alert (the safest default in the entry below); he has not ruled otherwise.
+
+**Still open.** The founder's view of these alerts on his console (next slice); a console route that runs the reconciliation pass; the COLIS-2 five-second wait made load-safe.
+
 ## 2026-11-26 · REMBOURSEMENT-SANS-IMPASSE-1 — a refund never dead-ends; no payout lines for a refunded order or an unpaid door leg · lane P · on the branch, NOT merged, NOT deployed
 
 **Spec.** Shop-Plus-Build-Spec SP-I13 (« no confirmed order without the **required funded legs** for its mode »); §6.3 (« the buyer enters the **drop code last, after** any door payment is provider-confirmed; **same/next-day payout** »); §7 SP6 Refund (« Each paid leg is refunded ONCE, under its own refund key minted once and durable before the provider is asked … **A refund that cannot finish by itself is told to the founder, on his console** »).
