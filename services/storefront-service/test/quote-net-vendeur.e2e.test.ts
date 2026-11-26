@@ -9,12 +9,13 @@ import { OPS_SECRET, seance } from './seance';
  * A COMMISSION THE SELLER WOULD PAY TO SELL GETS NO QUOTE — on the real
  * combined Worker (Miniflare), asked of the Worker's own records.
  *
- * ⚠ THE PRODUCER BELOW SENDS A MESSAGE BOUTIK+ NEVER SENDS TODAY. Boutik+
- * refuses to create an offer whose commission leaves the seller nothing
- * (`commission_leaves_no_net`), so no real offer-service projection carries
- * C ≥ B. This stand-in serves one anyway, because the storefront must not rely
- * on the other side's refusal: if such an offer ever reached it, the quote must
- * still refuse. Every other field is the real projection's shape.
+ * ⚠ THE PRODUCER BELOW SENDS A MESSAGE BOUTIK+ NEVER SENDS FOR AN OFFER
+ * CREATED TODAY. Boutik+ now refuses to create an offer whose commission
+ * leaves the seller nothing (`commission_leaves_no_net`), but it did not
+ * always, so an offer stored before that refusal may still carry C ≥ B. This
+ * stand-in serves one, because the storefront must not rely on the other
+ * side's refusal: whatever reaches it, the quote must still refuse. Every
+ * other field is the real projection's shape.
  *
  * The rule is the canon waterfall's own seller net, refused when ≤ 0 — at
  * whatever fee canon charges — under the existing `stored_amounts_incoherent`.
@@ -177,13 +178,22 @@ describe('a commission that leaves the seller nothing gets no quote, and no orde
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ commandId: `cmd-reserve-${n}`, holderRef: `holder-${n}` }),
       });
-      expect(reserve.status, reserve.text).not.toBe(200);
+      // No quote under this id, so nothing to hold: the reserve door says so by name.
+      expect({ status: reserve.status, error: reserve.json['error'] }, reserve.text).toEqual({ status: 404, error: 'not_found' });
+      // The quote object's own reservation record: nothing was held.
+      const quotes = await mf.getDurableObjectNamespace('CHECKOUT');
+      const held = (await (await quotes.get(quotes.idFromName(quoteId)).fetch('https://do/entry/reservation')).json()) as {
+        ok: boolean;
+        state: { status: string };
+      };
+      expect(held).toEqual({ ok: true, state: { status: 'none' } });
       const order = await call('/checkout/order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ quoteId, holderRef: `holder-${n}`, commandId: `cmd-order-${n}` }),
       });
-      expect(order.status, order.text).not.toBe(200);
+      // The order door finds no stored quote to make an order from.
+      expect({ status: order.status, error: order.json['error'] }, order.text).toEqual({ status: 404, error: 'quote_unknown' });
       const orders = await mf.getDurableObjectNamespace('ORDER');
       const orderRecord = await orders.get(orders.idFromName(`ord-${quoteId}`)).fetch('https://do/entry');
       expect(orderRecord.status, 'an order object exists for a quote that was refused').toBe(404);
@@ -199,5 +209,20 @@ describe('a commission that leaves the seller nothing gets no quote, and no orde
     const stored = await storedQuote(quote.json['quoteId'] as string);
     expect(stored.body.ok, JSON.stringify(stored.body)).toBe(true);
     expect(stored.body.quote?.sellerNet).toBe(1);
+
+    // The same record reads « reserved » once a hold is taken, so the « none »
+    // asserted above for a refused quote is a real answer, not a default.
+    const quoteId = quote.json['quoteId'] as string;
+    const reserve = await call(`/checkout/quote/${encodeURIComponent(quoteId)}/reserve`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ commandId: 'cmd-reserve-0003', holderRef: 'holder-0003' }),
+    });
+    expect(reserve.status, reserve.text).toBe(200);
+    const quotes = await mf.getDurableObjectNamespace('CHECKOUT');
+    const held = (await (await quotes.get(quotes.idFromName(quoteId)).fetch('https://do/entry/reservation')).json()) as {
+      state: { status: string };
+    };
+    expect(held.state.status).toBe('reserved');
   }, 60_000);
 });
