@@ -4706,9 +4706,20 @@ export class OrderDO {
    * REMBOURSEMENT-2 — the ONE opening, whatever ended the order: Séra's
    * refused course or the supplier's refusal. First-wins across both: an
    * order is refunded once.
+   *
+   * A record that decided nothing — an unreadable fact, or an order not yet
+   * paid — holds no line and no key, so it is not a refund: the next READABLE
+   * refusal decides in its place, or she would wait for ever on a fact nobody
+   * can read. A record with a decision (`ouvert`, `livraison_acceptee`) stays.
    */
   private async ouvrirRemboursementAvec(refus: RefusCourse | undefined, source: string | null): Promise<void> {
-    if ((await this.state.storage.get(REFUND_KEY)) !== undefined) return;
+    const existant = await this.state.storage.get<RemboursementStocke>(REFUND_KEY);
+    if (
+      existant !== undefined &&
+      !(refus !== undefined && (existant.decision === 'refus_illisible' || existant.decision === 'pas_paye'))
+    ) {
+      return;
+    }
     const origin = await this.state.storage.get<StoredOrigin>(ORIGIN_KEY);
     const quote = origin === undefined ? undefined : parseStoredQuote(origin.quoteBytes);
     if (origin === undefined || quote === undefined) return;
@@ -4739,6 +4750,12 @@ export class OrderDO {
       lignes: plan.lignes.map((l) => ({ ...l, refundKey: mintRefundKey(), etat: 'a_demander', essais: 0 })),
     };
     await this.state.storage.put(REFUND_KEY, record);
+    // A re-decided refund arrives on a redelivery branch, which re-arms only an
+    // order with no alarm at all; an alarm booked later for another wire would
+    // leave these new lines unasked until it fires.
+    if (existant !== undefined && record.lignes.length > 0) {
+      await this.state.storage.setAlarm(Date.now()).catch(() => undefined);
+    }
   }
 
   /**
