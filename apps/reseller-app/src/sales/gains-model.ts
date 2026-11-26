@@ -16,8 +16,9 @@
  * ═══ WHAT THIS MODULE IS, IN ONE SENTENCE ═══
  *
  * It sorts the sales her device already has into the eight settlement states
- * the plan names, sums HER NET in each, and says out loud which of those states
- * nothing in this system can reach yet.
+ * the plan names, sums HER NET in each, says out loud which of those states
+ * nothing in this system can reach yet, and counts apart the sales that ended
+ * before delivery — refused or refunded — which carry no gain on any rung.
  *
  * ═══ IT NEVER COMPUTES A FRANC, AND THE SHAPE IS THE GUARANTEE ═══
  *
@@ -41,22 +42,23 @@
  * account, no running total she could draw on, and no action on this surface at
  * all. « Combien j'ai gagné sur quelles ventes », never « combien j'ai ».
  *
- * ═══ THE SIX STATES NOTHING CAN REACH YET, AND WHY THAT IS THE HONEST BUILD ═══
+ * ═══ THE FIVE STATES NOTHING CAN REACH YET, AND WHY THAT IS THE HONEST BUILD ═══
  *
- * Of the eight, exactly TWO are derivable from facts that exist today:
+ * Of the eight, exactly THREE are derivable from facts that exist today:
  *
- *   Projected — an order exists, the provider has not confirmed the money.
+ *   Projected — an order exists, the provider has not confirmed it as one.
  *   Locked    — confirmed. Canon's first obligation state: the amount is fixed
  *               and the reseller is locked to it (SP-I01, attribution
- *               immutable after confirmation).
+ *               immutable after confirmation). NOT yet hers: a refusal at the
+ *               door still takes it back (§6.3 finality is at acceptance).
+ *   Eligible  — Séra validated the delivery: `ledger.ts
+ *               recordObligationsOnEligibility` wrote the obligations, and the
+ *               row says `livree`.
  *
- * The other six need facts no wire carries:
+ * Held is reached by a fact on a row (§6.5), not by a state — see below. The
+ * other four need facts no wire carries:
  *
- *   Eligible  — `ledger.ts recordObligationsOnEligibility` writes it, on Séra's
- *               eligibility signal. `delivery.validated.v1` does not flow;
- *               Séra does not exist yet.
  *   Payable · Processing · Paid — a payout process. None exists.
- *   Held      — a dispute or hold. No hold process exists.
  *   Adjusted  — an adjustment. None exists.
  *
  * SO THE RUNGS ARE SHOWN, EMPTY AND MARKED UNREACHABLE, RATHER THAN HIDDEN.
@@ -67,10 +69,15 @@
  * nothing is not a design flourish, it is a lie told to someone deciding
  * whether to trust this app with her livelihood ».
  *
+ * A SALE THAT ENDED BEFORE DELIVERY IS ON NO RUNG. Refunded (`refunded`), or
+ * refused with its refund still open or nothing due back (`refusee`): there
+ * is no earning to place, and leaving it on « Locked » told her money was hers
+ * that was not. It is counted on its own line instead, never dropped.
+ *
  * NOTE — `atteignable` IS DERIVED, NOT DECLARED. It is computed by running the
- * mapping over EVERY state the wire can carry and collecting what comes out —
- * so the day a new fact makes `Eligible` derivable, that rung lights up
- * because the mapping changed, not because someone remembered to edit a list.
+ * mapping over EVERY state the wire can carry, with and without the delivery
+ * fact, and collecting what comes out — so a rung lights up because the
+ * mapping changed, not because someone remembered to edit a list.
  * A hand-written « these two are real » constant is exactly the kind that goes
  * stale silently.
  */
@@ -129,7 +136,8 @@ const EXPLICATION: Readonly<Record<EtatGain, string>> = {
 };
 
 /**
- * THE WHOLE MAPPING, and it maps from ONE input: the order's payment state.
+ * THE WHOLE MAPPING, from the order's state and ONE settlement fact: Séra
+ * validated the delivery (`livree` — the ledger wrote the obligations).
  *
  * `acceptedAt` and `readyAt` are deliberately NOT read here, and that is a
  * money decision rather than an oversight. They are FULFILMENT facts — the
@@ -139,28 +147,59 @@ const EXPLICATION: Readonly<Record<EtatGain, string>> = {
  * delivery. Letting « prête » push a sale up this ladder would show her money
  * as nearer than it is, on the surface where that lie costs the most.
  *
- * `payment_failed` maps to NOTHING (`null`). Canon's enum has `Failed`, but it
- * means a failed PAYOUT of an obligation that exists; a buyer whose payment
- * failed never created one. Such a sale is not an earning in any state, and it
- * is counted separately rather than silently dropped.
+ * `paid` is Projected, not Locked: the provider has the money but the order is
+ * not confirmed yet, and Locked is canon's CONFIRMED state. Erring low is the
+ * safe side on this surface.
+ *
+ * `payment_failed` and `cancelled` map to NOTHING (`null`). Canon's enum has
+ * `Failed`, but it means a failed PAYOUT of an obligation that exists; a buyer
+ * whose payment failed, or an order cancelled before payment, never created
+ * one. Such a sale is not an earning in any state, and it is counted
+ * separately rather than silently dropped. (`refunded` never reaches here: it
+ * is counted apart first, see `finSansGain`.)
  */
-export function etatPour(state: FeedState): EtatGain | null {
-  if (state === 'payment_pending') return 'Projected';
+export function etatPour(state: FeedState, livree = false): EtatGain | null {
+  // The ledger's own word outranks the order state: obligations exist.
+  if (livree) return 'Eligible';
+  if (state === 'quote_issued' || state === 'reserved' || state === 'payment_pending' || state === 'paid') return 'Projected';
   if (state === 'confirmed') return 'Locked';
-  return null; // payment_failed — no obligation was ever created
+  return null; // payment_failed · cancelled · refunded — no obligation stands
 }
 
 /** Every state the wire can carry. Mirrors `FeedState` and is the source of the
- *  reachability computation below; `etatsCouverts` proves the two agree. */
-const ETATS_DU_FIL: readonly FeedState[] = ['payment_pending', 'confirmed', 'payment_failed'];
+ *  reachability computation below; a test proves it still equals the canon
+ *  order statuses. */
+const ETATS_DU_FIL: readonly FeedState[] = [
+  'quote_issued',
+  'reserved',
+  'payment_pending',
+  'paid',
+  'confirmed',
+  'payment_failed',
+  'cancelled',
+  'refunded',
+];
 
 /**
  * The rungs a real sale can actually occupy today — DERIVED by exhausting the
- * wire's own vocabulary through `etatPour`. Nothing is listed by hand.
+ * wire's own vocabulary, with and without the delivery fact, through
+ * `etatPour`. Nothing is listed by hand.
  */
 export const ATTEIGNABLES: ReadonlySet<EtatGain> = new Set(
-  ETATS_DU_FIL.map(etatPour).filter((e): e is EtatGain => e !== null),
+  ETATS_DU_FIL.flatMap((state) => [etatPour(state, false), etatPour(state, true)]).filter((e): e is EtatGain => e !== null),
 );
+
+/** How a sale that ended before delivery ended: refunded, or refused (refund
+ *  open, or nothing due back). Either way it carries no gain on any rung. A
+ *  validated delivery outranks a refusal fact: once the ledger wrote the
+ *  obligations, a later refusal ended nothing (§6.3 finality at acceptance). */
+export type FinSansGain = 'remboursee' | 'refusee';
+
+export function finSansGain(r: FeedVente): FinSansGain | null {
+  if (r.state === 'refunded') return 'remboursee';
+  if (r.refusee === true && r.livree !== true) return 'refusee';
+  return null;
+}
 
 /** One rung of the ladder as the screen receives it. */
 export interface PalierGains {
@@ -200,6 +239,11 @@ export type GainsVue =
        * account for every row she can see there.
        */
       readonly sansObligation: number;
+      /** Sales refused before delivery whose refund is open or owed nothing:
+       *  no gain, on no rung, said on their own line. */
+      readonly refusees: number;
+      /** Sales refunded to the buyer: no gain, on no rung, said on their own line. */
+      readonly remboursees: number;
       /** RELATED-PARTY-1 — the sales on the Held rung, each with what she can do about it. */
       readonly retenues: readonly VenteRetenue[];
       /** The server could not read every row it holds for her. Said plainly. */
@@ -232,9 +276,11 @@ export interface VenteRetenue {
 /** Held stands while the decision is not cleared; a cleared sale is ordinary money again. */
 export const lienRetenu = (r: FeedVente): boolean => r.lienProche !== undefined && r.lienProche.resolution !== 'clear';
 
-/** The rung ONE sale lands on: §6.5's hold first, then the wire state's settlement law. */
+/** The rung ONE sale lands on: none if it ended before delivery (there is no
+ *  commission left to hold), else §6.5's hold, else the settlement law. */
 export function etatDeLaVente(r: FeedVente): EtatGain | null {
-  return lienRetenu(r) ? 'Held' : etatPour(r.state);
+  if (finSansGain(r) !== null) return null;
+  return lienRetenu(r) ? 'Held' : etatPour(r.state, r.livree === true);
 }
 
 export function vueDesGains(rows: readonly FeedVente[], incomplet: boolean): GainsVue {
@@ -242,8 +288,19 @@ export function vueDesGains(rows: readonly FeedVente[], incomplet: boolean): Gai
   const retenues: VenteRetenue[] = [];
   const nets = new Map<EtatGain, number>();
   let sansObligation = 0;
+  let refusees = 0;
+  let remboursees = 0;
 
   for (const r of rows) {
+    const fin = finSansGain(r);
+    if (fin === 'remboursee') {
+      remboursees += 1;
+      continue;
+    }
+    if (fin === 'refusee') {
+      refusees += 1;
+      continue;
+    }
     const etat = etatDeLaVente(r);
     if (etat === null) {
       sansObligation += 1;
@@ -277,7 +334,7 @@ export function vueDesGains(rows: readonly FeedVente[], incomplet: boolean): Gai
     atteignable: etat === 'Held' ? (ventes.get('Held') ?? 0) > 0 : ATTEIGNABLES.has(etat),
   }));
 
-  return { kind: 'echelle', paliers, retenues, sansObligation, incomplet };
+  return { kind: 'echelle', paliers, retenues, sansObligation, refusees, remboursees, incomplet };
 }
 
 /**

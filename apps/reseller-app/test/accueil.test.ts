@@ -4,6 +4,7 @@ import { ecranDesGains } from '../src/sales/gains-screen';
 import { ecranDesVentes } from '../src/sales/feed-screen';
 import { vueDesGains, ECHELLE_GAINS, type EtatGain } from '../src/sales/gains-model';
 import { vueDesVentes } from '../src/sales/feed-model';
+import { ORDER_STATUSES } from '@platform/contracts';
 import type { FeedState, FeedVente } from '../src/sales/feed-service';
 import rawCatalog from '../i18n/catalog.json';
 
@@ -72,8 +73,9 @@ describe('ACCUEIL-HONESTY-1 — a figure on the home screen means a real sale, o
     const vue = accueilDe([vente('ord-1', 'confirmed', 1_000)]);
     if (vue.gains.kind !== 'chiffres') throw new Error(vue.gains.kind);
 
-    // Today exactly the two the wire can produce, in ladder order.
-    expect(vue.gains.cartes.map((c) => c.etat)).toEqual(['Projected', 'Locked']);
+    // Today exactly the three the wire can produce, in ladder order — the
+    // third, Séra's validated delivery, grew its card on its own.
+    expect(vue.gains.cartes.map((c) => c.etat)).toEqual(['Projected', 'Locked', 'Eligible']);
 
     // …and that is not a coincidence of how someone typed a list: every rung
     // the LADDER marks dormant is absent, and every rung it marks live is
@@ -94,15 +96,54 @@ describe('ACCUEIL-HONESTY-1 — a figure on the home screen means a real sale, o
   it('« Paid » NEVER reaches the home screen — nothing has ever been paid, and this is the screen that used to say it had', () => {
     // The exact regression: « Gains nets — juin / Versés sur Mobile Money ».
     // No arrangement of real rows may produce a Paid card, because no fact
-    // this platform receives can put a sale on that rung.
-    for (const state of ['confirmed', 'payment_pending', 'payment_failed'] as const) {
-      const vue = accueilDe([vente('ord-x', state, 9_999)]);
-      const etats: readonly string[] =
-        vue.gains.kind === 'chiffres' ? vue.gains.cartes.map((c) => c.etat) : [];
-      for (const jamais of ['Paid', 'Payable', 'Processing', 'Eligible', 'Held', 'Adjusted'] satisfies EtatGain[]) {
-        expect(etats, `${state} must not reach ${jamais}`).not.toContain(jamais);
+    // this platform receives can put a sale on that rung. Every canon order
+    // state, delivered or not, refused or not. A card that is present but
+    // empty is not a sale reaching it, so a sale REACHES a rung when that
+    // rung's card carries its net.
+    let eligibleAtteint = false;
+    for (const state of ORDER_STATUSES) {
+      for (const livree of [false, true]) {
+        for (const refusee of [false, true]) {
+          const row = { ...vente('ord-x', state, 9_999), ...(livree ? { livree: true as const } : {}), ...(refusee ? { refusee: true as const } : {}) };
+          const vue = accueilDe([row]);
+          const portees: readonly string[] =
+            vue.gains.kind === 'chiffres' ? vue.gains.cartes.filter((c) => c.netFcfa > 0).map((c) => c.etat) : [];
+          const cas = `${state}${livree ? ' livrée' : ''}${refusee ? ' refusée' : ''}`;
+          for (const jamais of ['Paid', 'Payable', 'Processing', 'Held', 'Adjusted'] satisfies EtatGain[]) {
+            expect(portees, `${cas} must not reach ${jamais}`).not.toContain(jamais);
+          }
+          if (!livree) expect(portees, `${cas} reached Eligible without a delivery`).not.toContain('Eligible');
+          if (livree && state !== 'refunded') {
+            expect(portees, `${cas} delivered`).toEqual(['Eligible']);
+            eligibleAtteint = true;
+          }
+        }
       }
     }
+    // CONTROL — the loop really drove a sale to the delivered card.
+    expect(eligibleAtteint).toBe(true);
+    // Held reaches home only through §6.5's hold on the row.
+    const retenue = { ...vente('ord-h', 'confirmed', 2_500), lienProche: { outcome: 'auto_void', signals: ['phone'], contestee: false } } as const;
+    const tenue = accueilDe([retenue]);
+    expect(tenue.gains.kind === 'chiffres' ? tenue.gains.cartes.filter((c) => c.netFcfa > 0).map((c) => c.etat) : []).toEqual(['Held']);
+  });
+
+  it('a sale REFUSED or REFUNDED before delivery is not previewed on home as a paid sale — the preview is « Mes ventes »\'s own list', () => {
+    const vivante = vente('ord-ok', 'confirmed', 3_000);
+    const refusee = { ...vente('ord-ref', 'confirmed', 2_500), refusee: true as const };
+    const remboursee = vente('ord-rem', 'refunded', 1_500);
+    const vue = accueilDe([vivante, refusee, remboursee]);
+    expect(vue.apercu.map((l) => [l.orderId, l.netFcfa])).toEqual([['ord-ok', 3_000]]);
+    // …and « Mes ventes » says each on its own line, never « nous vérifions ».
+    const liste = ecranDesVentes(vueDesVentes([vivante, refusee, remboursee], false));
+    expect(liste.noticeKeys).toEqual(['gains.refusees_une', 'gains.remboursees_une']);
+    const seules = ecranDesVentes(vueDesVentes([refusee, { ...refusee, orderId: 'ord-ref2' }, remboursee, { ...remboursee, orderId: 'ord-rem2' }], false));
+    expect(seules.kind, 'nothing left to list').toBe('vide');
+    expect(seules.noticeKeys).toEqual(['ventes.refusees_plusieurs', 'ventes.remboursees_plusieurs']);
+    // CONTROL — a delivered sale that also carries a refusal fact stays a sale.
+    const livree = { ...vente('ord-liv', 'confirmed', 4_000), livree: true as const, refusee: true as const };
+    expect(accueilDe([livree]).apercu.map((l) => l.orderId)).toEqual(['ord-liv']);
+    for (const k of liste.noticeKeys) expect(catalog.find((e) => e.key === k)?.register, k).toBe('money');
   });
 
   it('a payment that FAILED puts no money on the home screen — it never became an earning', () => {

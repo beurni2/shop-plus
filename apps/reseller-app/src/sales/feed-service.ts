@@ -26,11 +26,21 @@ import { baseSure } from '../vitrine/fetch-borne';
  *  (the law learned the hard way on the founder's console). */
 export const FEED_TIMEOUT_MS = 12_000;
 
-/** The three PAYMENT states Shop+ proves on its own. Preparation news arrives
- *  separately, on the return wire built in READINESS-RETURN-1c — see
- *  `acceptedAt` / `readyAt` below, which is why this list does not name it.
- *  « en route » and « livrée » remain Séra's and remain absent. */
-export type FeedState = 'payment_pending' | 'confirmed' | 'payment_failed';
+/** The order's own state, exactly as the order holds it: the canon order
+ *  statuses, every one of which the service forwards verbatim. A reader that
+ *  knew only some of them dropped the rest — a refunded sale vanished and her
+ *  list was called incomplete. Preparation news arrives separately, on the
+ *  return wire built in READINESS-RETURN-1c (`acceptedAt` / `readyAt`), and
+ *  Séra's word on the delivery rides as `livree` / `refusee` below. */
+export type FeedState =
+  | 'quote_issued'
+  | 'reserved'
+  | 'payment_pending'
+  | 'paid'
+  | 'confirmed'
+  | 'payment_failed'
+  | 'cancelled'
+  | 'refunded';
 
 /**
  * RELATED-PARTY-1 — §6.5 on one of her sales, exactly as `/entry/reseller/{id}`
@@ -62,6 +72,10 @@ export interface FeedVente {
   readonly acceptedAt?: string;
   readonly readyAt?: string;
   readonly lienProche?: LienProche;
+  /** Séra validated the delivery (the order's settlement lines exist). Present only when true. */
+  readonly livree?: true;
+  /** The order ended before delivery: a refusal is recorded, whatever is due back. Present only when true. */
+  readonly refusee?: true;
 }
 
 export type FeedResult =
@@ -85,7 +99,16 @@ export interface ResellerFeedPort {
   contester(code: string, orderId: string, texte: string): Promise<ContestResult>;
 }
 
-const STATES: readonly string[] = ['payment_pending', 'confirmed', 'payment_failed'];
+const STATES: readonly string[] = [
+  'quote_issued',
+  'reserved',
+  'payment_pending',
+  'paid',
+  'confirmed',
+  'payment_failed',
+  'cancelled',
+  'refunded',
+] satisfies readonly FeedState[];
 
 /** STRICT boundary reader: every field checked, a bad row dropped WHOLE.
  *  A row that is missing its net, or carries a net that is not a franc
@@ -114,6 +137,10 @@ export function readFeedVente(raw: unknown): FeedVente | null {
     zoneTo,
     ...(typeof acceptedAt === 'string' && acceptedAt !== '' ? { acceptedAt } : {}),
     ...(typeof readyAt === 'string' && readyAt !== '' ? { readyAt } : {}),
+    // Like the instants: only a literal `true` is a fact; anything else is
+    // « not known » and the row stays whole.
+    ...(r['livree'] === true ? { livree: true as const } : {}),
+    ...(r['refusee'] === true ? { refusee: true as const } : {}),
     ...(() => {
       const lien = readLienProche(r['lienProche']);
       return lien !== undefined ? { lienProche: lien } : {};

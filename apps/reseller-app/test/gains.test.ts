@@ -1,17 +1,19 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
+import { ORDER_STATUSES } from '@platform/contracts';
 import {
   ATTEIGNABLES,
   ECHELLE_GAINS,
   ETATS_DU_FIL_POUR_TESTS,
   etatDeLaVente,
   etatPour,
+  finSansGain,
   gainsSurface,
   vueDesGains,
   type EtatGain,
 } from '../src/sales/gains-model';
 import { ecranDesGains } from '../src/sales/gains-screen';
-import type { FeedState, FeedVente } from '../src/sales/feed-service';
+import { readFeedVente, type FeedState, type FeedVente } from '../src/sales/feed-service';
 
 /**
  * SP6.1 — the earnings read model, EXECUTED. Every assertion runs the real
@@ -77,34 +79,78 @@ describe('SP6.1 — the eight states of the plan, in order, always all present',
 /* ═══════════════════ what a fact can and cannot reach ═══════════════════ */
 
 describe('SP6.1 — reachability is DERIVED from the wire, never declared', () => {
-  it('exactly two rungs are reachable today, and they are the two facts Shop+ holds', () => {
+  it('exactly three rungs are reachable today, and they are the three facts Shop+ holds', () => {
     // If this ever fails, something changed about what the platform can prove —
     // which is exactly the moment a human should look, not a moment to update
-    // the expectation reflexively.
-    expect([...ATTEIGNABLES].sort()).toEqual(['Locked', 'Projected']);
+    // the expectation reflexively. The third is Séra's validated delivery: the
+    // ledger writes the obligations and her row says `livree`.
+    expect([...ATTEIGNABLES].sort()).toEqual(['Eligible', 'Locked', 'Projected']);
   });
 
-  it('THE SIX DORMANT RUNGS ARE UNREACHABLE BY ANY INPUT — proved by exhausting the wire', () => {
+  it('THE FIVE DORMANT RUNGS ARE UNREACHABLE BY ANY INPUT — proved by exhausting every state × delivered × refused', () => {
     // The vacuity-killer. It is not enough that a hand-picked fixture fails to
-    // reach `Paid`; NO state the wire can carry may reach it. `FeedState` is a
-    // closed union, so this loop IS exhaustive.
-    const atteints = new Set(ETATS_DU_FIL_POUR_TESTS.map(etatPour));
-    for (const dormant of ['Eligible', 'Payable', 'Processing', 'Paid', 'Held', 'Adjusted'] as const) {
+    // reach `Paid`; NO row the wire can carry may reach it. `FeedState` is a
+    // closed union and the two facts are booleans, so this loop IS exhaustive.
+    // Held is left out of the row: it is reached only through §6.5's
+    // `lienProche`, pinned just below.
+    const atteints = new Set<EtatGain | null>();
+    for (const state of ETATS_DU_FIL_POUR_TESTS) {
+      for (const livree of [false, true]) {
+        for (const refusee of [false, true]) {
+          const r = vente({ state, ...(livree ? { livree: true } : {}), ...(refusee ? { refusee: true } : {}) });
+          const etat = etatDeLaVente(r);
+          atteints.add(etat);
+          if (!livree) expect(etat, `${state} without delivery reached Eligible`).not.toBe('Eligible');
+          // A validated delivery outranks a refusal fact; only `refunded` ends it.
+          if (livree && state !== 'refunded') expect(etat, `${state} delivered${refusee ? ', then refused' : ''}`).toBe('Eligible');
+        }
+      }
+    }
+    for (const dormant of ['Payable', 'Processing', 'Paid', 'Held', 'Adjusted'] as const) {
       expect(atteints.has(dormant), `${dormant} became reachable`).toBe(false);
       expect(ATTEIGNABLES.has(dormant), `${dormant} marked reachable`).toBe(false);
     }
     // …AND THE CONTROL, without which the loop above passes on an empty map:
-    // the two live rungs really are produced by real states.
+    // the three live rungs really are produced by real rows.
     expect(atteints.has('Projected')).toBe(true);
     expect(atteints.has('Locked')).toBe(true);
+    expect(atteints.has('Eligible')).toBe(true);
+    // Held IS reachable — through a hold on the row, and only that way.
+    expect(etatDeLaVente(vente({ lienProche: { outcome: 'auto_void', signals: ['phone'], contestee: false } }))).toBe('Held');
   });
 
-  it('`ETATS_DU_FIL` still mirrors `FeedState` — a wire state added without it goes silently stale', () => {
+  it('`ETATS_DU_FIL` still mirrors `FeedState` AND the canon order statuses — a state added without it goes silently stale', () => {
     // The exhaustion above is only as good as this list. A `satisfies`-style
     // check: every FeedState literal must appear, enumerated here INDEPENDENTLY
-    // so the two cannot be edited by one careless sweep.
-    const attendus: readonly FeedState[] = ['payment_pending', 'confirmed', 'payment_failed'];
+    // so the two cannot be edited by one careless sweep — and the service
+    // forwards the order's own state verbatim, so canon's enum is the wire's.
+    const attendus: readonly FeedState[] = [
+      'quote_issued',
+      'reserved',
+      'payment_pending',
+      'paid',
+      'confirmed',
+      'payment_failed',
+      'cancelled',
+      'refunded',
+    ];
     expect([...ETATS_DU_FIL_POUR_TESTS].sort()).toEqual([...attendus].sort());
+    expect([...ETATS_DU_FIL_POUR_TESTS].sort()).toEqual([...ORDER_STATUSES].sort());
+  });
+
+  it('HER READER takes a row in EVERY canon order state, and refuses a state canon does not name', () => {
+    // The reader is the boundary: a state it does not know is a sale dropped
+    // and a list called incomplete. Pinned to canon, not to a copy of it.
+    const brut = { orderId: 'ord-1', createdAt: T, resellerNet: 2_000, productVersionId: 'pv-1', zoneTo: 'Ouagadougou' };
+    for (const state of ORDER_STATUSES) {
+      expect(readFeedVente({ ...brut, state })?.state, state).toBe(state);
+    }
+    expect(readFeedVente({ ...brut, state: 'delivered' }), 'an unknown state is not read').toBeNull();
+    // …and the two facts ride only as a literal `true`.
+    expect(readFeedVente({ ...brut, state: 'confirmed', livree: true, refusee: true })).toMatchObject({ livree: true, refusee: true });
+    const flou = readFeedVente({ ...brut, state: 'confirmed', livree: 'yes', refusee: 1 });
+    expect(flou?.livree).toBeUndefined();
+    expect(flou?.refusee).toBeUndefined();
   });
 
   it('a DORMANT rung carries no francs and no count, whatever the sales are', () => {
@@ -192,6 +238,63 @@ describe('SP6.1 — every wire state lands where the settlement law says, and no
     for (const p of v.paliers) expect(p.netFcfa, p.etat).toBe(0);
   });
 
+  it('Séra VALIDATED THE DELIVERY → Eligible, with her net, and the locked hero no longer holds it', () => {
+    expect(etatPour('confirmed', true)).toBe('Eligible');
+    const v = echelle([vente({ orderId: 'a', resellerNet: 3_000 }), vente({ orderId: 'b', resellerNet: 4_000, livree: true })]);
+    const eligible = v.paliers.find((p) => p.etat === 'Eligible')!;
+    expect(eligible.atteignable).toBe(true);
+    expect(eligible.ventes).toBe(1);
+    expect(eligible.netFcfa).toBe(4_000);
+    expect(v.paliers.find((p) => p.etat === 'Locked')!.netFcfa, 'only the undelivered sale is locked').toBe(3_000);
+  });
+
+  it('REFUSED before delivery → on NO rung, counted on its own line; the locked hero does not keep it', () => {
+    const v = echelle([vente({ orderId: 'a', resellerNet: 3_000 }), vente({ orderId: 'b', resellerNet: 2_500, refusee: true })]);
+    expect(finSansGain(vente({ refusee: true }))).toBe('refusee');
+    expect(etatDeLaVente(vente({ refusee: true }))).toBeNull();
+    expect(v.refusees).toBe(1);
+    expect(v.remboursees).toBe(0);
+    expect(v.sansObligation, 'not a failed payment: its own line').toBe(0);
+    expect(v.paliers.find((p) => p.etat === 'Locked')!.netFcfa).toBe(3_000);
+    expect(v.paliers.reduce((n, p) => n + p.ventes, 0), 'only the live sale sits on a rung').toBe(1);
+  });
+
+  it('DELIVERED, THEN A REFUSAL FACT → still Eligible: once the ledger wrote the obligations, a refusal ended nothing', () => {
+    const r = vente({ resellerNet: 4_000, livree: true, refusee: true });
+    expect(finSansGain(r)).toBeNull();
+    expect(etatDeLaVente(r)).toBe('Eligible');
+    const v = echelle([r]);
+    expect(v.refusees).toBe(0);
+    expect(v.paliers.find((p) => p.etat === 'Eligible')!.netFcfa).toBe(4_000);
+    // and a §6.5 hold on it still stands, with her appeal
+    const tenue = echelle([{ ...r, lienProche: { outcome: 'auto_void', signals: ['phone'], contestee: false } }]);
+    expect(tenue.paliers.find((p) => p.etat === 'Held')!.ventes).toBe(1);
+    expect(tenue.retenues.map((x) => x.orderId)).toEqual(['ord-1']);
+  });
+
+  it('REFUNDED → read, on NO rung, counted once as refunded (even with its refusal fact still on the row)', () => {
+    const v = echelle([vente({ state: 'refunded', resellerNet: 1_500, refusee: true })]);
+    expect(finSansGain(vente({ state: 'refunded' }))).toBe('remboursee');
+    expect(v.remboursees).toBe(1);
+    expect(v.refusees).toBe(0);
+    expect(v.sansObligation).toBe(0);
+    for (const p of v.paliers) expect(p.netFcfa, p.etat).toBe(0);
+  });
+
+  it('an ended sale outranks a hold: a refused or refunded sale is not on the Held rung (no commission is left to hold)', () => {
+    const lien = { outcome: 'auto_void', signals: ['phone'], contestee: false } as const;
+    const v = echelle([vente({ orderId: 'a', refusee: true, lienProche: lien }), vente({ orderId: 'b', state: 'refunded', lienProche: lien })]);
+    expect(v.paliers.find((p) => p.etat === 'Held')!.ventes).toBe(0);
+    expect(v.retenues).toEqual([]);
+    expect([v.refusees, v.remboursees]).toEqual([1, 1]);
+  });
+
+  it('the other canon states: before payment and `paid` are Projected; `cancelled` is on no rung, counted with the failed payments', () => {
+    for (const state of ['quote_issued', 'reserved', 'paid'] as const) expect(etatPour(state), state).toBe('Projected');
+    expect(etatPour('cancelled')).toBeNull();
+    expect(echelle([vente({ state: 'cancelled' })]).sansObligation).toBe(1);
+  });
+
   it('FULFILMENT NEWS DOES NOT MOVE MONEY — accepted and ready leave the rung exactly where it was', () => {
     // The money decision this model most needed to get right. « En préparation »
     // and « prête » are Boutik+ facts; B+I-06 makes readiness the PRECONDITION
@@ -272,7 +375,7 @@ describe('SP6.1 — the screen says the honest thing in every state', () => {
   it('a DORMANT rung reads « pas encore » — never « aucune vente », which answers a question she did not ask', () => {
     const e = ecranDesGains(vueDesGains([vente()], false));
     const dormantes = e.paliers.filter((p) => p.enSommeil);
-    expect(dormantes).toHaveLength(6);
+    expect(dormantes).toHaveLength(5);
     for (const p of dormantes) expect(p.compteKey, p.etat).toBe('gains.pas_encore');
     // …and a REACHABLE rung with nothing on it says so plainly, which is a
     // different and true sentence.
@@ -309,6 +412,26 @@ describe('SP6.1 — the screen says the honest thing in every state', () => {
     const e = ecranDesGains(vueDesGains([vente()], false));
     expect(e.noticeKeys).not.toContain('gains.incomplet');
     expect(e.noticeKeys).not.toContain('gains.sans_obligation');
+    for (const k of ['gains.refusees_une', 'gains.refusees_n', 'gains.remboursees_une', 'gains.remboursees_n']) {
+      expect(e.noticeKeys).not.toContain(k);
+    }
+  });
+
+  it('refused and refunded sales are each SAID — one or many, the number carried — before the standing sentence', () => {
+    const e = ecranDesGains(
+      vueDesGains(
+        [vente({ orderId: 'a', refusee: true }), vente({ orderId: 'b', refusee: true }), vente({ orderId: 'c', state: 'refunded' })],
+        false,
+      ),
+    );
+    expect(e.noticeKeys).toEqual(['gains.refusees_n', 'gains.remboursees_une', 'gains.pas_de_retrait']);
+    expect(e.noticeParams['gains.refusees_n']).toEqual({ n: '2' });
+    expect(e.noticeParams['gains.remboursees_une']).toBeUndefined();
+    const inverse = ecranDesGains(
+      vueDesGains([vente({ orderId: 'a', refusee: true }), vente({ orderId: 'b', state: 'refunded' }), vente({ orderId: 'c', state: 'refunded' })], false),
+    );
+    expect(inverse.noticeKeys).toEqual(['gains.refusees_une', 'gains.remboursees_n', 'gains.pas_de_retrait']);
+    expect(inverse.noticeParams['gains.remboursees_n']).toEqual({ n: '2' });
   });
 });
 
@@ -319,8 +442,25 @@ describe('SP6.1 — every key the screen can emit exists in the catalog (Ten Law
   const known = new Map(catalog.map((e) => [e.key, e]));
 
   it('every rung key, count key and notice key resolves — and carries the MONEY register', () => {
-    const e = ecranDesGains(vueDesGains([vente(), vente({ orderId: 'b', state: 'payment_pending' }), vente({ orderId: 'c', state: 'payment_failed' })], true));
+    const e = ecranDesGains(
+      vueDesGains(
+        [
+          vente(),
+          vente({ orderId: 'b', state: 'payment_pending' }),
+          vente({ orderId: 'c', state: 'payment_failed' }),
+          vente({ orderId: 'd', refusee: true }),
+          vente({ orderId: 'e', state: 'refunded' }),
+          vente({ orderId: 'f', state: 'refunded' }),
+        ],
+        true,
+      ),
+    );
+    expect(e.noticeKeys, 'control: the new lines are in the set checked').toEqual(
+      expect.arrayContaining(['gains.refusees_une', 'gains.remboursees_n']),
+    );
     const keys = new Set<string>([
+      'gains.refusees_n',
+      'gains.remboursees_une',
       e.titreKey,
       ...(e.sousTitreKey === undefined ? [] : [e.sousTitreKey]),
       ...e.noticeKeys,
