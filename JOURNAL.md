@@ -1,6 +1,16 @@
 # JOURNAL — shop-plus
 Continuity ledger per CTO charter §6/§6bis. Every entry is evidence-grounded.
 
+## 2026-11-26 · LIBRAIRIES-1 — DEPLOYED and MERGED
+
+**Founder.** « Merge all three, deploy shop » (2026-11-26 07:15 UTC, decision card), which named for Shop+: deploy the storefront with the updated libraries and check it, then merge PR #2.
+
+**Deploy first.** storefront-deploy 124 from the designated branch at `0b016ed`: canon 3.27.0 asserted, the four custody wires present, smokes OK (checkout refuses by name, tiles live, password hashing at 100 000), and the live health check reports release `0b016ed`. The only runtime change since the last deploy (`3877273`) is the zod 4.6.7 update.
+
+**Merge.** main re-checked unchanged at `9d091f8`; merged as `e374d8a`. On main: ci 734 green, dependency-audit included, for the first time since the advisories · pwa-preview 520 (buyer site, byte-identical build) green · expo-preview 553 (reseller app, same bundle) green · service-canon-drift 483 green.
+
+**Still open.** The COLIS-2 five-second wait made load-safe (its own slice).
+
 ## 2026-11-26 · LIBRAIRIES-1 — shell-quote 1.12.0 and zod 4.6.7 · on the branch, NOT merged, NOT deployed
 
 **What and why.** The `dependency-audit` gate has been red on `main` since two library advisories were published: shell-quote (under the reseller app's React Native developer tools) and zod. This is the same update Boutik+ took (its lock at `12affd8`, identical integrity hashes). Built by the coordinator in its own worktree (`71294b2`), merged here `--no-ff`.
