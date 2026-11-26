@@ -1,6 +1,24 @@
 # JOURNAL — shop-plus
 Continuity ledger per CTO charter §6/§6bis. Every entry is evidence-grounded.
 
+## 2026-11-26 · A-VERIFIER-1 — DEPLOYED and MERGED
+
+**Founder.** « Deploy and merge both » (2026-11-26 18:41 UTC, decision card), which named for Shop+: after the platform-contracts merge, put the storefront server live from the branch and check it, then merge PR #4.
+
+**Contracts first.** platform-contracts PR #1 merged as the merge commit `f61b704`, so `b5fec57`, which this branch pins, is on main (ci 166 green).
+
+**Deploy.** storefront-deploy 126 (id 45878081388) from the designated branch at `74738b0`: canon 3.27.0 asserted, « CUSTODY ARMED — all four wires present on the live Worker », smokes OK (checkout refuses by name, tiles live, password hashing at 100 000), and the live health check reports release `74738b0`.
+
+**Merge.** main re-checked unchanged at `04411bb`; merged as `2c63572`. On main: pwa-preview 522 (buyer site) green · expo-preview 555 (reseller app) green · service-canon-drift 486 green · ci 738 **red on attempt 1** on one buyer browser test, then **green on attempt 2** with no change. The red test was `checkout-real.spec.ts:636` (« the retry sends a NEW command id »): the retry button was still counted 5 s after the tap. Main's tree is byte-identical to the PR head `74738b0`, whose ci 737 was green; the buyer site is untouched since `04411bb` (ci 736 green); the test file is unchanged since 2026-10-02; the same test passed 5 of 5 locally on `2c63572`. Cause, read in the test: its scripted service answers the retried order `payment_failed` too, so on a slow runner the failure screen, with its retry button, is back before the « button gone » check reads. A race in the test's timing, not in the app; no test changed. Follow-on: hold the second answer (`orderDelayMs`) or script a second state, so the check reads before it lands.
+
+**Then.** Boutik+ merged its side and published the founder's console from its main (its journal records it).
+
+**Known behaviour, as reported.** A checkout started and never paid becomes a « payment still waiting » item after 15 minutes and keeps it, so that order shows « À vérifier » on the founder's tab from then on.
+
+**Still open.** Letting the founder mark an item as checked, or grouping unanswered payments; recording the refund-never-confirmed row form so the console walk can read it; passing the Boutik+ clone path through turbo; the COLIS-2 five-second wait made load-safe; the retry-button race above.
+
+---
+
 ## 2026-11-26 · A-VERIFIER-1 — each key-C dispatch row says what the founder must check; the dead-letter door answers its counts alone · lane P · on the branch, NOT merged, NOT deployed
 
 **Spec.**
