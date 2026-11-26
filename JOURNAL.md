@@ -1,6 +1,18 @@
 # JOURNAL — shop-plus
 Continuity ledger per CTO charter §6/§6bis. Every entry is evidence-grounded.
 
+## 2026-11-26 · Wave 0 MERGED on the founder's « go » (RÈGLES-UNIFIÉES-1 · LOCK-LABELS-1)
+
+**Founder order (2026-11-26, 03:00 UTC).** « you can go » — on the Wave 0 report (RÈGLES-UNIFIÉES-1 in all five repositories; LOCK-LABELS-1 in Shop+, which also carried the 2026-10-02 journal commit `90e3653`).
+- **Order kept:** platform-contracts first — `main` `7459af0 → 17c2357` (fast-forward), **ci 164 green** — then the four apps, each `main` fast-forwarded to the commit the report named.
+- **This repository:** `main` `76bbb96 → 49c80d9` (fast-forward), carrying `90e3653`, LOCK-LABELS-1 `003f400`, RÈGLES-UNIFIÉES-1 `66f5cb1` and the journal `49c80d9`.
+- **The lock-file repair, proven on GitHub's own runners:** **service-canon-drift 481 green** — the drift watch whose run 480 (2026-11-25) failed on pnpm's store content check; the ci install step (frozen lock file) passed. **pwa-preview 518 green** (buyer site re-published, unchanged code) · **expo-preview 551 green** (reseller app re-published, unchanged code).
+- **ci 730 red, on two recorded baselines only.** `dependency-audit-positive`: critical shell-quote under the reseller app's react-native devtools, high zod under supply-consumer — neither under a line LOCK-LABELS-1 moved. In the `tests` gate, one test of `colis.e2e.test.ts` (« REMBOURSEMENT-PORTE-FERMEE … ») failed at its set-up with `reserve 409 already_reserved` — the known set-up race, now also seen on GitHub's runner — while the same file ran 14/14 green later in the same run, inside `reponses-enregistrees`. The buyer-site Playwright suite passed, including the two fallback-font tests that fail only where the machine's sans-serif is Inter. Every other gate green.
+- **No deploy workflow was dispatched.** The change is docs and lock-file labels only; the publish runs that a push to `main` starts re-published unchanged code.
+- **This entry** is on the designated branch only; it reaches `main` with the next merge the founder approves.
+
+---
+
 ## 2026-11-26 · LOCK-LABELS-1 — the lock file labels the d6f3882 canon packages at the version they carry · on the branch, NOT merged, NOT deployed
 
 **What was wrong.** The canon 3.27.0 repin (`1cdc906`) left three `version:` labels in `pnpm-lock.yaml` at `3.25.0` for `@platform/certification`, `@platform/contracts` and `@platform/kernel-types` pinned at `d6f3882`, whose own `package.json` says `3.27.0`. pnpm's store content check refuses that mismatch whenever an install reuses a store already holding those packages: the scheduled drift watch (service-canon-drift) has failed that way every day since 2026-10-02 (run 480, 2026-11-25: « reused 576 … ERR_PNPM_UNEXPECTED_PKG_CONTENT_IN_STORE … Expected package: @platform/contracts@3.25.0. Actual package in the store … @platform/contracts@3.27.0 »).
