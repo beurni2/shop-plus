@@ -2587,6 +2587,11 @@ function projectVente(v: Record<string, unknown> | null): Record<string, unknown
     orderId, state, createdAt, resellerNet, productVersionId, zoneTo,
     ...(typeof acceptedAt === 'string' && acceptedAt !== '' ? { acceptedAt } : {}),
     ...(typeof readyAt === 'string' && readyAt !== '' ? { readyAt } : {}),
+    // The two settlement facts her « Mes gains » ranks a sale by: Séra
+    // validated the delivery, or the order ended before it. Only a literal
+    // `true` rides; anything else is « not known », never « no ».
+    ...(v['livree'] === true ? { livree: true } : {}),
+    ...(v['refusee'] === true ? { refusee: true } : {}),
     // RELATED-PARTY-1 — §6.5 on her wire, only in the shape the order builds.
     ...(lienProche !== undefined ? { lienProche } : {}),
   };

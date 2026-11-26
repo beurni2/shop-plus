@@ -2707,7 +2707,7 @@
  },
  {
   "key": "gains.locked_texte",
-  "fr": "Le paiement est confirmé. Ce montant est à vous et ne bouge plus.",
+  "fr": "La commande est confirmée. Ce gain sera à vous dès que Séra confirmera la livraison.",
   "register": "money",
   "screenClass": "status"
  },
@@ -2719,7 +2719,7 @@
  },
  {
   "key": "gains.eligible_texte",
-  "fr": "Après la livraison confirmée par Séra.",
+  "fr": "Livraison confirmée par Séra. Le versement n'est pas encore en place : ce gain vous attend.",
   "register": "money",
   "screenClass": "status"
  },
@@ -2864,6 +2864,42 @@
  {
   "key": "gains.sans_obligation",
   "fr": "{n} commande(s) sans paiement confirmé. Elles ne comptent pas ici.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "gains.refusees_une",
+  "fr": "1 vente arrêtée avant la livraison : pas de gain sur cette vente.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "gains.refusees_n",
+  "fr": "{n} ventes arrêtées avant la livraison : pas de gain sur ces ventes.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "gains.remboursees_une",
+  "fr": "1 vente remboursée à la cliente : pas de gain sur cette vente.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "gains.remboursees_n",
+  "fr": "{n} ventes remboursées à la cliente : pas de gain sur ces ventes.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "ventes.refusees_plusieurs",
+  "fr": "Des ventes arrêtées avant la livraison : pas de gain sur ces ventes.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "ventes.remboursees_plusieurs",
+  "fr": "Des ventes remboursées à la cliente : pas de gain sur ces ventes.",
   "register": "money",
   "screenClass": "status"
  },
