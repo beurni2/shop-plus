@@ -27,7 +27,10 @@ import { cleC, seance, type Seance } from './seance';
  *   (b) delivered and validated ⇒ two obligations in the ledger — her sale
  *       is on « Eligible »;
  *   (c) paid in full, refused, refund confirmed ⇒ `refunded` — her sale is
- *       still on her wire, counted as refunded, and the answer is complete.
+ *       still on her wire, counted as refunded, and the answer is complete;
+ *   (d) delivered and validated, THEN a refusal arrives — once readable, once
+ *       unreadable. The obligations already exist, so the delivery stands:
+ *       her row never says « refused », and her sale stays on « Eligible ».
  */
 
 const SCRIPT = 'dist/worker/worker.mjs';
@@ -133,6 +136,23 @@ interface Audit {
 async function audit(orderId: string): Promise<Audit> {
   const ns = await mf.getDurableObjectNamespace('ORDER');
   return (await (await ns.get(ns.idFromName(orderId)).fetch('https://do/entry/audit')).json()) as Audit;
+}
+
+/** THE LEDGER'S OWN LINES for one order, on the founder's key-C read — never the response of the act that made them. */
+interface Obligation { party: string; amount: number; state: string; holds: string[] }
+async function obligations(orderId: string): Promise<Obligation[]> {
+  const res = await mf.dispatchFetch(`${BASE}/orders/${encodeURIComponent(orderId)}/related-party`, { headers: cleC });
+  const body = safeJson(await res.text());
+  if (res.status !== 200) throw new Error(`founder read ${res.status} ${JSON.stringify(body)}`);
+  return (body['obligations'] as Obligation[] | undefined) ?? [];
+}
+
+/** Her wire exactly as the Worker sends it, before her app reads a single field. */
+async function sonFil(S: Seance): Promise<Record<string, unknown>[]> {
+  const res = await mf.dispatchFetch(`${BASE}/reseller/ventes`, { headers: { Authorization: `Bearer ${S.session}` } });
+  const body = safeJson(await res.text());
+  if (res.status !== 200) throw new Error(`her wire ${res.status} ${JSON.stringify(body)}`);
+  return body['ventes'] as Record<string, unknown>[];
 }
 
 /** A provider-confirmed checkout leg on an order under HER attribution. */
@@ -264,12 +284,18 @@ describe('« Mes gains » shows each sale at the rung the server records — on 
     const v = await valide(orderId);
     expect(`${v.status} ${v.text}`).toBe('200 {"ok":true,"status":"recorded","obligations":2}');
     expect((await audit(orderId)).state, 'the order state alone still says confirmed').toBe('confirmed');
+    // THE LEDGER, asked: two lines, hers among them, Eligible.
+    const lignes = await obligations(orderId);
+    expect(lignes, 'two obligations in the ledger itself').toHaveLength(2);
+    const sienne = lignes.find((o) => o.party.startsWith('reseller:'));
+    expect(sienne?.state).toBe('Eligible');
 
     const { res, vue, palier } = await sesGains(S);
     expect(res.incomplet).toBe(false);
     expect(palier('Locked').ventes, 'a delivered sale is no longer only locked').toBe(0);
     expect(palier('Eligible').ventes).toBe(1);
     expect(palier('Eligible').netFcfa, 'her net, copied off the quote').toBe(res.ventes[0]!.resellerNet);
+    expect(palier('Eligible').netFcfa, 'and it is the amount on her ledger line').toBe(sienne!.amount);
     expect(palier('Eligible').atteignable).toBe(true);
     expect(vue.refusees).toBe(0);
   });
@@ -309,4 +335,42 @@ describe('« Mes gains » shows each sale at the rung the server records — on 
     expect(vue.remboursees, 'counted on its own honest line').toBe(1);
     expect(vue.refusees, 'once refunded it is counted once, as refunded').toBe(0);
   });
+
+  const apresLivraison = [
+    { cas: 'readable', n: '0005', payload: { rejection: 'valid_rejection', fault_class: 'seller' }, decision: 'livraison_acceptee' },
+    { cas: 'unreadable', n: '0006', payload: {}, decision: 'refus_illisible' },
+  ] as const;
+  for (const { cas, n, payload, decision } of apresLivraison) {
+    it(`(d) delivered and validated, then a ${cas} refusal: the delivery stands, her row never says refused, and her sale stays on « Eligible »`, async () => {
+      const S = await seance(mf, `gvd${n}`);
+      const orderId = await commandePayee(S, n, 'FULL_PREPAY');
+      const v = await valide(orderId);
+      expect(`${v.status} ${v.text}`).toBe('200 {"ok":true,"status":"recorded","obligations":2}');
+      const r = await refus(orderId, payload);
+      expect(r.status, r.text).toBe(200);
+
+      // THE LEDGER: the refund record names this road, and her line is untouched.
+      const a = await audit(orderId);
+      expect(a.state).toBe('confirmed');
+      expect(a.remboursement?.decision, 'the refund record names this road').toBe(decision);
+      const lignes = await obligations(orderId);
+      expect(lignes, 'the obligations still stand').toHaveLength(2);
+      const sienne = lignes.find((o) => o.party.startsWith('reseller:'));
+      expect(sienne?.state).toBe('Eligible');
+
+      // HER WIRE, before her app reads it: delivered, and nothing else.
+      const fil = await sonFil(S);
+      expect(fil).toHaveLength(1);
+      expect(fil[0]!['livree']).toBe(true);
+      expect('refusee' in fil[0]!, `the row does not say refused: ${JSON.stringify(fil[0])}`).toBe(false);
+
+      const { res, vue, palier } = await sesGains(S);
+      expect(res.incomplet).toBe(false);
+      expect(palier('Eligible').ventes, 'still ready to be paid').toBe(1);
+      expect(palier('Eligible').netFcfa, 'with her net, the amount on her ledger line').toBe(sienne!.amount);
+      expect(palier('Locked').ventes).toBe(0);
+      expect(vue.refusees, 'not counted as stopped').toBe(0);
+      expect(vue.remboursees).toBe(0);
+    });
+  }
 });

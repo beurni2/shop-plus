@@ -13,7 +13,7 @@ import {
   type EtatGain,
 } from '../src/sales/gains-model';
 import { ecranDesGains } from '../src/sales/gains-screen';
-import type { FeedState, FeedVente } from '../src/sales/feed-service';
+import { readFeedVente, type FeedState, type FeedVente } from '../src/sales/feed-service';
 
 /**
  * SP6.1 — the earnings read model, EXECUTED. Every assertion runs the real
@@ -101,7 +101,8 @@ describe('SP6.1 — reachability is DERIVED from the wire, never declared', () =
           const etat = etatDeLaVente(r);
           atteints.add(etat);
           if (!livree) expect(etat, `${state} without delivery reached Eligible`).not.toBe('Eligible');
-          if (livree && !refusee && state !== 'refunded') expect(etat, `${state} delivered`).toBe('Eligible');
+          // A validated delivery outranks a refusal fact; only `refunded` ends it.
+          if (livree && state !== 'refunded') expect(etat, `${state} delivered${refusee ? ', then refused' : ''}`).toBe('Eligible');
         }
       }
     }
@@ -135,6 +136,21 @@ describe('SP6.1 — reachability is DERIVED from the wire, never declared', () =
     ];
     expect([...ETATS_DU_FIL_POUR_TESTS].sort()).toEqual([...attendus].sort());
     expect([...ETATS_DU_FIL_POUR_TESTS].sort()).toEqual([...ORDER_STATUSES].sort());
+  });
+
+  it('HER READER takes a row in EVERY canon order state, and refuses a state canon does not name', () => {
+    // The reader is the boundary: a state it does not know is a sale dropped
+    // and a list called incomplete. Pinned to canon, not to a copy of it.
+    const brut = { orderId: 'ord-1', createdAt: T, resellerNet: 2_000, productVersionId: 'pv-1', zoneTo: 'Ouagadougou' };
+    for (const state of ORDER_STATUSES) {
+      expect(readFeedVente({ ...brut, state })?.state, state).toBe(state);
+    }
+    expect(readFeedVente({ ...brut, state: 'delivered' }), 'an unknown state is not read').toBeNull();
+    // …and the two facts ride only as a literal `true`.
+    expect(readFeedVente({ ...brut, state: 'confirmed', livree: true, refusee: true })).toMatchObject({ livree: true, refusee: true });
+    const flou = readFeedVente({ ...brut, state: 'confirmed', livree: 'yes', refusee: 1 });
+    expect(flou?.livree).toBeUndefined();
+    expect(flou?.refusee).toBeUndefined();
   });
 
   it('a DORMANT rung carries no francs and no count, whatever the sales are', () => {
@@ -241,6 +257,19 @@ describe('SP6.1 — every wire state lands where the settlement law says, and no
     expect(v.sansObligation, 'not a failed payment: its own line').toBe(0);
     expect(v.paliers.find((p) => p.etat === 'Locked')!.netFcfa).toBe(3_000);
     expect(v.paliers.reduce((n, p) => n + p.ventes, 0), 'only the live sale sits on a rung').toBe(1);
+  });
+
+  it('DELIVERED, THEN A REFUSAL FACT → still Eligible: once the ledger wrote the obligations, a refusal ended nothing', () => {
+    const r = vente({ resellerNet: 4_000, livree: true, refusee: true });
+    expect(finSansGain(r)).toBeNull();
+    expect(etatDeLaVente(r)).toBe('Eligible');
+    const v = echelle([r]);
+    expect(v.refusees).toBe(0);
+    expect(v.paliers.find((p) => p.etat === 'Eligible')!.netFcfa).toBe(4_000);
+    // and a §6.5 hold on it still stands, with her appeal
+    const tenue = echelle([{ ...r, lienProche: { outcome: 'auto_void', signals: ['phone'], contestee: false } }]);
+    expect(tenue.paliers.find((p) => p.etat === 'Held')!.ventes).toBe(1);
+    expect(tenue.retenues.map((x) => x.orderId)).toEqual(['ord-1']);
   });
 
   it('REFUNDED → read, on NO rung, counted once as refunded (even with its refusal fact still on the row)', () => {
@@ -383,20 +412,26 @@ describe('SP6.1 — the screen says the honest thing in every state', () => {
     const e = ecranDesGains(vueDesGains([vente()], false));
     expect(e.noticeKeys).not.toContain('gains.incomplet');
     expect(e.noticeKeys).not.toContain('gains.sans_obligation');
-    expect(e.noticeKeys).not.toContain('gains.refusees');
-    expect(e.noticeKeys).not.toContain('gains.remboursees');
+    for (const k of ['gains.refusees_une', 'gains.refusees_n', 'gains.remboursees_une', 'gains.remboursees_n']) {
+      expect(e.noticeKeys).not.toContain(k);
+    }
   });
 
-  it('refused and refunded sales are each SAID, with their number, before the standing sentence', () => {
+  it('refused and refunded sales are each SAID — one or many, the number carried — before the standing sentence', () => {
     const e = ecranDesGains(
       vueDesGains(
         [vente({ orderId: 'a', refusee: true }), vente({ orderId: 'b', refusee: true }), vente({ orderId: 'c', state: 'refunded' })],
         false,
       ),
     );
-    expect(e.noticeKeys).toEqual(['gains.refusees', 'gains.remboursees', 'gains.pas_de_retrait']);
-    expect(e.noticeParams['gains.refusees']).toEqual({ n: '2' });
-    expect(e.noticeParams['gains.remboursees']).toEqual({ n: '1' });
+    expect(e.noticeKeys).toEqual(['gains.refusees_n', 'gains.remboursees_une', 'gains.pas_de_retrait']);
+    expect(e.noticeParams['gains.refusees_n']).toEqual({ n: '2' });
+    expect(e.noticeParams['gains.remboursees_une']).toBeUndefined();
+    const inverse = ecranDesGains(
+      vueDesGains([vente({ orderId: 'a', refusee: true }), vente({ orderId: 'b', state: 'refunded' }), vente({ orderId: 'c', state: 'refunded' })], false),
+    );
+    expect(inverse.noticeKeys).toEqual(['gains.refusees_une', 'gains.remboursees_n', 'gains.pas_de_retrait']);
+    expect(inverse.noticeParams['gains.remboursees_n']).toEqual({ n: '2' });
   });
 });
 
@@ -415,14 +450,17 @@ describe('SP6.1 — every key the screen can emit exists in the catalog (Ten Law
           vente({ orderId: 'c', state: 'payment_failed' }),
           vente({ orderId: 'd', refusee: true }),
           vente({ orderId: 'e', state: 'refunded' }),
+          vente({ orderId: 'f', state: 'refunded' }),
         ],
         true,
       ),
     );
-    expect(e.noticeKeys, 'control: the two new lines are in the set checked').toEqual(
-      expect.arrayContaining(['gains.refusees', 'gains.remboursees']),
+    expect(e.noticeKeys, 'control: the new lines are in the set checked').toEqual(
+      expect.arrayContaining(['gains.refusees_une', 'gains.remboursees_n']),
     );
     const keys = new Set<string>([
+      'gains.refusees_n',
+      'gains.remboursees_une',
       e.titreKey,
       ...(e.sousTitreKey === undefined ? [] : [e.sousTitreKey]),
       ...e.noticeKeys,

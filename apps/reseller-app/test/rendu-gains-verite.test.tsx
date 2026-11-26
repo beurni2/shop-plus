@@ -39,9 +39,11 @@ const REFUSEE = { ...BASE, orderId: 'ord-gv-0001', resellerNet: 2_500, refusee: 
 /** Refused, then refunded by the provider. */
 const REMBOURSEE = { ...BASE, state: 'refunded', orderId: 'ord-gv-0003', resellerNet: 1_500, refusee: true };
 
-const LOCKED_VRAI = 'La commande est confirmée. Ce gain sera à vous dès que Séra confirme la livraison.';
-const LIGNE_REFUSEES = '1 vente(s) arrêtée(s) avant la livraison : pas de gain sur ces ventes.';
-const LIGNE_REMBOURSEES = '1 vente(s) remboursée(s) à la cliente : pas de gain sur ces ventes.';
+const LOCKED_VRAI = 'La commande est confirmée. Ce gain sera à vous dès que Séra confirmera la livraison.';
+const ELIGIBLE_VRAI = "Livraison confirmée par Séra. Le versement n'est pas encore en place : ce gain vous attend.";
+const LIGNE_REFUSEES = '1 vente arrêtée avant la livraison : pas de gain sur cette vente.';
+const LIGNE_REMBOURSEES = '1 vente remboursée à la cliente : pas de gain sur cette vente.';
+const NOUS_VERIFIONS = 'Nous vérifions.';
 const INCOMPLET = "Nous n'avons pas pu tout lire.";
 
 const routesCommunes: Route[] = [
@@ -112,6 +114,10 @@ async function surMesGains(screen: Screen): Promise<void> {
 const montant = (n: number): RegExp =>
   new RegExp(String(n).replace(/\B(?=(\d{3})+(?!\d))/g, '[\\s\\u202f\\u00a0]') + '(?:[\\s\\u00a0]| \\| )FCFA');
 
+/** A sale's net as « Mes ventes » and the home preview print it: « + 3 000 FCFA net ». The « FCFA » is in it, or a « not » would pass over text that is never there. */
+const netDeVente = (n: number): RegExp =>
+  new RegExp(`\\+[\\s\\u202f\\u00a0]${montant(n).source}[\\s\\u202f\\u00a0]net`);
+
 /**
  * The device's own facts, set per walk: a frame exists (the locked hero counts
  * up with one), and she asked for LESS MOTION — so the hero shows its figure
@@ -154,6 +160,7 @@ describe('« Mes gains » — delivered, refused and refunded sales, each where 
     expect(lu, 'the refunded sale, on its own line').toContain(LIGNE_REMBOURSEES);
     expect(lu, 'the server said complete: she is not told otherwise').not.toContain(INCOMPLET);
     expect(lu, 'the locked rung says what is true before delivery').toContain(LOCKED_VRAI);
+    expect(lu, 'the delivered rung says no payout is in place yet').toContain(ELIGIBLE_VRAI);
     expect(lu).not.toContain('ne bouge plus');
     screen.unmount();
   });
@@ -174,6 +181,30 @@ describe('« Mes gains » — delivered, refused and refunded sales, each where 
     expect(screen.canPress('Gains')).toBe(true);
     await screen.press('Gains');
     await attendre(screen, LIGNE_REFUSEES);
+    screen.unmount();
+  });
+
+  it('« Mes ventes » and the home preview: the refused and refunded sales are not shown as PAYÉE with a net — each is said on its own line', async () => {
+    await seedAdmise();
+    await moinsDeMouvement();
+    wire(monde([ORDINAIRE, REFUSEE, REMBOURSEE]));
+    const screen = await mountApp();
+    for (let i = 0; i < 10 && !screen.canPress('Tout voir'); i += 1) await screen.settle();
+    for (let i = 0; i < 25 && !netDeVente(3_000).test(screen.texts().join(' | ')); i += 1) await screen.settle();
+    const accueil = screen.texts().join(' | ');
+    expect(accueil, `home previews the live sale; on screen: ${JSON.stringify(screen.texts())}`).toMatch(netDeVente(3_000));
+    expect(accueil, 'home previews the live sale only').not.toMatch(netDeVente(2_500));
+    expect(accueil).not.toMatch(netDeVente(1_500));
+    expect(screen.canPress('Tout voir'), 'the list is reachable from home').toBe(true);
+    await screen.press('Tout voir');
+    await attendre(screen, LIGNE_REFUSEES);
+    const liste = screen.texts().join(' | ');
+    expect(liste, 'the refunded sale, on its own line').toContain(LIGNE_REMBOURSEES);
+    expect(liste, 'nobody is « checking » a refunded sale').not.toContain(NOUS_VERIFIONS);
+    expect(liste.split('PAYÉE').length - 1, 'one paid chip: the live sale').toBe(1);
+    expect(liste).toMatch(netDeVente(3_000));
+    expect(liste).not.toMatch(netDeVente(2_500));
+    expect(liste).not.toMatch(netDeVente(1_500));
     screen.unmount();
   });
 });

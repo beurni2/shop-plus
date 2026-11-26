@@ -190,12 +190,14 @@ export const ATTEIGNABLES: ReadonlySet<EtatGain> = new Set(
 );
 
 /** How a sale that ended before delivery ended: refunded, or refused (refund
- *  open, or nothing due back). Either way it carries no gain on any rung. */
+ *  open, or nothing due back). Either way it carries no gain on any rung. A
+ *  validated delivery outranks a refusal fact: once the ledger wrote the
+ *  obligations, a later refusal ended nothing (§6.3 finality at acceptance). */
 export type FinSansGain = 'remboursee' | 'refusee';
 
 export function finSansGain(r: FeedVente): FinSansGain | null {
   if (r.state === 'refunded') return 'remboursee';
-  if (r.refusee === true) return 'refusee';
+  if (r.refusee === true && r.livree !== true) return 'refusee';
   return null;
 }
 

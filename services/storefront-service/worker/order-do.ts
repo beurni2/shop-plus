@@ -1996,9 +1996,15 @@ export class OrderDO {
         // The order ended before delivery (Séra or the supplier refused it):
         // the refund record says so even when nothing is due back, where the
         // order state stays `confirmed` for ever. Her earning is gone, and her
-        // « Mes gains » must not keep it on « Locked ». A refusal that found
-        // the delivery already accepted ended nothing.
-        ...(remboursement !== undefined && remboursement.decision !== 'livraison_acceptee' ? { refusee: true } : {}),
+        // « Mes gains » must not keep it on « Locked ». A refusal that came
+        // after the delivery was accepted ended nothing — the same acceptance
+        // rule the refund decision applies (obligations exist ⇒ accepted),
+        // checked here too because an unreadable refusal is recorded without it.
+        ...(remboursement !== undefined &&
+        remboursement.decision !== 'livraison_acceptee' &&
+        spine.ledger.obligationsFor(origin.orderId).length === 0
+          ? { refusee: true }
+          : {}),
         /**
          * READINESS-RETURN-1c — the preparation facts, each present ONLY once
          * Boutik+ has actually said so. Absent means « not yet », never

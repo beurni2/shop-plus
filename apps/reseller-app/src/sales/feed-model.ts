@@ -32,6 +32,7 @@
  */
 
 import type { FeedVente } from './feed-service';
+import { finSansGain } from './gains-model';
 
 /** What she can be shown about one real sale. Note what is ABSENT and cannot
  *  be added by accident: no gross, no commission, no base, no buyer contact. */
@@ -68,8 +69,8 @@ export type FeedVue =
    *  code did not keep. Her screen must be able to tell « the server sent
    *  nothing » from « the server sent rows and none of them is a sale », the
    *  second being a wire bug that would otherwise be invisible. */
-  | { readonly kind: 'empty'; readonly incomplet: boolean; readonly nonConfirmees: number }
-  | {
+  | ({ readonly kind: 'empty'; readonly incomplet: boolean; readonly nonConfirmees: number } & FinsSansGain)
+  | ({
       readonly kind: 'ready';
       readonly ventes: readonly VenteReelle[];
       /** The server could not read everything it holds for her. The screen
@@ -81,7 +82,19 @@ export type FeedVue =
        *  surfaced rather than silently dropped, because a silent drop is how a
        *  wire bug becomes invisible. */
       readonly nonConfirmees: number;
-    };
+    } & FinsSansGain);
+
+/**
+ * Sales that ended before delivery — refused, or refunded — are neither a paid
+ * sale nor « not a sale »: they leave the list and its total (a « PAYÉE » chip
+ * on a refused parcel says money is coming that is not) and are SAID on their
+ * own line, in the words « Mes gains » uses. Each key is ABSENT when there is
+ * none, never a zero standing in for nothing.
+ */
+interface FinsSansGain {
+  readonly refusees?: number;
+  readonly remboursees?: number;
+}
 
 /**
  * THE THREE STATES SHOP+ CAN NOW PROVE, in the order they occur. Two keys
@@ -113,9 +126,13 @@ function etatKeyPour(r: FeedVente): string {
  * to a compile error.
  */
 export function vueDesVentes(rows: readonly FeedVente[], incomplet: boolean): FeedVue {
-  const confirmees = rows.filter((r) => r.state === 'confirmed');
-  const nonConfirmees = rows.length - confirmees.length;
-  if (confirmees.length === 0) return { kind: 'empty', incomplet, nonConfirmees };
+  const refusees = rows.filter((r) => finSansGain(r) === 'refusee').length;
+  const remboursees = rows.filter((r) => finSansGain(r) === 'remboursee').length;
+  const fins: FinsSansGain = { ...(refusees > 0 ? { refusees } : {}), ...(remboursees > 0 ? { remboursees } : {}) };
+  const vivantes = rows.filter((r) => finSansGain(r) === null);
+  const confirmees = vivantes.filter((r) => r.state === 'confirmed');
+  const nonConfirmees = vivantes.length - confirmees.length;
+  if (confirmees.length === 0) return { kind: 'empty', incomplet, nonConfirmees, ...fins };
   const ventes = [...confirmees]
     .sort((a, b) => (a.createdAt === b.createdAt ? 0 : a.createdAt < b.createdAt ? 1 : -1))
     .map(
@@ -129,7 +146,7 @@ export function vueDesVentes(rows: readonly FeedVente[], incomplet: boolean): Fe
         ...(r.readyAt !== undefined ? { readyAt: r.readyAt } : {}),
       }),
     );
-  return { kind: 'ready', ventes, nonConfirmees, incomplet };
+  return { kind: 'ready', ventes, nonConfirmees, incomplet, ...fins };
 }
 
 /** Her total, from rows already on screen — a sum of copied nets, never a

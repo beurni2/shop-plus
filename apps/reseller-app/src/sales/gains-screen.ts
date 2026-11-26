@@ -173,13 +173,15 @@ export function ecranDesGains(vue: GainsVue): GainsEcran {
         noticeParams['gains.sans_obligation'] = { n: String(vue.sansObligation) };
       }
       // A sale that ended before delivery is on no rung; it is SAID, never dropped.
-      if (vue.refusees > 0) {
-        noticeKeys.push('gains.refusees');
-        noticeParams['gains.refusees'] = { n: String(vue.refusees) };
+      if (vue.refusees === 1) noticeKeys.push('gains.refusees_une');
+      if (vue.refusees > 1) {
+        noticeKeys.push('gains.refusees_n');
+        noticeParams['gains.refusees_n'] = { n: String(vue.refusees) };
       }
-      if (vue.remboursees > 0) {
-        noticeKeys.push('gains.remboursees');
-        noticeParams['gains.remboursees'] = { n: String(vue.remboursees) };
+      if (vue.remboursees === 1) noticeKeys.push('gains.remboursees_une');
+      if (vue.remboursees > 1) {
+        noticeKeys.push('gains.remboursees_n');
+        noticeParams['gains.remboursees_n'] = { n: String(vue.remboursees) };
       }
       // ALWAYS LAST, ALWAYS PRESENT: the sentence that keeps this screen from
       // reading as an account. It is not a notice about a problem — it is the

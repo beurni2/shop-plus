@@ -107,7 +107,7 @@ export function ecranDesVentes(vue: FeedVue): VentesEcran {
         titreKey: 'ventes.vide_titre',
         hintKey: 'ventes.vide_hint',
         lignes: VIDE,
-        noticeKeys: noticesPour(vue.incomplet, vue.nonConfirmees),
+        noticeKeys: noticesPour(vue.incomplet, vue.nonConfirmees, vue.refusees ?? 0, vue.remboursees ?? 0),
       };
     case 'ready':
       return {
@@ -119,13 +119,13 @@ export function ecranDesVentes(vue: FeedVue): VentesEcran {
           netFcfa: v.netFcfa,
           createdAt: v.createdAt,
         })),
-        noticeKeys: noticesPour(vue.incomplet, vue.nonConfirmees),
+        noticeKeys: noticesPour(vue.incomplet, vue.nonConfirmees, vue.refusees ?? 0, vue.remboursees ?? 0),
       };
   }
 }
 
-/** The two disclosures, in a fixed order so the screen is deterministic. */
-function noticesPour(incomplet: boolean, nonConfirmees: number): readonly string[] {
+/** The disclosures, in a fixed order so the screen is deterministic. */
+function noticesPour(incomplet: boolean, nonConfirmees: number, refusees: number, remboursees: number): readonly string[] {
   const out: string[] = [];
   // A short list served as the whole truth is the lie B3 was fixed to prevent;
   // it must reach her eyes, not just the wire.
@@ -133,6 +133,13 @@ function noticesPour(incomplet: boolean, nonConfirmees: number): readonly string
   // Rows that are not sales should be impossible; if any arrive, that is a
   // wire fault and she is told rather than left with a silently short list.
   if (nonConfirmees > 0) out.push('ventes.reel_non_confirmees');
+  // A sale that ended before delivery left the list: said, never dropped, in
+  // « Mes gains »'s own words. This screen paints keys without a number, so
+  // « several » stands for any count above one.
+  if (refusees === 1) out.push('gains.refusees_une');
+  if (refusees > 1) out.push('ventes.refusees_plusieurs');
+  if (remboursees === 1) out.push('gains.remboursees_une');
+  if (remboursees > 1) out.push('ventes.remboursees_plusieurs');
   return out;
 }
 
