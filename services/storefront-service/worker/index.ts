@@ -1567,6 +1567,19 @@ export default {
       if (book === null || book['ok'] !== true) {
         return withDispatchCors(Response.json({ ok: false, reason: 'dlq_unavailable' }, { status: 503 }));
       }
+      // The founder's Commandes tab needs only how many bodies wait to be read:
+      // a full book is up to ~4.8 MB, past what his phone reads in its bound.
+      // Exactly `?compte=1` answers the counts, never a body byte; any other
+      // query is the full read above, unchanged.
+      if (url.search === '?compte=1') {
+        const compte = (v: unknown): number => (Number.isSafeInteger(v) ? (v as number) : 0);
+        return withDispatchCors(Response.json({
+          ok: true,
+          held: compte(book['held']),
+          dropped: compte(book['dropped']),
+          oversize: Array.isArray(book['oversize']) ? book['oversize'].length : 0,
+        }));
+      }
       return withDispatchCors(Response.json(book));
     }
 
