@@ -305,7 +305,8 @@ describe('property pins — the Phase-0 table bytes in the runtime styles', () =
 describe('REACHABILITY — a screen nobody mounts fails here (the C-ENT lesson)', () => {
   const CERCLE_SCREENS: readonly Screen[] = ['cercle', 'campnew', 'campaign', 'funding', 'reput', 'membres'];
 
-  it('the journey graph reaches every Cercle screen from accueil', () => {
+  // CERCLE-FERME-1 (founder, 2026-11-26) — the screens stay mounted, the doors are closed.
+  it('the journey graph reaches NO Cercle screen from accueil', () => {
     const seen = new Set<Screen>(['accueil']);
     const queue: Screen[] = ['accueil'];
     while (queue.length) {
@@ -313,7 +314,7 @@ describe('REACHABILITY — a screen nobody mounts fails here (the C-ENT lesson)'
         if (!seen.has(next)) { seen.add(next); queue.push(next); }
       }
     }
-    for (const s of CERCLE_SCREENS) expect(seen.has(s), `unreachable: ${s}`).toBe(true);
+    for (const s of CERCLE_SCREENS) expect(seen.has(s), `a door into the demo Cercle: ${s}`).toBe(false);
   });
 
   it('App.tsx MOUNTS each Cercle screen on its route, and the hub wires every sub-screen', () => {
@@ -324,8 +325,9 @@ describe('REACHABILITY — a screen nobody mounts fails here (the C-ENT lesson)'
     expect(app).toMatch(/screen === 'funding' && <CampaignFunding/);
     expect(app).toMatch(/screen === 'reput' && <CercleReputation/);
     expect(app).toMatch(/screen === 'membres' && <CercleMembres/);
-    // D2 — the Accueil card is mounted and routes to the hub
-    expect(app).toMatch(/<CercleAccueilCard[^/]*onPress=\{\(\) => go\('cercle'\)\}/);
+    // D2 — the Accueil card is no longer mounted, and nothing in the App walks into the hub.
+    expect(app).not.toMatch(/<CercleAccueilCard/);
+    expect(app).not.toMatch(/go\('cercle'\)/);
     // D3/D4/D5 — the deltas are mounted in their carrier screens.
     // VENTE-DETAIL-RETIRÉ (AUDIT-SHOP-2 F-42) — THE D3 DELTA LOST ITS CARRIER
     // TOO: the sale-detail screen that rendered « −camp » under the net hero
@@ -349,7 +351,7 @@ describe('REACHABILITY — a screen nobody mounts fails here (the C-ENT lesson)'
     expect(app).toMatch(/campShare !== null \? \(/);
   });
 
-  it('§8.1 evolved (CERCLE-PROFIL-1, founder 2026-08-25) — the dock has FIVE tabs, Cercle among them no longer; the hub opens from the Profil row; two-heads icon verbatim', () => {
+  it('§8.1 evolved (CERCLE-PROFIL-1, founder 2026-08-25; CERCLE-FERME-1, 2026-11-26) — the dock has FIVE tabs, Cercle among them no longer; no Profil row opens the hub; two-heads icon verbatim', () => {
     const app = read('App.tsx');
     // ACCESS-GATE-1 — the FIRST closing tag AFTER the dock, not the first in
     // the file: the access gate returns its own <SafeAreaView> above this one,
@@ -365,9 +367,8 @@ describe('REACHABILITY — a screen nobody mounts fails here (the C-ENT lesson)'
     expect(dock).not.toContain('nav.tab_cercle');
     expect(catalog.find((e) => e.key === 'nav.tab_vitrine')!.fr).toBe('Ma Vitrine');
     expect(catalog.find((e) => e.key === 'nav.tab_cercle')).toBeUndefined();
-    // …and the road that replaced it is WIRED: the Profil screen's row walks
-    // the profil → cercle edge (the accueil card keeps its own, as before).
-    expect(app).toMatch(/onCercle=\{\(\) => go\('cercle'\)\}/);
+    // …and the Profil row that replaced it is closed too (CERCLE-FERME-1).
+    expect(app).not.toMatch(/onCercle/);
     // the C-CE22 two-heads geometry, spec paths verbatim
     const screens = read('src/cercle/screens.tsx');
     expect(screens).toContain('M3.5 19c.6-3 2.8-4.6 5.5-4.6s4.9 1.6 5.5 4.6');

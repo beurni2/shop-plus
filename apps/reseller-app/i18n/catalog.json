@@ -3138,12 +3138,6 @@
   "screenClass": "label"
  },
  {
-  "key": "profil.cercle_aide",
-  "fr": "Vos campagnes et votre réputation.",
-  "register": "selling",
-  "screenClass": "general"
- },
- {
   "key": "profil.ouvrir",
   "fr": "Voir mon profil",
   "register": "neutral",

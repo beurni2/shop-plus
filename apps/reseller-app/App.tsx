@@ -38,7 +38,7 @@ import { useVoiceNotes, VoiceCardRow, VoiceNoteSheet, voiceCardLabel, type Voice
 import { noteOf } from './src/vitrine/customize/voice';
 import {
   useCercle, CercleHub, CampWizard, CampaignActive, CampaignFunding, CercleReputation,
-  CercleMembres, IconCercleDeux, PendingHero, CercleAccueilCard,
+  CercleMembres, PendingHero,
 } from './src/cercle/screens';
 import { produit as cercleProduit, partagerBadge } from './src/cercle/model';
 import { useVentesReelles } from './src/sales/use-ventes-reelles';
@@ -2916,13 +2916,6 @@ export default function App() {
             <View style={styles.astuceCard}>
               <Text style={styles.astuceText}>{t('accueil.astuce')}</Text>
             </View>
-            {/* D2 — C-CE23 « Mon Cercle » (contextual entry; since
-                CERCLE-PROFIL-1 the canonical door is the Profil screen's row —
-                the dock tab is retired). ACCUEIL-PRO: the sub-line carries
-                NO figures — the demo world's « 214 membres · campagne … » was
-                a fake count on the real home screen. The invitation is the
-                whole line until SP9 makes a real one possible. */}
-            <CercleAccueilCard onPress={() => go('cercle')} />
           </ScrollView>
         )}
 
@@ -3808,7 +3801,6 @@ export default function App() {
             onInfos={() => go('profil-infos')}
             onRayons={() => go('profil-rayons')}
             onMdp={() => go('profil-mdp')}
-            onCercle={() => go('cercle')}
             onDeconnexion={() => { void deconnecter(); }}
           />
         )}
@@ -5158,31 +5150,17 @@ function ChoixRayons({ choisis, autres, onBasculer, desactive }: {
  * Nothing here asks her to type: the rows are the actions, « Me déconnecter »
  * is the only button — secondary, last.
  */
-function EcranProfil({ compte, profil, onRecharger, onInfos, onRayons, onMdp, onCercle, onDeconnexion }: {
+function EcranProfil({ compte, profil, onRecharger, onInfos, onRayons, onMdp, onDeconnexion }: {
   compte: CompteLocal | null | undefined;
   profil: ProfilEtat;
   onRecharger: () => void;
   onInfos: () => void;
   onRayons: () => void;
   onMdp: () => void;
-  /** CERCLE-PROFIL-1 (founder, 2026-08-25) — the Cercle tab is retired; HER
-   *  page is where the hub now opens. Walks the profil → cercle edge. */
-  onCercle: () => void;
   /** SESSION-VIE-1 — « Me déconnecter »: her own way out, on her page. */
   onDeconnexion: () => void;
 }) {
   const enTete = typeof profil === 'object' ? profil.name : compte?.name ?? '';
-  // CERCLE-PROFIL-1 — the hub's row, rendered in BOTH account states (the
-  // retired dock tab never asked for a compte, so this door must not either)
-  // and whatever the wire is doing. One JSX value, two render sites.
-  const rangCercle = (
-    <RangProfil
-      icone={<IconCercleDeux size={dimension.iconSizePx.tab} color={shopColour.deep} />}
-      titre={t('ce.hub_titre')}
-      resume={t('profil.cercle_aide')}
-      onPress={onCercle}
-    />
-  );
   // The chip prefers the WIRE's word when it disagrees with the disk mirror —
   // a freshly paused reseller must not read « Compte actif » one card above
   // the pause sentence while the background refresh is still in flight.
@@ -5205,7 +5183,6 @@ function EcranProfil({ compte, profil, onRecharger, onInfos, onRayons, onMdp, on
             <Overline>{t('profil.sans_compte')}</Overline>
             <Text style={styles.message}>{t('profil.sans_compte_texte')}</Text>
           </Card>
-          <Card>{rangCercle}</Card>
         </>
       )}
 
@@ -5235,47 +5212,46 @@ function EcranProfil({ compte, profil, onRecharger, onInfos, onRayons, onMdp, on
 
           {/* The index: one card, one door per task, each with what stands
               behind it now. Loading = skeleton rows where the doors will be.
-              No book to read = the Cercle door alone — a row that leads to a
+              No book to read = no index card at all — a row that leads to a
               form she cannot save is a lie, so the three are absent, not
-              disabled. */}
-          <Card style={styles.profilCarte}>
-            {profil === 'chargement' && (
-              <>
-                <Skeleton style={styles.profilSquelette} />
-                <View style={styles.carteTrait} />
-                <Skeleton style={styles.profilSquelette} />
-                <View style={styles.carteTrait} />
-                <Skeleton style={styles.profilSquelette} />
-                <View style={styles.carteTrait} />
-              </>
-            )}
-            {typeof profil === 'object' && (
-              <>
-                <RangProfil
-                  icone={<IconProfil size={dimension.iconSizePx.tab} color={shopColour.deep} />}
-                  titre={t('profil.infos_titre')}
-                  resume={profil.phone}
-                  onPress={onInfos}
-                />
-                <View style={styles.carteTrait} />
-                <RangProfil
-                  icone={<IconProduits size={dimension.iconSizePx.tab} color={shopColour.deep} />}
-                  titre={t('profil.rayons_titre')}
-                  resume={resumeRayons}
-                  onPress={onRayons}
-                />
-                <View style={styles.carteTrait} />
-                <RangProfil
-                  icone={<IconCle size={dimension.iconSizePx.tab} color={shopColour.deep} />}
-                  titre={t('profil.mdp_titre')}
-                  resume={t('profil.mdp_aide')}
-                  onPress={onMdp}
-                />
-                <View style={styles.carteTrait} />
-              </>
-            )}
-            {rangCercle}
-          </Card>
+              disabled, and an empty card would be a frame around nothing. */}
+          {(profil === 'chargement' || typeof profil === 'object') && (
+            <Card style={styles.profilCarte}>
+              {profil === 'chargement' && (
+                <>
+                  <Skeleton style={styles.profilSquelette} />
+                  <View style={styles.carteTrait} />
+                  <Skeleton style={styles.profilSquelette} />
+                  <View style={styles.carteTrait} />
+                  <Skeleton style={styles.profilSquelette} />
+                </>
+              )}
+              {typeof profil === 'object' && (
+                <>
+                  <RangProfil
+                    icone={<IconProfil size={dimension.iconSizePx.tab} color={shopColour.deep} />}
+                    titre={t('profil.infos_titre')}
+                    resume={profil.phone}
+                    onPress={onInfos}
+                  />
+                  <View style={styles.carteTrait} />
+                  <RangProfil
+                    icone={<IconProduits size={dimension.iconSizePx.tab} color={shopColour.deep} />}
+                    titre={t('profil.rayons_titre')}
+                    resume={resumeRayons}
+                    onPress={onRayons}
+                  />
+                  <View style={styles.carteTrait} />
+                  <RangProfil
+                    icone={<IconCle size={dimension.iconSizePx.tab} color={shopColour.deep} />}
+                    titre={t('profil.mdp_titre')}
+                    resume={t('profil.mdp_aide')}
+                    onPress={onMdp}
+                  />
+                </>
+              )}
+            </Card>
+          )}
 
           {/* SESSION-VIE-1 — her way out, whatever the wire is doing (it stands
               beside the network card too: a phone that cannot reach the book
