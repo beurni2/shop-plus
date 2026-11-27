@@ -255,7 +255,8 @@ const refusAcheteurFraisGardes = (orderId: string) => ({
   payload: { order_id: orderId, task_id: `task-${orderId}`, family: 'return', reason_code: 'change_of_mind', fault_class: 'buyer', fee_retained: true },
 });
 interface Rang { status?: string; reason?: string; abandonedAt?: string }
-const boite = async (orderId: string) => (await doDe(orderId, '/entry/outbox')) as { custodyArm?: Rang };
+const boite = async (orderId: string) =>
+  (await doDe(orderId, '/entry/outbox')) as { custodyArm?: Rang; seraOutbox?: Rang; seraAnnulation?: Rang };
 const fraisDe = (orderId: string): number => {
   const d = quotes.get(orderId)?.['deliveryFee'];
   if (typeof d !== 'number' || d <= 0) throw new Error(`setup: the quote names no delivery fee: ${JSON.stringify(quotes.get(orderId))}`);
@@ -282,7 +283,11 @@ describe('a parcel Séra declares lost on the road', () => {
     expect(somme(a.remboursement!.lignes), 'the delivery fee included').toBe(paye);
     expect(paye).toBeGreaterThan(D);
     expect(new Set(a.remboursement!.lignes.map((l) => l.refundKey)).size).toBe(a.remboursement!.lignes.length);
-    expect((await boite(orderId)).custodyArm, 'the custody row stops in the same act').toMatchObject({ status: 'abandoned', reason: 'colis_perdu' });
+    const rangs = await boite(orderId);
+    expect(rangs.custodyArm, 'the custody row stops in the same act').toMatchObject({ status: 'abandoned', reason: 'colis_perdu' });
+    // Séra is the one that declared it: nothing tells Séra back that the order is cancelled.
+    expect(rangs.seraOutbox, 'Séra was told the order is funded, so a cancel row could exist').toBeDefined();
+    expect(rangs.seraAnnulation).toBeUndefined();
 
     const confirmes = await confirmerTout(orderId);
     expect(somme(confirmes)).toBe(paye);
@@ -366,5 +371,45 @@ describe('a parcel Séra declares lost on the road', () => {
     const r = await sera(perdu('ord-inconnue-cp-0007'));
     expect(r.status, r.text).toBe(404);
     expect(r.json['reason']).toBe('unknown_order');
+    const lu = await doDe('ord-inconnue-cp-0007', '/entry/audit');
+    expect(lu).toMatchObject({ exists: false, escrow: null });
+  }, 60_000);
+
+  it('L8 — paid in two parts, the product at the door, its payment confirmed after the declaration: both parts come back, each under its own key, and refunded only when both are confirmed', async () => {
+    const orderId = await commandePayee('0008', 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR');
+    const D = payes.get(orderId)!;
+    expect(D).toBe(fraisDe(orderId));
+    // At her door the provider was asked for the product; the parcel is lost before it answers.
+    const porte = await post(`/checkout/order/${encodeURIComponent(orderId)}/door-charge`, { holderRef: 'holder-0008', commandId: 'cmd-door-0008' });
+    expect(porte.status, porte.text).toBe(200);
+    const BM = ((await doDe(orderId, '/entry/gains'))['split'] as { productSubtotal: number }).productSubtotal;
+    expect((await sera(perdu(orderId))).status).toBe(200);
+
+    const provider = new MockPaymentProvider({});
+    provider.initiateCharge({
+      orderId, paymentAttemptId: (await auditDe(orderId)).legKeys['door']!, amount: BM,
+      correlationId: `corr-${orderId}`, requestedAtIso: T0, legType: 'door',
+    });
+    const doorEvent = provider.webhookDeliveryPlan().find((d) => d.event.name === 'payment.door_leg_confirmed.v1')!.event;
+    const paid = await post('/checkout/webhook/door', doorEvent, signe);
+    expect(paid.status, paid.text).toBe(200);
+
+    const a = await jusqua(() => auditDe(orderId), (x) => (x.remboursement?.lignes.length ?? 0) === 2 && x.remboursement!.lignes.every((l) => l.etat === 'demande'));
+    const lignes = a.remboursement!.lignes;
+    expect(lignes.map((l) => l.legType).sort()).toEqual(['checkout', 'door']);
+    expect(new Set(lignes.map((l) => l.refundKey)).size, 'two distinct keys').toBe(2);
+    expect(somme(lignes), 'B + M + D').toBe(BM + D);
+    expect(a.remboursement).toMatchObject({ refus: { nature: 'colis_perdu' }, retenu: 0 });
+
+    const res = await mf.dispatchFetch(`http://c/checkout/webhook/refund-key/${encodeURIComponent(orderId)}`, { headers: signe });
+    const demandes = safeJson(await res.text())['remboursements'] as { legType: string; refundKey: string; amount: number; collectRef: string }[];
+    expect(demandes).toHaveLength(2);
+    const [premier, second] = [demandes.find((d) => d.legType === 'checkout')!, demandes.find((d) => d.legType === 'door')!];
+    expect((await post('/checkout/webhook/refund', composeSandboxRefund(orderId, premier, new Date().toISOString()), signe)).status).toBe(200);
+    expect((await auditDe(orderId)).state, 'one refund of two confirmed is not refunded').not.toBe('refunded');
+    expect((await post('/checkout/webhook/refund', composeSandboxRefund(orderId, second, new Date().toISOString()), signe)).status).toBe(200);
+    const fini = await auditDe(orderId);
+    expect(fini.state).toBe('refunded');
+    expect(somme(fini.refunds)).toBe(BM + D);
   }, 60_000);
 });
