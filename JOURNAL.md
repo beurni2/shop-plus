@@ -1,6 +1,69 @@
 # JOURNAL — shop-plus
 Continuity ledger per CTO charter §6/§6bis. Every entry is evidence-grounded.
 
+## 2026-11-27 · SORTIES-SURES-1 — a service goes live only from a green commit, with the founder's approval; apps publish only after green checks; a rollback page; the board and a live check every day · lane O5 · on the branch, NOT merged, NOT deployed
+
+**Founder.** « Go on for batch 6 » (2026-11-27 19:38 UTC), batch 6 of the plan he approved: « A service goes live only after its checks passed on that exact version, with your approval in front of it. Apps publish only after green checks. One page per app says how to roll back, and we practise it once. The boards run every day, not only when someone pushes. A daily watch checks that the live services run `main`. Public logs stop printing order numbers, amounts and your catalogue. » His card on the GitHub approval is still open; this is built on its recommended answer (every service release waits for his approval in GitHub; app updates need green checks only).
+
+**Lane.** Lane O5 (all five repositories), Shop+ commits `385d346`, `e32b8e1` and the review's fixes `e650906` on `bdf9b8b`. Integrated on `claude/project-thread-jqj97g` as `befde5a`, on top of ADRESSE-PROPRE-1 (below), which its buyer-site publish needs. Files byte-identical to the lane's.
+
+**Spec.**
+- Execution Contract §7.1: « production, with **data isolation** + **promotion rules** … Required approvals on money/custody/attribution releases. »
+- Execution Contract §11: « secrets management · key rotation … ».
+- This repository's standing order (2026-08-10): the Worker is deployed from the branch first, then the merge, then the clients.
+
+**What changed.**
+- *Service releases* (`storefront-deploy`, `payment-webhook-secret`): the first step is `scripts/release-guard.sh`. It goes ahead only when ci passed on the exact commit, the most recently created finished ci run on that commit is green, and the commit is either main's newest or the head of an open pull request into main from this repository (a fork's head is refused). It reads GitHub with the job's own token (`actions: read`, `pull-requests: read`) and no secret, and takes no input. Every release job names `environment: production`, so the founder approves each run in GitHub and sees its commit. The environment itself is unchanged (it is not limited to main, because the Worker deploys from the branch before the merge).
+- *App publishes* (`pwa-preview`, the buyer site; `expo-preview`, the reseller app): they start when a ci run on main finishes, only a successful run started by a push (or a dispatch on main). `scripts/publish-decision.sh` then ships main's newest commit only, and only when a push run on it succeeded and its newest finished ci run is green; otherwise it skips. The decided commit is the one checked out. Each publishing job has its own queue that never cancels; a run that skips never joins it.
+- *The buyer site's publish* goes to the Cloudflare Pages project `shop-plus`, only if Cloudflare's real address for the project is the pinned `https://shop-plus.pages.dev`. It then waits until that address serves this build's page and its not-found page, and only then publishes the forwarding page to the former GitHub Pages address.
+- *Rollback.* A new `rollback` workflow (dispatch on main only, `production`): it lists the service's newest versions and points the service back at the previous or a named one, rebuilding nothing. A Worker's keys go back with the version; the run then names each key that went back and how to write it again. The page `docs/runbooks/ROLLBACK.md` says it all in plain words, with the Pages site and the Expo channel.
+- *Every day.* ci runs at 05:00 UTC. `service-canon-drift` now also checks that the live storefront was built from a commit with no difference from main in what it is built from (its folder, the packages and the attribution service it bundles, the lock file, the workspace files, `tsconfig.base.json`, `turbo.json`); a missing input, an unknown release or « dev » is red. It prints only the service, the canon, two short commits and the verdict, and no longer prints the health answer.
+- *Public logs.* `scripts/sandbox-payment-confirm.mjs` names an order or a group only by `#` and eight characters of its SHA-256, and prints states and error codes, never an amount, a key or a service answer. The storefront deploy's password-hashing probe prints only its own field.
+- *The gate.* `scripts/gates/deploy-chain-locked.mjs` (ported from Boutik+, extended) refuses: an unpinned action, any `npx` but exactly `npx eas-cli@20.5.1` in `expo-preview.yml`, a workflow without `permissions:`, a secret written into a `run:` text, a deploying job whose first `run:` is not the guard, a service release without `production` or its read permissions, an app publish started by a push or that can run without the decision or green ci, a workflow-level queue on a publish, a cancelling queue, a rollback that builds or runs from a branch, and a ci without its daily schedule. Its proofs drive the real scripts against a local repository and a stand-in `gh`: `release-guard-proof`, `publish-decision-proof`, `live-watch-proof`, `sandbox-confirm-log-proof`.
+
+**Evidence.** Lane: every new gate and proof red on main for the right reason, then green; 41 mutations, each anchor matched once, each file restored byte-identical, each red. PyYAML parses every workflow and fixture; `bash -n` passes on every run block. Coordinator: read every workflow and script change; checked wrangler 4.130.0's `pages project list --json` fields and its rollback code in its source; re-ran the gate and every proof at the lane head and after the fixes; mutations (the guard's newest-run check, the pull-request match loosened to any head, the production environment removed, the publish step without the decision, the site build without the decision, the watch's missing-input check) each red, restored clean. Full board on `befde5a` after install and `pnpm build`, turbo forced: every gate passes except `playwright-e2e`, whose only two reds are the two known fallback-font tests (`cliente.spec.ts:474`, `:909`; they fail where sans-serif is Inter and pass on CI); 333 passed.
+
+**Verifier.** One fresh-context pass on all five repositories: 0 blocker, 5 should-fix, 6 notes, handled once. Fixed in this build: the publish queue moved onto the publishing jobs (a skipped run could otherwise push out the waiting good one); the gate now checks that the publish obeys the decision, that every deploying job starts with its guard, and that the conditions sit in the job's own `if:`; the watch is red for an input missing from main and its lists gained the shared TypeScript base and the build plan; the rollback page and workflow say keys go back with the version and the run names them; two comments corrected. Journalled, not changed: the guard reads the most recently created finished run (a red re-run of an older run does not outrank a newer green one).
+
+**Release.** storefront-deploy from the branch (the first run through the new guard and his approval), then the merge, which publishes the buyer site to its own address, then the forwarding page, then the reseller app.
+
+**Still open.** Whether this repository's Cloudflare token may create and publish a Pages project is not known from here; if not, the publish stops with Cloudflare's refusal and the former address keeps serving the previous build. Other items are held in the private batch record until their fixes deploy.
+
+---
+
+## 2026-11-27 · ADRESSE-PROPRE-1 — the buyer site gets its own web address; old links still open and forward to it · lane P10 · on the branch, NOT merged, NOT deployed
+
+**Founder.** « Go on for batch 6 » (2026-11-27 19:38 UTC), batch 6 of the plan he approved: « The buyer site moves to its own web address, so buyer secrets stop sharing one with other pages. » His card on the address is still open; this is built on its recommended answer, a free Cloudflare Pages address, `https://shop-plus.pages.dev`.
+
+**Lane.** Lane P, slice P10. Lane commits `7f0dccb` (red first), `e4af742` (the change) and `643d48a` (the review's fixes) on `bdf9b8b`. Integrated as `0a8392b`, one commit, files byte-identical to the lane's.
+
+**Spec.**
+- Shop-Plus-Build-Spec SP6 (l.189): « her profile shows her own details to her alone ».
+- CLAUDE.md Law 3: « the four secrets are never substituted »; Law 6: strings live in the catalog with their register, never inline.
+- Execution Contract §10.5: sixth-grade reading level, no administrative French.
+
+**What changed.**
+- *One address, pinned once per package:* the storefront's `CORS_READ_ORIGIN`, the reseller app's `QR_ORIGIN` (with `QR_BASE` empty) and the forwarder's `NOUVELLE_ADRESSE`. `apps/buyer-pwa/test/adresse-unique.test.ts` proves they agree and refuses any `github.io` string in shipping source but the service's one named former origin. The map tiles' user-agent reads the same pin.
+- *The service.* Every buyer, checkout, liste and buyer-account door names the new address. The former address is answered by exact name at the Worker's single exit (`origineAccordee`) while its links forward; a later slice removes it. The console and reseller doors keep their own origins. `Vary: Origin` on each.
+- *The site at the root of its own address.* The deep-link restore keeps no path segment (`pathSegmentsToKeep = 0`); the manifest's id, start and scope are `/`; the offline worker's scope is the root by construction; `base: './'` unchanged. The e2e host is now root-shaped (`apps/buyer-pwa/scripts/pages-racine.mjs`: the file, else the top-level `404.html` with a 404); the former project-path emulator is retired.
+- *The former address* publishes a forwarding page (`apps/buyer-pwa/ancienne-adresse/`, built by `scripts/ancienne-adresse.mjs`): every old link goes to the same path, query and hash at the new address; it removes only Shop+'s own saved names there (each name, each Shop+ prefix, never a wider sweep); its `sw.js`, at the former worker's own address, deletes the old shell caches, removes itself and reloads open pages. Nothing is carried over in a URL. Its page allows its one script by hash and shows one catalog sentence where the script cannot run: `adresse.nouvelle` (neutral) « Shop+ a une nouvelle adresse. Touchez ici pour continuer. »
+- *Reseller app and poster kit.* Every buyer link and QR uses the new address. The shorter link makes the QR a version 3 code: on screen it is 148 dp (was 164) with the same 4 dp module; on the poster the print module now rounds up so the side holds 48 mm at every version, and the block keeps today's 6 px of clear space below the validity line. A version 4 poster is byte-identical to before (pinned by SHA-256).
+
+**Evidence.**
+- Red first, then green: the service's door test on the real Worker (Miniflare, `origine-acheteuse.e2e`, 37 cases; 21 red on the old address); the pin test; the storage-name test; the forwarder walk in a real browser.
+- The forwarder walk (`e2e/ancienne-adresse.spec.ts`, real Chromium, two real origins): the real built site installed at the former address with Shop+'s names and another page's names and cache beside them, then the built forwarder; an old `/shop-plus/v/…?x=1&y=2#suite` lands on the same page at the new address; Shop+'s names are gone, the other page's names and cache are kept, the old worker and its caches are gone, and a tab left open on the old site moves to the new address. The gift and liste links keep their query.
+- Lane: storefront 1059/1059, reseller app 938/938, reseller kit 34/34, buyer site 1567/1567, typechecks clean; Playwright for the touched specs 18/18; mutations (the allowed origin back to the old address, the exit rule made a no-op, the forwarder dropping the query, the hash, or clearing every name, the worker's self-removal, its navigate, its cache filter, the poster rounding and clearance), each red, restored byte-identical.
+- Coordinator re-runs after `pnpm build`: the door test 37/37; the pin and storage-name tests; reseller kit 34/34; Playwright forwarder, root host, csp and racine walks green; the cache-filter mutation red, restored clean. Full board: see SORTIES-SURES-1 above (same head).
+- Changed existing expectations, only where the address changes them: the reseller QR tests to version 3 numbers; the expected links in four reseller walks; the buyer origin nine storefront tests send; the root-host e2e specs; the share-card gate sample's two links.
+
+**Verifier.** One fresh-context pass: 0 blocker, 2 should-fix, 4 notes, handled once. Fixed: the forwarder walk now proves another page's cache survives; the storage-name test reads every storage call whatever its shape; the address scan also reads the buyer page, the poster kit and `packages/`; the open-tab reload is walked; old-address comments corrected. Handled at integration: this slice and the buyer-site publish change land in the same merge, so the root-shaped build never reaches the former address.
+
+**Release.** storefront-deploy from the branch (the service then answers both addresses), the merge, the site published at its own address, then the forwarding page, then the reseller app. An installed reseller app's links name the former address until it updates; they forward.
+
+**Still open.** A buyer who added the old site to her home screen adds the new one once. Her saved orders and code on a phone that used the old address are not carried over (sandbox era, no real buyers). The service stops answering the former address in a later slice, once its forwarding page has run.
+
+---
+
 ## 2026-11-27 · COMPTES-REVENDEUSE-1 — DEPLOYED and MERGED
 
 **Founder.** « Release all five » (2026-11-27 17:59 UTC, decision card, on the batch 5 report), which named for Shop+: the shop service from the branch, then the merge.
