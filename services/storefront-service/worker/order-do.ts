@@ -583,9 +583,9 @@ interface CreateArgs {
  * WHERE IT LIVES AND WHERE IT NEVER GOES:
  *  · stored under its OWN key on this object — never inside `quoteBytes`
  *    (the frozen money bytes stay money-only, byte-stable);
- *  · NEVER on the buyer projection (`projectForBuyer` untouched): the public
- *    order view is reachable by anyone holding the order link, and a phone
- *    number there would leak to every screenshot of it;
+ *  · NEVER on the buyer projection (`projectForBuyer` untouched): her order
+ *    view is shown on her screen and in her screenshots, and a phone number
+ *    there would travel with every one of them;
  *  · NEVER on `order.confirmed.v1` (no contracts change; the supplier wire
  *    stays contact-free, the founder's standing privacy ruling);
  *  · read by exactly one door: the founder's CHECKOUT_OPS_SECRET-gated
@@ -1336,13 +1336,10 @@ export class OrderDO {
     }
 
     /**
-     * VIE-PRIVEE-ACHETEUSE — HER ORDER VIEW, FOR HER ALONE. The public order
-     * read used to answer `GET /entry` to whoever named the id, and the id
-     * rides the gift link, the reseller's feed and two cross-app wires — so
-     * what she paid and any refund reached anyone holding it. Now the view
-     * answers only the order's own buyer token, on the remise door's terms
-     * verbatim: the compare runs unconditionally against a decoy (no timing
-     * oracle), and an absent order, an absent or wrong token are the SAME
+     * VIE-PRIVEE-ACHETEUSE — HER ORDER VIEW, FOR HER ALONE. The view answers
+     * only this order's own buyer token, on the remise door's terms: the
+     * compare runs unconditionally against a decoy (no timing oracle), and no
+     * token, a wrong one and an unknown order are the SAME nameless
      * `{ok:false}` 404. `GET /entry` stays the internal read (/suivi's
      * allowlist and the founder's sandbox read sit on it).
      */

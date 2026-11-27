@@ -29,9 +29,7 @@
  * The bytes are never decoded here — a PNG is what the host says it is.
  */
 
-/** The buyer map's one fixed zoom — `GEO_ZOOM` in apps/buyer-pwa/src/geo-carte.ts. */
-export const TUILES_ZOOM = 17;
-/** The founder console's zoom range (boutik-plus carte-pin.tsx ZOOM_MIN / ZOOM_MAX); it holds the buyer's zoom. */
+/** The zooms answered: the founder console's range (boutik-plus carte-pin.tsx ZOOM_MIN / ZOOM_MAX), which holds the buyer map's fixed `GEO_ZOOM` 17. */
 export const TUILES_ZOOM_MIN = 13;
 export const TUILES_ZOOM_MAX = 19;
 export const TUILES_AMONT = 'https://tile.openstreetmap.org';

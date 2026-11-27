@@ -3,7 +3,6 @@ import {
   TUILES_AMONT,
   TUILES_CACHE_S,
   TUILES_USER_AGENT,
-  TUILES_ZOOM,
   lireCheminTuile,
   servirTuile,
   urlAmont,
@@ -55,7 +54,6 @@ const ok = (): Response =>
 
 describe('TUILES-PROXY — the path the buyer map may ask for', () => {
   it('accepts z13 to z19 (the buyer map and the founder console) with in-range integers, and nothing else', () => {
-    expect(TUILES_ZOOM).toBe(17);
     expect(lireCheminTuile('/tiles/13/8191/0.png')).toEqual({ z: 13, x: 8191, y: 0 });
     expect(lireCheminTuile('/tiles/16/1/1.png')).toEqual({ z: 16, x: 1, y: 1 });
     expect(lireCheminTuile('/tiles/19/524287/524287.png')).toEqual({ z: 19, x: 524287, y: 524287 });

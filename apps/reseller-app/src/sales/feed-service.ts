@@ -13,8 +13,8 @@
  *
  * WHAT COMES BACK is the server's allowlist projection and nothing more — her
  * net (copied off the frozen Quote, never recomputed here), the order's own
- * state, and the delivery zone. No base price, no commission, no gross, no
- * buyer contact. This module RE-VALIDATES every row at the boundary and drops
+ * state. No base price, no commission, no gross, no buyer area, no buyer
+ * contact. This module RE-VALIDATES every row at the boundary and drops
  * a malformed one WHOLE rather than rendering half a sale.
  *
  * RN-safe (Metro law): zero `@platform/*` runtime imports — the row shape is

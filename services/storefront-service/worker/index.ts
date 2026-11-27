@@ -1734,8 +1734,8 @@ export default {
      *
      * The body carries ONE field — the §6.4 reason. It cannot carry a phone,
      * and that is the whole shape of this route: the key is read from the
-     * ORDER'S OWN contact, server-side, through the same internal projection
-     * the dispatch list uses. A console typo can therefore refuse the wrong
+     * ORDER'S OWN contact, server-side, through the order's internal
+     * phone-only read (`/entry/telephone-echelle`). A console typo can therefore refuse the wrong
      * ORDER (visible, and his to correct) but can never move a stranger's
      * ladder — which a phone field would have made a one-digit mistake away.
      * Same law as §6.1's facts: the values a decision is measured by come from

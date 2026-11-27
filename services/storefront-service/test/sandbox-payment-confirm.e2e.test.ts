@@ -221,7 +221,7 @@ describe('SANDBOX-PAY-1 — the founder plays the provider against the real Work
 
     const run = await runScript(orderId, 'not-the-webhook-secret');
     expect(run.code, run.stdout + run.stderr).not.toBe(0);
-    expect(run.stderr).toContain('401');
+    expect(run.stderr).toContain('KEY READ REFUSED 401 — PAYMENT_WEBHOOK_SECRET here does not match the deployed Worker. Re-run the payment-webhook-secret workflow, then this one.');
     expect((await publicState(orderId)).state, 'a refused webhook must move nothing').toBe(
       'payment_pending',
     );
@@ -391,6 +391,7 @@ describe('RB-3 — the gains read serves the FROZEN waterfall, franc-exact, foun
 
     // ── and the PUBLIC order view still leaks none of it (SP-I03) ──────────
     const pub = await mf.dispatchFetch(`http://c/checkout/order/${encodeURIComponent(orderId)}`, saVue(orderId));
+    expect(pub.status).toBe(200);
     const pubText = await pub.text();
     for (const secret of ['sellerNet', 'resellerNet', 'sellerPlatformFee', 'sellerBasePrice']) {
       expect(pubText, `${secret} on the buyer view`).not.toContain(secret);
@@ -490,6 +491,7 @@ describe('SE-LIVE-5b — the delivered order settles, copied from the frozen quo
 
     // ── the PUBLIC order view carries none of it (SP-I03) ─────────────────
     const pub = await mf.dispatchFetch(`http://c/checkout/order/${encodeURIComponent(orderId)}`, saVue(orderId));
+    expect(pub.status).toBe(200);
     const pubText = await pub.text();
     for (const secret of ['obligations', 'Eligible', 'supplier:', 'sellerNet']) {
       expect(pubText, `${secret} on the buyer view`).not.toContain(secret);

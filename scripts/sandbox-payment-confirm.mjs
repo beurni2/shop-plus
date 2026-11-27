@@ -123,6 +123,8 @@ export function composeSandboxRefund(orderId, remboursement, nowIso) {
 
 /** The header the webhook gate reads (`auth.ts` PAYMENT_WEBHOOK_KEY_HEADER). */
 export const WEBHOOK_KEY_HEADER = 'X-Payment-Webhook-Key';
+/** What the founder reads when the secret here is not the deployed one — every secret-gated read says the same. */
+const SECRET_REFUSE = 'KEY READ REFUSED 401 — PAYMENT_WEBHOOK_SECRET here does not match the deployed Worker. Re-run the payment-webhook-secret workflow, then this one.';
 
 async function main() {
   const base = (process.env.STOREFRONT_BASE ?? '').trim().replace(/\/+$/, '');
@@ -165,6 +167,10 @@ async function main() {
 
   // ── the order, before ────────────────────────────────────────────────────
   const before = await view();
+  if (before.status === 401) {
+    console.error(SECRET_REFUSE);
+    process.exit(1);
+  }
   if (before.status === 404) {
     console.error(`NO SUCH ORDER: ${orderId} — check the id (it starts with ord- or grp-).`);
     process.exit(1);
@@ -196,7 +202,7 @@ async function main() {
   });
   const keyBody = await keyRes.json().catch(() => ({}));
   if (keyRes.status === 401) {
-    console.error('KEY READ REFUSED 401 — PAYMENT_WEBHOOK_SECRET here does not match the deployed Worker. Re-run the payment-webhook-secret workflow, then this one.');
+    console.error(SECRET_REFUSE);
     process.exit(1);
   }
   if (keyRes.status !== 200 || typeof keyBody.legKey !== 'string') {

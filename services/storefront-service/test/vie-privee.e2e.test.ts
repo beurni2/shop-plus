@@ -54,7 +54,8 @@ let mf: Miniflare;
 let S: Seance;
 const SLUG = 'vp-0001';
 
-beforeAll(async () => {
+/** The real Worker and her seller's shop; `extra` adds bindings (the failed-payment road). */
+async function monter(dossier: string, extra: Record<string, string> = {}): Promise<void> {
   mf = new Miniflare({
     modules: true,
     scriptPath: SCRIPT,
@@ -63,8 +64,9 @@ beforeAll(async () => {
       ORDER: 'OrderDO', ATTRIBUTION_LOCK: 'AttributionLockDO', LADDER: 'BuyerLadderDO', DISPATCH: 'DispatchIndexDO',
       RESELLER: 'ResellerFeedDO', COMPTES: 'ResellerAccountsDO', WISHLIST: 'WishlistDO',
     },
-    durableObjectsPersist: persist,
+    durableObjectsPersist: dossier,
     bindings: {
+      ...extra,
       PAYMENT_WEBHOOK_SECRET: WEBHOOK_SECRET,
       CHECKOUT_OPS_SECRET: OPS_SECRET,
       PROGRESS_WRITE_SECRET: BOUTIK_SECRET,
@@ -115,11 +117,16 @@ beforeAll(async () => {
     productVersionId: PV, offerVersion: 'ov-vp-1', markup: 1_500, correlationId: 'corr-vp', at: T0,
   }, S.bearer);
   expect(pub.json['status'], pub.text).toBe('published');
-}, 120_000);
+}
+
+beforeAll(() => monter(persist), 120_000);
+
+const persistEchec = mkdtempSync(join(tmpdir(), 'vie-privee-echec-'));
 
 afterAll(async () => {
   await mf?.dispose();
   rmSync(persist, { recursive: true, force: true });
+  rmSync(persistEchec, { recursive: true, force: true });
 });
 
 function safeJson(text: string): Record<string, unknown> {
@@ -147,7 +154,12 @@ const freshKey = (): string => `rk-vp-${String((keySeq += 1)).padStart(4, '0')}-
 interface Commande { orderId: string; buyerRef: string; paye: number }
 
 /** A buyer's own road to a PAID order: quote → hold → create (her token comes back once) → the provider's confirmation. */
-async function commandePayee(n: string, via: { zoneTo: string; contact: Record<string, unknown> } | { listeRef: string }): Promise<Commande> {
+async function commandePayee(
+  n: string,
+  via: { zoneTo: string; contact: Record<string, unknown> } | { listeRef: string },
+  /** Played on the real webhook door before the genuine confirmation. */
+  avant?: (orderId: string, legKey: string, paye: number) => Promise<void>,
+): Promise<Commande> {
   const quote = await post('/checkout/quote', {
     slug: SLUG, pid: PV, paymentMode: 'FULL_PREPAY', attributionResellerId: S.accountId, requestKey: freshKey(),
     ...('listeRef' in via ? { listeRef: via.listeRef } : { zoneTo: via.zoneTo }),
@@ -164,6 +176,7 @@ async function commandePayee(n: string, via: { zoneTo: string; contact: Record<s
   const orderId = `ord-${quoteId}`;
   const paye = Number(quote.json['amountPaidAtCheckout']);
   const legKey = ((await doDe(orderId, '/entry/audit'))['legKeys'] as Record<string, string>)['checkout'];
+  if (avant !== undefined) await avant(orderId, legKey!, paye);
   const paid = await post('/checkout/webhook/payment', {
     name: 'payment.checkout_leg_confirmed.v1',
     envelope: { command_id: `whk-${orderId}`, correlation_id: `corr-${orderId}`, aggregateVersion: 1, actor: 'sandbox:founder', serverTime: new Date().toISOString(), version: '1' },
@@ -320,6 +333,24 @@ describe('a finished order leaves the founder’s dispatch view without the buye
     expect(rang.status, `his refusal door reads the stored phone itself: ${rang.text}`).toBe(200);
   }, 120_000);
 
+  it('a delivered order with something for him to check keeps her contact, unmarked', async () => {
+    // A confirmation naming the wrong amount is refused and recorded as an
+    // alert; the genuine one then confirms it, and Séra delivers it.
+    const o = await commandePayee('d4', { zoneTo: 'Ouagadougou', contact: contact('70 44 55 04') }, async (orderId, legKey, paye) => {
+      const faux = await post('/checkout/webhook/payment', {
+        name: 'payment.checkout_leg_confirmed.v1',
+        envelope: { command_id: `whk-faux-${orderId}`, correlation_id: `corr-${orderId}`, aggregateVersion: 1, actor: 'sandbox:founder', serverTime: new Date().toISOString(), version: '1' },
+        payload: { provider: 'sandbox-provider', payment_attempt_id: legKey, collectRef: `collect-${orderId}`, amount: paye + 1, fee: 0, status: 'held', order_id: orderId, redelivery: false },
+      }, signe);
+      expect(faux.status, faux.text).not.toBe(200);
+    });
+    expect((await sera(valide(o.orderId))).status).toBe(200);
+    const ligne = await ligneDispatch(o.orderId);
+    expect((ligne as { aVerifier?: unknown }).aVerifier, 'the alert is on his row').not.toBeNull();
+    expect(ligne!.contact, 'something to check still needs her').toMatchObject({ phone: '70 44 55 04' });
+    expect(ligne!).not.toHaveProperty('contactMasque');
+  }, 120_000);
+
   it('NOTHING DELETED — the delivered order’s own storage still holds her whole contact, pin included', async () => {
     expect(livreeId).not.toBe('');
     // Read off the order's own durable store by a stand-in of the same class
@@ -342,4 +373,23 @@ describe('a finished order leaves the founder’s dispatch view without the buye
     mf = undefined as unknown as Miniflare;
     expect(lu.contact).toEqual({ phone: '70 44 55 01', quartier: 'Gounghin', repere: 'près du marché', pin: PIN });
   }, 60_000);
+});
+
+describe('a failed payment can still be retried, so it keeps her contact', () => {
+  // A second real Worker whose certified sandbox provider times out the first
+  // charge of every order: the one road by which a payment fails for real.
+  beforeAll(() => monter(persistEchec, { PAYMENT_SANDBOX_BEHAVIOR: JSON.stringify({ timeoutFirstNInitiates: 1 }) }), 120_000);
+
+  it('payment_failed: the contact stays on his row, unmarked', async () => {
+    const quote = await post('/checkout/quote', { slug: SLUG, pid: PV, paymentMode: 'FULL_PREPAY', zoneTo: 'Ouagadougou', attributionResellerId: S.accountId, requestKey: freshKey() });
+    const quoteId = String(quote.json['quoteId']);
+    expect((await post(`/checkout/quote/${encodeURIComponent(quoteId)}/reserve`, { commandId: 'cmd-reserve-e1', holderRef: 'holder-e1' })).status).toBe(200);
+    const cree = await post('/checkout/order', { quoteId, holderRef: 'holder-e1', commandId: 'cmd-order-e1', contact: { phone: '70 44 55 09', quartier: 'Gounghin', repere: 'près du marché' } });
+    expect(cree.status, cree.text).toBe(200);
+    expect(cree.json['state']).toBe('payment_failed');
+    const ligne = await ligneDispatch(`ord-${quoteId}`);
+    expect(ligne!.state).toBe('payment_failed');
+    expect(ligne!.contact).toMatchObject({ phone: '70 44 55 09' });
+    expect(ligne!).not.toHaveProperty('contactMasque');
+  }, 120_000);
 });
