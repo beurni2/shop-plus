@@ -15,6 +15,9 @@ describe('routeDepuisLien — what she pastes', () => {
   it('a full /v/ address, in any case, with quotes and spaces around it', () => {
     expect(routeDepuisLien('https://beurni2.github.io/shop-plus/v/aicha-4821')).toEqual({ kind: 'vitrine', slug: 'aicha-4821' });
     expect(routeDepuisLien('  « https://beurni2.github.io/shop-plus/V/AICHA-4821 »  ')).toEqual({ kind: 'vitrine', slug: 'aicha-4821' });
+    // the site's own address, and a link of the former address she still has
+    expect(routeDepuisLien('https://shop-plus.pages.dev/v/aicha-4821')).toEqual({ kind: 'vitrine', slug: 'aicha-4821' });
+    expect(routeDepuisLien('https://shop-plus.pages.dev/s/aicha-4821?pid=p2')).toEqual({ kind: 'offre', slug: 'aicha-4821', pid: 'p2' });
     expect(routeDepuisLien('http://127.0.0.1:4173/v/aicha-4821/')).toEqual({ kind: 'vitrine', slug: 'aicha-4821' });
   });
 

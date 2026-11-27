@@ -91,12 +91,12 @@ export default defineConfig({
       timeout: 120_000,
     },
     {
-      // BUG 2 — the GitHub-Pages emulator (project sub-path + 404.html fallback)
-      // so deploy-base.spec.ts can drive the REAL `/shop-plus/v/{slug}` deep-link
-      // → restore → boot path that vite preview cannot reproduce. Serves the
-      // SAME built dist.
-      command: 'DIST=dist BASE=/shop-plus/ PORT=4174 node ../../scripts/pages-emulator.mjs',
-      url: 'http://127.0.0.1:4174/shop-plus/',
+      // BUG 2 — the buyer site's own host (Cloudflare Pages at the root of its
+      // address: file, else 404.html) so deploy-base.spec.ts can drive the REAL
+      // `/v/{slug}` deep-link → restore → boot path that vite preview cannot
+      // reproduce. Serves the SAME built dist.
+      command: 'DIST=dist PORT=4174 node scripts/pages-racine.mjs',
+      url: 'http://127.0.0.1:4174/',
       reuseExistingServer: false,
       timeout: 60_000,
     },

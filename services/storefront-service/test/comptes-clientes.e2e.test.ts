@@ -24,7 +24,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
  */
 
 const SCRIPT = 'dist/worker/worker.mjs';
-const ORIGINE = 'https://beurni2.github.io';
+const ORIGINE = 'https://shop-plus.pages.dev';
 const DOS = {
   STOREFRONT: 'StorefrontDO', LISTING: 'ListingDO', CHECKOUT: 'CheckoutDO',
   ORDER: 'OrderDO', ATTRIBUTION_LOCK: 'AttributionLockDO', LADDER: 'BuyerLadderDO',

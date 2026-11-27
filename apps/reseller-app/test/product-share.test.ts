@@ -16,7 +16,7 @@ import { signedProductShareUrl, QR_ORIGIN, QR_BASE } from '../src/qr/identity.js
 describe('the product-share URL is the canon /s/{slug}?pid= buyer route, base-aware', () => {
   it('builds the real origin + base + /s/{slug}?pid={pid}', () => {
     const url = signedProductShareUrl('aicha-4821', 'p2');
-    expect(url).toBe('https://beurni2.github.io/shop-plus/s/aicha-4821?pid=p2');
+    expect(url).toBe('https://shop-plus.pages.dev/s/aicha-4821?pid=p2');
     // base-aware (BUG-2 class): never off the origin root — carries the deploy base
     expect(url.startsWith(`${QR_ORIGIN}${QR_BASE}/`)).toBe(true);
     // the ONE signed-product route form: /s/{slug}?pid= (never /v/, never no-pid)

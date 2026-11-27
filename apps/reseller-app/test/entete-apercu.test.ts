@@ -123,7 +123,7 @@ describe('4 · the honest states are real states', () => {
 describe('5 · the founder’s three defects, 2026-08-04', () => {
   it('THE SPA FALLBACK’S 404 IS NOT A FAILURE — it is how every /v/ link resolves', () => {
     // His screenshot showed « Aperçu pas affiché » over a shop that was online.
-    // GitHub Pages is a STATIC host: /shop-plus/v/{slug} matches no file, so it
+    // The buyer site is a STATIC host: /v/{slug} matches no file, so it
     // answers 404 with 404.html, whose script rewrites the path and the app
     // boots. Treating that as an error painted failure over a page that was
     // about to load. Every OTHER status is still a real failure.

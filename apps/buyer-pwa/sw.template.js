@@ -55,8 +55,8 @@
  * names appear NOWHERE else in this file: the plugin's replace() takes the
  * first occurrence, and a mention in this comment once swallowed it, shipping
  * a worker that failed evaluation. It ships as a classic script at the app
- * root, so its scope is the deploy base (/shop-plus/ on Pages, / locally) by
- * construction.
+ * root, so its scope is the deploy base (/ at the site's own address and
+ * locally) by construction.
  */
 
 const VERSION = '__VERSION__';

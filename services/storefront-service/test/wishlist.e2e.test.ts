@@ -325,7 +325,7 @@ describe('the liste doors', () => {
       livraison: false,
     });
     expect(res.headers.get('Cache-Control')).toBe('private, no-store');
-    expect(res.headers.get('Access-Control-Allow-Origin')).toBe('https://beurni2.github.io');
+    expect(res.headers.get('Access-Control-Allow-Origin')).toBe('https://shop-plus.pages.dev');
 
     // …and the friend's read is the projection ALONE: no editCle, no hash, no
     // order id, no supplier economics (SP-I03 applied to the new surface).

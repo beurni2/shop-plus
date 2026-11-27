@@ -94,7 +94,7 @@ describe('PERSONNALISER — one door to the cliente view, and a badge off her fa
     // …and the surviving door still opens HER live page.
     const { Linking } = await import('./doubles/react-native');
     await screen.press('Voir ma boutique en ligne');
-    expect(Linking.opened[Linking.opened.length - 1]).toBe(`https://beurni2.github.io/shop-plus/v/${SLUG}`);
+    expect(Linking.opened[Linking.opened.length - 1]).toBe(`https://shop-plus.pages.dev/v/${SLUG}`);
     screen.unmount();
   });
 

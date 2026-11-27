@@ -1194,9 +1194,9 @@ describe('OrderDO — the emitted bytes carry no supplier economics and no payme
 
   it('the buyer read carries the EXACT-ORIGIN CORS header, never a wildcard', async () => {
     const { created, orderId } = await orderedQuote(mf, '0017');
-    expect(created.headers.get('access-control-allow-origin')).toBe('https://beurni2.github.io');
+    expect(created.headers.get('access-control-allow-origin')).toBe('https://shop-plus.pages.dev');
     const read = await getOrder(mf, orderId);
-    expect(read.headers.get('access-control-allow-origin')).toBe('https://beurni2.github.io');
+    expect(read.headers.get('access-control-allow-origin')).toBe('https://shop-plus.pages.dev');
     expect(read.headers.get('access-control-allow-origin')).not.toBe('*');
     const preflight = await mf.dispatchFetch('http://c/checkout/order', { method: 'OPTIONS' });
     expect(preflight.status).toBe(204);

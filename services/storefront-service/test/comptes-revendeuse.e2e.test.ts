@@ -26,7 +26,7 @@ import { cleC, MOT_DE_PASSE, OPS_SECRET, seance } from './seance';
 
 const SCRIPT = 'dist/worker/worker.mjs';
 const persist = mkdtempSync(join(tmpdir(), 'comptes-revendeuse-'));
-const ORIGIN = 'https://beurni2.github.io';
+const ORIGIN = 'https://shop-plus.pages.dev';
 
 const mf = new Miniflare({
   modules: true,

@@ -32,8 +32,8 @@ export function vitrineSlugFromPath(pathname: string): string | undefined {
 }
 
 /**
- * The deploy base path, derived from the CURRENT route. On GitHub Pages the app
- * is served under a sub-path (`/shop-plus/…`); locally under root (`/…`). The
+ * The deploy base path, derived from the CURRENT route. The buyer site is served
+ * at the root of its own address (`/…`); a sub-path host would add a prefix. The
  * INBOUND routing already tolerates the base (it reads `window.location.pathname`
  * and matches the `/v/` · `/s/` suffix regardless of prefix). OUTBOUND navigation
  * must do the same: a hardcoded `/v/{slug}` resolves off the ORIGIN root and 404s
