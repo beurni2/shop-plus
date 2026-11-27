@@ -1,6 +1,65 @@
 # JOURNAL — shop-plus
 Continuity ledger per CTO charter §6/§6bis. Every entry is evidence-grounded.
 
+## 2026-11-27 · COLIS-PERDU-1 — a parcel Séra declares lost on the road refunds the buyer in full, delivery included · lane P7 · on the branch, NOT merged, NOT deployed
+
+**Founder.**
+- « Yes, on my Boutik+ console » (2026-11-27 08:35 UTC, decision card). Only he declares a parcel lost, from his console, only while a rider holds it, and the declaration is final. Shop+ refunds every paid leg in full, the delivery fee included.
+- « No, keep the door's decision » (2026-11-27 09:50 UTC, decision card). A buyer who refused at the door with the delivery fee kept, whose parcel is then lost on the way back, keeps the door's refund.
+
+**Lane.** Lane P, slice P7. Lane commits: `2264e81` (the coordinator's canon 3.28.0 repin, applied unchanged, tree `ef4377de…`), `5c6d078` and `a90b4e9`. Integrated on `claude/project-thread-jqj97g` as merge `82b1382`, plus the coordinator's pin commit `7289c1c`.
+
+**Spec.**
+- Canon 3.28.0 (platform-contracts `9c0c8d8`): `package.lost.v1` carries `{orderId, at}`, strict, and nothing else.
+- Shop-Plus-Build-Spec SP6: « A parcel Séra loses on the road is refunded in full the same way (`package.lost.v1` …): every paid leg, the delivery fee included — nothing in it is her fault … Only Séra's credential may write it; the refund never waits on the outcome of Séra's liability claim. »
+- Sera-Build-Spec §6.5: one event for each order the parcel carried.
+
+**What changed.**
+- *The progress door.* It accepts `package.lost.v1` through the strict canon `PackageLostEventSchema`, from Séra's credential only. Boutik+'s credential is refused 403 `wrong_writer` before the body is judged. Any other shape is 400 `event_not_canonical`. Only `{at}` reaches the order object.
+- *The order object.* `/entry/colis-perdu` answers 404 for an unknown order before any write. It records the loss first-wins and stops the waiting custody rows (reason `colis_perdu`) in the same write. It then opens the refund with the new nature `colis_perdu`. A redelivery answers `duplicate` with the same keys. The eligibility gap check reads the loss too, so a « delivered » arriving after it writes no payout.
+- *The money.* `decideRefund` keeps the delivery fee only for a buyer refusal with the fee kept. So `colis_perdu` refunds every provider-confirmed leg in full, each under its own key minted before the provider is asked. A door leg confirmed after the declaration joins the open refund. Nothing waits on the Protection Fund or on Séra's claim.
+- *First-wins (the founder's 09:50 UTC ruling).* A refund already decided by an earlier refusal stays as decided.
+- *The buyer.* Her view and her app carry the reason `perdu`. Her card reads `cl.remboursement.perdu_corps` / `perdu_fait_corps` (money register, status class), with no « now » step and no code or door action. The coordinator's commit pins both keys in the inline copy gate. That gate refuses the tree without them and passes it with them.
+
+**Evidence.**
+- Seam test on the real combined Worker (Miniflare), asking the order's own records (audit, outbox, buyer view): 8/8. The coordinator re-ran it on a clean worktree at `a90b4e9`: 8/8.
+  - L1 full prepay.
+  - L2 product at the door, lost before the door.
+  - L3 Boutik+'s key.
+  - L4 an extra field.
+  - L5 a redelivery.
+  - L6 first-wins.
+  - L7 an unknown order: 404, and the order's audit reads `exists: false`, `escrow: null`.
+  - L8 a two-part payment whose door leg is confirmed after the declaration: two lines under distinct keys, summing to B+M+D, and `refunded` only after both are confirmed.
+  - Red first: 6 red on the repinned base.
+- Buyer unit tests 11/11. Screen walk in the real bundle in Chromium: her card, the refund to « fait », and her way home.
+- Mutations, each anchor matched once, each file restored byte-identical:
+  - D kept for a lost parcel (with commerce-core `dist` rebuilt): L1, L2 and L8 red.
+  - The writer check removed: L3 red.
+  - The first-wins return removed: L5 red.
+- Full board: Full board on `7289c1c` after `pnpm build` (`TURBO_CONCURRENCY=1`): every gate passes except `playwright-e2e`. Its only two reds are the two known fallback-font tests (C5 at 360 px, `cliente.spec.ts:474` and `:909`). They fail on a machine whose sans-serif is Inter and pass on CI, which is the authority for them (330 passed, 2 failed). The lost-parcel walk passed inside the board.
+
+**Independent review.** One fresh-context pass, handled once: 0 blocker, 0 major, 3 minor, 4 notes.
+- Fixed in this build: L7 now asks the order's audit; L8 was added; L1 asserts no cancel row back to Séra; the mutation proof was redone with `dist` rebuilt.
+- Release order: the buyer site ships with the shop service or before it, and both ship before Séra's sender.
+- The rest is kept in the private batch record.
+
+**Release order.** The canon first, then Shop+ (the shop service and the buyer site), then Séra, then the console.
+
+**Where it stands.** On the branch, not merged, not deployed.
+
+---
+
+## 2026-11-27 · LOIS-PARTOUT-1 — MERGED
+
+**Founder.** « Merge all four » (2026-11-27 09:50 UTC, decision card, on the rules-check report).
+
+**No deploy.** Gate files only.
+
+**Merge.** main was re-checked unchanged at `24600e4`. PR #8 merged as `42be1cf` (merge commit, the branch shas kept). On main: pwa-preview 526 (buyer site, unchanged inside) green · expo-preview 559 (reseller app) green · service-canon-drift 490 green · ci 747 was red on its first attempt on one test only: a package-payment case stopped at its set-up (`reserve 409 already_reserved`; 1 failed, 992 passed). This branch's earlier board saw the same set-up race, and the test is not in this change's files. Only the failed job was run again.
+
+---
+
 ## 2026-11-27 · LOIS-PARTOUT-1 — every tracked file refuses the retired names; an earner's balance is caught as a whole word or with its currency · lane O4 · on the branch, NOT merged
 
 **Founder.** « after everything is released, you can start the next batch 3 » (2026-11-27 04:21 UTC, project chat). The plan he approved says « every repository checks for the retired names ».

@@ -165,6 +165,8 @@ const BOUTIK_REFUSED_KEY = 'boutik-refused-outbox';
 const REFUND_KEY = 'remboursement';
 /** REMBOURSEMENT-2 — the supplier's refusal of this paid order, first-wins. */
 const FOURNISSEUR_REFUS_KEY = 'fournisseur-refus';
+/** COLIS-PERDU-1 — Séra's declaration that this order's parcel was lost on the road, first-wins. */
+const COLIS_PERDU_KEY = 'colis-perdu';
 interface LigneRemboursementStockee extends RemboursementAttendu {
   etat: 'a_demander' | 'demande' | 'refuse';
   essais: number;
@@ -474,7 +476,7 @@ interface DoorReferenceRow {
 }
 
 /** Why a custody row stopped without being taken: the order will never travel. */
-type RaisonAbandon = 'fournisseur_refuse' | 'course_refusee';
+type RaisonAbandon = 'fournisseur_refuse' | 'course_refusee' | 'colis_perdu';
 
 /**
  * DURCISSEMENT-SERVICE-2 (AUDIT-SHOP-2 F-30) — THE DOOR ROAD HAS A CEILING.
@@ -1669,7 +1671,8 @@ export class OrderDO {
         remboursementNote !== undefined
           ? remboursementNote.decision !== 'livraison_acceptee'
           : (await this.state.storage.get(BOUTIK_REFUSED_KEY)) !== undefined ||
-            (await this.state.storage.get(FOURNISSEUR_REFUS_KEY)) !== undefined
+            (await this.state.storage.get(FOURNISSEUR_REFUS_KEY)) !== undefined ||
+            (await this.state.storage.get(COLIS_PERDU_KEY)) !== undefined
       ) {
         await this.sinkReconAlerts([
           spine.alerteEligibilite('eligibility_after_refund', PlatformEventSchema.parse(event), {
@@ -1799,6 +1802,35 @@ export class OrderDO {
       }
       await this.ouvrirRemboursementAvec({ nature: 'refus_fournisseur' }, null);
       if ((await this.remboursementADemander()) || Object.keys(annule).length > 0) {
+        await this.state.storage.setAlarm(Date.now()).catch(() => undefined);
+      }
+      return Response.json({ ok: true, status: deja === undefined ? 'recorded' : 'duplicate' });
+    }
+
+    /**
+     * COLIS-PERDU-1 (founder ruling 2026-11-27) — SÉRA LOST THIS ORDER'S PARCEL
+     * ON THE ROAD. INTERNAL ONLY: the composition root checked Séra's
+     * credential and the canon payload. First-wins; it opens her refund in
+     * full, the delivery fee included (nothing in it is her fault), never
+     * waiting on Séra's liability claim. A refund already decided by an earlier
+     * refusal stays as it was (one refund per order). A redelivery re-arms.
+     */
+    if (request.method === 'POST' && pathname === '/entry/colis-perdu') {
+      const body = (await request.json().catch(() => null)) as { at?: unknown } | null;
+      if (body === null || typeof body.at !== 'string') return Response.json({ ok: false, reason: 'malformed' }, { status: 400 });
+      const origin = await this.state.storage.get<StoredOrigin>(ORIGIN_KEY);
+      if (origin === undefined) return Response.json({ ok: false, reason: 'unknown_order' }, { status: 404 });
+      const deja = await this.state.storage.get(COLIS_PERDU_KEY);
+      // Custody closes the order on its side: no drop can follow, so the
+      // custody rows still waiting stop in the same write as the declaration.
+      if (deja === undefined) {
+        await this.state.storage.put({
+          [COLIS_PERDU_KEY]: { at: body.at },
+          ...(await this.custodyRowsAbandoned('colis_perdu')),
+        });
+      }
+      await this.ouvrirRemboursementAvec({ nature: 'colis_perdu' }, null);
+      if (await this.remboursementADemander()) {
         await this.state.storage.setAlarm(Date.now()).catch(() => undefined);
       }
       return Response.json({ ok: true, status: deja === undefined ? 'recorded' : 'duplicate' });
@@ -4839,10 +4871,13 @@ export class OrderDO {
         // or the article could not be supplied. PICKUP-REFUS — a parcel the
         // rider refused at the supplier's never left, so it did not « come
         // back »: B6.1 makes that check the supplier's refusal after « prêt ».
+        // COLIS-PERDU-1 — a parcel lost on the road neither came back nor was unavailable.
         const motif =
           r.refus?.nature === 'refus_fournisseur' || r.refus?.nature === 'refus_enlevement'
             ? ('indisponible' as const)
-            : ('retour' as const);
+            : r.refus?.nature === 'colis_perdu'
+              ? ('perdu' as const)
+              : ('retour' as const);
         const montant = r.lignes.reduce((somme, l) => somme + l.amount, 0);
         if (montant === 0) {
           return r.retenu > 0 ? { remboursement: { etat: 'rien' as const, montant: 0, fraisGardes: r.retenu, motif } } : {};

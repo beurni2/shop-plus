@@ -892,9 +892,9 @@ export interface BuyerOrderView {
    * is smaller than what she paid. `rien` (montant 0): the refusal left
    * nothing to give back but that fee — the delivery still ended. `motif`
    * (REMBOURSEMENT-2) is why: the parcel came back, or the article could not
-   * be supplied.
+   * be supplied, or (COLIS-PERDU-1) the parcel was lost on the road.
    */
-  readonly remboursement?: { readonly etat: 'en_cours' | 'fait' | 'rien'; readonly montant: number; readonly fraisGardes?: number; readonly motif?: 'retour' | 'indisponible' };
+  readonly remboursement?: { readonly etat: 'en_cours' | 'fait' | 'rien'; readonly montant: number; readonly fraisGardes?: number; readonly motif?: 'retour' | 'indisponible' | 'perdu' };
 }
 
 export function toBuyerOrderView(args: {
@@ -912,7 +912,7 @@ export function toBuyerOrderView(args: {
     readonly arrivedAt?: string;
     readonly livree?: boolean;
   };
-  readonly remboursement?: { readonly etat: 'en_cours' | 'fait' | 'rien'; readonly montant: number; readonly fraisGardes?: number; readonly motif?: 'retour' | 'indisponible' };
+  readonly remboursement?: { readonly etat: 'en_cours' | 'fait' | 'rien'; readonly montant: number; readonly fraisGardes?: number; readonly motif?: 'retour' | 'indisponible' | 'perdu' };
 }): BuyerOrderView {
   const suivi = args.suivi ?? {};
   return {

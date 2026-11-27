@@ -236,7 +236,10 @@ export type RefusCourse =
   /** REMBOURSEMENT-2 — the supplier refused a paid order (seller fault, B6.1). */
   | { readonly nature: 'refus_fournisseur' }
   /** PICKUP-REFUS — the rider refused the parcel at pickup: wrong item or damaged. */
-  | { readonly nature: 'refus_enlevement'; readonly faultClass: string };
+  | { readonly nature: 'refus_enlevement'; readonly faultClass: string }
+  /** COLIS-PERDU-1 — Séra declared the parcel lost on the road (`package.lost.v1`):
+   *  nothing in it is her fault, so every paid leg comes back, the delivery fee included. */
+  | { readonly nature: 'colis_perdu' };
 
 export function lireRefusCourse(payload: unknown): RefusCourse | undefined {
   if (payload === null || typeof payload !== 'object' || Array.isArray(payload)) return undefined;
@@ -1252,7 +1255,7 @@ export class OrderSpine {
    * the delivery fee its immutable Quote names, and Séra's word on fault.
    * Every paid leg is refunded in full, except that a buyer's refusal whose fee
    * Séra kept leaves D on the checkout leg (Option B: that leg IS D, so only a
-   * paid door leg goes back). Nothing is refunded before the money moved, and
+   * paid door leg goes back); a parcel lost on the road keeps nothing. Nothing is refunded before the money moved, and
    * nothing after acceptance: an order with settlement obligations was
    * delivered and accepted (§6.3 finality). Asked again once `refunded`, it
    * answers for a door leg the provider confirmed AFTER the refusal (a charge
