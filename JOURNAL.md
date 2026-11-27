@@ -1,6 +1,32 @@
 # JOURNAL — shop-plus
 Continuity ledger per CTO charter §6/§6bis. Every entry is evidence-grounded.
 
+## 2026-11-27 · SORTIES-SURES-1 + ADRESSE-PROPRE-1 — storefront DEPLOYED; MERGED; buyer site PUBLISHED at its own address; former address FORWARDS; reseller app PUBLISHED
+
+**Founder.** « Release all five » (2026-11-27 22:43 UTC, decision card, on the batch 6 report), which named for Shop+: storefront-deploy from the branch first, then the merge, which publishes the buyer site to its own address, then the forwarding page at the former address, then the reseller app. His earlier cards: « Yes, for the services » (approval before each service release) and « Free Cloudflare address » (`https://shop-plus.pages.dev`).
+
+**Service.** storefront-deploy 133 (id 46078394003, dispatch on `claude/project-thread-jqj97g` at `350c1ca`, the open PR's head) green 22:43–22:44 UTC: the release guard passed, then provenance OK for `350c1ca`. The `production` environment named on the job did not hold it for approval; it ran at once (see « Still open »).
+
+**Merge.** platform-contracts PR #5 merged first (`b36e360`). PR #12 merged as `9d89fa1` (merge commit, the branch shas kept; its tree is byte-identical to the PR head `350c1ca`, green in ci 754, and to what storefront-deploy 133 shipped). service-canon-drift 495 on main green: the live storefront matches main.
+
+**On main.**
+- ci 755, first attempt RED: the tests gate, storefront-service `colis.e2e` « REMBOURSEMENT-PORTE-FERMEE » twice, `reserve 409 already_reserved`. Its helper re-reserves right after a failed payment, and the hold's release rides the order's alarm, so on a slow runner the release landed after the re-reserve. Neither the test nor that code changed in this batch. pwa-preview 530 and expo-preview 563 were skipped, as designed: nothing ships from a red ci.
+- The failed job was re-run once (attempt 2): green 23:27 UTC.
+- pwa-preview 531 (id 46082646416) green from that green ci: the decision step let main's newest commit ship; the Cloudflare Pages project `shop-plus` was created by this run, its address matched the pinned one, and the check « NEW ADDRESS OK » saw this build's page and its not-found page answered there (deployment `b6af0c70`). Only then was the forwarding page published to the former GitHub Pages address (Pages deploy « Reported success! »). This settles the open question of the last entry: the token may create and publish the project.
+- expo-preview 564 (id 46082646389) green: the reseller app's preview update published from `main@9d89fa1`. The skipped runs did not block the later ones.
+
+**Not checked.** The live addresses cannot be reached from here, so the forwarding page's behaviour on the real former address was not seen; its proof is the forwarder walk in a real browser (see ADRESSE-PROPRE-1 below). The reseller app on a real phone, and a buyer opening an old link on a real phone, are the checks still to make.
+
+**Follow-on.**
+- The `colis.e2e` helper waits for the hold's release before it reserves again, so a slow runner cannot turn main red.
+- A buyer who retries at once after a failed payment can briefly hear « already reserved » until the order's alarm runs; to be measured and, if it matters, shortened.
+- The rollback page and workflow name the previous release's last version (a release writes two versions; see the platform journal's drill).
+- Buyers who saved the old site to their home screen add the new one once; the former address's acceptance by the service is removed in a later slice.
+
+**Still open.** GitHub started the service run without waiting for the `production` environment's approval; the founder approved in chat, and the environment's reviewer setting is being checked. Other open items are as named in the slice entries below, or held in the private batch record until their fixes deploy.
+
+---
+
 ## 2026-11-27 · SORTIES-SURES-1 — a service goes live only from a green commit, with the founder's approval; apps publish only after green checks; a rollback page; the board and a live check every day · lane O5 · on the branch, NOT merged, NOT deployed
 
 **Founder.** « Go on for batch 6 » (2026-11-27 19:38 UTC), batch 6 of the plan he approved: « A service goes live only after its checks passed on that exact version, with your approval in front of it. Apps publish only after green checks. One page per app says how to roll back, and we practise it once. The boards run every day, not only when someone pushes. A daily watch checks that the live services run `main`. Public logs stop printing order numbers, amounts and your catalogue. » His card on the GitHub approval is still open; this is built on its recommended answer (every service release waits for his approval in GitHub; app updates need green checks only).
