@@ -55,6 +55,9 @@ export interface QueueStore {
   read(): Promise<string | null>;
   /** Persist the blob (create-or-overwrite; durable across process death). */
   write(data: string): Promise<void>;
+  /** Keep bytes that could not be read under a NEW name, beside the list — never
+   *  deleted, never overwritten. Rejects if they could not be kept. */
+  garder(data: string): Promise<void>;
 }
 
 /** The intents this outbox carries. Media bytes (a photo, a note) are NOT
@@ -125,19 +128,28 @@ export class FileAttente {
     private readonly store: QueueStore,
     private entries: QueueEntry[],
     private readonly now: () => number,
+    /** False when bytes existed and could not be read: her list was lost, and she must be told. */
+    readonly restauree: boolean,
   ) {}
 
   /** Open the outbox, RESTORING what was persisted (the reboot road). A corrupt
    *  or wrong-version blob opens EMPTY rather than crashing — the file is
    *  never trusted blindly — and the loss is the caller's to say, not to hide:
-   *  `restauree` is false when bytes existed and could not be read. */
+   *  `restauree` is false when bytes existed and could not be read. Those bytes
+   *  are KEPT ASIDE first (`store.garder`), and only then is a fresh list
+   *  written over them, so the next boot is quiet; if they cannot be kept,
+   *  this rejects and nothing is overwritten. */
   static async ouvrir(store: QueueStore, opts: { now?: () => number } = {}): Promise<FileAttente> {
     const raw = await store.read();
     let entries: QueueEntry[] = [];
-    if (raw !== null && raw.length > 0) {
+    let lisible = true;
+    // An EXISTING file of zero bytes is unreadable too: it is what a write that
+    // died right after the native truncation leaves, never « nothing waiting ».
+    if (raw !== null) {
       try {
         const parsed = JSON.parse(raw) as Persisted;
-        if (parsed.version === SCHEMA_VERSION && Array.isArray(parsed.entries)) {
+        lisible = parsed.version === SCHEMA_VERSION && Array.isArray(parsed.entries);
+        if (lisible) {
           entries = parsed.entries.filter(
             (e) =>
               (e.name === 'listing.publish' || e.name === 'listing.remove' || e.name === 'storefront.identity') &&
@@ -147,10 +159,15 @@ export class FileAttente {
           );
         }
       } catch {
-        entries = [];
+        lisible = false;
       }
     }
-    return new FileAttente(store, entries, opts.now ?? Date.now);
+    const file = new FileAttente(store, entries, opts.now ?? Date.now, lisible);
+    if (!lisible) {
+      await store.garder(raw as string);
+      await file.persist();
+    }
+    return file;
   }
 
   private async persist(): Promise<void> {

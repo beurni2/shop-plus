@@ -24,6 +24,9 @@ function storeSur(path: string): QueueStore {
     async write(data) {
       writeFileSync(path, data);
     },
+    async garder(data) {
+      writeFileSync(`${path}.perdu-${Date.now()}-${Math.random().toString(36).slice(2)}`, data);
+    },
   };
 }
 function disque(): { store: QueueStore; path: string } {
@@ -90,14 +93,20 @@ describe('D17 — survival across app-kill + reboot (EXECUTED)', () => {
     expect(envoyes).toEqual(['p2']);
   });
 
-  it('an EMPTY store opens empty; a corrupt blob opens empty rather than crashing', async () => {
+  it('an EMPTY store opens empty; a corrupt blob opens empty rather than crashing — and SAYS it lost something (file-attente-perte owns the rest)', async () => {
     const { store, path } = disque();
-    expect((await FileAttente.ouvrir(store)).tout()).toEqual([]);
+    const vide = await FileAttente.ouvrir(store);
+    expect(vide.tout()).toEqual([]);
+    expect(vide.restauree, 'nothing was there to lose').toBe(true);
     writeFileSync(path, '{not json at all');
-    expect((await FileAttente.ouvrir(storeSur(path))).tout()).toEqual([]);
+    const casse = await FileAttente.ouvrir(storeSur(path));
+    expect(casse.tout()).toEqual([]);
+    expect(casse.restauree, 'bytes existed and did not read').toBe(false);
     // a blob of the wrong shape (a future version, a foreign file) is refused too
     writeFileSync(path, JSON.stringify({ version: 2, entries: [{ name: 'listing.publish', pid: 'x', payload: {}, status: 'pending', attempts: 0, enqueuedAt: 1 }] }));
-    expect((await FileAttente.ouvrir(storeSur(path))).tout()).toEqual([]);
+    const autre = await FileAttente.ouvrir(storeSur(path));
+    expect(autre.tout()).toEqual([]);
+    expect(autre.restauree).toBe(false);
   });
 });
 

@@ -3480,6 +3480,18 @@
   "screenClass": "status"
  },
  {
+  "key": "attente.liste_perdue",
+  "fr": "Votre liste d’envois en attente n’a pas pu être relue sur ce téléphone. Si vous aviez ajouté ou retiré un produit, ou changé votre boutique, sans réseau, refaites-le simplement.",
+  "register": "selling",
+  "screenClass": "status"
+ },
+ {
+  "key": "attente.liste_perdue_fermer",
+  "fr": "Compris",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
   "key": "attente.echec_titre",
   "fr": "N’a pas pu partir",
   "register": "neutral",
