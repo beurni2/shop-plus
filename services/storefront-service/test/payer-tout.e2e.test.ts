@@ -391,7 +391,10 @@ describe('PAYER-TOUT-1 — one payment for the panier, one order per article, on
     expect(view.status).toBe(200);
     expect(view.json['state']).toBe('confirmed');
     for (const id of orderIds) {
-      const one = await call(mf, `/checkout/order/${id}`);
+      // Each order's own view answers its buyer, with the token the group payment gave her for it.
+      const jeton = commandes.find((c) => c.orderId === id)?.buyerRef;
+      if (jeton === undefined) throw new Error(`no buyer token for ${id}`);
+      const one = await call(mf, `/checkout/order/${id}`, { headers: { Authorization: `Bearer ${jeton}` } });
       expect(one.json['state']).toBe('confirmed');
     }
 

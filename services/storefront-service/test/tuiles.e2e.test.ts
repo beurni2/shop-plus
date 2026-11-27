@@ -102,8 +102,8 @@ describe('TUILES-PROXY — the real Worker serves the buyer’s tiles as itself'
     expect(amont).toHaveLength(1);
   });
 
-  it('outside the map’s one zoom and range: 404 by name; a write: 405 — and the host is never asked', async () => {
-    for (const p of ['/tiles/16/65432/32109.png', '/tiles/17/131072/1.png', '/tiles/17/1/1.jpg']) {
+  it('outside the zooms z13 to z19 and the range: 404 by name; a write: 405 — and the host is never asked', async () => {
+    for (const p of ['/tiles/12/2047/1921.png', '/tiles/20/65432/32109.png', '/tiles/17/131072/1.png', '/tiles/17/1/1.jpg']) {
       const res = await tuile(p);
       expect(res.status, p).toBe(404);
       expect(await res.json()).toEqual({ error: 'tile_not_found' });
@@ -127,5 +127,17 @@ describe('TUILES-PROXY — the real Worker serves the buyer’s tiles as itself'
     // …and the recovered tile is now cached like any other.
     await tuile('/tiles/17/1000/2000.png');
     expect(amont).toHaveLength(3);
+  });
+
+  it('the founder console’s zooms, z13 to z19, are served the same way — our identity upstream, one ask per tile', async () => {
+    for (const [z, x, y] of [[13, 7957, 3755], [16, 63656, 30040], [19, 509249, 240326]] as const) {
+      const avant = amont.length;
+      const res = await tuile(`/tiles/${z}/${x}/${y}.png`);
+      expect(res.status, `z${z}`).toBe(200);
+      expect(new Uint8Array(await res.arrayBuffer())).toEqual(PNG);
+      expect(amont).toHaveLength(avant + 1);
+      expect(amont.at(-1)!.url).toBe(`https://tile.openstreetmap.org/${z}/${x}/${y}.png`);
+      expect(amont.at(-1)!.headers['user-agent']).toBe(TUILES_USER_AGENT);
+    }
   });
 });

@@ -63,7 +63,6 @@ export interface FeedVente {
   /** HER NET — the only franc figure on this wire. */
   readonly resellerNet: number;
   readonly productVersionId: string;
-  readonly zoneTo: string;
   /**
    * READINESS-RETURN-1c — Boutik+'s preparation news, present ONLY once the
    * supplier actually acted. OPTIONAL on purpose: absent means « not yet »,
@@ -117,13 +116,14 @@ const STATES: readonly string[] = [
 export function readFeedVente(raw: unknown): FeedVente | null {
   if (typeof raw !== 'object' || raw === null) return null;
   const r = raw as Record<string, unknown>;
-  const { orderId, state, createdAt, resellerNet, productVersionId, zoneTo } = r;
+  const { orderId, state, createdAt, resellerNet, productVersionId } = r;
   if (typeof orderId !== 'string' || orderId === '') return null;
   if (typeof state !== 'string' || !STATES.includes(state)) return null;
   if (typeof createdAt !== 'string' || createdAt === '') return null;
   if (typeof resellerNet !== 'number' || !Number.isInteger(resellerNet) || resellerNet < 0) return null;
   if (typeof productVersionId !== 'string') return null;
-  if (typeof zoneTo !== 'string') return null;
+  // No buyer area is read or kept: the server sends an empty one for now so
+  // apps already installed (which drop a row without it) keep her sales.
   const { acceptedAt, readyAt } = r;
   // Each instant is carried only when it is a non-empty string. A malformed
   // one is DROPPED rather than failing the whole row: a real confirmed sale
@@ -134,7 +134,6 @@ export function readFeedVente(raw: unknown): FeedVente | null {
     createdAt,
     resellerNet,
     productVersionId,
-    zoneTo,
     ...(typeof acceptedAt === 'string' && acceptedAt !== '' ? { acceptedAt } : {}),
     ...(typeof readyAt === 'string' && readyAt !== '' ? { readyAt } : {}),
     // Like the instants: only a literal `true` is a fact; anything else is

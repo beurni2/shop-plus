@@ -291,7 +291,7 @@ export type QuoteFetch =
        * READ THE ORDER BACK. The only source of « confirmé par l'opérateur »
        * anywhere in this app.
        */
-      readonly etatCommande: (orderId: string) => Promise<OrderFetch>;
+      readonly etatCommande: (orderId: string, buyerRef: string) => Promise<OrderFetch>;
       /**
        * SP4.2b — PAY THE PRODUCT AT THE DOOR. `essai` is the attempt number,
        * exactly as `commander` uses it: stable within an attempt so a
@@ -615,7 +615,7 @@ export async function fetchClienteQuote(
       return port.order(cible.quoteId, cmd, holder, contact, listeRef);
     },
 
-    etatCommande: (orderId: string): Promise<OrderFetch> => port.orderState(orderId),
+    etatCommande: (orderId: string, buyerRef: string): Promise<OrderFetch> => port.orderState(orderId, buyerRef),
 
     payerALaPorte: (orderId: string, essai: number): Promise<OrderFetch> => {
       // ONLY MODE B EVER OWES AT A DOOR, so the holder is the DOOR quote's.

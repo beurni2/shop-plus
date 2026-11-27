@@ -93,7 +93,7 @@ describe('readOrder (via the real port) — marks carried verbatim, malformed ma
   const lire = (body: unknown) =>
     withFetch(
       (async () => jsonRes(body)) as unknown as typeof fetch,
-      () => httpQuotePort('https://svc.example').orderState('ord-1'),
+      () => httpQuotePort('https://svc.example').orderState('ord-1', 'ref-1'),
     );
 
   it('valid ISO marks and livree:true ride the order read', async () => {
@@ -138,7 +138,7 @@ describe('readOrder (via the real port) — marks carried verbatim, malformed ma
     expect(created.order.buyerRef).toBe('ref-abc');
     const sans = await withFetch(
       (async () => jsonRes({ ...ORDRE_BASE, buyerRef: '' })) as unknown as typeof fetch,
-      () => port.orderState('ord-1'),
+      () => port.orderState('ord-1', 'ref-1'),
     );
     expect(sans.status).toBe('order');
     if (sans.status !== 'order') return;
@@ -166,7 +166,7 @@ describe('orderState — the ONE self-scheduled read is bounded in time', () => 
         new Promise((_resolve, reject) => {
           init?.signal?.addEventListener('abort', () => reject(new Error('aborted')));
         })) as unknown as typeof fetch;
-      const enCours = withFetch(pendu, () => httpQuotePort('https://svc.example').orderState('ord-pendu'));
+      const enCours = withFetch(pendu, () => httpQuotePort('https://svc.example').orderState('ord-pendu', 'ref-1'));
       await vi.advanceTimersByTimeAsync(LECTURE_COMMANDE_TIMEOUT_MS);
       expect(await enCours).toEqual({ status: 'unreachable' });
     } finally {
@@ -185,7 +185,7 @@ describe('orderState — the ONE self-scheduled read is bounded in time', () => 
           });
           setTimeout(() => resolve(jsonRes(ORDRE_BASE)), LECTURE_COMMANDE_TIMEOUT_MS - 1_000);
         })) as unknown as typeof fetch;
-      const enCours = withFetch(lent, () => httpQuotePort('https://svc.example').orderState('ord-lent'));
+      const enCours = withFetch(lent, () => httpQuotePort('https://svc.example').orderState('ord-lent', 'ref-1'));
       await vi.advanceTimersByTimeAsync(LECTURE_COMMANDE_TIMEOUT_MS + 1_000);
       const got = await enCours;
       expect(got.status).toBe('order');
@@ -687,5 +687,24 @@ describe('BANDE-PAYEE — the service says whether « Ma commande » may stand (
     expect(commandeGardee('ord-1', s)?.payee).toBe(true);
     s.setItem(COMMANDES_CLE, JSON.stringify([{ orderId: 'o', buyerRef: 'r', at: ISO, payee: 'true' }]));
     expect(commandeGardee('o', s)?.payee).toBeUndefined();
+  });
+});
+
+/* ═══════════ VIE-PRIVEE-ACHETEUSE — her order read carries her own token ═══════ */
+
+describe('orderState — the order read is hers: her token rides every read, never the URL', () => {
+  it('GET {base}/checkout/order/{id} with Authorization: Bearer <buyerRef>, and the token is nowhere in the URL', async () => {
+    const vus: { url: string; auth: string | null; method: string }[] = [];
+    const espion = (async (input: string | URL | Request, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+      vus.push({ url, auth: new Headers(init?.headers).get('Authorization'), method: init?.method ?? 'GET' });
+      return jsonRes(ORDRE_BASE);
+    }) as unknown as typeof fetch;
+    const got = await withFetch(espion, () =>
+      httpQuotePort('https://svc.example').orderState('ord-1', 'ref-secret-1'),
+    );
+    expect(got.status).toBe('order');
+    expect(vus).toEqual([{ url: 'https://svc.example/checkout/order/ord-1', auth: 'Bearer ref-secret-1', method: 'GET' }]);
+    expect(vus[0]!.url).not.toContain('ref-secret-1');
   });
 });

@@ -35,7 +35,6 @@ function vente(orderId: string, state: FeedState, net: number): FeedVente {
     resellerNet: net,
     createdAt: '2026-08-04T10:00:00.000Z',
     productVersionId: 'pv-1',
-    zoneTo: 'Gounghin, Ouagadougou',
   };
 }
 

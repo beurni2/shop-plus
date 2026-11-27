@@ -229,8 +229,11 @@ describe('BC-1a — the contact travels to exactly one reader', () => {
     // What the founder must check on this order: nothing yet.
     expect(row['aVerifier']).toBeNull();
 
-    // THE PROPERTY: the public order view — raw bytes — carries no contact.
-    const pub = await mf.dispatchFetch(`http://c/checkout/order/${encodeURIComponent(orderId)}`);
+    // THE PROPERTY: the order view — raw bytes, read with her own token, the
+    // only key that opens it — carries no contact.
+    const pub = await mf.dispatchFetch(`http://c/checkout/order/${encodeURIComponent(orderId)}`, {
+      headers: { Authorization: `Bearer ${String(created.json['buyerRef'])}` },
+    });
     const pubText = await pub.text();
     expect(pub.status).toBe(200);
     for (const secret of [CONTACT.phone, CONTACT.quartier, CONTACT.repere, 'contact']) {

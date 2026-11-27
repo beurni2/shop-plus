@@ -23,7 +23,6 @@ const okRes = (over: Partial<Extract<FeedResult, { ok: true }>> = {}): FeedResul
       createdAt: '2026-08-02T08:00:00.000Z',
       resellerNet: 2_000,
       productVersionId: 'pv-1',
-      zoneTo: 'Ouagadougou',
     },
   ],
   ...over,

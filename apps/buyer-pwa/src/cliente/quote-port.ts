@@ -305,8 +305,12 @@ export interface QuotePort {
    * confirmation screen to « confirmé par l'opérateur »: the state it returns
    * was written by a signed provider webhook and validated to the franc by the
    * vault, and nothing on this client can produce it.
+   *
+   * VIE-PRIVEE-ACHETEUSE — the read is HERS: it carries her own bearer token
+   * (`Authorization: Bearer <buyerRef>`, never in the URL), and the service
+   * answers one nameless 404 to anyone else — the gift link reads `/suivi`.
    */
-  orderState(orderId: string): Promise<OrderOutcome>;
+  orderState(orderId: string, buyerRef: string): Promise<OrderOutcome>;
   /**
    * SP4.2b — ASK FOR THE PRODUCT LEG TO BE COLLECTED, at her door, after she
    * has inspected. §5.5: « product paid by MoMo at the door BEFORE custody
@@ -650,7 +654,7 @@ export function httpQuotePort(baseUrl: string): QuotePort {
       return readOrder(res);
     },
 
-    async orderState(orderId: string): Promise<OrderOutcome> {
+    async orderState(orderId: string, buyerRef: string): Promise<OrderOutcome> {
       // Built OUTSIDE the fetch `try`, for the reason `reserve` documents:
       // `encodeURIComponent` throws on a lone surrogate, and a request the
       // BROWSER refused to construct is not a missing network.
@@ -680,7 +684,8 @@ export function httpQuotePort(baseUrl: string): QuotePort {
       const ctrl = typeof AbortController === 'function' ? new AbortController() : null;
       const stall = ctrl === null ? null : setTimeout(() => ctrl.abort(), LECTURE_COMMANDE_TIMEOUT_MS);
       try {
-        res = await fetch(url, ctrl === null ? { method: 'GET' } : { method: 'GET', signal: ctrl.signal });
+        const headers = { Authorization: `Bearer ${buyerRef}` };
+        res = await fetch(url, ctrl === null ? { method: 'GET', headers } : { method: 'GET', headers, signal: ctrl.signal });
       } catch {
         // An abort arrives here too, and « unreachable » is the honest name for
         // it: the read did not land. A failed read is still not a failed
@@ -1134,7 +1139,8 @@ export function resolveSuiviCadeau(): LireSuiviCadeau {
   if (base) return httpSuiviCadeau(base);
   const demo = demoQuotePort();
   return async (orderId) => {
-    const r = await demo.orderState(orderId);
+    // The harness reads its own demo order, which asks no token.
+    const r = await demo.orderState(orderId, '');
     if (r.status !== 'order') return r.status === 'unreachable' ? { status: 'unreachable' } : { status: 'introuvable' };
     const { state, acceptedAt, readyAt, departedAt, arrivedAt, livree } = r.order;
     return {

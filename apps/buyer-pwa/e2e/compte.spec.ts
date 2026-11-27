@@ -629,7 +629,13 @@ function porteAilleurs(page: Page): { vu: { doorCharges: Record<string, unknown>
       return json(200, vue());
     }
     if (/\/remise$/.test(url)) return json(404, { ok: false });
-    if (/\/checkout\/order\/[^/]+$/.test(url) && req.method() === 'GET') return json(200, vue());
+    if (/\/checkout\/order\/[^/]+$/.test(url) && req.method() === 'GET') {
+      // The real Worker opens the order view only to the token her account
+      // kept for THAT order — the uniform 404 otherwise.
+      const attendu = { 'ord-quote-porte-1': 'REF-PORTE-1', 'ord-quote-prepaye-1': 'REF-PREPAYE-1' }[id];
+      if (attendu === undefined || req.headers()['authorization'] !== `Bearer ${attendu}`) return json(404, { ok: false });
+      return json(200, vue());
+    }
     return json(404, { ok: false });
   });
   };

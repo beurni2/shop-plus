@@ -14,9 +14,12 @@
  * keeps the copy at the edge for a week, and answers the map. Her phone speaks
  * only to us; the host sees a Cloudflare address asking for a tile.
  *
- * WHAT IT IS NOT: a general tile CDN. It answers the map's ONE zoom (GEO_ZOOM,
- * 17) and in-range integer coordinates, GET/HEAD only; everything else is a
- * named 404/405 that never reaches the host. A per-address ceiling stands in
+ * WHAT IT IS NOT: a general tile CDN. It answers the buyer map's zoom (GEO_ZOOM,
+ * 17) and the founder console's range around it (z13 to z19, VIE-PRIVEE-
+ * ACHETEUSE: his map of a buyer's pin asks through us too, so the tile host
+ * never sees her neighbourhood from his address), in-range integer
+ * coordinates, GET/HEAD only; everything else is a named 404/405 that never
+ * reaches the host. A per-address ceiling stands in
  * front of it since LIMITE-ANONYME-1 (worker/index.ts asks it before the
  * cache; src/limite.ts has the numbers and what they do not close).
  *
@@ -28,6 +31,9 @@
 
 /** The buyer map's one fixed zoom — `GEO_ZOOM` in apps/buyer-pwa/src/geo-carte.ts. */
 export const TUILES_ZOOM = 17;
+/** The founder console's zoom range (boutik-plus carte-pin.tsx ZOOM_MIN / ZOOM_MAX); it holds the buyer's zoom. */
+export const TUILES_ZOOM_MIN = 13;
+export const TUILES_ZOOM_MAX = 19;
 export const TUILES_AMONT = 'https://tile.openstreetmap.org';
 /** OSM's tile usage policy: a User-Agent that identifies the application. */
 export const TUILES_USER_AGENT = 'Shop+ buyer map (https://beurni2.github.io/shop-plus/)';
@@ -55,7 +61,7 @@ export function lireCheminTuile(pathname: string): Tuile | null {
   const m = CHEMIN.exec(pathname);
   if (m === null) return null;
   const z = Number(m[1]);
-  if (z !== TUILES_ZOOM) return null;
+  if (z < TUILES_ZOOM_MIN || z > TUILES_ZOOM_MAX) return null;
   const x = Number(m[2]);
   const y = Number(m[3]);
   const cote = 2 ** z;

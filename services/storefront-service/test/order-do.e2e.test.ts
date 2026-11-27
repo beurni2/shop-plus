@@ -410,11 +410,20 @@ async function postOrder(m: Miniflare, body: Record<string, unknown>) {
     body: JSON.stringify(body),
   });
   const text = await res.text();
-  return { status: res.status, text, json: safeJson(text), headers: res.headers };
+  const json = safeJson(text);
+  if (typeof json['orderId'] === 'string' && typeof json['buyerRef'] === 'string') jetons.set(json['orderId'], json['buyerRef']);
+  return { status: res.status, text, json, headers: res.headers };
 }
 
+// The order view answers only its buyer: each read carries the token her
+// create answered, kept here per order.
+const jetons = new Map<string, string>();
+
 async function getOrder(m: Miniflare, orderId: string) {
-  const res = await m.dispatchFetch(`http://c/checkout/order/${encodeURIComponent(orderId)}`, { method: 'GET' });
+  const jeton = jetons.get(orderId);
+  // A read of an order no create answered would pass on an empty 404.
+  if (jeton === undefined) throw new Error(`no buyer token kept for ${orderId}`);
+  const res = await m.dispatchFetch(`http://c/checkout/order/${encodeURIComponent(orderId)}`, { method: 'GET', headers: { Authorization: `Bearer ${jeton}` } });
   const text = await res.text();
   return { status: res.status, text, json: safeJson(text), headers: res.headers };
 }
@@ -1092,9 +1101,10 @@ describe('OrderDO — the order survives a process death', () => {
   });
 
   it('an unknown order id is the honest 404 — never an empty or invented order', async () => {
-    const missing = await getOrder(mf, 'ord-quote-jamais-cree');
-    expect(missing.status).toBe(404);
-    expect(missing.json['error']).toBe('unknown_order');
+    // The same nameless 404 a wrong token gets: the view never says which.
+    const res = await mf.dispatchFetch('http://c/checkout/order/ord-quote-jamais-cree', { method: 'GET', headers: { Authorization: 'Bearer un-jeton-quelconque' } });
+    expect(res.status).toBe(404);
+    expect(safeJson(await res.text())).toEqual({ ok: false });
   });
 });
 

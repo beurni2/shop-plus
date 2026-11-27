@@ -179,7 +179,7 @@ describe('PORTE-APRES-RECHARGE-1 — her door after the tab died, on the real Wo
     const demande = await payer!(orderId, 0);
     expect(demande.status, JSON.stringify(demande)).toBe('order');
     expect(demande.status === 'order' && demande.order.doorLeg).toBe('due');
-    const avant = await port.httpQuotePort('http://sf').orderState(orderId);
+    const avant = await port.httpQuotePort('http://sf').orderState(orderId, buyerRef);
     expect(avant.status === 'order' && avant.order.doorLeg, 'a request to collect is not a payment').toBe('due');
 
     // Séra's arrival fact, then — still unpaid — no code.
@@ -192,7 +192,7 @@ describe('PORTE-APRES-RECHARGE-1 — her door after the tab died, on the real Wo
 
     // The operator confirms the door collection the Worker started.
     expect(await poster('/checkout/webhook/door', webhook(orderId, await legKeyOf(orderId, 'door'), 11_500, true))).toBe(200);
-    const apres = await port.httpQuotePort('http://sf').orderState(orderId);
+    const apres = await port.httpQuotePort('http://sf').orderState(orderId, buyerRef);
     expect(apres.status === 'order' && apres.order.doorLeg).toBe('paid');
     const code = await port.httpQuotePort('http://sf').remise(orderId, buyerRef);
     expect(code.status).toBe('code');

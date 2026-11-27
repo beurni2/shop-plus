@@ -54,14 +54,18 @@ const ok = (): Response =>
   new Response(PNG, { status: 200, headers: { 'Content-Type': 'image/png', 'Cache-Control': 'max-age=3600' } });
 
 describe('TUILES-PROXY — the path the buyer map may ask for', () => {
-  it('accepts the map’s ONE zoom with in-range integers, and nothing else', () => {
+  it('accepts z13 to z19 (the buyer map and the founder console) with in-range integers, and nothing else', () => {
     expect(TUILES_ZOOM).toBe(17);
+    expect(lireCheminTuile('/tiles/13/8191/0.png')).toEqual({ z: 13, x: 8191, y: 0 });
+    expect(lireCheminTuile('/tiles/16/1/1.png')).toEqual({ z: 16, x: 1, y: 1 });
+    expect(lireCheminTuile('/tiles/19/524287/524287.png')).toEqual({ z: 19, x: 524287, y: 524287 });
     expect(lireCheminTuile('/tiles/17/65432/32109.png')).toEqual({ z: 17, x: 65432, y: 32109 });
     expect(lireCheminTuile('/tiles/17/0/0.png')).toEqual({ z: 17, x: 0, y: 0 });
     expect(lireCheminTuile('/tiles/17/131071/131071.png')).toEqual({ z: 17, x: 131071, y: 131071 });
     for (const mauvais of [
-      '/tiles/16/1/1.png', // not the map's zoom — an open zoom would make this a general-purpose tile CDN
-      '/tiles/18/1/1.png',
+      '/tiles/12/1/1.png', // outside z13–z19 — an open zoom would make this a general-purpose tile CDN
+      '/tiles/20/1/1.png',
+      '/tiles/13/8192/1.png', // = 2^13: off the globe at z13
       '/tiles/17/131072/1.png', // = 2^17: off the globe
       '/tiles/17/1/131072.png',
       '/tiles/17/-1/1.png',
@@ -133,7 +137,7 @@ describe('servirTuile — read-only, our identity upstream, cached at the edge, 
   it('a path outside the map’s shape is 404 by name, and the tile host is never asked', async () => {
     const cache = cacheMemoire();
     const amont = amontScripte(ok);
-    for (const p of ['/tiles/16/1/1.png', '/tiles/17/131072/1.png', '/tiles/17/1/1.jpg']) {
+    for (const p of ['/tiles/12/1/1.png', '/tiles/20/1/1.png', '/tiles/17/131072/1.png', '/tiles/17/1/1.jpg']) {
       const res = await servirTuile(GET(p), { fetch: amont.fetch, cache });
       expect(res.status, p).toBe(404);
       expect(await res.json()).toEqual({ error: 'tile_not_found' });

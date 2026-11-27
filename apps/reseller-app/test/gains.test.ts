@@ -34,7 +34,6 @@ function vente(over: Partial<FeedVente> = {}): FeedVente {
     createdAt: T,
     resellerNet: 2_000,
     productVersionId: 'pv-1',
-    zoneTo: 'Ouagadougou',
     ...over,
   };
 }

@@ -706,6 +706,8 @@ describe('LISTE-ADRESSE — her address attaches in the background, and the frie
     expect(created.status).toBe(200);
     expect(createdText).not.toMatch(OCTETS_PRIVES);
     const orderId = `ord-${quote.quoteId}`;
+    // The order view answers only its buyer: read it with the token her create gave.
+    const jeton = String(safeJson(createdText)['buyerRef']);
 
     // THE LEDGER — the founder's dispatch board (the ONE reader of contacts)
     // holds HER phone, HER quartier, HER repère on this order.
@@ -721,7 +723,8 @@ describe('LISTE-ADRESSE — her address attaches in the background, and the frie
     expect(mine?.contact).toEqual({ phone: '70123456', quartier: 'Dassasgho', repere: 'Portail bleu, cour commune' });
 
     // the friend's own order read — the public view — has no address byte
-    const pub = await mf.dispatchFetch(`http://c/checkout/order/${encodeURIComponent(orderId)}`);
+    const pub = await mf.dispatchFetch(`http://c/checkout/order/${encodeURIComponent(orderId)}`, { headers: { Authorization: `Bearer ${jeton}` } });
+    expect(pub.status).toBe(200);
     expect(await pub.text()).not.toMatch(OCTETS_PRIVES);
 
     // and the roads still compose: webhook truth → « offert » on the liste
@@ -1015,8 +1018,10 @@ describe('LISTE-VOIX — her recorded repère becomes a ref at create and rides 
       }),
     });
     expect(created.status).toBe(200);
-    expect(await created.text()).not.toContain(ref); // the friend never sees her note
+    const createdText = await created.text();
+    expect(createdText).not.toContain(ref); // the friend never sees her note
     const orderId = `ord-${quote.quoteId}`;
+    const jeton = String(safeJson(createdText)['buyerRef']);
 
     const board = await mf.dispatchFetch('http://c/checkout/dispatch', {
       headers: { Authorization: `Bearer ${OPS_SECRET}` },
@@ -1030,7 +1035,8 @@ describe('LISTE-VOIX — her recorded repère becomes a ref at create and rides 
     expect(mine?.contact).toEqual({ phone: '70123456', quartier: 'Dassasgho', repere: 'Portail bleu', audioRef: ref });
 
     // the friend's public order view still carries no address and no note
-    const pub = await mf.dispatchFetch(`http://c/checkout/order/${encodeURIComponent(orderId)}`);
+    const pub = await mf.dispatchFetch(`http://c/checkout/order/${encodeURIComponent(orderId)}`, { headers: { Authorization: `Bearer ${jeton}` } });
+    expect(pub.status).toBe(200);
     expect(await pub.text()).not.toContain(ref);
 
     await confirmOrder(orderId, quote.amountPaidAtCheckout as number);
@@ -1150,8 +1156,10 @@ describe('GEO-ACHAT-1 (liste half) — her pin rides the livraison to the gift o
       }),
     });
     expect(created.status).toBe(200);
-    expect(await created.text()).not.toMatch(OCTETS_PIN);
+    const createdText = await created.text();
+    expect(createdText).not.toMatch(OCTETS_PIN);
     const orderId = `ord-${quote.quoteId}`;
+    const jeton = String(safeJson(createdText)['buyerRef']);
 
     // THE LEDGER: the one reader of contacts serves the very bytes she tapped.
     const board = await mf.dispatchFetch('http://c/checkout/dispatch', {
@@ -1165,7 +1173,7 @@ describe('GEO-ACHAT-1 (liste half) — her pin rides the livraison to the gift o
     expect(mine).toBeDefined();
     expect(mine!.contact!['pin']).toEqual(PIN);
     // And the public order view stays clean of it.
-    const pub = await mf.dispatchFetch(`http://c/checkout/order/${encodeURIComponent(orderId)}`);
+    const pub = await mf.dispatchFetch(`http://c/checkout/order/${encodeURIComponent(orderId)}`, { headers: { Authorization: `Bearer ${jeton}` } });
     expect(pub.status).toBe(200);
     expect(await pub.text()).not.toMatch(OCTETS_PIN);
   });

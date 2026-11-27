@@ -1335,6 +1335,27 @@ export class OrderDO {
       });
     }
 
+    /**
+     * VIE-PRIVEE-ACHETEUSE — HER ORDER VIEW, FOR HER ALONE. The public order
+     * read used to answer `GET /entry` to whoever named the id, and the id
+     * rides the gift link, the reseller's feed and two cross-app wires — so
+     * what she paid and any refund reached anyone holding it. Now the view
+     * answers only the order's own buyer token, on the remise door's terms
+     * verbatim: the compare runs unconditionally against a decoy (no timing
+     * oracle), and an absent order, an absent or wrong token are the SAME
+     * `{ok:false}` 404. `GET /entry` stays the internal read (/suivi's
+     * allowlist and the founder's sandbox read sit on it).
+     */
+    if (request.method === 'POST' && pathname === '/entry/vue-acheteuse') {
+      const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
+      const jeton = typeof body?.['jeton'] === 'string' ? (body['jeton'] as string) : '';
+      const stored = await this.state.storage.get<string>(BUYER_REF_KEY);
+      const compared = await timingSafeEqual(jeton, stored ?? 'jeton-absent-decoy');
+      const view = stored !== undefined && jeton !== '' && compared ? await this.projectForBuyer() : undefined;
+      if (view === undefined) return Response.json({ ok: false }, { status: 404 });
+      return Response.json({ ok: true, view });
+    }
+
     /** THE BUYER READ. Already projected — the Quote does not leave this object. */
     if (request.method === 'GET' && pathname === '/entry') {
       const view = await this.projectForBuyer();
@@ -1483,18 +1504,54 @@ export class OrderDO {
       }
       const spine = rebuildOrderSpine(quote, origin, log);
       const contact = await this.state.storage.get<BuyerContact>(CONTACT_KEY);
+      const remboursement = await this.remboursementAvecPorte(spine, origin.orderId);
+      const aVerifier = await this.aVerifierPourOperateur();
+      /**
+       * VIE-PRIVEE-ACHETEUSE — A FINISHED ORDER SHOWS NO CONTACT (founder's
+       * strictest default on the open consent/retention decision; nothing is
+       * deleted — how long anything is KEPT is his ⏳). Held back only when
+       * nothing can still need her: nothing for him to check, no refund open
+       * or blocked, and the order is over — delivered, refunded, its refund
+       * done or owed nothing, or cancelled before payment. A failed payment
+       * can still be retried, so it keeps her contact. Decided on every read
+       * from the stored facts: a late alert brings the contact back.
+       */
+      const remboursementClos = remboursement === null || remboursement.etat === 'fait' || remboursement.etat === 'rien';
+      const etat = spine.journey.state;
+      const termine =
+        aVerifier === null &&
+        remboursementClos &&
+        (spine.ledger.obligationsFor(origin.orderId).length > 0 ||
+          etat === 'refunded' ||
+          etat === 'cancelled' ||
+          (remboursement !== null && (remboursement.etat === 'fait' || remboursement.etat === 'rien')));
       return Response.json({
         ok: true,
         exists: true,
         orderId: origin.orderId,
-        state: spine.journey.state,
+        state: etat,
         createdAt: origin.createdAt,
-        contact: contact ?? null,
+        contact: termine ? null : (contact ?? null),
+        // Present ONLY when the contact was held back, so the row's other forms stay what they were.
+        ...(termine && contact !== undefined ? { contactMasque: true } : {}),
         productVersionId: origin.fulfillment?.productVersionId ?? '',
         zoneTo: origin.fulfillment?.zoneTo ?? '',
-        remboursement: await this.remboursementAvecPorte(spine, origin.orderId),
-        aVerifier: await this.aVerifierPourOperateur(),
+        remboursement,
+        aVerifier,
       });
+    }
+
+    /**
+     * VIE-PRIVEE-ACHETEUSE — the §6.4 door's own read of the buyer's phone, the
+     * ladder's key, finished order or not (a refusal can be recorded after its
+     * refund closed). INTERNAL ONLY: reached from that founder-key door alone,
+     * and it answers the phone and nothing else.
+     */
+    if (request.method === 'GET' && pathname === '/entry/telephone-echelle') {
+      const origin = await this.state.storage.get<StoredOrigin>(ORIGIN_KEY);
+      if (origin === undefined) return Response.json({ ok: true, exists: false });
+      const contact = await this.state.storage.get<BuyerContact>(CONTACT_KEY);
+      return Response.json({ ok: true, exists: true, phone: contact?.phone ?? null });
     }
 
     /**
@@ -2105,7 +2162,8 @@ export class OrderDO {
         // HER NET, copied off the immutable Quote. The one figure on this wire.
         resellerNet: quote.resellerNet,
         productVersionId: origin.fulfillment?.productVersionId ?? '',
-        zoneTo: origin.fulfillment?.zoneTo ?? '',
+        // No buyer area (VIE-PRIVEE-ACHETEUSE): her quartier — or a liste
+        // owner's private zone — is not hers to carry; she does no delivery.
         // VITRINE-VRAIE-1 — Séra validated this delivery (its obligations
         // exist): her sales read re-marks it in her book, so a delivery
         // validated before the count existed is counted too.
@@ -5340,7 +5398,8 @@ const badRequest = (error: string, field?: string): Response =>
 /**
  * Router — the order surface:
  *   POST /checkout/order                    create from a RESERVED quote (public)
- *   GET  /checkout/order/:id                the buyer view of an order (public)
+ *   GET  /checkout/order/:id                the buyer view of an order (public
+ *                                           path; answers her own Bearer token only)
  *   POST /checkout/order/:id/door-charge    SP4.2a-bis — the buyer asks for the
  *                                           product leg to be collected at her
  *                                           door (public; it CANNOT declare that
@@ -5791,16 +5850,30 @@ export default {
       return Response.json(suivi, { status: 200 });
     }
 
+    /**
+     * VIE-PRIVEE-ACHETEUSE — HER ORDER VIEW. PUBLIC PATH, PRIVATE ANSWER, the
+     * remise door's pattern: the answer exists only for the bearer of THIS
+     * order's own buyer token, and every refusal — no token, a wrong one, an
+     * unknown order — is the same `{ok:false}` 404, decided inside the object.
+     * The gift link reads `/suivi` below and needs no token. Stamped
+     * never-cache: what she paid must not survive in any intermediary.
+     */
     const byId = /^\/checkout\/order\/([^/]+)$/.exec(pathname);
     if (byId && request.method === 'GET') {
       const orderId = decodeId(byId[1]!);
+      // A segment that is not an id says nothing about any order: the named 400 it always was.
       if (orderId === undefined || !ID_ALPHABET.test(orderId)) return badRequest('bad_field', 'orderId');
-      const res = await orderStub(env, orderId).fetch(new Request('https://do/entry'));
-      const body = (await res.json().catch(() => null)) as { ok?: boolean; reason?: string; view?: unknown } | null;
-      if (body === null || body.ok !== true || body.view === undefined) {
-        return refuse(body?.reason ?? 'unknown_order');
-      }
-      return Response.json(body.view, { status: 200 });
+      const auth = request.headers.get('Authorization') ?? '';
+      const jeton = auth.startsWith('Bearer ') ? auth.slice('Bearer '.length) : '';
+      if (jeton === '') return Response.json({ ok: false }, { status: 404 });
+      const res = await orderStub(env, orderId).fetch(
+        new Request('https://do/entry/vue-acheteuse', { method: 'POST', body: JSON.stringify({ jeton }) }),
+      );
+      const body = (await res.json().catch(() => null)) as { ok?: boolean; view?: unknown } | null;
+      if (body?.ok !== true || body.view === undefined) return Response.json({ ok: false }, { status: 404 });
+      const answer = Response.json(body.view, { status: 200 });
+      answer.headers.set('Cache-Control', 'private, no-store');
+      return answer;
     }
 
     if (request.method === 'POST' && pathname === '/checkout/webhook/payment') {
@@ -5992,6 +6065,28 @@ export default {
         return Response.json({ error: body.reason ?? 'refused' }, { status: res.status });
       }
       return Response.json({ status: body.status, state: body.state }, { status: 200 });
+    }
+
+    /**
+     * VIE-PRIVEE-ACHETEUSE — the sandbox stand-in's read of the order it is
+     * about to confirm, behind the webhook secret (checked at the composition
+     * root). An ALLOWLIST of the three facts the tool checks, like /suivi: a
+     * field added to the buyer view later stays out of it.
+     */
+    {
+      const commandeMatch = /^\/checkout\/webhook\/order\/([^/]+)$/.exec(pathname);
+      if (request.method === 'GET' && commandeMatch !== null) {
+        const orderId = decodeId(commandeMatch[1]!);
+        if (orderId === undefined || !ID_ALPHABET.test(orderId)) return badRequest('bad_field', 'orderId');
+        const res = await orderStub(env, orderId).fetch(new Request('https://do/entry'));
+        const body = (await res.json().catch(() => null)) as { ok?: boolean; view?: Record<string, unknown> } | null;
+        if (body?.ok !== true || body.view === undefined) return Response.json({ ok: false }, { status: 404 });
+        const faits: Record<string, unknown> = {};
+        for (const cle of ['state', 'amountPaidAtCheckout', 'amountDueAtDelivery'] as const) {
+          if (body.view[cle] !== undefined) faits[cle] = body.view[cle];
+        }
+        return Response.json(faits, { status: 200 });
+      }
     }
 
     /** REMBOURSEMENT-1 — the stand-in's read of the refunds it was asked for (webhook secret, GET only). */

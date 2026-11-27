@@ -757,13 +757,13 @@ describe('GEO-ACHAT-1 (liste half) — the position block faces, and its slot in
     expect(repos).toContain('Ajouter ma position');
     // TUILES-PRIVEES-1 (F-24) — consent before the map opens, both roads named
     expect(repos).toContain('data-role="liste-geo-source"');
-    expect(repos).toContain('Le point exact va seulement à votre livreur. La carte autour vient d’OpenStreetMap.');
+    expect(repos).toContain('Le point exact va à l’équipe Séra et à votre livreur. Son appli de cartes peut s’en servir. La carte autour vient d’OpenStreetMap.');
     const cours = renderListeGeo('encours');
     expect(cours).toContain('data-role="liste-geo-cours"');
     expect(cours).toContain('Recherche de votre position…');
     const faite = renderListeGeo('faite');
     expect(faite).toContain('data-role="liste-geo-faite"');
-    expect(faite).toContain('Position ajoutée. Le point exact va seulement à votre livreur.');
+    expect(faite).toContain('Position ajoutée. Le point exact va à l’équipe Séra et à votre livreur. Son appli de cartes peut s’en servir.');
     expect(faite).toContain('data-action="liste-geo-retirer"');
     const refus = renderListeGeo('refus');
     expect(refus).toContain('data-role="liste-geo-refus"');

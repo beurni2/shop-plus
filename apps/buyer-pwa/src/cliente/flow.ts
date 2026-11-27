@@ -124,7 +124,7 @@ export interface ClienteInit {
   readonly suivi?: {
     readonly orderId: string;
     readonly buyerRef: string | null;
-    readonly etatCommande: (orderId: string) => Promise<OrderFetch>;
+    readonly etatCommande: (orderId: string, buyerRef: string) => Promise<OrderFetch>;
     readonly remise: (orderId: string, buyerRef: string) => Promise<RemiseFetch>;
     /**
      * PAYER-TOUT-1 — an article paid inside a panier pays its PRODUCT at its
@@ -205,7 +205,7 @@ export interface ClienteInit {
   readonly reprise?: {
     readonly lien: string;
     readonly storage: Storage | undefined;
-    readonly etatCommande: (orderId: string) => Promise<OrderFetch>;
+    readonly etatCommande: (orderId: string, buyerRef: string) => Promise<OrderFetch>;
     readonly remise: (orderId: string, buyerRef: string) => Promise<RemiseFetch>;
     /** PORTE-APRES-RECHARGE-1 — her door for a resumed order, when this phone
      *  keeps its holder (AUDIT-4 A-01); absent ⇒ the door stays withheld. */
@@ -303,7 +303,7 @@ interface FlowState {
     /** SP3.3c — create the order for the chosen mode, and read it back. Bound
      *  to the same per-mode quote the hold was taken on. */
     commander: (mode: ModePaiement, essai: number, contact?: { phone: string; quartier: string; repere: string; audioB64?: string; pin?: { lat: number; lng: number; accuracy?: number } }) => Promise<OrderFetch>;
-    etatCommande: (orderId: string) => Promise<OrderFetch>;
+    etatCommande: (orderId: string, buyerRef: string) => Promise<OrderFetch>;
     /** SP4.2b — ask for the product leg to be collected at her door. */
     payerALaPorte: (orderId: string, essai: number) => Promise<OrderFetch>;
     /** VRAI-SUIVI — ask the remise route for the code, with her bearer ref. */
@@ -634,7 +634,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
   /** WHO ANSWERS A TRACKING READ — the re-entry's own port, the live
    *  checkout's handle, or (REPRISE-PWA) the resumed journey's order-scoped
    *  port. null = nobody can (the harness), so nothing polls. */
-  const lireCommande = (): ((orderId: string) => Promise<OrderFetch>) | null =>
+  const lireCommande = (): ((orderId: string, buyerRef: string) => Promise<OrderFetch>) | null =>
     init.suivi?.etatCommande ?? (state.live !== null ? state.live.etatCommande : null) ?? init.reprise?.etatCommande ?? null;
   const lireRemise = (): ((orderId: string, buyerRef: string) => Promise<RemiseFetch>) | null =>
     init.suivi?.remise ?? (state.live !== null ? state.live.remise : null) ?? init.reprise?.remise ?? null;
@@ -1560,7 +1560,8 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
   function suivreLePaiement(orderId: string, gen: number, etape: number): void {
     const live = state.live;
     if (live === null) return;
-    void live.etatCommande(orderId).then((r) => {
+    // VIE-PRIVEE-ACHETEUSE — her order read carries her own token; the create kept it.
+    void live.etatCommande(orderId, state.buyerRef ?? '').then((r) => {
       if (gen !== generation) return;
       // DID THE READ ARRIVE? That is ALL this records. It never becomes a
       // payment outcome — `confirmState` is untouched on every failure branch,
@@ -1668,7 +1669,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
     const colis = init.suivi?.colis;
     const lire = lireCommande();
     if (colis === undefined || lire === null) return;
-    void Promise.all(colis.articles.map((a) => lire(a.orderId).then((r) => ({ id: a.orderId, r }), () => ({ id: a.orderId, r: null })))).then((lus) => {
+    void Promise.all(colis.articles.map((a) => lire(a.orderId, a.buyerRef).then((r) => ({ id: a.orderId, r }), () => ({ id: a.orderId, r: null })))).then((lus) => {
       if (gen !== generation || state.screen !== 'C8') return;
       const rendus = lus.filter((x) => x.r?.status === 'order' && x.r.order.remboursement !== undefined).map((x) => x.id);
       if (rendus.length !== state.rendus.length || rendus.some((id) => !state.rendus.includes(id))) {
@@ -1735,7 +1736,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
   function suivreLaPorte(orderId: string, gen: number, etape: number): void {
     const lire = lireCommande();
     if (lire === null) return;
-    void lire(orderId).then((r) => {
+    void lire(orderId, state.buyerRef ?? '').then((r) => {
       if (gen !== generation) return;
       if (r.status === 'order') {
         state.doorLeg = r.order.doorLeg ?? null;
@@ -1839,7 +1840,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
   function suivreLaLivraison(orderId: string, gen: number, etape: number): void {
     const lire = lireCommande();
     if (lire === null) return;
-    void lire(orderId).then((r) => {
+    void lire(orderId, state.buyerRef ?? '').then((r) => {
       if (gen !== generation) return;
       state.suiviHorsPortee = r.status !== 'order';
       if (r.status === 'order') {

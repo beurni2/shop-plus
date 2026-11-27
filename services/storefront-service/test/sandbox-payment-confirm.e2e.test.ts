@@ -177,11 +177,12 @@ async function realOrder(n: string): Promise<{ orderId: string }> {
     body: JSON.stringify({ quoteId: quote.quoteId, holderRef: `holder-${n}`, commandId: `cmd-order-${n}` }),
   });
   if (res.status !== 200) throw new Error(`setup: order ${res.status} ${await res.text()}`);
+  jetons.set(`ord-${quote.quoteId}`, String(safeJson(await res.text())['buyerRef']));
   return { orderId: `ord-${quote.quoteId}` };
 }
 
 async function publicState(orderId: string): Promise<{ state: string; body: Record<string, unknown> }> {
-  const res = await mf.dispatchFetch(`http://c/checkout/order/${encodeURIComponent(orderId)}`);
+  const res = await mf.dispatchFetch(`http://c/checkout/order/${encodeURIComponent(orderId)}`, saVue(orderId));
   const body = safeJson(await res.text());
   return { state: String(body['state'] ?? `http-${res.status}`), body };
 }
@@ -202,6 +203,16 @@ async function runScript(
     return { code: e.code ?? 1, stdout: e.stdout ?? '', stderr: e.stderr ?? '' };
   }
 }
+
+// The order view answers only its buyer: each read carries the token her
+// create answered, kept here per order.
+const jetons = new Map<string, string>();
+const saVue = (orderId: string) => {
+  const jeton = jetons.get(orderId);
+  // A read of an order this file never created would pass on an empty 404.
+  if (jeton === undefined) throw new Error(`no buyer token kept for ${orderId}`);
+  return { headers: { Authorization: `Bearer ${jeton}` } };
+};
 
 describe('SANDBOX-PAY-1 — the founder plays the provider against the real Worker', () => {
   it('a wrong secret is refused at the door, and the order does not move', async () => {
@@ -310,6 +321,7 @@ describe('SANDBOX-PAY-1 — the founder plays the provider against the real Work
     const group = safeJson(await paid.text());
     expect(paid.status, JSON.stringify(group)).toBe(200);
     const orderIds = quoteIds.map((q) => `ord-${q}`);
+    for (const c of (group['commandes'] ?? []) as { orderId: string; buyerRef: string }[]) jetons.set(c.orderId, c.buyerRef);
 
     // The founder pastes ONE article's order id, as he sees it on his board.
     const run = await runScript(orderIds[1]!, WEBHOOK_SECRET);
@@ -378,7 +390,7 @@ describe('RB-3 — the gains read serves the FROZEN waterfall, franc-exact, foun
     expect((await mf.dispatchFetch('http://c/checkout/gains')).status).toBe(401);
 
     // ── and the PUBLIC order view still leaks none of it (SP-I03) ──────────
-    const pub = await mf.dispatchFetch(`http://c/checkout/order/${encodeURIComponent(orderId)}`);
+    const pub = await mf.dispatchFetch(`http://c/checkout/order/${encodeURIComponent(orderId)}`, saVue(orderId));
     const pubText = await pub.text();
     for (const secret of ['sellerNet', 'resellerNet', 'sellerPlatformFee', 'sellerBasePrice']) {
       expect(pubText, `${secret} on the buyer view`).not.toContain(secret);
@@ -477,7 +489,7 @@ describe('SE-LIVE-5b — the delivered order settles, copied from the frozen quo
     expect((row2!['obligations'] as unknown[]).length, 'a redelivery must not double the records').toBe(2);
 
     // ── the PUBLIC order view carries none of it (SP-I03) ─────────────────
-    const pub = await mf.dispatchFetch(`http://c/checkout/order/${encodeURIComponent(orderId)}`);
+    const pub = await mf.dispatchFetch(`http://c/checkout/order/${encodeURIComponent(orderId)}`, saVue(orderId));
     const pubText = await pub.text();
     for (const secret of ['obligations', 'Eligible', 'supplier:', 'sellerNet']) {
       expect(pubText, `${secret} on the buyer view`).not.toContain(secret);

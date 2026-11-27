@@ -167,7 +167,7 @@ interface Audit {
 }
 const auditDe = async (orderId: string) => (await doDe(orderId, '/entry/audit')) as unknown as Audit;
 const vueDe = async (orderId: string) =>
-  safeJson(await (await mf.dispatchFetch(`http://c/checkout/order/${encodeURIComponent(orderId)}`)).text());
+  safeJson(await (await mf.dispatchFetch(`http://c/checkout/order/${encodeURIComponent(orderId)}`, saVue(orderId))).text());
 
 /** The buyer's own road to a paid order, the checkout leg confirmed by the certified mock. */
 async function commandePayee(n: string, mode: Mode = 'FULL_PREPAY'): Promise<string> {
@@ -199,6 +199,7 @@ async function commandePayee(n: string, mode: Mode = 'FULL_PREPAY'): Promise<str
   });
   if (ordered.status !== 200) throw new Error(`setup: order ${ordered.status} ${ordered.text}`);
   const orderId = `ord-${quoteId}`;
+  jetons.set(orderId, String(ordered.json['buyerRef']));
   const paye = Number(quote.json['amountPaidAtCheckout']);
   payes.set(orderId, paye);
   quotes.set(orderId, quote.json);
@@ -263,6 +264,16 @@ const fraisDe = (orderId: string): number => {
   return d;
 };
 const somme = (xs: readonly { amount: number }[]) => xs.reduce((s, x) => s + x.amount, 0);
+
+// The order view answers only its buyer: each read carries the token her
+// create answered, kept here per order.
+const jetons = new Map<string, string>();
+const saVue = (orderId: string) => {
+  const jeton = jetons.get(orderId);
+  // A read of an order this file never created would pass on an empty 404.
+  if (jeton === undefined) throw new Error(`no buyer token kept for ${orderId}`);
+  return { headers: { Authorization: `Bearer ${jeton}` } };
+};
 
 describe('a parcel Séra declares lost on the road', () => {
   it('L1 — paid in full at checkout: every paid leg comes back, the delivery fee included, and she reads it calmly', async () => {

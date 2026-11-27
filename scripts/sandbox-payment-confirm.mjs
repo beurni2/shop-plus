@@ -154,7 +154,11 @@ async function main() {
   const groupe = orderId.startsWith('grp-');
 
   const view = async () => {
-    const res = await fetch(`${base}/checkout/${groupe ? 'group' : 'order'}/${encodeURIComponent(orderId)}`);
+    // An order's own view answers only its buyer, so the founder reads its
+    // state behind the webhook secret; a group's view is read as before.
+    const res = groupe
+      ? await fetch(`${base}/checkout/group/${encodeURIComponent(orderId)}`)
+      : await fetch(`${base}/checkout/webhook/order/${encodeURIComponent(orderId)}`, { headers: { [WEBHOOK_KEY_HEADER]: secret } });
     const body = await res.json().catch(() => ({}));
     return { status: res.status, body };
   };
@@ -264,7 +268,9 @@ async function rembourser(base, orderId, secret) {
     }
     console.log(`refund of ${r.amount} FCFA (${r.legType}) confirmed: ${JSON.stringify(answer)}`);
   }
-  const after = await fetch(`${base}/checkout/order/${encodeURIComponent(orderId)}`);
+  const after = await fetch(`${base}/checkout/webhook/order/${encodeURIComponent(orderId)}`, {
+    headers: { [WEBHOOK_KEY_HEADER]: secret },
+  });
   const vue = await after.json().catch(() => ({}));
   console.log(`order ${orderId}: state=${String(vue.state ?? '')}`);
   if (vue.state !== 'refunded') {

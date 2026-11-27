@@ -167,3 +167,36 @@ describe('VENTE-DETAIL-RETIRÉ (F-42) · SEMENCE-DEMO-RETIRÉE — « Mes ventes
     expect(() => readFileSync(join(import.meta.dirname, '..', 'src', 'sales', 'ventes.ts'), 'utf8'), 'the demo seed module must not come back').toThrow();
   });
 });
+
+describe('VIE-PRIVEE-ACHETEUSE — « Mes ventes » lists every sale, though no row names where the buyer lives', () => {
+  it('HER phone: a row with an empty area (what the Worker sends now) and a row with none at all (what it sends later) both show, and no area reaches the screen', async () => {
+    process.env['EXPO_PUBLIC_ACCESS_GATE'] = 'on';
+    await seedAdmise();
+    const { zoneTo: _aucune, ...sansCle } = VENTE;
+    const ventes = [
+      { ...sansCle, zoneTo: '' },
+      { ...sansCle, orderId: 'ord-q-0002', createdAt: '2026-09-11T09:00:00.000Z', resellerNet: 1_800 },
+    ];
+    const fils = wire([
+      ...routesCommunes,
+      (path) => (path === '/reseller/session' ? { status: 200, json: { ok: true, ...COMPTE } } : null),
+      (path) => (path === '/reseller/profile' ? { status: 200, json: { ok: true, ...COMPTE, email: 'awa@example.bf', phone: '70 11 22 33' } } : null),
+      (path) => (path === '/reseller/ventes' ? { status: 200, json: { ok: true, ventes, incomplet: false } } : null),
+    ]);
+    const screen = await mountApp();
+    for (let i = 0; i < 10 && !screen.canPress('Tout voir'); i += 1) await screen.settle();
+    await screen.press('Tout voir');
+    await attendre(screen, NET_LIGNE);
+    const second = NET_LIGNE.replace('2', '1').replace('500', '800');
+    await attendre(screen, second);
+    const lu = screen.texts().join(' | ');
+    expect(lu, 'the list opened, not the accueil').toContain('La suite (route, livraison) arrive avec Séra.');
+    expect(lu.split('PAYÉE').length - 1, 'both sales read PAYÉE').toBeGreaterThanOrEqual(2);
+    expect(fils.calls.some((c) => c.path === '/reseller/ventes' && c.auth === `Bearer ${SESSION}`)).toBe(true);
+    expect(screen.canPress('Retour'), 'the way out').toBe(true);
+    await screen.press('Retour');
+    await screen.settle();
+    expect(screen.texts().join(' | ')).toContain('Bonjour');
+    screen.unmount();
+  }, 20_000);
+});
