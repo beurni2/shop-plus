@@ -98,7 +98,7 @@ const SHOP_LOCAL = ['sp-compte:v1', 'sp-liens-dus:v1', 'sp-portes:v1', 'sp-quote
 const SHOP_SESSION = ['sp-reprise:v1', 'sp-panier-lie:xyz'];
 const AUTRES = ['autre-page:session', 'sp_autre', 'spectacle'];
 
-test('an old /shop-plus/v/… link lands on the same page at the new address; the old address forgets only Shop+', async ({ page }) => {
+test('an old /shop-plus/v/… link lands on the same page at the new address; the old address forgets only Shop+', async ({ page, context }) => {
   // 1. The phone knows the old site: its worker installed, keys kept.
   servi = join(APP, 'dist');
   await page.goto(`${ANCIENNE}${PROJET}`);
@@ -114,8 +114,16 @@ test('an old /shop-plus/v/… link lands on the same page at the new address; th
     },
     [SHOP_LOCAL, SHOP_SESSION, AUTRES] as const,
   );
+  // Another page of the account keeps a cache of its own on this origin.
+  await page.evaluate(async () => {
+    await (await caches.open('autre-page-v1')).put('/autre/x', new Response('x'));
+  });
   const avant = await page.evaluate(async () => (await caches.keys()).filter((n) => n.startsWith('coquille-shop-plus-')).length);
   expect(avant).toBeGreaterThan(0);
+  // A second tab left open on the old site, under its old worker.
+  const ouverte = await context.newPage();
+  await ouverte.goto(`${ANCIENNE}${PROJET}`);
+  await ouverte.waitForFunction(() => navigator.serviceWorker.controller !== null);
 
   // 2. The release publishes the forwarder at the old address.
   servi = forwarder;
@@ -125,9 +133,13 @@ test('an old /shop-plus/v/… link lands on the same page at the new address; th
   await expect(page).toHaveURL(`${NOUVELLE}/v/aicha-4821?x=1&y=2#suite`);
   await expect(page.locator('.vt-root[data-screen="vitrine"]')).toBeVisible({ timeout: 10_000 });
 
+  // The forwarder's worker reloads the tab left open, which then forwards too.
+  await expect(ouverte).toHaveURL(`${NOUVELLE}/`, { timeout: 15_000 });
+  await ouverte.close();
+
   // 4. Back on the old origin (another page of the account, same tab so its
   //    sessionStorage is the one the forwarder saw): Shop+ forgotten, the
-  //    other page's keys kept, the old worker and its caches gone.
+  //    other page's keys and cache kept, the old worker and its caches gone.
   await page.goto(`${ANCIENNE}/autre/`);
   const restes = await page.evaluate(() => ({
     local: Object.keys(localStorage).sort(),
@@ -141,10 +153,11 @@ test('an old /shop-plus/v/… link lands on the same page at the new address; th
         page.evaluate(async () => ({
           enregistrements: (await navigator.serviceWorker.getRegistrations()).length,
           caches: (await caches.keys()).filter((n) => n.startsWith('coquille-shop-plus-')).length,
+          autre: (await caches.keys()).includes('autre-page-v1'),
         })),
       { timeout: 15_000 },
     )
-    .toEqual({ enregistrements: 0, caches: 0 });
+    .toEqual({ enregistrements: 0, caches: 0, autre: true });
 });
 
 test('the gift and liste links keep their query on the way (old project root)', async ({ page }) => {

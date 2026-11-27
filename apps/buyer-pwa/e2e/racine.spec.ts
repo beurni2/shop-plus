@@ -77,7 +77,7 @@ test('the signed offer link opens THAT product on the cliente C1', async ({ page
   await expect(page.locator('.cl-prodtitle')).toHaveText('Pagne wax 6 yards');
 });
 
-test('on project-page hosting the card lands the link UNDER the deploy base (the F-19 404), and so does every directory href', async ({ page }) => {
+test('on the root-hosted site the card lands the link at the site root (through the 404 fallback), and so does every directory href', async ({ page }) => {
   await page.goto(`${PAGES}/`);
   await expect(page.locator('[data-screen="racine"]')).toBeVisible();
   await page.locator('[data-role="racine-lien"]').fill('/v/aicha-4821');

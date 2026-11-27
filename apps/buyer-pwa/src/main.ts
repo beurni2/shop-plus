@@ -53,7 +53,7 @@ import { COMPTE_STYLES } from './compte/styles';
 import { VITRINE_THEMES, type VitrineThemeKey } from './vitrine/themes';
 // The Faso Premium face substrate (six @font-face, WO-FP STEP 0) — injected as
 // raw CSS so './fonts/…' stays document-relative (the Archivo pattern; correct
-// under base './' at / and /shop-plus/).
+// under base './' at the root and under any sub-path).
 import fontsCss from './fonts.css?raw';
 import { monterRacine } from './racine-view';
 import { resolveComptePort } from './compte/port';
@@ -83,7 +83,7 @@ import type { StorefrontProfilePort } from './vitrine/profile';
  * system-ui renders immediately and the real face swaps in only inside the
  * optional window (CLS=0 by construction: optional never swaps mid-page). The
  * woff2 is WO-5.1's substrate at public/fonts/archivo-latin-var.woff2 (served
- * document-relative as ./fonts/…, correct under base:'./' at / and /shop-plus/);
+ * document-relative as ./fonts/…, correct under base:'./' at the root or a sub-path);
  * the font-load e2e proves it responds 200 and the Archivo face actually loads
  * (document.fonts resolves) — a wrong path fails LOUD there, never silently.
  */

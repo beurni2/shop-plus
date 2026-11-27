@@ -54,11 +54,14 @@ describe('every package names the same buyer address', () => {
 /** Shipping source only: what runs, is served, or is published. */
 const SOURCES = [
   'apps/buyer-pwa/src',
+  'apps/buyer-pwa/index.html',
   'apps/buyer-pwa/public',
   'apps/buyer-pwa/ancienne-adresse',
   'apps/buyer-pwa/sw.template.js',
   'apps/buyer-pwa/scripts',
   'apps/reseller-app/src',
+  'apps/reseller-kit/src',
+  'packages',
   'services/storefront-service/src',
   'services/storefront-service/worker',
 ];

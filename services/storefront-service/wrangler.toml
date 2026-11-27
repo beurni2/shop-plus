@@ -205,7 +205,7 @@ bucket_name = "beurni-storefront-media"
 # `/media/{key}` (same origin) — which is what shipped, and it was WRONG the moment
 # PERSONNALISER-MEDIA-1 started writing this URL onto her storefront: React Native's
 # <Image> cannot resolve a relative URI (her own app drew nothing), and a browser
-# resolved it against the PWA's origin (`https://beurni2.github.io/media/…` → 404).
+# resolved it against the PWA's origin (`<buyer site>/media/…` → 404).
 # The e2e missed it because it compared two equally-relative strings.
 #
 # NOW SET, per the instruction this line has carried since the first deploy.
