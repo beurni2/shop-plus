@@ -575,7 +575,7 @@ describe('RESELLER-AUTH-1 — a session creates, and creates only as herself', (
     expect(decision.json).toEqual({ ok: false, reason: 'unknown_order' });
   });
 
-  it('SLUG-UNIQUE-1 (AUDIT-SHOP-2 F-01) — a rival cannot take A\'s slug: her create under A\'s short code is refused by name, A\'s public page is byte-identical, nothing was created; the slug of a deleted shop is free again, and then held', async () => {
+  it('SLUG-UNIQUE-1 (AUDIT-SHOP-2 F-01) — a rival cannot take A\'s slug: her create under A\'s short code is refused by name, A\'s public page is byte-identical, nothing was created; a shop deleted on key C frees its old link (it answers 404, never the shop re-created under a new code), and a held slug stays held', async () => {
     // the canon short code is the slug upper-cased (`OWN-0001` → `own-0001`)
     const codeA = slugA.toUpperCase();
     const codeB = slugB.toUpperCase();
@@ -598,8 +598,29 @@ describe('RESELLER-AUTH-1 — a session creates, and creates only as herself', (
     const annuaire = (await appel('/storefronts', { headers: cleC })).json as unknown as { id: string; slug: string }[];
     expect(annuaire.filter((r) => r.slug === slugA).map((r) => r.id)).toEqual([SF_A]);
     expect(annuaire.some((r) => r.id === 'sf-own-vol')).toBe(false);
-    // B's shop was DELETED on key C above: its slug is free, and B takes it back
-    // under her own id — the only road that ever frees a slug
+    // A SHOP DELETED ON KEY C FREES ITS OLD LINK, proved through the Worker: E's
+    // shop is deleted, then re-created under the SAME id with a NEW short code.
+    // The public read follows the slug's pointer to the id without checking the
+    // slug, so a pointer the delete left behind would serve E's new shop at the
+    // old link — the old link must answer the honest 404.
+    const E = await seance();
+    const dE = boutiqueDe(E, 'OWN').id.slice(3);
+    const sfE = `sf-${dE}`;
+    expect((await creerAvec(E.accountId, sfE, E.bearer, `OLDA-${dE}`, 'cmd-olda')).status).toBe(200);
+    expect((await appel(`/storefronts/${sfE}/publish`, { method: 'POST', headers: E.bearer, body: JSON.stringify({ correlationId: 'corr-en-ligne' }) })).status).toBe(200);
+    expect((await appel(`/s/olda-${dE}`, {})).json['id']).toBe(sfE);
+    expect((await appel(`/storefronts/${sfE}`, { method: 'DELETE', headers: cleC })).status).toBe(200);
+    const neuf = await creerAvec(E.accountId, sfE, E.bearer, `NEUF-${dE}`, 'cmd-neuf');
+    expect(neuf.status, neuf.text).toBe(200);
+    expect(neuf.json['status']).toBe('created');
+    expect((await appel(`/storefronts/${sfE}/publish`, { method: 'POST', headers: E.bearer, body: JSON.stringify({ correlationId: 'corr-en-ligne' }) })).status).toBe(200);
+    expect((await appel(`/s/neuf-${dE}`, {})).json['id']).toBe(sfE);
+    const ancien = await appel(`/s/olda-${dE}`, {});
+    expect(ancien.status, `the old link must be freed: ${ancien.text}`).toBe(404);
+
+    // B's shop was DELETED on key C above, and she re-creates her own id under
+    // her own code; this road alone cannot tell a freed slug from a pointer that
+    // already named her id — the case above is the proof that the delete frees it
     const reprise = await creerAvec(B.accountId, SF_B, B.bearer, codeB, 'cmd-reprise');
     expect(reprise.status, reprise.text).toBe(200);
     expect(reprise.json['status']).toBe('created');

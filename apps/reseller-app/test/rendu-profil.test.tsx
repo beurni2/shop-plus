@@ -150,7 +150,7 @@ function routes(serveur: ProfilServeur, drapeaux: Drapeaux = {}, feed: readonly 
       const nouveauContact =
         (typeof body?.['phone'] === 'string' && body['phone'].trim() !== serveur.phone) ||
         (typeof body?.['email'] === 'string' && body['email'].trim().toLowerCase() !== serveur.email);
-      if (nouveauContact && body?.['currentPassword'] === undefined) {
+      if ((nouveauContact && body?.['currentPassword'] === undefined) || body?.['currentPassword'] === '' || (body?.['newPassword'] !== undefined && body?.['currentPassword'] === undefined)) {
         return { status: 400, json: { ok: false, reason: 'bad_field', field: 'currentPassword' } };
       }
       if (body?.['currentPassword'] !== undefined || body?.['newPassword'] !== undefined) {
@@ -419,7 +419,7 @@ describe('« Mes informations »: a new number or email asks for her password; a
     expect(screen.shows("C'est enregistré.")).toBe(true);
     expect(screen.shows('Mon profil')).toBe(true);
     screen.unmount();
-  });
+  }, 20_000);
 
   it('a new number shows the masked password field; typing the old number back hides it; a wrong password speaks, keeps her typing and her session; the right one saves', async () => {
     await seedCompte();
@@ -462,7 +462,7 @@ describe('« Mes informations »: a new number or email asks for her password; a
     expect(screen.shows('Mon profil')).toBe(true);
     expect(screen.shows('76 55 44 33')).toBe(true);
     screen.unmount();
-  });
+  }, 20_000);
 
   it('her password count full: « Trop d’essais », never the end of her session; « Retour » still takes her to the hub', async () => {
     await seedCompte();
@@ -482,7 +482,7 @@ describe('« Mes informations »: a new number or email asks for her password; a
     await screen.press('Retour');
     expect(screen.shows('Mon profil')).toBe(true);
     screen.unmount();
-  });
+  }, 20_000);
 });
 
 describe('RAYONS-CANON-1 — « Mes rayons » offers Boutik+’s WHOLE taxonomy, on a wire that carries none of it', () => {

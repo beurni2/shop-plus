@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Miniflare } from 'miniflare';
@@ -139,6 +139,21 @@ describe('her current password is counted on the profile door, like the login do
     // 8 + 2 = 10 counted: the next guess finds the door closed
     expect((await profil(a.session, { currentPassword: FAUX, newPassword: NOUVEAU })).status).toBe(429);
   }, 60_000);
+
+  it('the guess is counted BEFORE the password is checked, in the profile handler\'s own source', () => {
+    // Why a source read: in workerd the hashing await lets no second request in,
+    // so counting after the check passes every runtime test while a guess that
+    // never reaches the count would still be possible on a slower runtime.
+    const source = readFileSync(join(import.meta.dirname, '..', 'worker', 'reseller-accounts-do.ts'), 'utf8');
+    const debut = source.indexOf("pathname === '/profile'");
+    expect(debut, 'the profile handler').toBeGreaterThan(0);
+    const corps = source.slice(debut, source.indexOf('CONTACT-WHATSAPP-1', debut));
+    const compte = corps.indexOf('this.essai(cleEchecs)');
+    const preuve = corps.indexOf('derivePassword(actuel');
+    expect(compte, 'the count').toBeGreaterThan(0);
+    expect(preuve, 'the check').toBeGreaterThan(0);
+    expect(compte, 'the count comes before the check').toBeLessThan(preuve);
+  });
 
   it('a success restarts the count: nine wrong, one right, nine wrong — still open', async () => {
     const a = await elle();
