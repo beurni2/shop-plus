@@ -9,6 +9,10 @@
       "regex": "/(?<!insufficient_)(?<![a-zA-ZÀ-ÿ])balances?\\s*[:=][^=]|\\.\\s*balances?\\b|(seller|user|account|client|vendeur|compte|wallet|cash|credit|fund|payout|ledger|running)Balances?\\b|\\b(seller|user|account|client|vendeur|compte)_balances?\\b/i"
     },
     {
+      "name": "balance of an earner, with its unit",
+      "regex": "/(seller|reseller|supplier|rider|courier|vendor|merchant|user|account|client)[_-]?balances?[_-]?(fcfa|xof|amount|cfa)/i"
+    },
+    {
       "name": "holdFunds/captureFunds/releaseFunds",
       "regex": "/(hold|capture|release)[_-]?funds/i"
     },
@@ -271,6 +275,32 @@
     {
       "name": "a directory sentence (fr)",
       "regex": "/\\b(annuaire des (boutiques|vendeuses)|toutes les boutiques|(les )?autres boutiques|rechercher une (boutique|vendeuse)|trouver une (boutique|vendeuse))\\b/i"
+    }
+  ],
+  "retired-names": [
+    {
+      "name": "retired brand, words (Ma Boutique)",
+      "regex": "/(?<![A-Za-zÀ-ÿ])[Mm][Aa][  ]+(Boutique|BOUTIQUE)/"
+    },
+    {
+      "name": "retired brand, words (Mon Shop)",
+      "regex": "/(?<![A-Za-zÀ-ÿ])[Mm][Oo][Nn][  ]+(Shop|SHOP)(?!\\+)/"
+    },
+    {
+      "name": "retired brand, PascalCase identifier (MaBoutique)",
+      "regex": "/MaBoutique/"
+    },
+    {
+      "name": "retired brand, PascalCase identifier (MonShop)",
+      "regex": "/MonShop/"
+    },
+    {
+      "name": "retired brand, identifier (maBoutique, ma-boutique, ma_boutique)",
+      "regex": "/(?<![A-Za-zÀ-ÿ0-9])ma[-_]?boutique/i"
+    },
+    {
+      "name": "retired brand, identifier (monShop, mon-shop, mon_shop)",
+      "regex": "/(?<![A-Za-zÀ-ÿ0-9])mon[-_]?shop/i"
     }
   ]
 }
