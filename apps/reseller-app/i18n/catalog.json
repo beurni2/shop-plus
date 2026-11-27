@@ -3570,6 +3570,12 @@
   "screenClass": "instruction"
  },
  {
+  "key": "profil.infos_mdp_aide",
+  "fr": "Pour changer votre numéro ou votre email, tapez votre mot de passe.",
+  "register": "neutral",
+  "screenClass": "instruction"
+ },
+ {
   "key": "profil.email_pris",
   "fr": "Cet email appartient déjà à un autre compte. Essayez-en un autre.",
   "register": "neutral",

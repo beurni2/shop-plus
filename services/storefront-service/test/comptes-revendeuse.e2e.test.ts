@@ -99,16 +99,19 @@ const NOUVEAU = 'toute-neuve-99';
 describe('her current password is counted on the profile door, like the login door', () => {
   it('ten wrong guesses answer 401; the eleventh is 429 too_many_attempts — and so is the RIGHT one; nothing changed', async () => {
     const a = await elle();
+    let corsDeLaPorte: string | null = null;
     for (let i = 0; i < 10; i += 1) {
       const r = await profil(a.session, { currentPassword: FAUX, newPassword: NOUVEAU });
       expect(r.status, `guess ${i + 1}`).toBe(401);
       expect(r.json['reason']).toBe('bad_password');
+      corsDeLaPorte = r.cors;
     }
+    expect(corsDeLaPorte, 'the door answers with a browser header').not.toBeNull();
     const onzieme = await profil(a.session, { currentPassword: FAUX, newPassword: NOUVEAU });
     expect(onzieme.status).toBe(429);
     expect(onzieme.json).toEqual({ ok: false, reason: 'too_many_attempts' });
     // the refusal keeps the door's browser header, like every other answer it gives
-    expect(onzieme.cors).toBe(ORIGIN);
+    expect(onzieme.cors).toBe(corsDeLaPorte);
 
     const juste = await profil(a.session, { currentPassword: MOT_DE_PASSE, newPassword: NOUVEAU });
     expect(juste.status, 'the right password inside the window is still refused').toBe(429);

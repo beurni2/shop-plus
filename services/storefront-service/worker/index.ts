@@ -1204,7 +1204,15 @@ export default {
         if (body === null || Object.keys(body).length !== 1 || texte === '' || texte.length > 200) {
           return withResellerCors(Response.json({ ok: false, reason: 'bad_field', field: 'texte' }, { status: 400 }));
         }
-        const res = await env.ORDER.get(env.ORDER.idFromName(decodeURIComponent(lien[1]!))).fetch(
+        // A segment that will not decode is an order nobody has: the same
+        // answer the order's own object gives an unknown id.
+        const orderId = decodeSur(lien[1]!);
+        if (orderId === null) {
+          const inconnue = Response.json({ ok: false, reason: 'unknown_order' }, { status: 404 });
+          inconnue.headers.set('Cache-Control', 'private, no-store');
+          return withResellerCors(inconnue);
+        }
+        const res = await env.ORDER.get(env.ORDER.idFromName(orderId)).fetch(
           new Request('https://do/entry/related-party/appeal', {
             method: 'POST',
             body: JSON.stringify({ claimedBy: compte.accountId, texte, at: new Date().toISOString() }),
@@ -1650,9 +1658,14 @@ export default {
         if (request.method === 'OPTIONS') return dispatchPreflight();
         const refused = await rejectUnauthorizedOpsRead(request, env);
         if (refused) return withDispatchCors(refused);
-        const stub = env.ORDER.get(env.ORDER.idFromName(decodeURIComponent(lien[1]!)));
+        // A segment that will not decode is an order nobody has: the same
+        // answer the order's own object gives an unknown id, on both roads.
+        const orderId = decodeSur(lien[1]!);
+        const stub = orderId === null ? null : env.ORDER.get(env.ORDER.idFromName(orderId));
+        const inconnue = () => withDispatchCors(Response.json({ ok: false, reason: 'unknown_order' }, { status: 404 }));
         if (lien[2] === undefined) {
           if (request.method !== 'GET') return withDispatchCors(unauthorized());
+          if (stub === null) return inconnue();
           const res = await stub.fetch(new Request('https://do/entry/related-party'));
           return withDispatchCors(new Response(res.body, { status: res.status, headers: { 'Content-Type': 'application/json' } }));
         }
@@ -1661,6 +1674,7 @@ export default {
         if (body === null || (body.outcome !== 'clear' && body.outcome !== 'violation') || Object.keys(body).length !== 1) {
           return withDispatchCors(Response.json({ ok: false, reason: 'malformed' }, { status: 400 }));
         }
+        if (stub === null) return inconnue();
         const res = await stub.fetch(
           new Request('https://do/entry/related-party/resolve', {
             method: 'POST',
@@ -2308,13 +2322,26 @@ async function refuserHorsPropriete(
   env: Env,
 ): Promise<Response | null> {
   if (request.method === 'POST' && pathname === '/storefronts') {
-    const cmd = (await request.clone().json().catch(() => null)) as { resellerId?: unknown; id?: unknown } | null;
+    const cmd = (await request.clone().json().catch(() => null)) as { resellerId?: unknown; id?: unknown; shortCode?: unknown } | null;
     if (cmd?.resellerId !== appelante.accountId) return Response.json({ error: 'not_owner' }, { status: 403 });
     // VERIFIER (a2a): the core answers a COLLIDING id with the existing shop in
     // the body — the very object the by-id read is muted to hide. An id that
     // already belongs to someone else is therefore nobody's here; her own
     // (the idempotent re-create) and a free id go through.
     if (typeof cmd.id !== 'string' || cmd.id === '') return Response.json({ error: 'malformed' }, { status: 400 });
+    // Her shop carries her own number: `sf-{the digits of her rs- id}`, its
+    // short code ending in the same digits. Decided from the session alone,
+    // BEFORE the existence read, so the answer is the same whether the named
+    // shop exists or not.
+    const chiffres = /^rs-(\d{4})$/.exec(appelante.accountId)?.[1];
+    if (
+      chiffres === undefined ||
+      cmd.id !== `sf-${chiffres}` ||
+      typeof cmd.shortCode !== 'string' ||
+      !cmd.shortCode.endsWith(`-${chiffres}`)
+    ) {
+      return Response.json({ error: 'not_owner' }, { status: 403 });
+    }
     const existante = await sfRouter
       .fetch(new Request(`https://do/storefronts/${encodeURIComponent(cmd.id)}`), env)
       .catch(() => undefined);

@@ -89,7 +89,7 @@ export type ProfilResult =
   | { readonly ok: true; readonly profil: ProfilCompte }
   | {
       readonly ok: false;
-      readonly reason: 'invalide' | 'coupe' | 'email_pris' | 'champ_invalide' | 'mdp_refuse' | 'unreachable';
+      readonly reason: 'invalide' | 'coupe' | 'email_pris' | 'champ_invalide' | 'mdp_refuse' | 'trop_essais' | 'unreachable';
       readonly field?: string;
     };
 
@@ -239,6 +239,9 @@ export function resolveCompteService(): CompteServicePort | null {
       }
       if (res.status === 403) return { ok: false, reason: 'coupe' };
       if (res.status === 409) return { ok: false, reason: 'email_pris' };
+      // Her current password is counted on this door like the login's: a 429
+      // is « wait », never a dead network.
+      if (res.status === 429) return { ok: false, reason: 'trop_essais' };
       if (res.status === 400) {
         const field = res.body?.['field'];
         return { ok: false, reason: 'champ_invalide', ...(typeof field === 'string' ? { field } : {}) };
