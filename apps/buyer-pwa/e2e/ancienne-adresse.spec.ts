@@ -3,6 +3,7 @@ import { cpSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } fr
 import { tmpdir } from 'node:os';
 import { extname, join } from 'node:path';
 import { expect, test } from '@playwright/test';
+import { construire } from '../scripts/ancienne-adresse.mjs';
 
 /**
  * ═══ ANCIENNE-ADRESSE — AN OLD LINK STILL OPENS, AND THE OLD ADDRESS FORGETS SHOP+ ═══
@@ -52,9 +53,11 @@ let serveur: Server | undefined;
 let forwarder: string;
 
 test.beforeAll(async () => {
-  // The built forwarder, its one address pointed at the local new host.
+  // The forwarder as the release builds it, its one address pointed at the
+  // local new host.
+  const construit = construire();
   forwarder = mkdtempSync(join(tmpdir(), 'ancienne-adresse-'));
-  cpSync(join(APP, 'ancienne-adresse/dist'), forwarder, { recursive: true });
+  cpSync(construit, forwarder, { recursive: true });
   for (const page of ['index.html', '404.html']) {
     const chemin = join(forwarder, page);
     const html = readFileSync(chemin, 'utf8');

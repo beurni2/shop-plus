@@ -6,6 +6,12 @@
   "screenClass": "general"
  },
  {
+  "key": "adresse.nouvelle",
+  "fr": "Shop+ a une nouvelle adresse. Touchez ici pour continuer.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
   "key": "attribution.collision",
   "fr": "Ce lien vient d'un autre vendeur. Votre commande reste avec le premier vendeur.",
   "register": "selling",

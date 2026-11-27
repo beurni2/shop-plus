@@ -814,12 +814,12 @@ describe('CheckoutDO — the emitted bytes carry no supplier economics (SP-I03)'
       attributionResellerId: resellerId,
       requestKey: freshKey(),
     });
-    expect(issued.headers.get('access-control-allow-origin')).toBe('https://beurni2.github.io');
+    expect(issued.headers.get('access-control-allow-origin')).toBe('https://shop-plus.pages.dev');
     expect(issued.headers.get('access-control-allow-origin')).not.toBe('*');
 
     const preflight = await mf.dispatchFetch('http://c/checkout/quote', { method: 'OPTIONS' });
     expect(preflight.status).toBe(204);
-    expect(preflight.headers.get('access-control-allow-origin')).toBe('https://beurni2.github.io');
+    expect(preflight.headers.get('access-control-allow-origin')).toBe('https://shop-plus.pages.dev');
     expect(preflight.headers.get('access-control-allow-methods')).toContain('POST');
     expect(preflight.headers.get('access-control-allow-headers')).toContain('Content-Type');
   });

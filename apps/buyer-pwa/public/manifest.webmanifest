@@ -1,9 +1,9 @@
 {
-  "id": "/shop-plus/",
+  "id": "/",
   "name": "Shop+",
   "short_name": "Shop+",
-  "start_url": "/shop-plus/",
-  "scope": "/shop-plus/",
+  "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#FFFDF7",
   "theme_color": "#C2571B",

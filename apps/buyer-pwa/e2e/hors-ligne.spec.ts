@@ -5,8 +5,8 @@ import { expect, test } from '@playwright/test';
  *
  * The audit's MAJOR (3): the installed PWA, cold-opened without network, was
  * the browser's own error page — Law 7 broken at the front door. This walk
- * drives the REAL built bundle on the Pages emulator (4174: project sub-path
- * + 404.html fallback, the same shape as beurni2.github.io/shop-plus/) with
+ * drives the REAL built bundle on the site's own host, emulated (4174: the
+ * root of its address + 404.html fallback, scripts/pages-racine.mjs) with
  * the service worker ALLOWED — the rest of the suite blocks workers so its
  * route stubs stay honest (playwright.config.ts).
  *
@@ -31,7 +31,7 @@ test('installed once, the shell cold-opens offline — the directory, then a dee
 }) => {
   // First visit, online: the worker installs and claims the page. Waiting on
   // `controller` waits on the whole install (precache is install's waitUntil).
-  await page.goto('/shop-plus/');
+  await page.goto('/');
   await page.waitForFunction(() => navigator.serviceWorker.controller !== null);
 
   await context.setOffline(true);
@@ -74,7 +74,7 @@ test('installed once, the shell cold-opens offline — the directory, then a dee
   const precache = await page.evaluate(async () => {
     const noms = await caches.keys();
     const cache = await caches.open(noms.find((n) => n.startsWith('coquille-shop-plus-')) ?? '');
-    return (await cache.keys()).map((r) => new URL(r.url).pathname.replace(/^\/shop-plus\//, ''));
+    return (await cache.keys()).map((r) => new URL(r.url).pathname.replace(/^\//, ''));
   });
   expect(precache.some((p) => /^assets\/index-.*\.js$/.test(p)), 'the entry chunk is precached').toBe(true);
   expect(precache.filter((p) => /^assets\/(pagne|terracotta|bazin)-.*\.js$/.test(p)), 'lazy header chunks are NOT precached').toEqual([]);
@@ -84,8 +84,8 @@ test('installed once, the shell cold-opens offline — the directory, then a dee
   // static host serves 404.html; offline the worker replays that exact road
   // (redirect to the root with the `?/` encoding), the restore script pins the
   // base and restores the path, and the vitrine mounts. RED: error page.
-  await page.goto('/shop-plus/v/aicha-4821');
-  await expect(page).toHaveURL(/\/shop-plus\/v\/aicha-4821$/);
+  await page.goto('/v/aicha-4821');
+  await expect(page).toHaveURL(/127\.0\.0\.1:4174\/v\/aicha-4821$/);
   await expect(page.locator('[data-role="vitrine-hero"]')).toBeVisible();
   await expect(page.locator('[data-role="vitrine-identity"]')).toContainText('Chez Aïcha Mode');
 });
@@ -94,7 +94,7 @@ test('SW-PRECACHE-1 — a header chunk is kept on first use: a shop drawn once w
   page,
   context,
 }) => {
-  await page.goto('/shop-plus/');
+  await page.goto('/');
   await page.waitForFunction(() => navigator.serviceWorker.controller !== null);
   const enCache = () =>
     page.evaluate(async () => {
@@ -106,15 +106,15 @@ test('SW-PRECACHE-1 — a header chunk is kept on first use: a shop drawn once w
 
   // Online: the shop wears « pagne » through the preview lever — the chunk is
   // fetched through the worker and kept.
-  await page.goto('/shop-plus/v/aicha-4821?entete=pagne');
+  await page.goto('/v/aicha-4821?entete=pagne');
   await expect(page.locator('.vt-root[data-etat="ready"]')).toBeVisible({ timeout: 10_000 });
   await expect(page.locator('.pg-hero')).toBeVisible();
   await expect.poll(async () => (await enCache()).filter((p) => /\/assets\/pagne-/.test(p)).length).toBe(1);
 
   // Offline: the same shop, the same header — served from the version's cache.
   await context.setOffline(true);
-  await page.goto('/shop-plus/v/aicha-4821?entete=pagne');
-  await expect(page).toHaveURL(/\/shop-plus\/v\/aicha-4821\?entete=pagne$/);
+  await page.goto('/v/aicha-4821?entete=pagne');
+  await expect(page).toHaveURL(/127\.0\.0\.1:4174\/v\/aicha-4821\?entete=pagne$/);
   await expect(page.locator('.vt-root[data-etat="ready"]')).toBeVisible({ timeout: 10_000 });
   await expect(page.locator('.pg-hero')).toBeVisible();
 });

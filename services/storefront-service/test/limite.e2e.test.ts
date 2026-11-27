@@ -110,7 +110,7 @@ describe('LIMITE-ANONYME-1 — the anonymous create doors', () => {
     const trop = await de(A, '/checkout/quote', corps);
     expect(trop.status).toBe(429);
     expect(await trop.json()).toEqual({ error: 'too_many_requests' });
-    expect(trop.headers.get('access-control-allow-origin')).toBe('https://beurni2.github.io');
+    expect(trop.headers.get('access-control-allow-origin')).toBe('https://shop-plus.pages.dev');
     expect(trop.headers.get('retry-after')).toBe('60');
     expect((await de(A, '/checkout/order', corps)).status).toBe(429);
     expect((await de(A, '/listes', corps)).status).toBe(429);
@@ -142,7 +142,7 @@ describe('VITRINE-VRAIE-1 — the public boutique and liste reads have a ceiling
     const trop = await de(LECTEUR, '/s/personne-0000');
     expect(trop.status).toBe(429);
     expect(await trop.json()).toEqual({ error: 'too_many_requests' });
-    expect(trop.headers.get('access-control-allow-origin')).toBe('https://beurni2.github.io');
+    expect(trop.headers.get('access-control-allow-origin')).toBe('https://shop-plus.pages.dev');
     expect((await de(LECTEUR, '/listes/zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz')).status).toBe(429);
     expect((await de('203.0.113.78', '/s/personne-0000')).status).toBe(404);
   });

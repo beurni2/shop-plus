@@ -24,8 +24,8 @@ describe('the encoder is correct by construction (RS + format vs the published Q
   it('Reed–Solomon generators (deg 10/18/26) match ISO 18004 Annex A (α-exponents)', () => {
     const alpha = (deg: number) => rsGenerator(deg).map((v) => gfLog(v));
     expect(alpha(10)).toEqual([0, 251, 67, 46, 61, 118, 70, 64, 94, 32, 45]); // V1-M
-    expect(alpha(18)).toEqual([0, 215, 234, 158, 94, 184, 97, 118, 170, 79, 187, 152, 148, 252, 179, 5, 98, 96, 153]); // V4-M — our version
-    expect(alpha(26)).toEqual([0, 173, 125, 158, 2, 103, 182, 118, 17, 145, 201, 111, 28, 165, 53, 161, 21, 245, 142, 13, 102, 48, 227, 153, 145, 218, 70]); // V3-M
+    expect(alpha(18)).toEqual([0, 215, 234, 158, 94, 184, 97, 118, 170, 79, 187, 152, 148, 252, 179, 5, 98, 96, 153]); // V4-M
+    expect(alpha(26)).toEqual([0, 173, 125, 158, 2, 103, 182, 118, 17, 145, 201, 111, 28, 165, 53, 161, 21, 245, 142, 13, 102, 48, 227, 153, 145, 218, 70]); // V3-M — the canon URL’s version
   });
 
   it('every ECC-M format-info word matches the published QR table (BCH(15,5) + 0x5412 mask)', () => {
@@ -39,15 +39,15 @@ describe('the encoder is correct by construction (RS + format vs the published Q
 });
 
 describe('the version-capacity law — the real-origin canon URL fits its chosen version at ECC M', () => {
-  it('the canon URL is 48 bytes → V4 (33×33), inside the ECC-M byte capacity of 62', () => {
+  it('the canon URL is 40 bytes → V3 (29×29), inside the ECC-M byte capacity of 42', () => {
     const byteLength = enc.encode(DEMO_QR_URL).length;
-    expect(byteLength).toBe(48); // the real origin, not the 27-byte short form
-    expect(chooseVersion(byteLength)).toBe(4);
+    expect(byteLength).toBe(40); // the buyer site's own address at its root, not the 27-byte short form
+    expect(chooseVersion(byteLength)).toBe(3);
     const qr = encodeQr(DEMO_QR_URL);
-    expect(qr.version).toBe(4);
-    expect(qr.byteLength).toBe(48);
-    expect(qr.size).toBe(modulesForVersion(4)); // 33
-    expect(qr.byteLength).toBeLessThanOrEqual(62); // V4 ECC-M byte capacity
+    expect(qr.version).toBe(3);
+    expect(qr.byteLength).toBe(40);
+    expect(qr.size).toBe(modulesForVersion(3)); // 29
+    expect(qr.byteLength).toBeLessThanOrEqual(42); // V3 ECC-M byte capacity
   });
 
   it('a payload past V5 ECC-M capacity is refused (never a silently-wrong QR)', () => {
@@ -65,7 +65,7 @@ describe('determinism — same input → byte-identical module matrix, two runs'
 
   it('the finder patterns are placed (three corners, ring + centre)', () => {
     const m = encodeQr(DEMO_QR_URL).modules;
-    for (const [r0, c0] of [[0, 0], [0, 26], [26, 0]] as const) {
+    for (const [r0, c0] of [[0, 0], [0, 22], [22, 0]] as const) {
       expect(m[r0]![c0]).toBe(true); // ring corner
       expect(m[r0 + 3]![c0 + 3]).toBe(true); // 3×3 centre
       expect(m[r0 + 1]![c0 + 1]).toBe(false); // ring interior
@@ -80,8 +80,10 @@ describe('the canon-form law (Q2) — the QR encodes the canon slug at the real 
   });
 
   it('the bare /v/{prenom} short form and query forms are REFUSED (planted negative fires)', () => {
-    expect(isCanonIdentityUrl('https://beurni2.github.io/shop-plus/v/aicha')).toBe(false);
-    expect(isCanonIdentityUrl('https://beurni2.github.io/shop-plus/v/aicha-4821?ref=x')).toBe(false);
+    expect(isCanonIdentityUrl('https://shop-plus.pages.dev/v/aicha')).toBe(false);
+    expect(isCanonIdentityUrl('https://shop-plus.pages.dev/v/aicha-4821?ref=x')).toBe(false);
+    // the former shared project address is never printed again
+    expect(isCanonIdentityUrl('https://beurni2.github.io/shop-plus/v/aicha-4821')).toBe(false);
     expect(isCanonIdentityUrl('https://shopplus.bf/v/aicha-4821')).toBe(false); // wrong (baked) domain
   });
 });

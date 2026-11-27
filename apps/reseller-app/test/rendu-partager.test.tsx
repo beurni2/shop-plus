@@ -96,8 +96,8 @@ const routes: Route[] = [
       : null,
 ];
 
-const LIEN_PRODUIT = `https://beurni2.github.io/shop-plus/s/${SLUG}?pid=${PV}`;
-const LIEN_BOUTIQUE = `https://beurni2.github.io/shop-plus/v/${SLUG}`;
+const LIEN_PRODUIT = `https://shop-plus.pages.dev/s/${SLUG}?pid=${PV}`;
+const LIEN_BOUTIQUE = `https://shop-plus.pages.dev/v/${SLUG}`;
 
 async function surPartager() {
   wire(routes);

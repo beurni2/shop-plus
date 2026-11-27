@@ -70,7 +70,7 @@ describe('TUILES-PROXY — the real Worker serves the buyer’s tiles as itself'
     const res = await tuile('/tiles/17/65432/32109.png', {
       headers: {
         Cookie: 'sp=1',
-        Referer: 'https://beurni2.github.io/shop-plus/',
+        Referer: 'https://shop-plus.pages.dev/',
         'X-Forwarded-For': '203.0.113.9',
         Authorization: 'Bearer nope',
         'User-Agent': 'Mozilla/5.0 (Linux; Android 9; 1 GB)',

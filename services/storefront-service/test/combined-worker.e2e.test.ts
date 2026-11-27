@@ -831,7 +831,7 @@ describe('SERVICE-WRITE-AUTH-1 → ACCES-ARME-2 — the session write gate', () 
  * RESELLER-STOREFRONT-WRITE-1 — CORS on the buyer read routes (the browser
  * boundary the miniflare e2e otherwise never crosses) and the session-gated list.
  */
-const ORIGIN = 'https://beurni2.github.io';
+const ORIGIN = 'https://shop-plus.pages.dev';
 describe('RESELLER-STOREFRONT-WRITE-1 — CORS on reads + the admin list', () => {
   it('the READ routes carry the exact-origin CORS header (never a wildcard)', async () => {
     // sf-seller-0001 exists from the composition test above.

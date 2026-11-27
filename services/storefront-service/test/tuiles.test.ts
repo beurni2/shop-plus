@@ -85,7 +85,7 @@ describe('TUILES-PROXY — the path the buyer map may ask for', () => {
     expect(TUILES_AMONT).toBe('https://tile.openstreetmap.org');
     expect(urlAmont({ z: 17, x: 1, y: 2 })).toBe('https://tile.openstreetmap.org/17/1/2.png');
     expect(TUILES_USER_AGENT).toMatch(/^Shop\+ /);
-    expect(TUILES_USER_AGENT).toContain('beurni2.github.io/shop-plus');
+    expect(TUILES_USER_AGENT).toContain('shop-plus.pages.dev');
   });
 });
 
@@ -99,7 +99,7 @@ describe('servirTuile — read-only, our identity upstream, cached at the edge, 
     const res = await servirTuile(
       GET('/tiles/17/65432/32109.png', {
         Cookie: 'sp=1',
-        Referer: 'https://beurni2.github.io/shop-plus/',
+        Referer: 'https://shop-plus.pages.dev/',
         'X-Forwarded-For': '203.0.113.9',
         Authorization: 'Bearer nope',
         'User-Agent': 'Mozilla/5.0 (Linux; Android 9)',

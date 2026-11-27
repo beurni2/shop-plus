@@ -3,7 +3,7 @@
   "produit": "Bazin riche",
   "prixClientFcfa": 11500,
   "livreParSera": true,
-  "lienProduit": "https://beurni2.github.io/shop-plus/s/boutique-0001?pid=pv-bazin",
-  "lienBoutique": "https://beurni2.github.io/shop-plus/v/boutique-0001",
+  "lienProduit": "https://shop-plus.pages.dev/s/boutique-0001?pid=pv-bazin",
+  "lienBoutique": "https://shop-plus.pages.dev/v/boutique-0001",
   "codeDit": "BOUTIQUE-0001"
 }
