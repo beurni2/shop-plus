@@ -162,8 +162,9 @@ export async function rejectUnauthorizedOpsRead(request: Request, env: WriteAuth
  * a refusal can never become an existence oracle for order ids.
  *
  * `'boutik'` = `PROGRESS_WRITE_SECRET` (preparation facts only) · `'sera'` =
- * `SERA_PROGRESS_SECRET` (delivery marks + transit only) · `'either'` = the
- * legacy mode while the Séra binding does not exist yet: the one shared value
+ * `SERA_PROGRESS_SECRET` (delivery marks, transit and a parcel lost on the
+ * road only) · `'either'` = the legacy mode while the Séra binding does not
+ * exist yet: the one shared value
  * opens every progress door, byte-identical to before the split — the split
  * cannot exist before the founder mints the second credential. If the two
  * bindings ever held the SAME value, the boutik class wins the tie — NOT the

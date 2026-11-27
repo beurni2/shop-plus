@@ -1549,6 +1549,58 @@ test('REMBOURSEMENT-2 · an article not available: the tracking says so, the ref
 });
 
 /**
+ * ═══ COLIS-PERDU-1 — THE PARCEL WAS LOST ON THE ROAD ═══
+ *
+ * She paid; the rider left with her parcel; Séra declared it lost on the way
+ * and the server opened her refund with the reason `perdu` — every franc, the
+ * delivery fee included. Her tracking must say THAT, calmly, follow the refund
+ * to « fait », and let her go home: never « the parcel is going back », never
+ * a step left « now » under the card, never a code or a door to open.
+ */
+test('COLIS-PERDU-1 · a parcel lost on the road: the tracking says so calmly, the refund is followed to done, then home', async ({ page }) => {
+  test.setTimeout(120_000);
+  const EN_ROUTE = { acceptedAt: MARQUES_ARRIVEE.acceptedAt, readyAt: MARQUES_ARRIVEE.readyAt, departedAt: MARQUES_ARRIVEE.departedAt };
+  const PERDU = { ...EN_ROUTE, remboursement: { etat: 'en_cours', montant: 12_500, motif: 'perdu' } };
+  const FAIT = { ...EN_ROUTE, remboursement: { etat: 'fait', montant: 12_500, motif: 'perdu' } };
+  const wire = await scriptService(page, {
+    orderStates: ['confirmed', 'confirmed', 'confirmed', 'refunded'],
+    marques: [{}, PERDU, PERDU, FAIT],
+  });
+  await askForPrice(page);
+  await toPayer(page, 'A');
+  await page.locator('[data-action="payer"]').click();
+  await page.locator('[data-etat="confirmee"]').waitFor({ timeout: 15_000 });
+  await page.locator('[data-action="suivre"]').click();
+  await page.locator('[data-screen="C7"]').waitFor();
+
+  const carte = page.locator('[data-role="remboursement"]');
+  await carte.waitFor({ timeout: 15_000 });
+  await expect(carte).toHaveAttribute('data-etat', 'en-cours');
+  const enCours = (await carte.innerText()).replace(/\s+/g, ' ');
+  expect(enCours).toContain('12 500 FCFA vous reviennent');
+  expect(enCours).toContain('Votre colis s’est perdu en route');
+  expect(enCours).toContain('livraison comprise');
+  expect(enCours, 'a lost parcel is not « going back »').not.toContain('Le colis retourne');
+  await expect(page.locator('.cl-tl-t-now')).toHaveCount(0);
+  await expect(page.locator('.cl-now-badge')).toHaveCount(0);
+  await expect(page.locator('[data-action="voir-code"]')).toHaveCount(0);
+  await expect(page.locator('[data-action="porte"]')).toHaveCount(0);
+
+  await expect(carte).toHaveAttribute('data-etat', 'fait', { timeout: 20_000 });
+  const fait = (await carte.innerText()).replace(/\s+/g, ' ');
+  expect(fait).toContain('Remboursement fait');
+  expect(fait).toContain('Tout votre argent est revenu');
+
+  const lues = wire.orderReads.length;
+  await page.waitForTimeout(7_000);
+  expect(wire.orderReads.length, 'the watch kept reading a finished refund').toBe(lues);
+
+  await page.locator('[data-action="suivi-terminer"]').click();
+  await page.locator('[data-screen="C1"]').waitFor({ timeout: 10_000 });
+  expect(await page.evaluate(() => localStorage.getItem('sp-commandes:v1'))).toBeNull();
+});
+
+/**
  * REMBOURSEMENT-1 (verifier BLOCKER 2) — PAY AT THE DOOR, PARCEL ALREADY
  * REFUSED. She refused it and Séra kept the delivery fee, so nothing comes
  * back. She taps « Je suis à la porte », then « Tout est bon ». The service

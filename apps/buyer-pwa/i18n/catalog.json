@@ -1380,6 +1380,18 @@
   "screenClass": "status"
  },
  {
+  "key": "cl.remboursement.perdu_corps",
+  "fr": "Votre colis s’est perdu en route. Ce n’est pas de votre faute\u00a0: tout votre argent revient sur le numéro qui a payé, livraison comprise.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.remboursement.perdu_fait_corps",
+  "fr": "Votre colis s’est perdu en route. Tout votre argent est revenu sur le numéro qui a payé, livraison comprise.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
   "key": "cl.remboursement.frais_gardes",
   "fr": "La livraison ({D}\u202fFCFA) reste payée\u00a0: le livreur est bien venu jusqu’à vous.",
   "register": "money",
