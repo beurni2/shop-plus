@@ -32,6 +32,7 @@ const GATES = [
   // DECOUVERTE-RETIREE-1 (SP-I05 amended): identifier-based, not French-law, but
   // a gutted or deleted directory pattern must be caught the same way.
   { gate: 'no-cross-reseller-discovery', fixtures: 'gates/fixtures/negative/no-cross-reseller-discovery' },
+  { gate: 'retired-names', fixtures: 'gates/fixtures/negative/retired-names' },
 ];
 const ROSTER_PATH = 'gates/pattern-roster.json';
 
