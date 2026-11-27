@@ -719,7 +719,7 @@ describe('PROFIL-REVENDEUR-1 — she reads her registration data, whole and hers
 describe('PROFIL-REVENDEUR-1 — each section patches alone, and the BOOK answers the question, not the response', () => {
   it('name and phone save together; the roster (the founder\'s read of the record) shows both at once', async () => {
     const elle = await activer();
-    const sauve = await profil(elle.session, { name: 'Awa Ouédraogo', phone: '76 55 44 33' });
+    const sauve = await profil(elle.session, { name: 'Awa Ouédraogo', phone: '76 55 44 33', currentPassword: MOT_DE_PASSE });
     expect(sauve.status).toBe(200);
     // Ask the record, twice over: a fresh profile read AND the founder roster.
     const relu = await profil(elle.session);
@@ -735,7 +735,7 @@ describe('PROFIL-REVENDEUR-1 — each section patches alone, and the BOOK answer
   it('an email change re-indexes the login door: the new email opens, the old is free again', async () => {
     const elle = await activer();
     const neuf = `neuve${String(n).padStart(3, '0')}@example.bf`;
-    expect((await profil(elle.session, { email: neuf })).status).toBe(200);
+    expect((await profil(elle.session, { email: neuf, currentPassword: MOT_DE_PASSE })).status).toBe(200);
 
     const parNeuf = await mf.dispatchFetch('http://c/reseller/login', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -755,7 +755,7 @@ describe('PROFIL-REVENDEUR-1 — each section patches alone, and the BOOK answer
   it('an email already in the book refuses 409 email_taken and changes NOTHING', async () => {
     const a = await activer();
     const b = await activer();
-    const refus = await profil(b.session, { email: a.email });
+    const refus = await profil(b.session, { email: a.email, currentPassword: MOT_DE_PASSE });
     expect(refus.status).toBe(409);
     expect(refus.json['reason']).toBe('email_taken');
     expect((await profil(b.session)).json['email']).toBe(b.email);

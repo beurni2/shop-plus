@@ -297,6 +297,26 @@ export class ResellerAccountsDO {
     return this.state.storage.get<AccountRecord>(`${ACCOUNT_PREFIX}${accountId}`);
   }
 
+  /** One guess at a counted door: the counter is read and written with no
+   *  other await between them, before any derivation; the caller deletes the
+   *  key on success. `false` once ten refusals stand inside the quarter hour.
+   *  Every call also sweeps up to fifty expired counters. (The login door
+   *  keeps its own inline count.) */
+  private async essai(cle: string): Promise<boolean> {
+    const nowMs = Date.now();
+    const echecs = await this.state.storage.get<LoginFailures>(cle);
+    const dansLaFenetre = echecs !== undefined && nowMs - Date.parse(echecs.depuis) < LOGIN_FAIL_WINDOW_MS;
+    if (dansLaFenetre && echecs.n >= LOGIN_FAIL_LIMIT) return false;
+    await this.state.storage.put(cle, {
+      n: dansLaFenetre ? echecs.n + 1 : 1,
+      depuis: dansLaFenetre ? echecs.depuis : new Date(nowMs).toISOString(),
+    } satisfies LoginFailures);
+    const anciens = await this.state.storage.list<LoginFailures>({ prefix: ECHECS_PREFIX, limit: 50 });
+    const expires = [...anciens].filter(([, v]) => nowMs - Date.parse(v.depuis) >= LOGIN_FAIL_WINDOW_MS).map(([k]) => k);
+    if (expires.length > 0) await this.state.storage.delete(expires);
+    return true;
+  }
+
   /** SESSION-VIE-1 — mint a session and the two rows that make it revocable
    *  by id: the row itself and its entry under the account's index. Returned
    *  as the keys to write, so signup can land them in the SAME put as the
@@ -608,12 +628,13 @@ export class ResellerAccountsDO {
         );
       }
 
-      let maj: AccountRecord = record;
-      let motDePasseChange = false;
+      // Every present field is validated first; nothing is applied before the
+      // proof below, so a refused save changes nothing.
+      const patch: { name?: string; phone?: string; email?: string; categories?: string[] } = {};
       if (body['name'] !== undefined) {
         const name = champ(body['name'], 120);
         if (name === null) return Response.json({ ok: false, reason: 'bad_field', field: 'name' }, { status: 400 });
-        maj = { ...maj, name };
+        patch.name = name;
       }
       if (body['phone'] !== undefined) {
         const phone = champ(body['phone'], 32);
@@ -622,23 +643,14 @@ export class ResellerAccountsDO {
         }
         // The number her buyers write to — /contact-of answers the record, so
         // this save reaches her boutique's WhatsApp taps with no other write.
-        maj = { ...maj, phone };
+        patch.phone = phone;
       }
-      let cleEmailNouvelle: string | null = null;
-      let cleEmailAncienne: string | null = null;
       if (body['email'] !== undefined) {
         const email = champ(body['email'])?.toLowerCase() ?? null;
         if (email === null || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
           return Response.json({ ok: false, reason: 'bad_field', field: 'email' }, { status: 400 });
         }
-        if (email !== record.email) {
-          cleEmailNouvelle = `${EMAIL_PREFIX}${await sha256Hex(email)}`;
-          if ((await this.state.storage.get(cleEmailNouvelle)) !== undefined) {
-            return Response.json({ ok: false, reason: 'email_taken' }, { status: 409 });
-          }
-          cleEmailAncienne = `${EMAIL_PREFIX}${await sha256Hex(record.email)}`;
-          maj = { ...maj, email };
-        }
+        patch.email = email;
       }
       if (body['categories'] !== undefined) {
         const rawCats = body['categories'];
@@ -651,35 +663,86 @@ export class ResellerAccountsDO {
           if (v === null) return Response.json({ ok: false, reason: 'bad_field', field: 'categories' }, { status: 400 });
           if (!nettoyees.includes(v)) nettoyees.push(v);
         }
-        if (nettoyees.length > 0) {
-          maj = { ...maj, categories: nettoyees };
+        patch.categories = nettoyees;
+      }
+
+      // Her number and her email are how she is reached and how her account
+      // is recovered: a session alone (a phone left unlocked) must not move
+      // them. A save that leaves both as they are asks for nothing.
+      const nouveauContact =
+        (patch.phone !== undefined && patch.phone !== record.phone) ||
+        (patch.email !== undefined && patch.email !== record.email);
+      let nouveauMotDePasse: { passwordSaltHex: string; passwordHashHex: string; passwordIterations: number } | null = null;
+      const preuve = nouveauContact || body['currentPassword'] !== undefined || body['newPassword'] !== undefined;
+      if (preuve) {
+        const actuel = typeof body['currentPassword'] === 'string' ? body['currentPassword'] : '';
+        if (actuel === '') return Response.json({ ok: false, reason: 'bad_field', field: 'currentPassword' }, { status: 400 });
+        const nouveau = body['newPassword'] === undefined ? null : typeof body['newPassword'] === 'string' ? body['newPassword'] : '';
+        if (nouveau !== null && (nouveau.length < 8 || nouveau.length > MAX_FIELD)) {
+          return Response.json({ ok: false, reason: 'bad_field', field: 'newPassword' }, { status: 400 });
+        }
+        // The CURRENT password re-proves it is her — a stolen handset with a
+        // live session must not be enough to lock her out of her own account.
+        // Every guess is counted like the login door's, per ACCOUNT, before
+        // any derivation; a success restarts the count.
+        const cleEchecs = `${ECHECS_PREFIX}mdp:${record.accountId}`;
+        if (!(await this.essai(cleEchecs))) return Response.json({ ok: false, reason: 'too_many_attempts' }, { status: 429 });
+        const derive = await derivePassword(actuel, record.passwordSaltHex, record.passwordIterations ?? PBKDF2_ITERATIONS_HERITEES);
+        if (!egaleConstante(derive, record.passwordHashHex)) {
+          return Response.json({ ok: false, reason: 'bad_password' }, { status: 401 });
+        }
+        await this.state.storage.delete(cleEchecs);
+        if (nouveau !== null) {
+          const saltHex = [...crypto.getRandomValues(new Uint8Array(16))].map((b) => b.toString(16).padStart(2, '0')).join('');
+          nouveauMotDePasse = { passwordSaltHex: saltHex, passwordHashHex: await derivePassword(nouveau, saltHex), passwordIterations: PBKDF2_ITERATIONS };
+        }
+      }
+
+      // The email index keys, hashed BEFORE the re-read so that the re-read,
+      // the taken-email lookup and the write below run with no other await
+      // between them — the lookup only after the proof, so the door says
+      // nothing about another account to a session that has not proved it is her.
+      const changeEmail = patch.email !== undefined && patch.email !== record.email;
+      const cleEmailNouvelle = changeEmail ? `${EMAIL_PREFIX}${await sha256Hex(patch.email!)}` : null;
+      const cleEmailAncienne = changeEmail ? `${EMAIL_PREFIX}${await sha256Hex(record.email)}` : null;
+
+      // The derivations above are non-storage awaits, so another save on this
+      // account may have landed since the session read: the patch is applied
+      // to a RE-READ record, and only if what was proved is still on it.
+      const frais = await this.compte(record.accountId);
+      if (frais === undefined) return Response.json({ ok: false, reason: 'no_session' }, { status: 401 });
+      if (preuve && frais.passwordHashHex !== record.passwordHashHex) {
+        return Response.json({ ok: false, reason: 'bad_password' }, { status: 401 });
+      }
+      if (changeEmail && frais.email !== record.email) {
+        // Her email moved under this save: the old index key hashed above is no
+        // longer hers to delete. Refused like a taken address; a retry re-reads.
+        return Response.json({ ok: false, reason: 'email_taken' }, { status: 409 });
+      }
+      if (cleEmailNouvelle !== null && (await this.state.storage.get(cleEmailNouvelle)) !== undefined) {
+        return Response.json({ ok: false, reason: 'email_taken' }, { status: 409 });
+      }
+
+      let maj: AccountRecord = {
+        ...frais,
+        ...(patch.name !== undefined ? { name: patch.name } : {}),
+        ...(patch.phone !== undefined ? { phone: patch.phone } : {}),
+        ...(changeEmail ? { email: patch.email! } : {}),
+        ...(nouveauMotDePasse ?? {}),
+      };
+      if (patch.categories !== undefined) {
+        if (patch.categories.length > 0) {
+          maj = { ...maj, categories: patch.categories };
         } else {
           const { categories: _retirees, ...reste } = maj;
           maj = reste;
         }
       }
-      if (body['currentPassword'] !== undefined || body['newPassword'] !== undefined) {
-        const actuel = typeof body['currentPassword'] === 'string' ? body['currentPassword'] : '';
-        const nouveau = typeof body['newPassword'] === 'string' ? body['newPassword'] : '';
-        if (actuel === '') return Response.json({ ok: false, reason: 'bad_field', field: 'currentPassword' }, { status: 400 });
-        if (nouveau.length < 8 || nouveau.length > MAX_FIELD) {
-          return Response.json({ ok: false, reason: 'bad_field', field: 'newPassword' }, { status: 400 });
-        }
-        // The CURRENT password re-proves it is her — a stolen handset with a
-        // live session must not be enough to lock her out of her own account.
-        const derive = await derivePassword(actuel, record.passwordSaltHex, record.passwordIterations ?? PBKDF2_ITERATIONS_HERITEES);
-        if (!egaleConstante(derive, record.passwordHashHex)) {
-          return Response.json({ ok: false, reason: 'bad_password' }, { status: 401 });
-        }
-        const saltHex = [...crypto.getRandomValues(new Uint8Array(16))].map((b) => b.toString(16).padStart(2, '0')).join('');
-        maj = { ...maj, passwordSaltHex: saltHex, passwordHashHex: await derivePassword(nouveau, saltHex), passwordIterations: PBKDF2_ITERATIONS };
-        motDePasseChange = true;
-      }
 
-      if (maj !== record) {
-        // Every hash above is already computed, so these storage ops sit in one
-        // event-loop turn and coalesce into ONE atomic commit — the record and
-        // its email index can never land separately.
+      const change = Object.keys(patch).length > 0 || nouveauMotDePasse !== null;
+      if (change) {
+        // No await but storage ops from the re-read to here, so the record and
+        // its email index land in ONE atomic commit, never separately.
         const ecritures: Record<string, unknown> = { [`${ACCOUNT_PREFIX}${record.accountId}`]: maj };
         if (cleEmailNouvelle !== null) ecritures[cleEmailNouvelle] = record.accountId;
         await this.state.storage.put(ecritures);
@@ -687,7 +750,7 @@ export class ResellerAccountsDO {
         // SESSION-VIE-1 — a new password is the moment a lost phone is cut
         // off: every session but the one that just proved the CURRENT password
         // is gone, in the same act. The list read is the account's own index.
-        if (motDePasseChange) await this.effacerAutresSessions(record.accountId, sessionHash);
+        if (nouveauMotDePasse !== null) await this.effacerAutresSessions(record.accountId, sessionHash);
       }
       return Response.json({
         ok: true,

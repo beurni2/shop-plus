@@ -5045,6 +5045,7 @@ function useProfil({ compte, service, lireBearer, ouvert, onSessionFinie, onComp
         res.reason === 'email_pris' ? 'profil.email_pris'
         : res.reason === 'champ_invalide' ? 'compte.champ_invalide'
         : res.reason === 'mdp_refuse' ? 'profil.mdp_refuse'
+        : res.reason === 'trop_essais' ? 'compte.trop_essais'
         : res.reason === 'coupe' ? 'coupe.texte'
         : 'compte.reseau',
     };
@@ -5308,6 +5309,8 @@ function EcranProfilInfos({ compte, profil, onRecharger, onSauver, onRetour }: {
   const [nom, setNom] = useState(typeof profil === 'object' ? profil.name : '');
   const [tel, setTel] = useState(typeof profil === 'object' ? profil.phone : '');
   const [email, setEmail] = useState(typeof profil === 'object' ? profil.email : '');
+  const [mdpActuel, setMdpActuel] = useState('');
+  const [mdpVisible, setMdpVisible] = useState(false);
   const [envoi, setEnvoi] = useState(false);
   const [msgKey, setMsgKey] = useState<string | null>(null);
   // Seeded from the profile, and RE-SEEDED when it arrives late (a stack left
@@ -5323,11 +5326,18 @@ function EcranProfilInfos({ compte, profil, onRecharger, onSauver, onRetour }: {
   if (compte === null || compte === undefined) return <FeuilleHorsLigne etat="sans_compte" onRecharger={onRecharger} />;
   if (typeof profil === 'string') return <FeuilleHorsLigne etat={profil} onRecharger={onRecharger} />;
 
+  // A new number or a new email needs her current password (the book asks it
+  // too); compared the way the book compares — trimmed, the email lowercased.
+  const contactChange = tel.trim() !== profil.phone || email.trim().toLowerCase() !== profil.email.toLowerCase();
+
   const enregistrer = () => {
     setMsgKey(null);
     setEnvoi(true);
     void (async () => {
-      const r = await onSauver({ name: nom.trim(), phone: tel.trim(), email: email.trim() }, 'profil.enregistre');
+      const r = await onSauver(
+        { name: nom.trim(), phone: tel.trim(), email: email.trim(), ...(contactChange ? { currentPassword: mdpActuel } : {}) },
+        'profil.enregistre',
+      );
       setEnvoi(false);
       if (r.ok) onRetour();
       else if (r.key !== null) setMsgKey(r.key);
@@ -5345,11 +5355,27 @@ function EcranProfilInfos({ compte, profil, onRecharger, onSauver, onRetour }: {
         <Text style={styles.profilChampLabel}>{t('compte.email')}</Text>
         <TextInput style={styles.profilInput} value={email} onChangeText={setEmail} autoCapitalize="none" autoCorrect={false} keyboardType="email-address" accessibilityLabel={t('compte.email')} editable={!envoi} />
         <Text style={styles.profilAide}>{t('profil.email_aide')}</Text>
+        {contactChange && (
+          <>
+            <Text style={styles.profilChampLabel}>{t('profil.mdp_actuel')}</Text>
+            <TextInput style={styles.profilInput} value={mdpActuel} onChangeText={setMdpActuel} autoCapitalize="none" autoCorrect={false} secureTextEntry={!mdpVisible} accessibilityLabel={t('profil.mdp_actuel')} editable={!envoi} />
+            <Text style={styles.profilAide}>{t('profil.infos_mdp_aide')}</Text>
+            <Pressable
+              onPress={() => setMdpVisible((v) => !v)}
+              accessibilityRole="button"
+              accessibilityState={{ selected: mdpVisible }}
+              style={({ pressed }) => [styles.mdpBascule, pressed && styles.pressed]}
+            >
+              <IconOeil size={dimension.iconSizePx.listRow} color={shopColour.deep} />
+              <Text style={styles.mdpBasculeTexte}>{t(mdpVisible ? 'compte.cacher' : 'compte.voir')}</Text>
+            </Pressable>
+          </>
+        )}
         {msgKey !== null && <RefusProfil msgKey={msgKey} />}
         <PrimaryButton
           label={t('profil.enregistrer')}
           onPress={enregistrer}
-          disabled={envoi || nom.trim() === '' || tel.trim() === '' || email.trim() === ''}
+          disabled={envoi || nom.trim() === '' || tel.trim() === '' || email.trim() === '' || (contactChange && mdpActuel === '')}
         />
         {envoi && <Text style={styles.accesMessage}>{t('compte.envoi')}</Text>}
       </Card>
