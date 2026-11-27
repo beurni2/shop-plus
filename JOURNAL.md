@@ -1,6 +1,22 @@
 # JOURNAL — shop-plus
 Continuity ledger per CTO charter §6/§6bis. Every entry is evidence-grounded.
 
+## 2026-11-27 · COMPTES-REVENDEUSE-1 — DEPLOYED and MERGED
+
+**Founder.** « Release all five » (2026-11-27 17:59 UTC, decision card, on the batch 5 report), which named for Shop+: the shop service from the branch, then the merge.
+
+**Deploy.** storefront-deploy 132 (id 46046680670), from the branch at `f8b6528`, every step green: the live health check reports release `f8b6528` and canon 3.28.0; custody armed (all four wires present); checkout refuses by name (`listing_unknown`); tiles (zoom 17 is 200 image/png, zoom 12 is 404 `tile_not_found`); password hashing at 100 000.
+
+**Merge.** platform-contracts PR #4 merged first (`dcf9740`). main re-checked unchanged at `03d3530`; PR #11 merged as `bdf9b8b` (merge commit, the branch shas kept; it also brings the deploy smoke fix `bc50e4c` to main). On main: ci 753 green · pwa-preview 529 (buyer site) green · expo-preview 562 (reseller app) green · service-canon-drift 494 green, all on their first attempt.
+
+**Deploy note, as reported.** No data migration; existing shops are not touched. Until a reseller's app updates, it cannot change her number or email (« Un champ ne va pas », « Retour » gets her out).
+
+**Not checked.** The live screens were not opened from here. The founder's first look is the check: « Mes informations » asks for the password when the number or email changes.
+
+**Still open.** As named in the slice entry below. Other open items are held in the private batch record until their fixes deploy.
+
+---
+
 ## 2026-11-27 · COMPTES-REVENDEUSE-1 — her password counted on the profile door, her number and email changed only with it, two order roads that no longer throw on a bad link, her shop carries her own number · lane P9 · on the branch, NOT merged, NOT deployed
 
 **Founder.** « Now you start working on the next batch » (2026-11-27 15:13 UTC), batch 5 of the plan he approved: « A reseller's password can no longer be guessed without limit, and changing the email or phone needs it. One reseller can no longer take another's shop name. Two badly typed links stop failing with an error. » No choice card for this part.
