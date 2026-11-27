@@ -1,6 +1,26 @@
 # JOURNAL — shop-plus
 Continuity ledger per CTO charter §6/§6bis. Every entry is evidence-grounded.
 
+## 2026-11-27 · GARDE-ROUTE-1 — the buyer's code reaches custody as soon as the course opens; an order that will never travel stops calling custody; the reseller's waiting list survives a dying phone · lane P6 · on the branch, NOT merged, NOT deployed
+
+**Founder.** « You can start the next batch » (2026-11-27 01:21 UTC, in the project chat, on the batch plan).
+
+**Spec.** CLAUDE.md Law 3 (custody: the four secrets never substituted; custody begins only at verification and seal) and Law 7 (queued = pending, never done; offline-first); §5 honest states; §6bis seam test against the real Worker, contract-certified stand-ins. Séra custody doors read at Séra `5163e32` (the file guard, the arm, door-reference and door-signal doors).
+
+**Built.** Lane P6, `af9c78b` from `main` `176bead`, then `5a167aa` from the one review below. Both merged here `--no-ff` (`277e543`, `a350ff8`).
+
+**What changed.**
+- `services/storefront-service/worker/order-do.ts`: a rider's transit mark wakes the alarm when a custody row still waits, so the buyer's code reaches custody as soon as the course's file opens. On the supplier's refusal, every still-waiting custody row is written abandoned with its reason and time in the same write; on a refused course the same, unless custody already holds the arm, in which case the door rows go on and her door payment still reaches custody. Each custody writer reads its row again after the call: custody's taking is written, otherwise only a row still waiting, so an ending written during the call stands. The funding call is bounded like every other wire. The operator read shows the reason and time. No ladder or timeout number changed.
+- `apps/reseller-app`: the waiting list is written to a temporary file and moved over the list; a lone whole temporary file is moved into place before anything reads or writes. Bytes that do not read, an existing empty file included, are kept aside under a new name, a fresh list opens, and Ma Vitrine says so once with « Compris » (two new catalog strings, selling register).
+
+**Evidence.** Real-Worker tests against a custody stand-in certified to Séra's doors (refuses until the file is opened; can hold an answer while the test lands a refusal): garde-route and vrai-suivi 24/24. Storefront 82 files, 994 tests; reseller 93 files, 932 tests; three typechecks clean; copy-lint OK (599 entries). Ma Vitrine walked on both branches (with and without products). Full board after `pnpm build`: the only failure is playwright-e2e with the two known font reds (`cliente.spec.ts:474`, `:909`); 329 passed. Mutations, each anchor matched once and restored byte-identical: 21 by the lane, all red; 5 by the coordinator on the final code, two red and three near-equivalent ones journalled here (dropping the « still waiting » check while keeping the fresh read only adds one attempt to an ended row and one empty wake). Three lines the coordinator found unpinned at the first integration are now pinned by the lane's tests.
+
+**Verifier (one pass, handled once).** No blocker. Two major findings (a write-back during a custody call; an empty list file), one ruling corrected by the coordinator, two minor test findings and seven unpinned lines: all fixed with tests and shown red first. Not re-inspected (NO-LOOP).
+
+**Still open.** Held in the private batch record until the release.
+
+---
+
 ## 2026-11-27 · QUOTE-NET-VENDEUR-1 — DEPLOYED and MERGED
 
 **Founder.** « Release all four » (2026-11-27 00:42 UTC, in the project chat, on the batch report), which named for Shop+: put the shop service live from the branch, then merge.
