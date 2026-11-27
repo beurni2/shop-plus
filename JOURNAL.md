@@ -1,6 +1,20 @@
 # JOURNAL — shop-plus
 Continuity ledger per CTO charter §6/§6bis. Every entry is evidence-grounded.
 
+## 2026-11-27 · QUOTE-NET-VENDEUR-1 — DEPLOYED and MERGED
+
+**Founder.** « Release all four » (2026-11-27 00:42 UTC, in the project chat, on the batch report), which named for Shop+: put the shop service live from the branch, then merge.
+
+**Deploy first, from the designated branch at `ab1d27c`.** storefront-deploy 127 (id 45918708087): canon 3.27.0 asserted, « CUSTODY ARMED — all four wires present on the live Worker », smokes OK (checkout refuses by name, tiles live, password hashing at 100 000), and the live health check reports release `ab1d27c`.
+
+**Merge.** main re-checked unchanged at `e0bb283`; PR #6 merged as `176bead` (merge commit, the branch shas kept). On main: pwa-preview 524 (buyer site) green · expo-preview 557 (reseller app) green · service-canon-drift 488 green · ci 743 green.
+
+**Deploy note, as reported.** Every price above the floor is unchanged to the franc; nothing to migrate.
+
+**Still open.** As named in the slice entry below. Other open items for this slice are held in the private batch record until their fixes deploy.
+
+---
+
 ## 2026-11-26 · QUOTE-NET-VENDEUR-1 — no quote when the commission leaves the seller nothing · lane P5 · on the branch, NOT merged, NOT deployed
 
 **Founder.** « Start batch 1 » (2026-11-26 22:03 UTC, decision card), on the fix plan he asked for.
