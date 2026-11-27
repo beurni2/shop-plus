@@ -286,6 +286,7 @@ const ECRANS = {
   'cl.remboursement.rien_overline': M('money', L()), 'cl.remboursement.rien': M('money', L()),
   'cl.remboursement.rien_corps': M('money', S()),
   'cl.remboursement.indisponible_corps': M('money', S()), 'cl.remboursement.indisponible_fait_corps': M('money', S()),
+  'cl.remboursement.perdu_corps': M('money', S()), 'cl.remboursement.perdu_fait_corps': M('money', S()),
 };
 
 /** Every pinned key, flattened: key → { register, screenClass, fills }. */
