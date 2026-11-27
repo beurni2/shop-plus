@@ -1,6 +1,20 @@
 # JOURNAL — shop-plus
 Continuity ledger per CTO charter §6/§6bis. Every entry is evidence-grounded.
 
+## 2026-11-27 · GARDE-ROUTE-1 — DEPLOYED and MERGED
+
+**Founder.** « Release all three » (2026-11-27 04:19 UTC, decision card, on the batch report), which named for Shop+: put the shop service live from the branch, then merge.
+
+**Deploy first, from the designated branch at `1301ef0`.** storefront-deploy 128 (id 45939347998): canon 3.27.0 asserted, « CUSTODY ARMED — all four wires present on the live Worker », smokes OK (checkout refuses by name, tiles live, password hashing at 100 000), and the live health check reports release `1301ef0`.
+
+**Merge.** main re-checked unchanged at `176bead`; PR #7 merged as `24600e4` (merge commit, the branch shas kept). On main: pwa-preview 525 (buyer site) green · expo-preview 558 (reseller app) green · service-canon-drift 489 green · ci 745 green on its second attempt. The first attempt was red on one test only: the reseller profile walk that opens the hub from the dock timed out at 5 038 ms against vitest's 5 000 ms default (931 of 932 reseller tests passed, every other gate green, the buyer site 331 of 331). The same test took 4 471 ms on ci 743, before this slice, and 4 020 ms on this PR's ci 744: a whole-app walk with no explicit limit, already near the default. Only the failed job was run again; nothing was changed.
+
+**Deploy note, as reported.** No shared data shape and no data migration; nothing to move or convert.
+
+**Still open.** As named in the slice entry below, plus: the reseller profile walk above needs the explicit limit this repository gives whole-app walks (`20_000`). Other open items for this slice are held in the private batch record until their fixes deploy.
+
+---
+
 ## 2026-11-27 · GARDE-ROUTE-1 — the buyer's code reaches custody as soon as the course opens; an order that will never travel stops calling custody; the reseller's waiting list survives a dying phone · lane P6 · on the branch, NOT merged, NOT deployed
 
 **Founder.** « You can start the next batch » (2026-11-27 01:21 UTC, in the project chat, on the batch plan).
