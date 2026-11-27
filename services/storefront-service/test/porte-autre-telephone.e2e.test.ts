@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { MockPaymentProvider } from '@shop-plus/commerce-core';
 import { Miniflare } from 'miniflare';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { OPS_SECRET, seance, type Seance } from './seance';
+import { OPS_SECRET, seance, type Seance, boutiqueDe } from './seance';
 
 /**
  * ═══ PORTE-AUTRE-TELEPHONE-1 (founder, 2026-10-02: « door payment from
@@ -71,9 +71,13 @@ function memoire(): Storage {
   };
 }
 
+let SF_ID = '';
+let SLUG = '';
+let CODE = '';
 let S: Seance;
 beforeAll(async () => {
   S = await seance(mf, 'pa');
+  ({ id: SF_ID, slug: SLUG, shortCode: CODE } = boutiqueDe(S, 'PA'));
   globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
     const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
     const { signal: _signal, ...reste } = init ?? {};
@@ -81,15 +85,15 @@ beforeAll(async () => {
   }) as typeof fetch;
   const created = await mf.dispatchFetch('http://sf/storefronts', {
     method: 'POST', headers: S.bearer,
-    body: JSON.stringify({ commandId: 'c-pa-1', id: 'sf-pa-1', resellerId: S.accountId, shortCode: 'PA-0001', name: 'Boutique porte', zone: 'Ouagadougou', category: 'Général', correlationId: 'corr-pa-1' }),
+    body: JSON.stringify({ commandId: 'c-pa-1', id: SF_ID, resellerId: S.accountId, shortCode: CODE, name: 'Boutique porte', zone: 'Ouagadougou', category: 'Général', correlationId: 'corr-pa-1' }),
   });
   expect(created.status).toBe(200);
   // EN-LIGNE-1 — her app puts the shop online in the same act as creating it.
-  await mf.dispatchFetch('http://sf/storefronts/sf-pa-1/publish', { method: 'POST', headers: S.bearer, body: JSON.stringify({ correlationId: 'corr-en-ligne' }) });
+  await mf.dispatchFetch(`http://sf/storefronts/${SF_ID}/publish`, { method: 'POST', headers: S.bearer, body: JSON.stringify({ correlationId: 'corr-en-ligne' }) });
   const pub = await mf.dispatchFetch('http://sf/listings', {
     method: 'POST', headers: S.bearer,
     body: JSON.stringify({
-      commandId: 'cmd-listing-pa-1', listingId: 'lst-pa-1', storefrontId: 'sf-pa-1', resellerId: S.accountId,
+      commandId: 'cmd-listing-pa-1', listingId: 'lst-pa-1', storefrontId: SF_ID, resellerId: S.accountId,
       productVersionId: PV, offerVersion: 'ov-pa-1', markup: 1_500, correlationId: 'corr-pa-1', at: new Date().toISOString(),
     }),
   });
@@ -163,7 +167,7 @@ async function commanderSurA(mode: 'A' | 'B'): Promise<{ orderId: string; buyerR
 
   const pret = await modele.fetchClienteQuote(
     port.httpQuotePort('http://sf'),
-    { slug: 'pa-0001', pid: PV, zoneTo: 'Ouagadougou', attributionResellerId: S.accountId },
+    { slug: SLUG, pid: PV, zoneTo: 'Ouagadougou', attributionResellerId: S.accountId },
     (intent) => port.requestKeyFor(intent, ongletA),
     (quoteId) => port.commandIdFor(quoteId, ongletA),
     1_500,

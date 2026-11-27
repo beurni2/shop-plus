@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Miniflare } from 'miniflare';
 import { afterAll, describe, expect, it } from 'vitest';
-import { OPS_SECRET, seance } from './seance';
+import { OPS_SECRET, seance, boutiqueDe } from './seance';
 
 /**
  * ═══ REPERE-AUDIO-REEL — the buyer's voice note rides the ORDER (2026-08-08) ═══
@@ -144,23 +144,24 @@ const freshKey = (): string => `rk-audio-${String((keyN += 1)).padStart(4, '0')}
 /** The buyer's own road up to a RESERVED quote, ready for the order. */
 async function reservedQuote(n: string): Promise<string> {
   const S = await seance(mf, `aud${n}`);
+  const B = boutiqueDe(S, 'AUD');
   const created = await mf.dispatchFetch('http://c/storefronts', {
     method: 'POST',
     headers: S.bearer,
     body: JSON.stringify({
-      commandId: `cmd-create-${n}`, id: `sf-aud-${n}`, resellerId: S.accountId,
-      shortCode: `AUD-${n}`, name: 'Boutique du fondateur', zone: 'Ouagadougou',
+      commandId: `cmd-create-${n}`, id: B.id, resellerId: S.accountId,
+      shortCode: B.shortCode, name: 'Boutique du fondateur', zone: 'Ouagadougou',
       category: 'Général', correlationId: `corr-${n}`, at: T0,
     }),
   });
   // EN-LIGNE-1 — her app puts the shop online in the same act as creating it.
-  await mf.dispatchFetch(`http://c/storefronts/${encodeURIComponent(`sf-aud-${n}`)}/publish`, { method: 'POST', headers: S.bearer, body: JSON.stringify({ correlationId: 'corr-en-ligne' }) });
+  await mf.dispatchFetch(`http://c/storefronts/${encodeURIComponent(B.id)}/publish`, { method: 'POST', headers: S.bearer, body: JSON.stringify({ correlationId: 'corr-en-ligne' }) });
   if (created.status !== 200) throw new Error(`setup: storefront ${created.status}`);
   const pub = await mf.dispatchFetch('http://c/listings', {
     method: 'POST',
     headers: S.bearer,
     body: JSON.stringify({
-      commandId: `cmd-listing-${n}`, listingId: `lst-aud-${n}`, storefrontId: `sf-aud-${n}`,
+      commandId: `cmd-listing-${n}`, listingId: `lst-aud-${n}`, storefrontId: B.id,
       resellerId: S.accountId, productVersionId: 'pv-audio-1', offerVersion: 'ov-audio-1',
       markup: 1_500, correlationId: `corr-${n}`, at: T0,
     }),
@@ -171,7 +172,7 @@ async function reservedQuote(n: string): Promise<string> {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      slug: `aud-${n}`, pid: 'pv-audio-1', paymentMode: 'FULL_PREPAY', zoneTo: 'Ouagadougou',
+      slug: B.slug, pid: 'pv-audio-1', paymentMode: 'FULL_PREPAY', zoneTo: 'Ouagadougou',
       attributionResellerId: S.accountId, requestKey: freshKey(),
     }),
   });

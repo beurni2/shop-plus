@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Miniflare } from 'miniflare';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { cleC, seance, type Seance } from './seance';
+import { cleC, seance, type Seance, boutiqueDe } from './seance';
 
 /**
  * ═══ CHANGER-MARGE-1 (founder « go 1 and 2 », 2026-10-01) — her price change,
@@ -27,8 +27,6 @@ const SCRIPT = 'dist/worker/worker.mjs';
 const persist = mkdtempSync(join(tmpdir(), 'changer-marge-'));
 const WEBHOOK_SECRET = 'test-payment-webhook-secret-cm001';
 const PV = 'pv-cm-1';
-const SF_ID = 'sf-cm-0001';
-const SLUG = 'cm-0001';
 const BASE = 10_000;
 
 const mf = new Miniflare({
@@ -67,9 +65,13 @@ afterAll(async () => {
   rmSync(persist, { recursive: true, force: true });
 });
 
+let SF_ID = '';
+let SLUG = '';
+let CODE = '';
 let S: Seance;
 beforeAll(async () => {
   S = await seance(mf, 'cm');
+  ({ id: SF_ID, slug: SLUG, shortCode: CODE } = boutiqueDe(S, 'CM'));
   globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
     const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
     const { signal: _signal, ...reste } = init ?? {};
@@ -114,7 +116,7 @@ describe('CHANGER-MARGE-1 — a new marge on a product she already sells, signed
     const svc = await app();
     const port = new svc.HttpStorefrontService('https://sf', async () => S.session);
     const created = await port.create({
-      commandId: 'c-cm-001', id: SF_ID, resellerId: S.accountId, shortCode: 'CM-0001',
+      commandId: 'c-cm-001', id: SF_ID, resellerId: S.accountId, shortCode: CODE,
       name: 'Boutique marge', zone: 'Ouagadougou', category: 'Général', correlationId: 'corr-cm-001',
     });
     expect(created.ok, JSON.stringify(created)).toBe(true);

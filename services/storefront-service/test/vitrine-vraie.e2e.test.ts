@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { Miniflare } from 'miniflare';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { MAX_PRODUITS_DECRITS } from '../src/index';
-import { cleC, seance } from './seance';
+import { cleC, seance, boutiqueDe } from './seance';
 
 /**
  * ═══ VITRINE-VRAIE-1 (AUDIT-3, founder 2026-10-01 « make it be 2 slices fix »)
@@ -99,11 +99,12 @@ function safeJson(text: string): Record<string, unknown> {
 
 /** Her shop with `n` published products, through the REAL doors on her session. */
 async function boutique(S: Seance, tag: string, n: number): Promise<{ slug: string; sfId: string }> {
-  const sfId = `sf-vv-${tag}`;
+  const B = boutiqueDe(S, 'VV');
+  const sfId = B.id;
   const created = await mf.dispatchFetch('http://c/storefronts', {
     method: 'POST', headers: S.bearer,
     body: JSON.stringify({
-      commandId: `cmd-create-${tag}`, id: sfId, resellerId: S.accountId, shortCode: `VV-${tag}`,
+      commandId: `cmd-create-${tag}`, id: sfId, resellerId: S.accountId, shortCode: B.shortCode,
       name: `Boutique ${tag}`, zone: 'Ouagadougou', category: 'Général', correlationId: `corr-vv-${tag}`, at: T0,
     }),
   });
@@ -121,7 +122,7 @@ async function boutique(S: Seance, tag: string, n: number): Promise<{ slug: stri
     });
     if (((await pub.json()) as { status?: string }).status !== 'published') throw new Error(`setup: listing ${i}`);
   }
-  return { slug: `vv-${tag}`, sfId };
+  return { slug: B.slug, sfId };
 }
 
 async function lire(path: string): Promise<{ status: number; body: Record<string, unknown> }> {

@@ -5,7 +5,7 @@ import { dirname, join, resolve } from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { OPS_SECRET, cleC, seance } from './seance';
+import { OPS_SECRET, cleC, seance, boutiqueDe } from './seance';
 import { T0, offerDouble, porteRegle, regleWorker, safeJson, sleep } from './regle-helpers';
 
 /**
@@ -150,20 +150,21 @@ const CONTACT = { phone: '70 33 44 55', quartier: 'Tampouy', repere: 'Derrière 
  *  (as `dispatch.e2e` sends it). Its first charge times out like every order's. */
 async function creerAvecContact(n: string) {
   const S = await seance(mf, `rr${n}`);
+  const B = boutiqueDe(S, 'REGLE');
   const created = await mf.dispatchFetch('http://c/storefronts', {
     method: 'POST', headers: S.bearer,
     body: JSON.stringify({
-      commandId: `cmd-create-${n}`, id: `sf-rr-${n}`, resellerId: S.accountId,
-      shortCode: `REGLE-${n}`, name: 'Boutique du fondateur', zone: 'Ouagadougou',
+      commandId: `cmd-create-${n}`, id: B.id, resellerId: S.accountId,
+      shortCode: B.shortCode, name: 'Boutique du fondateur', zone: 'Ouagadougou',
       category: 'Général', correlationId: `corr-rr-${n}`, at: T0,
     }),
   });
-  await mf.dispatchFetch(`http://c/storefronts/${encodeURIComponent(`sf-rr-${n}`)}/publish`, { method: 'POST', headers: S.bearer, body: JSON.stringify({ correlationId: 'corr-en-ligne' }) });
+  await mf.dispatchFetch(`http://c/storefronts/${encodeURIComponent(B.id)}/publish`, { method: 'POST', headers: S.bearer, body: JSON.stringify({ correlationId: 'corr-en-ligne' }) });
   if (created.status !== 200) throw new Error(`setup: storefront ${created.status}`);
   const pub = await mf.dispatchFetch('http://c/listings', {
     method: 'POST', headers: S.bearer,
     body: JSON.stringify({
-      commandId: `cmd-listing-${n}`, listingId: `lst-rr-${n}`, storefrontId: `sf-rr-${n}`,
+      commandId: `cmd-listing-${n}`, listingId: `lst-rr-${n}`, storefrontId: B.id,
       resellerId: S.accountId, productVersionId: 'pv-rr-1', offerVersion: 'ov-rr-1',
       markup: 1_500, correlationId: `corr-rr-${n}`, at: T0,
     }),
@@ -172,7 +173,7 @@ async function creerAvecContact(n: string) {
   const quoteRes = await mf.dispatchFetch('http://c/checkout/quote', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      slug: `regle-${n}`, pid: 'pv-rr-1', paymentMode: 'FULL_PREPAY', zoneTo: 'Ouagadougou',
+      slug: B.slug, pid: 'pv-rr-1', paymentMode: 'FULL_PREPAY', zoneTo: 'Ouagadougou',
       attributionResellerId: S.accountId, requestKey: `rk-rr-${n}-${'x'.repeat(12)}`,
     }),
   });

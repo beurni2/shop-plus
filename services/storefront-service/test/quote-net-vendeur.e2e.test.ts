@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Miniflare } from 'miniflare';
 import { afterAll, describe, expect, it } from 'vitest';
-import { OPS_SECRET, seance } from './seance';
+import { OPS_SECRET, seance, boutiqueDe } from './seance';
 
 /**
  * A COMMISSION THE SELLER WOULD PAY TO SELL GETS NO QUOTE — on the real
@@ -95,12 +95,13 @@ async function call(path: string, init: RequestInit = {}) {
  *  later refusal is the quote's and never the publish's. */
 async function shopSelling(n: string, pid: string, B: number, C: number) {
   const S = await seance(mf, `netv${n}`);
-  const sf = `sf-net-${n}`;
+  const shop = boutiqueDe(S, 'NETV');
+  const sf = shop.id;
   const created = await call('/storefronts', {
     method: 'POST',
     headers: S.bearer,
     body: JSON.stringify({
-      commandId: `cmd-create-${n}`, id: sf, resellerId: S.accountId, shortCode: `NETV-${n}`,
+      commandId: `cmd-create-${n}`, id: sf, resellerId: S.accountId, shortCode: shop.shortCode,
       name: 'Boutique du fondateur', zone: 'Ouagadougou', category: 'Général', correlationId: `corr-${n}`, at: T0,
     }),
   });
@@ -123,7 +124,7 @@ async function shopSelling(n: string, pid: string, B: number, C: number) {
   };
   expect(economics.customerPriceFcfa, 'her signed price').toBe(B + MARKUP);
   expect(economics.resellerCommission, 'the frozen commission').toBe(C);
-  return { slug: `netv-${n}`, resellerId: S.accountId };
+  return { slug: shop.slug, resellerId: S.accountId };
 }
 
 async function quoteFor(shop: { slug: string; resellerId: string }, pid: string, requestKey: string) {

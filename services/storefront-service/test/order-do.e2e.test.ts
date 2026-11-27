@@ -8,7 +8,7 @@ import { MockPaymentProvider } from '@shop-plus/commerce-core';
 import { Miniflare } from 'miniflare';
 import { cleAcheteur } from '@shop-plus/commerce-core';
 import { afterAll, describe, expect, it } from 'vitest';
-import { OPS_SECRET, seance, type Seance } from './seance';
+import { OPS_SECRET, seance, type Seance, boutiqueDe } from './seance';
 
 /**
  * SP3.3a — THE PAYMENT LEGS ON REAL WORKERD (Miniflare), through the COMBINED
@@ -314,14 +314,15 @@ async function seedShop(
   const markup = opts.markup ?? 1_500;
   const pid = opts.pid ?? 'pv-order-1';
   const offer = opts.offer ?? 'ov-order-1';
-  const shortCode = `ORDER-${n}`;
   const S = await seance(m, `order${n}`);
+  const B = boutiqueDe(S, 'ORDER');
+  const { shortCode } = B;
   const created = await m.dispatchFetch('http://c/storefronts', {
     method: 'POST',
     headers: S.bearer,
     body: JSON.stringify({
       commandId: `cmd-create-${n}`,
-      id: `sf-order-${n}`,
+      id: B.id,
       resellerId: S.accountId,
       shortCode,
       name: 'Boutique du fondateur',
@@ -332,7 +333,7 @@ async function seedShop(
     }),
   });
   // EN-LIGNE-1 — her app puts the shop online in the same act as creating it.
-  await m.dispatchFetch(`http://c/storefronts/${encodeURIComponent(`sf-order-${n}`)}/publish`, { method: 'POST', headers: S.bearer, body: JSON.stringify({ correlationId: 'corr-en-ligne' }) });
+  await m.dispatchFetch(`http://c/storefronts/${encodeURIComponent(B.id)}/publish`, { method: 'POST', headers: S.bearer, body: JSON.stringify({ correlationId: 'corr-en-ligne' }) });
   if (created.status !== 200) throw new Error(`seed: storefront create ${created.status}`);
   const pub = await m.dispatchFetch('http://c/listings', {
     method: 'POST',
@@ -340,7 +341,7 @@ async function seedShop(
     body: JSON.stringify({
       commandId: `cmd-listing-${n}`,
       listingId: `lst-order-${n}`,
-      storefrontId: `sf-order-${n}`,
+      storefrontId: B.id,
       resellerId: S.accountId,
       productVersionId: pid,
       offerVersion: offer,

@@ -6,7 +6,7 @@ import { Miniflare } from 'miniflare';
 import { afterAll, describe, expect, it } from 'vitest';
 import { MockPaymentProvider } from '@shop-plus/commerce-core';
 import { composeSandboxConfirmation, composeSandboxRefund } from '../../../scripts/sandbox-payment-confirm.mjs';
-import { OPS_SECRET, seance } from './seance';
+import { OPS_SECRET, seance, boutiqueDe } from './seance';
 
 /**
  * COLIS-FOURNISSEUR-1 (founder rulings 2026-09-23, decisions a–d, « build
@@ -201,19 +201,20 @@ const rk = (): string => `rk-colis-${String(seq++).padStart(4, '0')}-${'z'.repea
 
 async function seedShop(n: string): Promise<{ slug: string; resellerId: string }> {
   const S = await seance(cible, `colis${n}`);
-  const shortCode = `COLIS-00${n}`;
+  const B = boutiqueDe(S, 'COLIS');
+  const { shortCode } = B;
   const created = await post(
     '/storefronts',
-    { commandId: `cmd-create-colis-${n}`, id: `sf-colis-${n}`, resellerId: S.accountId, shortCode, name: 'Boutique de Aïcha', zone: 'Ouagadougou', category: 'Général', correlationId: `corr-colis-${n}`, at: T0 },
+    { commandId: `cmd-create-colis-${n}`, id: B.id, resellerId: S.accountId, shortCode, name: 'Boutique de Aïcha', zone: 'Ouagadougou', category: 'Général', correlationId: `corr-colis-${n}`, at: T0 },
     S.bearer,
   );
   if (created.status !== 200) throw new Error(`seed: storefront ${created.status} ${created.text}`);
   // EN-LIGNE-1 — her app puts the shop online in the same act as creating it.
-  await post(`/storefronts/sf-colis-${n}/publish`, { correlationId: 'corr-en-ligne' }, S.bearer);
+  await post(`/storefronts/${B.id}/publish`, { correlationId: 'corr-en-ligne' }, S.bearer);
   for (const [i, v] of SUPPLY.entries()) {
     const pub = await post(
       '/listings',
-      { commandId: `cmd-listing-colis-${n}-${i}`, listingId: `lst-colis-${n}-${i}`, storefrontId: `sf-colis-${n}`, resellerId: S.accountId, productVersionId: v.productVersionId, offerVersion: v.offerVersion, markup: [1_500, 1_200, 500][i]!, correlationId: `corr-colis-${n}`, at: T0 },
+      { commandId: `cmd-listing-colis-${n}-${i}`, listingId: `lst-colis-${n}-${i}`, storefrontId: B.id, resellerId: S.accountId, productVersionId: v.productVersionId, offerVersion: v.offerVersion, markup: [1_500, 1_200, 500][i]!, correlationId: `corr-colis-${n}`, at: T0 },
       S.bearer,
     );
     if ((pub.json as { status?: string }).status !== 'published') throw new Error(`seed: publish ${pub.text}`);

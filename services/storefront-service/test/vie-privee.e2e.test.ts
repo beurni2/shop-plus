@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { Miniflare } from 'miniflare';
 import { PlatformEventSchema } from '@platform/contracts';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { OPS_SECRET, seance, type Seance } from './seance';
+import { OPS_SECRET, seance, type Seance, boutiqueDe } from './seance';
 import { composeSandboxRefund } from '../../../scripts/sandbox-payment-confirm.mjs';
 
 /**
@@ -51,8 +51,10 @@ const registered = new Set<string>();
 const livraisons = new Map<string, string>();
 
 let mf: Miniflare;
+let SF_ID = '';
+let SLUG = '';
+let CODE = '';
 let S: Seance;
-const SLUG = 'vp-0001';
 
 /** The real Worker and her seller's shop; `extra` adds bindings (the failed-payment road). */
 async function monter(dossier: string, extra: Record<string, string> = {}): Promise<void> {
@@ -106,14 +108,15 @@ async function monter(dossier: string, extra: Record<string, string> = {}): Prom
     },
   });
   S = await seance(mf, 'vp');
+  ({ id: SF_ID, slug: SLUG, shortCode: CODE } = boutiqueDe(S, 'VP'));
   const created = await post('/storefronts', {
-    commandId: 'cmd-create-vp', id: 'sf-vp-1', resellerId: S.accountId, shortCode: 'VP-0001',
+    commandId: 'cmd-create-vp', id: SF_ID, resellerId: S.accountId, shortCode: CODE,
     name: 'Boutique privée', zone: 'Ouagadougou', category: 'Général', correlationId: 'corr-vp', at: T0,
   }, S.bearer);
   expect(created.status, created.text).toBe(200);
-  await post('/storefronts/sf-vp-1/publish', { correlationId: 'corr-en-ligne' }, S.bearer);
+  await post(`/storefronts/${SF_ID}/publish`, { correlationId: 'corr-en-ligne' }, S.bearer);
   const pub = await post('/listings', {
-    commandId: 'cmd-listing-vp', listingId: 'lst-vp-1', storefrontId: 'sf-vp-1', resellerId: S.accountId,
+    commandId: 'cmd-listing-vp', listingId: 'lst-vp-1', storefrontId: SF_ID, resellerId: S.accountId,
     productVersionId: PV, offerVersion: 'ov-vp-1', markup: 1_500, correlationId: 'corr-vp', at: T0,
   }, S.bearer);
   expect(pub.json['status'], pub.text).toBe('published');

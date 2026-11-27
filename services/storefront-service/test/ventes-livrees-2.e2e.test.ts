@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Miniflare } from 'miniflare';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { cleC, seance } from './seance';
+import { cleC, seance, boutiqueDe } from './seance';
 
 /**
  * ═══ VENTES-LIVREES-2 (founder « go 1 and 2 », 2026-10-01: count every
@@ -99,11 +99,12 @@ function safeJson(text: string): Record<string, unknown> {
 }
 
 async function boutique(S: Seance, tag: string, n: number): Promise<string> {
-  const sfId = `sf-vl2-${tag}`;
+  const B = boutiqueDe(S, 'VL');
+  const sfId = B.id;
   const created = await mf.dispatchFetch('http://c/storefronts', {
     method: 'POST', headers: S.bearer,
     body: JSON.stringify({
-      commandId: `cmd-create-${tag}`, id: sfId, resellerId: S.accountId, shortCode: `VL-${tag}`,
+      commandId: `cmd-create-${tag}`, id: sfId, resellerId: S.accountId, shortCode: B.shortCode,
       name: `Boutique ${tag}`, zone: 'Ouagadougou', category: 'Général', correlationId: `corr-vl2-${tag}`, at: T0,
     }),
   });
@@ -121,7 +122,7 @@ async function boutique(S: Seance, tag: string, n: number): Promise<string> {
     });
     if (((await pub.json()) as { status?: string }).status !== 'published') throw new Error(`setup: listing ${i}`);
   }
-  return `vl-${tag}`;
+  return B.slug;
 }
 
 /** THE LEDGER — the count the buyer's page carries. */

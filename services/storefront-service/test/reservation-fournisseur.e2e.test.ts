@@ -1,6 +1,6 @@
 import { rmSync } from 'node:fs';
 import { afterAll, describe, expect, it } from 'vitest';
-import { seance } from './seance';
+import { seance, boutiqueDe } from './seance';
 import { offerDouble, porteRegle, regleWorker, safeJson, type PorteBoutik } from './regle-helpers';
 
 /**
@@ -51,21 +51,22 @@ const releasesOf = () => calls().filter((c) => c.road === 'release');
 /** A shop + listing + quote, WITHOUT reserving — for the refusal cases. */
 async function quoteSeule(n: string): Promise<{ quoteId: string; holderRef: string }> {
   const S = await seance(mf, `rf${n}`);
+  const B = boutiqueDe(S, 'RFOUR');
   const created = await mf.dispatchFetch('http://c/storefronts', {
     method: 'POST', headers: S.bearer,
     body: JSON.stringify({
-      commandId: `cmd-create-rf-${n}`, id: `sf-rf-${n}`, resellerId: S.accountId,
-      shortCode: `RFOUR-${n}`, name: 'Boutique du fondateur', zone: 'Ouagadougou',
+      commandId: `cmd-create-rf-${n}`, id: B.id, resellerId: S.accountId,
+      shortCode: B.shortCode, name: 'Boutique du fondateur', zone: 'Ouagadougou',
       category: 'Général', correlationId: `corr-rf-${n}`, at: T0,
     }),
   });
   // EN-LIGNE-1 — her app puts the shop online in the same act as creating it.
-  await mf.dispatchFetch(`http://c/storefronts/${encodeURIComponent(`sf-rf-${n}`)}/publish`, { method: 'POST', headers: S.bearer, body: JSON.stringify({ correlationId: 'corr-en-ligne' }) });
+  await mf.dispatchFetch(`http://c/storefronts/${encodeURIComponent(B.id)}/publish`, { method: 'POST', headers: S.bearer, body: JSON.stringify({ correlationId: 'corr-en-ligne' }) });
   if (created.status !== 200) throw new Error(`setup: storefront ${created.status} ${await created.text()}`);
   const pub = await mf.dispatchFetch('http://c/listings', {
     method: 'POST', headers: S.bearer,
     body: JSON.stringify({
-      commandId: `cmd-listing-rf-${n}`, listingId: `lst-rf-${n}`, storefrontId: `sf-rf-${n}`,
+      commandId: `cmd-listing-rf-${n}`, listingId: `lst-rf-${n}`, storefrontId: B.id,
       resellerId: S.accountId, productVersionId: PV, offerVersion: 'ov-rr-1',
       markup: 1_500, correlationId: `corr-rf-${n}`, at: T0,
     }),
@@ -74,7 +75,7 @@ async function quoteSeule(n: string): Promise<{ quoteId: string; holderRef: stri
   const quoteRes = await mf.dispatchFetch('http://c/checkout/quote', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      slug: `rfour-${n}`, pid: PV, paymentMode: 'FULL_PREPAY', zoneTo: 'Ouagadougou',
+      slug: B.slug, pid: PV, paymentMode: 'FULL_PREPAY', zoneTo: 'Ouagadougou',
       attributionResellerId: S.accountId, requestKey: `rk-rf-${n}-${'x'.repeat(12)}`,
     }),
   });

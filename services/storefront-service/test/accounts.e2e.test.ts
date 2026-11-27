@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { MockPaymentProvider } from '@shop-plus/commerce-core';
 import { Miniflare } from 'miniflare';
 import { afterAll, describe, expect, it } from 'vitest';
+import { boutiqueDe } from './seance';
 
 /**
  * RESELLER-ACCOUNTS-1b — the founder's flow, END TO END on real workerd:
@@ -343,21 +344,22 @@ describe('RESELLER-ACCOUNTS — the session opens HER feed, and the suivi shows 
     const rid = s.json.accountId!;
 
     // her storefront + listing ride HER server-minted id
-    const i = `0${suivant()}`; // shortCode wants [A-Z]{2,12}-[0-9]{4}
+    const i = `0${suivant()}`;
+    const B = boutiqueDe({ accountId: rid }, 'ACCT');
     const sf = await mf.dispatchFetch('http://c/storefronts', {
       method: 'POST', headers: enTantQue(s.json.session!),
       body: JSON.stringify({
-        commandId: `cmd-sf-${i}`, id: `sf-acct-${i}`, resellerId: rid, shortCode: `ACCT-${i}`,
+        commandId: `cmd-sf-${i}`, id: B.id, resellerId: rid, shortCode: B.shortCode,
         name: 'Chez Awa', zone: 'Gounghin, Ouagadougou', category: 'Général', correlationId: `corr-${i}`, at: T0,
       }),
     });
     // EN-LIGNE-1 — her app puts the shop online in the same act as creating it.
-    await mf.dispatchFetch(`http://c/storefronts/${encodeURIComponent(`sf-acct-${i}`)}/publish`, { method: 'POST', headers: enTantQue(s.json.session!), body: JSON.stringify({ correlationId: 'corr-en-ligne' }) });
+    await mf.dispatchFetch(`http://c/storefronts/${encodeURIComponent(B.id)}/publish`, { method: 'POST', headers: enTantQue(s.json.session!), body: JSON.stringify({ correlationId: 'corr-en-ligne' }) });
     expect(sf.status, await sf.clone().text()).toBe(200);
     const lst = await mf.dispatchFetch('http://c/listings', {
       method: 'POST', headers: enTantQue(s.json.session!),
       body: JSON.stringify({
-        commandId: `cmd-lst-${i}`, listingId: `lst-acct-${i}`, storefrontId: `sf-acct-${i}`,
+        commandId: `cmd-lst-${i}`, listingId: `lst-acct-${i}`, storefrontId: B.id,
         resellerId: rid, productVersionId: 'pv-acct-1', offerVersion: 'ov-acct-1',
         markup: 1_500, correlationId: `corr-${i}`, at: T0,
       }),
@@ -368,7 +370,7 @@ describe('RESELLER-ACCOUNTS — the session opens HER feed, and the suivi shows 
     const q = await mf.dispatchFetch('http://c/checkout/quote', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        slug: `acct-${i}`, pid: 'pv-acct-1', paymentMode: 'FULL_PREPAY', zoneTo: 'Ouagadougou',
+        slug: B.slug, pid: 'pv-acct-1', paymentMode: 'FULL_PREPAY', zoneTo: 'Ouagadougou',
         attributionResellerId: rid, requestKey: `rk-acct-${i}-${'x'.repeat(8)}`,
       }),
     });
@@ -502,21 +504,22 @@ describe('CONTACT-WHATSAPP-1 — the registration number joins the boutique read
   /** Her shop, created AS HER (ACCES-ARME-2: the session is the only credential,
    *  and the shop's owner is the account the book minted, never a chosen id). */
   async function creerBoutique(compte: { accountId: string; session: string }, i: string): Promise<string> {
+    const B = boutiqueDe(compte, 'WACT');
     const res = await mf.dispatchFetch('http://c/storefronts', {
       method: 'POST',
       headers: enTantQue(compte.session),
       body: JSON.stringify({
-        commandId: `cmd-wa-${i}`, id: `sf-wa-${i}`, resellerId: compte.accountId,
-        shortCode: `WACT-${i}`, name: 'Boutique du fondateur', zone: 'Ouagadougou',
+        commandId: `cmd-wa-${i}`, id: B.id, resellerId: compte.accountId,
+        shortCode: B.shortCode, name: 'Boutique du fondateur', zone: 'Ouagadougou',
         category: 'Général', correlationId: `corr-wa-${i}`, at: '2026-08-23T08:00:00.000Z',
       }),
     });
     // EN-LIGNE-1 — her app puts the shop online in the same act as creating it.
-    await mf.dispatchFetch(`http://c/storefronts/${encodeURIComponent(`sf-wa-${i}`)}/publish`, { method: 'POST', headers: enTantQue(compte.session), body: JSON.stringify({ correlationId: 'corr-en-ligne' }) });
+    await mf.dispatchFetch(`http://c/storefronts/${encodeURIComponent(B.id)}/publish`, { method: 'POST', headers: enTantQue(compte.session), body: JSON.stringify({ correlationId: 'corr-en-ligne' }) });
     expect(res.status, 'setup: storefront create').toBe(200);
     // The slug is DERIVED from the short code (slugFromShortCode), the same
     // convention every sibling harness uses.
-    return `wact-${i}`;
+    return B.slug;
   }
   const lireBoutique = async (slug: string) => {
     const res = await mf.dispatchFetch(`http://c/s/${encodeURIComponent(slug)}`);

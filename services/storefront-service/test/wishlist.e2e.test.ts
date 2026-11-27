@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Miniflare } from 'miniflare';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { OPS_SECRET, seance } from './seance';
+import { OPS_SECRET, seance, boutiqueDe } from './seance';
 
 /**
  * ═══ LISTE-ENVIES-1 — the wishlist, end to end on the REAL combined Worker ═══
@@ -140,31 +140,32 @@ let keySeq = 0;
 const freshKey = (): string => `rk-le-${String((keySeq += 1)).padStart(4, '0')}-${'x'.repeat(10)}`;
 
 /** One boutique with BOTH supply articles published — the liste's ground. */
-async function boutique(n: string): Promise<{ slug: string; resellerId: string; bearer: Record<string, string> }> {
+async function boutique(n: string): Promise<{ id: string; slug: string; resellerId: string; bearer: Record<string, string> }> {
   const S = await seance(mf, `le${n}`);
+  const B = boutiqueDe(S, 'LE');
   const created = await mf.dispatchFetch('http://c/storefronts', {
     method: 'POST', headers: S.bearer,
     body: JSON.stringify({
-      commandId: `cmd-create-${n}`, id: `sf-le-${n}`, resellerId: S.accountId,
-      shortCode: `LE-${n}`, name: 'Boutique du fondateur', zone: 'Ouagadougou',
+      commandId: `cmd-create-${n}`, id: B.id, resellerId: S.accountId,
+      shortCode: B.shortCode, name: 'Boutique du fondateur', zone: 'Ouagadougou',
       category: 'Général', correlationId: `corr-le-${n}`, at: T0,
     }),
   });
   // EN-LIGNE-1 — her app puts the shop online in the same act as creating it.
-  await mf.dispatchFetch(`http://c/storefronts/${encodeURIComponent(`sf-le-${n}`)}/publish`, { method: 'POST', headers: S.bearer, body: JSON.stringify({ correlationId: 'corr-en-ligne' }) });
+  await mf.dispatchFetch(`http://c/storefronts/${encodeURIComponent(B.id)}/publish`, { method: 'POST', headers: S.bearer, body: JSON.stringify({ correlationId: 'corr-en-ligne' }) });
   if (created.status !== 200) throw new Error(`setup: storefront ${created.status}`);
   for (const [i, pv] of (['pv-le-1', 'pv-le-2'] as const).entries()) {
     const pub = await mf.dispatchFetch('http://c/listings', {
       method: 'POST', headers: S.bearer,
       body: JSON.stringify({
-        commandId: `cmd-listing-${n}-${i}`, listingId: `lst-le-${n}-${i}`, storefrontId: `sf-le-${n}`,
+        commandId: `cmd-listing-${n}-${i}`, listingId: `lst-le-${n}-${i}`, storefrontId: B.id,
         resellerId: S.accountId, productVersionId: pv, offerVersion: `ov-le-${i + 1}`,
         markup: 1_500, correlationId: `corr-le-${n}`, at: T0,
       }),
     });
     if (((await pub.json()) as { status?: string }).status !== 'published') throw new Error('setup: listing');
   }
-  return { slug: `le-${n}`, resellerId: S.accountId, bearer: S.bearer };
+  return { id: B.id, slug: B.slug, resellerId: S.accountId, bearer: S.bearer };
 }
 
 async function creerListe(
@@ -1248,7 +1249,7 @@ describe('EN-LIGNE-1 — the liste doors are closed with the boutique', () => {
     expect(made.status, made.text).toBe(200);
     const token = made.json['token'] as string;
     const editCle = made.json['editCle'] as string;
-    const ferme = await mf.dispatchFetch('http://c/storefronts/sf-le-0099/unpublish', { method: 'POST', headers: b.bearer, body: JSON.stringify({ correlationId: 'corr-fermer' }) });
+    const ferme = await mf.dispatchFetch(`http://c/storefronts/${b.id}/unpublish`, { method: 'POST', headers: b.bearer, body: JSON.stringify({ correlationId: 'corr-fermer' }) });
     expect(ferme.status).toBe(200);
 
     const sienne = await creerListe(b.slug, 'Awa', ['pv-le-1']);

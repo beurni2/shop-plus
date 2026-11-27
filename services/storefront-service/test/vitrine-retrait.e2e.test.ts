@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Miniflare } from 'miniflare';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { OPS_SECRET, seance, type Seance } from './seance';
+import { OPS_SECRET, seance, type Seance, boutiqueDe } from './seance';
 
 /**
  * ═══ VITRINE-RETRAIT — SHE TAKES A PRODUCT OUT, AND THE BUYER SEES IT GO ═══
@@ -46,13 +46,15 @@ afterAll(async () => {
   rmSync(persist, { recursive: true, force: true });
 });
 
-const SF_ID = 'sf-retrait-001';
-const SLUG = 'retrait-0001';
+let SF_ID = '';
+let SLUG = '';
+let CODE = '';
 
 /** The seated reseller — the shop's one owner, every write is hers. */
 let S: Seance;
 beforeAll(async () => {
   S = await seance(mf, 'retrait');
+  ({ id: SF_ID, slug: SLUG, shortCode: CODE } = boutiqueDe(S, 'RETRAIT'));
 });
 
 /** The create command shape the existing e2e already proves against this Worker. */
@@ -60,7 +62,7 @@ const creation = (resellerId: string) => ({
   commandId: 'c-retrait-001',
   id: SF_ID,
   resellerId,
-  shortCode: 'RETRAIT-0001',
+  shortCode: CODE,
   name: 'Boutique retrait',
   zone: 'Ouagadougou',
   category: 'Général',

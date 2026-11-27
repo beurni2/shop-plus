@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { MockPaymentProvider } from '@shop-plus/commerce-core';
 import { Miniflare } from 'miniflare';
 import { afterAll, describe, expect, it } from 'vitest';
-import { OPS_SECRET, cleC, seance } from './seance';
+import { OPS_SECRET, cleC, seance, boutiqueDe } from './seance';
 
 /**
  * DURCISSEMENT-SERVICE-1 (AUDIT-SHOP-2 F-28) — THE SUIVI'S BUDGET COUNTS EVERY
@@ -85,20 +85,21 @@ function safeJson(text: string): Record<string, unknown> {
 /** An admitted reseller, her shop, her listing, and ONE confirmed sale. */
 async function unCompteAvecUneVente(n: string): Promise<{ accountId: string; orderId: string }> {
   const S = await seance(mf, `suivi${n}`);
+  const B = boutiqueDe(S, 'SUIVI');
   const sf = await mf.dispatchFetch('http://c/storefronts', {
     method: 'POST', headers: S.bearer,
     body: JSON.stringify({
-      commandId: `cmd-sf-${n}`, id: `sf-suivi-${n}`, resellerId: S.accountId, shortCode: `SUIVI-${n}`,
+      commandId: `cmd-sf-${n}`, id: B.id, resellerId: S.accountId, shortCode: B.shortCode,
       name: 'Boutique du fondateur', zone: 'Ouagadougou', category: 'Général', correlationId: `corr-${n}`, at: T0,
     }),
   });
   // EN-LIGNE-1 — her app puts the shop online in the same act as creating it.
-  await mf.dispatchFetch(`http://c/storefronts/${encodeURIComponent(`sf-suivi-${n}`)}/publish`, { method: 'POST', headers: S.bearer, body: JSON.stringify({ correlationId: 'corr-en-ligne' }) });
+  await mf.dispatchFetch(`http://c/storefronts/${encodeURIComponent(B.id)}/publish`, { method: 'POST', headers: S.bearer, body: JSON.stringify({ correlationId: 'corr-en-ligne' }) });
   if (sf.status !== 200) throw new Error(`setup: storefront ${sf.status} ${await sf.text()}`);
   const lst = await mf.dispatchFetch('http://c/listings', {
     method: 'POST', headers: S.bearer,
     body: JSON.stringify({
-      commandId: `cmd-lst-${n}`, listingId: `lst-suivi-${n}`, storefrontId: `sf-suivi-${n}`, resellerId: S.accountId,
+      commandId: `cmd-lst-${n}`, listingId: `lst-suivi-${n}`, storefrontId: B.id, resellerId: S.accountId,
       productVersionId: 'pv-suivi-1', offerVersion: 'ov-suivi-1', markup: 1_500, correlationId: `corr-${n}`, at: T0,
     }),
   });
@@ -106,7 +107,7 @@ async function unCompteAvecUneVente(n: string): Promise<{ accountId: string; ord
   const q = await mf.dispatchFetch('http://c/checkout/quote', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      slug: `suivi-${n}`, pid: 'pv-suivi-1', paymentMode: 'FULL_PREPAY', zoneTo: 'Ouagadougou',
+      slug: B.slug, pid: 'pv-suivi-1', paymentMode: 'FULL_PREPAY', zoneTo: 'Ouagadougou',
       attributionResellerId: S.accountId, requestKey: `rk-suivi-${n}-${'x'.repeat(10)}`,
     }),
   });
@@ -186,7 +187,7 @@ describe('DURCISSEMENT-SERVICE-1 (F-28) — the suivi pays its roster and feed r
 async function uneVenteDePlus(accountId: string, n: string, k: number): Promise<void> {
   const q = await mf.dispatchFetch('http://c/checkout/quote', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ slug: `suivi-${n}`, pid: 'pv-suivi-1', paymentMode: 'FULL_PREPAY', zoneTo: 'Ouagadougou', attributionResellerId: accountId, requestKey: `rk-suivi-${n}-bis${k}-${'x'.repeat(10)}` }),
+    body: JSON.stringify({ slug: boutiqueDe({ accountId }, 'SUIVI').slug, pid: 'pv-suivi-1', paymentMode: 'FULL_PREPAY', zoneTo: 'Ouagadougou', attributionResellerId: accountId, requestKey: `rk-suivi-${n}-bis${k}-${'x'.repeat(10)}` }),
   });
   const qText = await q.text();
   const quoteId = (safeJson(qText) as { quoteId?: string }).quoteId;

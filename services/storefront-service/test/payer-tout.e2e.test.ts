@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { Miniflare } from 'miniflare';
 import { afterAll, describe, expect, it } from 'vitest';
 import { composeSandboxConfirmation, composeSandboxRefund } from '../../../scripts/sandbox-payment-confirm.mjs';
-import { OPS_SECRET, seance, type Seance } from './seance';
+import { OPS_SECRET, seance, type Seance, boutiqueDe } from './seance';
 
 /**
  * PAYER-TOUT-1 (founder ruling 2026-09-22, « 1 then 2 », option 1) — ONE
@@ -173,13 +173,14 @@ interface Shop {
 /** One boutique holding BOTH articles — the panier's whole premise. */
 async function seedShop(m: Miniflare, n: string): Promise<Shop> {
   const S = await seance(m, `grp${n}`);
-  const shortCode = `GROUP-00${n}`;
+  const B = boutiqueDe(S, 'GROUP');
+  const { shortCode } = B;
   const created = await post(
     m,
     '/storefronts',
     {
       commandId: `cmd-create-grp-${n}`,
-      id: `sf-grp-${n}`,
+      id: B.id,
       resellerId: S.accountId,
       shortCode,
       name: 'Boutique de Aïcha',
@@ -192,7 +193,7 @@ async function seedShop(m: Miniflare, n: string): Promise<Shop> {
   );
   if (created.status !== 200) throw new Error(`seed: storefront ${created.status} ${created.text}`);
   // EN-LIGNE-1 — her app puts the shop online in the same act as creating it.
-  await post(m, `/storefronts/sf-grp-${n}/publish`, { correlationId: 'corr-en-ligne' }, S.bearer);
+  await post(m, `/storefronts/${B.id}/publish`, { correlationId: 'corr-en-ligne' }, S.bearer);
   for (const [i, v] of SUPPLY.entries()) {
     const pub = await post(
       m,
@@ -200,7 +201,7 @@ async function seedShop(m: Miniflare, n: string): Promise<Shop> {
       {
         commandId: `cmd-listing-grp-${n}-${i}`,
         listingId: `lst-grp-${n}-${i}`,
-        storefrontId: `sf-grp-${n}`,
+        storefrontId: B.id,
         resellerId: S.accountId,
         productVersionId: v.productVersionId,
         offerVersion: v.offerVersion,

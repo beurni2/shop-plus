@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { MockPaymentProvider } from '@shop-plus/commerce-core';
 import { Miniflare } from 'miniflare';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { OPS_SECRET, seance } from './seance';
+import { OPS_SECRET, seance, boutiqueDe } from './seance';
 
 /**
  * ═══ DISPATCH-PAGES-1 (AUDIT-SHOP-1 slice b) — THE FOUNDER'S TWO FAN-OUT
@@ -104,23 +104,24 @@ const freshKey = (): string => `rk-pages-${String((keyN += 1)).padStart(4, '0')}
  *  mirrored from dispatch.e2e; a 200 create is what registers the index row. */
 async function commander(n: string): Promise<{ orderId: string; amount: number }> {
   const S = await seance(mf, `pages${n}`);
+  const B = boutiqueDe(S, 'PAGES');
   const created = await mf.dispatchFetch('http://c/storefronts', {
     method: 'POST',
     headers: S.bearer,
     body: JSON.stringify({
-      commandId: `cmd-create-${n}`, id: `sf-pages-${n}`, resellerId: S.accountId, shortCode: `PAGES-${n}`,
+      commandId: `cmd-create-${n}`, id: B.id, resellerId: S.accountId, shortCode: B.shortCode,
       name: 'Boutique du fondateur', zone: 'Ouagadougou', category: 'Général',
       correlationId: `corr-${n}`, at: T0,
     }),
   });
   // EN-LIGNE-1 — her app puts the shop online in the same act as creating it.
-  await mf.dispatchFetch(`http://c/storefronts/${encodeURIComponent(`sf-pages-${n}`)}/publish`, { method: 'POST', headers: S.bearer, body: JSON.stringify({ correlationId: 'corr-en-ligne' }) });
+  await mf.dispatchFetch(`http://c/storefronts/${encodeURIComponent(B.id)}/publish`, { method: 'POST', headers: S.bearer, body: JSON.stringify({ correlationId: 'corr-en-ligne' }) });
   if (created.status !== 200) throw new Error(`seed: storefront ${created.status}`);
   const pub = await mf.dispatchFetch('http://c/listings', {
     method: 'POST',
     headers: S.bearer,
     body: JSON.stringify({
-      commandId: `cmd-listing-${n}`, listingId: `lst-pages-${n}`, storefrontId: `sf-pages-${n}`,
+      commandId: `cmd-listing-${n}`, listingId: `lst-pages-${n}`, storefrontId: B.id,
       resellerId: S.accountId, productVersionId: 'pv-pages-1', offerVersion: 'ov-pages-1',
       markup: 1_500, correlationId: `corr-${n}`, at: T0,
     }),
@@ -130,7 +131,7 @@ async function commander(n: string): Promise<{ orderId: string; amount: number }
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      slug: `pages-${n}`, pid: 'pv-pages-1', paymentMode: 'FULL_PREPAY', zoneTo: 'Ouagadougou',
+      slug: B.slug, pid: 'pv-pages-1', paymentMode: 'FULL_PREPAY', zoneTo: 'Ouagadougou',
       attributionResellerId: S.accountId, requestKey: freshKey(),
     }),
   });
