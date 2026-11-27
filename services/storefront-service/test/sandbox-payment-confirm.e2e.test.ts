@@ -328,7 +328,7 @@ describe('SANDBOX-PAY-1 — the founder plays the provider against the real Work
     // The founder pastes ONE article's order id, as he sees it on his board.
     const run = await runScript(orderIds[1]!, WEBHOOK_SECRET);
     expect(run.code, run.stdout + run.stderr).toBe(0);
-    expect(run.stdout).toContain(`grouped payment ${String(group['groupId'])}`);
+    expect(run.stdout).toContain(`grouped payment #${(await import('node:crypto')).createHash('sha256').update(String(group['groupId'])).digest('hex').slice(0, 8)}`);
     expect(run.stdout).toContain('CONFIRMED');
     for (const id of orderIds) expect((await publicState(id)).state).toBe('confirmed');
 

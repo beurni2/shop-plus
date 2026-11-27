@@ -13,20 +13,48 @@ name: expo-preview
 # other shell that ever holds it.
 
 on:
-  push:
+  # A publish follows ci: it starts when a ci run on main FINISHES, never on
+  # the push itself (ci was still running then). The decision step below
+  # ships only main's newest commit, only when ci is green on it.
+  workflow_run:
+    workflows: [ci]
+    types: [completed]
     branches: [main]
   workflow_dispatch:
 
 # CHAINE-DEPLOI-1 (F-09) — the job reads the tree; EAS is reached with
 # EXPO_TOKEN, never with GITHUB_TOKEN.
+# `actions: read` lets the decision step read ci's results with the job's own
+# token.
 permissions:
   contents: read
+  actions: read
+
+# Queue, never cancel: a publish in flight always finishes. GitHub keeps only
+# one waiting run here, which is why the decision always ships main's newest.
+concurrency:
+  group: expo-preview
+  cancel-in-progress: false
 
 jobs:
   publish-preview:
+    # Only a SUCCESSFUL ci run started by a push to main, or a dispatch on
+    # main. The decision step checks the same again from GitHub itself.
+    if: (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - name: Decide what may ship (main's newest commit, green in ci)
+        id: decide
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          RUN_SHA: ${{ github.event.workflow_run.head_sha }}
+          RUN_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+          RUN_EVENT: ${{ github.event.workflow_run.event }}
+        run: bash scripts/publish-decision.sh
       - name: Check EXPO_TOKEN presence (skip gracefully when absent)
+        if: steps.decide.outputs.publish == 'true'
         id: token
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
@@ -39,8 +67,12 @@ jobs:
           fi
       # CHAINE-DEPLOI-1 (F-09) — actions pinned to commit SHAs (tag kept beside
       # each for reading); see ci.yml.
+      # The commit the decision chose, which may be newer than the one whose
+      # ci run started this.
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         if: steps.token.outputs.present == 'true'
+        with:
+          ref: ${{ steps.decide.outputs.sha }}
       - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0 (what the moving v4 resolves to)
         if: steps.token.outputs.present == 'true'
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
@@ -73,6 +105,7 @@ jobs:
         working-directory: apps/reseller-app
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          PUBLISHED_SHA: ${{ steps.decide.outputs.sha }}
           # RESELLER-STOREFRONT-WRITE-1 — EXPO_PUBLIC_* are compiled INTO the bundle by
           # babel at `eas update` time. The base is a repo secret only so the live
           # service's origin stays out of the public tree; it arms the app's real calls.
@@ -117,4 +150,4 @@ jobs:
         run: |
           npx eas-cli@20.5.1 init --non-interactive --force
           npx eas-cli@20.5.1 update:configure --non-interactive
-          npx eas-cli@20.5.1 update --channel preview --non-interactive --auto --message "main@${GITHUB_SHA}"
+          npx eas-cli@20.5.1 update --channel preview --non-interactive --auto --message "main@${PUBLISHED_SHA}"
