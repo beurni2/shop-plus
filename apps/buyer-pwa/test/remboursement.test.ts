@@ -69,12 +69,15 @@ describe('readOrder — her refund crosses the wire as the server said it, or no
     }
   });
 
-  it('REMBOURSEMENT-2 — the reason crosses as one of the two words; any other word drops the refund whole', async () => {
+  it('REMBOURSEMENT-2 — the reason crosses as one of the three words; any other word drops the refund whole', async () => {
     const indispo = await lire({ ...ORDRE, remboursement: { etat: 'en_cours', montant: 12_500, motif: 'indisponible' } });
     expect(indispo.status === 'order' && indispo.order.remboursement).toEqual({ etat: 'en_cours', montant: 12_500, motif: 'indisponible' });
     const retour = await lire({ ...ORDRE, remboursement: { etat: 'fait', montant: 12_500, motif: 'retour' } });
     expect(retour.status === 'order' && retour.order.remboursement).toEqual({ etat: 'fait', montant: 12_500, motif: 'retour' });
-    for (const motif of ['perdu', '', 1, null]) {
+    // COLIS-PERDU-1 — the third word, a parcel lost on the road.
+    const perdu = await lire({ ...ORDRE, remboursement: { etat: 'en_cours', montant: 12_500, motif: 'perdu' } });
+    expect(perdu.status === 'order' && perdu.order.remboursement).toEqual({ etat: 'en_cours', montant: 12_500, motif: 'perdu' });
+    for (const motif of ['egare', '', 1, null]) {
       const got = await lire({ ...ORDRE, remboursement: { etat: 'en_cours', montant: 12_500, motif } });
       expect(got.status === 'order' && got.order.remboursement, JSON.stringify(motif)).toBeUndefined();
     }
@@ -147,6 +150,26 @@ describe('renderC7 — the refund card', () => {
     const retour = renderC7({ ...REEL, remboursement: { etat: 'en_cours', montant: 12_500, motif: 'retour' } });
     expect(retour).toContain(t('cl.remboursement.en_cours_corps'));
     expect(retour).not.toContain(t('cl.remboursement.indisponible_corps'));
+  });
+
+  it('COLIS-PERDU-1 — a parcel lost on the road says so calmly, the delivery fee included, never « the parcel is going back »', () => {
+    const enCours = renderC7({ ...REEL, remboursement: { etat: 'en_cours', montant: 12_500, motif: 'perdu' } });
+    expect(enCours).toContain(`12${NNBSP}500${NNBSP}FCFA vous reviennent`);
+    expect(enCours).toContain(
+      '<div class="cl-rembourse-corps">Votre colis s’est perdu en route. Ce n’est pas de votre faute\u00a0: tout votre argent revient sur le numéro qui a payé, livraison comprise.</div>',
+    );
+    expect(enCours).not.toContain('Le colis retourne');
+    expect(enCours).not.toContain('data-action="voir-code"');
+    expect(enCours).not.toContain('data-action="porte"');
+    const fait = renderC7({ ...REEL, remboursement: { etat: 'fait', montant: 12_500, motif: 'perdu' } });
+    expect(fait).toContain(`Remboursement fait\u00a0:\u00a012${NNBSP}500${NNBSP}FCFA`);
+    expect(fait).toContain(
+      '<div class="cl-rembourse-corps">Votre colis s’est perdu en route. Tout votre argent est revenu sur le numéro qui a payé, livraison comprise.</div>',
+    );
+    // On the road when it was lost: no step is « now » under the card.
+    const enRoute = renderC7({ ...REEL, step: 4, remboursement: { etat: 'en_cours', montant: 12_500, motif: 'perdu' } });
+    expect(enRoute).not.toContain('cl-now-badge');
+    expect(enRoute).not.toContain('cl-tl-t-now');
   });
 
   it('without a refund the screen is unchanged — the door and code roads stay where they were', () => {

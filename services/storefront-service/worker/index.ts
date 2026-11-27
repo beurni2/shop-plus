@@ -9,6 +9,7 @@ import {
   FulfillmentAcceptedEventSchema,
   FulfillmentProgressPayloadSchema,
   FulfillmentReadyEventSchema,
+  PackageLostEventSchema,
   PlatformEventSchema,
 } from '@platform/contracts';
 import { DispatchIndexDO, DISPATCH_INDEX_NAME } from './dispatch-index-do.js';
@@ -1065,6 +1066,27 @@ export default {
           new Request('https://do/entry/course-refusee', {
             method: 'POST',
             body: JSON.stringify(refusee.data),
+          }),
+        );
+      }
+      /**
+       * COLIS-PERDU-1 (founder ruling 2026-11-27) — Séra's `package.lost.v1`:
+       * the founder declared the parcel lost while a rider held it. Canon types
+       * it, so the strict canon artifact is the binding: one field more is
+       * refused 400. A delivery mark, so only Séra's credential writes it. One
+       * event per order the parcel carried, each to its own order object.
+       */
+      const perdu = PlatformEventSchema.safeParse(raw);
+      if (perdu.success && perdu.data.name === 'package.lost.v1') {
+        if (writer === 'boutik') {
+          return Response.json({ ok: false, reason: 'wrong_writer' }, { status: 403 });
+        }
+        const lost = PackageLostEventSchema.safeParse(raw);
+        if (!lost.success) return Response.json({ ok: false, reason: 'event_not_canonical' }, { status: 400 });
+        return env.ORDER.get(env.ORDER.idFromName(lost.data.payload.orderId)).fetch(
+          new Request('https://do/entry/colis-perdu', {
+            method: 'POST',
+            body: JSON.stringify({ at: lost.data.payload.at }),
           }),
         );
       }

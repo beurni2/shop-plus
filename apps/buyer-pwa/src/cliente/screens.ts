@@ -2579,7 +2579,7 @@ export interface C7State {
         readonly etat: 'en_cours' | 'fait' | 'rien';
         readonly montant: number;
         readonly fraisGardes?: number | undefined;
-        readonly motif?: 'retour' | 'indisponible' | undefined;
+        readonly motif?: 'retour' | 'indisponible' | 'perdu' | undefined;
       }
     | undefined;
 }
@@ -2597,6 +2597,8 @@ const REMBOURSEMENT = {
   fraisGardes: t('cl.remboursement.frais_gardes'),
   indisponibleCorps: t('cl.remboursement.indisponible_corps'),
   indisponibleFaitCorps: t('cl.remboursement.indisponible_fait_corps'),
+  perduCorps: t('cl.remboursement.perdu_corps'),
+  perduFaitCorps: t('cl.remboursement.perdu_fait_corps'),
 };
 
 /**
@@ -2611,11 +2613,14 @@ function renderRemboursement(r: NonNullable<C7State['remboursement']>): string {
   // REMBOURSEMENT-2 — the article was not available: no parcel is coming
   // back, so the card says why instead.
   const indisponible = r.motif === 'indisponible';
+  // COLIS-PERDU-1 — lost on the road: nothing is coming back to the seller,
+  // and every franc, the delivery included, comes back to her.
+  const perdu = r.motif === 'perdu';
   const corps = rien
     ? REMBOURSEMENT.rienCorps
     : fait
-      ? indisponible ? REMBOURSEMENT.indisponibleFaitCorps : REMBOURSEMENT.faitCorps
-      : indisponible ? REMBOURSEMENT.indisponibleCorps : REMBOURSEMENT.enCoursCorps;
+      ? indisponible ? REMBOURSEMENT.indisponibleFaitCorps : perdu ? REMBOURSEMENT.perduFaitCorps : REMBOURSEMENT.faitCorps
+      : indisponible ? REMBOURSEMENT.indisponibleCorps : perdu ? REMBOURSEMENT.perduCorps : REMBOURSEMENT.enCoursCorps;
   return [
     `<div class="cl-rembourse" data-role="remboursement" data-etat="${rien ? 'rien' : fait ? 'fait' : 'en-cours'}">`,
     `<div class="cl-rembourse-overline">${rien ? REMBOURSEMENT.rienOverline : REMBOURSEMENT.overline}</div>`,
