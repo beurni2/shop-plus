@@ -2,7 +2,7 @@
 
 This page says how to put a live part of Shop+ back to how it was before a release, in plain words. Read it before you need it.
 
-**The one rule first.** A rollback puts back the *code*. It never puts back *data*: orders, custody records, accounts, keys and photos stay as they are now. If a release wrote bad data, a rollback does not undo it.
+**The one rule first.** A rollback puts back the *code*, and with it the service's *keys* as they were in that version. It never puts back *data*: orders, custody records, accounts and photos stay as they are now. If a release wrote bad data, a rollback does not undo it.
 
 ---
 
@@ -22,6 +22,18 @@ Cloudflare keeps the last 100 versions of each service. Rolling back points the 
 ### The other road: the Cloudflare dashboard
 
 Cloudflare dashboard → **Workers & Pages** → the service → **Deployments** → **Version history** → on the older version, **Deploy**. Then open the service's `/health` page and check the `release` it names.
+
+### The keys go back too
+
+Each version of a service carries its own keys (its secrets). Going back to an older version puts back the key values that version had. If a key was changed since, Cloudflare first asks to confirm; the workflow cannot answer, so the answer is « yes » and the rollback goes ahead with the older keys. The dashboard asks you the same question.
+
+So after a rollback, read the run's yellow warnings: each one names a key that went back (the name only, never the value) and says how to write today's value again:
+
+- `SERA_INTAKE_SECRET`, `SHOP_ARM_SECRET`: run **storefront-deploy** on `main` (it writes both on every run).
+- `PAYMENT_WEBHOOK_SECRET`: run **payment-webhook-secret** on `main`.
+- `STOREFRONT_WRITE_SECRET` (the retired key, if it comes back): run **storefront-deploy** on `main`, which deletes it again.
+
+Until that is done, whatever relies on that key (another service, the console, a phone) can be refused.
 
 ### When Cloudflare refuses
 

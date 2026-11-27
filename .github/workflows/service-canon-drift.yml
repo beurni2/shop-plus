@@ -117,12 +117,15 @@ jobs:
       # live Worker is the bundle that job built, not that it built main. This
       # asks the live Worker which commit it was built from and goes red unless
       # main has changed nothing the storefront is built from since — its
-      # folder, the packages it builds from, the lock file and the workspace
-      # manifests. Asked even when the canon step above is red.
+      # folder, the packages and the attribution service it bundles, the lock
+      # file, the workspace manifests, the shared TypeScript base and the build
+      # plan (turbo.json, read by the deploy's `pnpm build`). An input missing
+      # from main is red too. Asked even when the canon step above is red.
       - name: Does the live storefront still run main?
         if: ${{ !cancelled() }}
         run: >-
           bash scripts/live-watch.sh storefront https://storefront-service.ilboudobernard2.workers.dev
           services/storefront-service packages/observability packages/supply-consumer
           packages/reseller-money packages/commerce-core packages/flags-client
-          pnpm-lock.yaml pnpm-workspace.yaml package.json
+          services/attribution-service
+          pnpm-lock.yaml pnpm-workspace.yaml package.json tsconfig.base.json turbo.json

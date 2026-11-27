@@ -51,9 +51,11 @@ permissions:
 # So publishes now QUEUE instead of killing each other. A superseded run
 # wastes a few runner minutes; a half-cancelled publish costs the founder his
 # storefront and a four-repo revert.
-concurrency:
-  group: pwa-preview
-  cancel-in-progress: false
+#
+# The groups sit on the jobs, not on the workflow: a run whose decide job
+# skips never joins them, so it cannot push out the waiting good publish.
+# build and deploy each have their own group, so a later run's waiting build
+# never cancels this run's waiting deploy. decide queues nowhere.
 
 jobs:
   decide:
@@ -81,6 +83,9 @@ jobs:
   build:
     needs: decide
     if: needs.decide.outputs.publish == 'true'
+    concurrency:
+      group: pwa-preview-build
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     steps:
       # The commit the decision chose, which may be newer than the one whose
@@ -132,9 +137,10 @@ jobs:
       # genuinely carries the literal and IS greppable — the same mechanism as the
       # esbuild --define stamps, and the reason the artifact check works here.
       #
-      # CORS PRECONDITION: the service must allow the site's own origin
-      # (storefront-service/src/index.ts CORS_READ_ORIGIN) — the new address,
-      # which is why this publish ships together with the change that names it.
+      # CORS PRECONDITION: the service must allow the site's own origin,
+      # https://shop-plus.pages.dev (storefront-service/src/index.ts
+      # CORS_READ_ORIGIN), which is why this publish ships together with the
+      # change that names it.
       # A LOCAL PWA build pointed at the live Worker still fails CORS by design —
       # a known, accepted limitation, not a bug.
       - name: Payload budget gate on THE deploy build (< 300 KB compressed, PERF-BUDGETS)
@@ -231,6 +237,9 @@ jobs:
 
   deploy:
     needs: build
+    concurrency:
+      group: pwa-preview-deploy
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     environment:
       name: github-pages
