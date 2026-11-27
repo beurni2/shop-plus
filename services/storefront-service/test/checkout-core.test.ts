@@ -420,6 +420,44 @@ describe('decideIssueQuote — every failure is a NAMED refusal that fails close
     expect(refusalOf(issue({ entry: entryFixture({ resellerCommission: -1 }) }))).toBe('stored_amounts_incoherent');
   });
 
+  /* A commission the seller would PAY to sell (B+I-12). The rule is the canon
+     waterfall's own seller net: refused when it is ≤ 0, at whatever fee canon
+     charges. The figures below are pinned by value, as main issued them. */
+  const SMALL_B = 1_000;
+  const smallEntry = (c: number): ListingEntry =>
+    entryFixture({ customerPriceFcfa: SMALL_B + M, resellerCommission: c });
+
+  it('stored_amounts_incoherent — a commission above the base price leaves the seller less than nothing, so no quote', () => {
+    // main issued this quote with sellerNet −500
+    expect(refusalOf(issue({ entry: smallEntry(1_500) }))).toBe('stored_amounts_incoherent');
+  });
+
+  it('stored_amounts_incoherent — a commission EQUAL to the base price leaves exactly 0, and 0 is refused too', () => {
+    expect(refusalOf(issue({ entry: smallEntry(SMALL_B) }))).toBe('stored_amounts_incoherent');
+  });
+
+  it('one franc left still sells, with every amount as main issued it', () => {
+    const quote = issuedQuote({ entry: smallEntry(SMALL_B - 1) });
+    expect(canonicalJsonStringify(quote)).toBe(
+      '{"amountDueAtDelivery":0,"amountPaidAtCheckout":3500,"attributionResellerId":"rs-0001","buyerTotal":3500,"deliveryFee":1000,"expiry":"2026-07-29T08:15:00.000Z","id":"quote-sp32a-0001","paymentMode":"FULL_PREPAY","paymentProcessingFeeEstimate":0,"platformProductFeeRevenue":0,"policyVersions":{"inspectionPolicyVersion":"e1-sandbox","settlementPolicyVersion":"e1-sandbox"},"productSubtotal":2500,"resellerGrossEarnings":2499,"resellerMarkup":1500,"resellerNet":2499,"resellerPlatformFee":0,"sellerBasePrice":1000,"sellerFundedCommission":999,"sellerNet":1,"sellerPlatformFee":0,"taxFields":{}}',
+    );
+  });
+
+  it('the §5.4 baseline issues byte-identical to main', () => {
+    expect(canonicalJsonStringify(issuedQuote())).toBe(
+      '{"amountDueAtDelivery":0,"amountPaidAtCheckout":12500,"attributionResellerId":"rs-0001","buyerTotal":12500,"deliveryFee":1000,"expiry":"2026-07-29T08:15:00.000Z","id":"quote-sp32a-0001","paymentMode":"FULL_PREPAY","paymentProcessingFeeEstimate":0,"platformProductFeeRevenue":0,"policyVersions":{"inspectionPolicyVersion":"e1-sandbox","settlementPolicyVersion":"e1-sandbox"},"productSubtotal":11500,"resellerGrossEarnings":2500,"resellerMarkup":1500,"resellerNet":2500,"resellerPlatformFee":0,"sellerBasePrice":10000,"sellerFundedCommission":1000,"sellerNet":9000,"sellerPlatformFee":0,"taxFields":{}}',
+    );
+  });
+
+  it('the seller-net refusal holds in the door mode too, and wins over a killed checkout', () => {
+    expect(refusalOf(issue({ entry: smallEntry(1_500), request: { paymentMode: 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR' } }))).toBe(
+      'stored_amounts_incoherent',
+    );
+    expect(
+      refusalOf(issue({ entry: smallEntry(1_500), deps: { flags: { ...QUIET_FLAGS, kills: ['checkout'] } } })),
+    ).toBe('stored_amounts_incoherent');
+  });
+
   it('checkout_killed — the vault kill switch passes through (Execution Contract §7.2)', () => {
     expect(
       refusalOf(issue({ deps: { flags: { ...QUIET_FLAGS, kills: ['checkout'] } } })),

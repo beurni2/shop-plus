@@ -1,4 +1,4 @@
-import { QuoteSchema, type DeliveryFeeQuote, type Quote } from '@platform/contracts';
+import { QuoteSchema, computeWaterfall, type DeliveryFeeQuote, type Quote } from '@platform/contracts';
 import {
   ELIGIBILITE_SANS_HISTORIQUE,
   ImmutableQuoteStore,
@@ -34,11 +34,13 @@ import type { ProductDescription } from './supply-source.js';
  *
  * ═══ THE MONEY LAW OF THIS FILE, IN ONE SENTENCE ═══
  *
- * Nothing here computes an amount. `issueQuote` (FROZEN VAULT,
- * `packages/commerce-core`) is the only issuer, `computeWaterfall` behind it the
- * only arithmetic, and every input B/C/M it is given is READ VERBATIM off frozen
- * stored fields. This module's whole job is to decide whether a quote may exist
- * at all — and to REFUSE, by name, when it may not.
+ * Nothing here computes an amount of its own. `issueQuote` (FROZEN VAULT,
+ * `packages/commerce-core`) is the only issuer and canon's `computeWaterfall`
+ * the only arithmetic; this module calls that same function once more, only to
+ * read the seller's net and refuse a quote that would leave him nothing, and
+ * every input B/C/M is READ VERBATIM off frozen stored fields. This module's
+ * whole job is to decide whether a quote may exist at all — and to REFUSE, by
+ * name, when it may not.
  *
  * ═══ EVERY FAILURE IS A NAMED REFUSAL, AND A REFUSAL IS NEVER A REPAIR ═══
  *
@@ -206,6 +208,11 @@ export interface CheckoutDeps extends QuoteIssuanceDeps {
  * signed price, say) would leave the money path as an unhandled exception
  * instead of a refusal. A wrong price must be a refusal, never a crash and never
  * a rounded-off success.
+ *
+ * It also names the stored amounts that are whole francs yet cannot be sold: a
+ * frozen commission that leaves the seller a canon net of 0 or less. Such a sale
+ * would make him pay to sell (B+I-12), and the buyer's screen needs no other
+ * sentence for it than the one this name already gets.
  */
 export type CheckoutRefusalReason =
   | 'attribution_missing'
@@ -265,7 +272,12 @@ function usableFcfa(value: number): boolean {
  *     zone and an unreachable Séra must land on the SAME refusal; nothing about
  *     D is ever inferred.
  *  5. THE AMOUNTS — whole, non-negative francs, or refuse.
- *  6. THE VAULT ISSUES. Kill switch → mode → §6.1 gate → `QuoteSchema.parse` →
+ *  6. THE SELLER'S NET — canon's seller net ≤ 0 refuses
+ *     `stored_amounts_incoherent`. Before the vault, like every local refusal:
+ *     a quote that can never be sold is refused for that reason whatever the
+ *     kill switch, the mode or the door gate would say, because no later
+ *     change to any of them could make it sellable.
+ *  7. THE VAULT ISSUES. Kill switch → mode → §6.1 gate → `QuoteSchema.parse` →
  *     `assertQuoteReconciles`. Every money field on the result came from the
  *     pinned waterfall; not one is computed, adjusted or re-rounded here.
  */
@@ -368,12 +380,16 @@ export function decideIssueQuote(deps: CheckoutDeps, input: IssueQuoteInput): Is
   // value, never retries, never repairs. A quote that could not be issued does
   // not exist.
   try {
-    return issueQuoteFrom(deps, entry, request, {
-      sellerBasePrice,
-      sellerFundedCommission,
-      resellerMarkup,
-      deliveryFee,
-    }, input.supply);
+    // A commission that leaves the seller nothing makes him pay to sell
+    // (B+I-12). Refused when the canon waterfall's own seller net is ≤ 0, so
+    // the rule follows canon's fee, whatever it is; Boutik+ refuses the same
+    // offer by the same arithmetic. The mode cannot move the seller net; the
+    // vault still decides the mode below.
+    const amounts = { sellerBasePrice, sellerFundedCommission, resellerMarkup, deliveryFee };
+    if (computeWaterfall({ ...amounts, paymentMode: 'FULL_PREPAY' }).sellerNet <= 0) {
+      return { ok: false, reason: 'stored_amounts_incoherent' };
+    }
+    return issueQuoteFrom(deps, entry, request, amounts, input.supply);
   } catch {
     return { ok: false, reason: 'quote_not_issuable' };
   }
