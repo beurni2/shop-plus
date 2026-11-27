@@ -748,6 +748,22 @@ export const VitrineCard = memo(function VitrineCard({
  * it. Nothing here claims that anything landed: what landed left the file
  * and is read back from the shop like everything else on this screen.
  */
+/** P6 — her waiting list could not be read: one calm sentence, one way to close it. */
+function ListePerdue({ onFermer }: { readonly onFermer: () => void }) {
+  return (
+    <Card style={styles.attenteBandeau}>
+      <Text style={styles.attenteTexte}>{t('attente.liste_perdue')}</Text>
+      <Pressable
+        style={({ pressed }) => [styles.attenteEnvoyer, pressed && styles.pressed]}
+        onPress={onFermer}
+        accessibilityRole="button"
+      >
+        <Text style={styles.attenteEnvoyerLabel}>{t('attente.liste_perdue_fermer')}</Text>
+      </Pressable>
+    </Card>
+  );
+}
+
 function AttenteBandeau({ nAttente, echecs, nomDe, rejeu, onEnvoyer, onAbandonner, boutiqueEnAttente }: {
   readonly nAttente: number;
   readonly echecs: readonly QueueEntry[];
@@ -968,15 +984,26 @@ export default function App() {
   const fileAttente = useRef<FileAttente | null>(null);
   const [attentes, setAttentes] = useState<readonly QueueEntry[]>([]);
   const [fileOuverte, setFileOuverte] = useState(false);
+  /** P6 — her list could not be read at open: said once on Ma Vitrine, until she closes it. */
+  const [listePerdue, setListePerdue] = useState(false);
   const rafraichirAttentes = useCallback(() => setAttentes(fileAttente.current?.tout() ?? []), []);
   useEffect(() => {
     let live = true;
-    void FileAttente.ouvrir(expoFileAttenteStore()).then((q) => {
-      if (!live) return;
-      fileAttente.current = q;
-      setAttentes(q.tout());
-      setFileOuverte(true);
-    });
+    void FileAttente.ouvrir(expoFileAttenteStore()).then(
+      (q) => {
+        if (!live) return;
+        fileAttente.current = q;
+        setAttentes(q.tout());
+        setFileOuverte(true);
+        if (!q.restauree) setListePerdue(true);
+      },
+      // The damaged bytes could not even be kept aside: the list stays closed
+      // (nothing overwrites them) and the app runs on its no-list road, where
+      // an add with no network is said as not saved — never as kept.
+      () => {
+        if (live) setListePerdue(true);
+      },
+    );
     return () => {
       live = false;
     };
@@ -3300,6 +3327,7 @@ export default function App() {
               <Text style={styles.noteLine}>{t('vitrine.sous_titre')}</Text>
               {/* FILE-ATTENTE-1 — a refused replay can leave a shop empty AND
                   a failure to read; the banner lives in both branches. */}
+              {listePerdue ? <ListePerdue onFermer={() => setListePerdue(false)} /> : null}
               <AttenteBandeau
                 nAttente={ajoutsEnAttente.size + retraitsEnAttente.size + (identiteEnAttente ? 1 : 0)}
                 echecs={echecsAttente}
@@ -3395,6 +3423,7 @@ export default function App() {
                     <Text style={styles.vitrinePersoLabel}>{t('k.entree')}</Text>
                   </Pressable>
                   <Text style={styles.noteLine}>{t('vitrine.sous_titre')}</Text>
+                  {listePerdue ? <ListePerdue onFermer={() => setListePerdue(false)} /> : null}
                   <AttenteBandeau
                     nAttente={ajoutsEnAttente.size + retraitsEnAttente.size + (identiteEnAttente ? 1 : 0)}
                     echecs={echecsAttente}

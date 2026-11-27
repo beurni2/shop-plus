@@ -226,6 +226,13 @@ const CODE_REMISE_KEY = 'code-remise';
  * Object, the same storage her code already lives in under CODE_REMISE_KEY.
  * Custody hashes it at its door and never stores the plaintext; the internal
  * `/entry/outbox` read serves this row's STATUS ONLY, never its fact.
+ *
+ * WHAT ENDS THIS ROW, BY CONTRACT: custody's 2xx (`delivered`); or an ending
+ * that is final for delivery — the supplier's refusal, or Séra's refused
+ * course — which writes a still-pending row `abandoned` with its reason in
+ * the same put as the refusal (`custodyRowsAbandoned`). Every other answer,
+ * `order_not_open` included, keeps it pending on the backoff, and a rider's
+ * transit mark wakes the alarm at once so the code crosses before he arrives.
  */
 const CUSTODY_ARM_KEY = 'custody-arm-outbox';
 /**
@@ -258,6 +265,8 @@ const CUSTODY_ARM_KEY = 'custody-arm-outbox';
  * `door_signal_not_awaited` alone keeps carrying: it is custody's TRANSIENT
  * state (paid before the accord was noted), not a verdict. Transport
  * failures and every other status stay `pending` on the shared backoff.
+ * A still-pending row is written `abandoned` with its reason when the order's
+ * ending is final for delivery (see CUSTODY_ARM_KEY).
  */
 const DOOR_SIGNAL_KEY = 'custody-door-signal-outbox';
 /**
@@ -275,7 +284,9 @@ const DOOR_SIGNAL_KEY = 'custody-door-signal-outbox';
  * at-least-once under a deterministic command id. Custody's 200 ends a row;
  * `order_not_open` (the course has no custody file yet) keeps it pending; any
  * other 409 is custody's recorded refusal. The door signal waits while a row
- * is pending: custody could not yet tell the payment is this article's.
+ * is pending: custody could not yet tell the payment is this article's. A
+ * still-pending row is written `abandoned` with its reason when the order's
+ * ending is final for delivery (see CUSTODY_ARM_KEY).
  */
 const DOOR_REFERENCE_KEY = 'custody-door-reference-outbox';
 /**
@@ -453,13 +464,17 @@ interface PorteColis {
 
 /** COLIS-2 — one collection reference on its way to this order's custody file. */
 interface DoorReferenceRow {
-  readonly status: 'pending' | 'delivered';
+  readonly status: 'pending' | 'delivered' | 'abandoned';
   readonly orderId: string;
   readonly attempts: number;
   readonly outcome?: 'accepted' | 'refused';
   readonly reason?: string;
   readonly deliveredAt?: string;
+  readonly abandonedAt?: string;
 }
+
+/** Why a custody row stopped without being taken: the order will never travel. */
+type RaisonAbandon = 'fournisseur_refuse' | 'course_refusee';
 
 /**
  * DURCISSEMENT-SERVICE-2 (AUDIT-SHOP-2 F-30) — THE DOOR ROAD HAS A CEILING.
@@ -1218,6 +1233,8 @@ export class OrderDO {
         status?: string;
         attempts?: number;
         deliveredAt?: string;
+        reason?: string;
+        abandonedAt?: string;
       }>(CUSTODY_ARM_KEY);
       // PORTE-CUSTODY part B — the door-signal wire's fate beside the four
       // others, STATUS ONLY and built field by field like the arm wire's:
@@ -1230,6 +1247,7 @@ export class OrderDO {
         outcome?: string;
         reason?: string;
         deliveredAt?: string;
+        abandonedAt?: string;
       }>(DOOR_SIGNAL_KEY);
       // STOCK-VENDU-1b — the refused-course wire's fate beside the five
       // others, STATUS ONLY: the cargo is the canon event, already readable
@@ -1261,6 +1279,8 @@ export class OrderDO {
                 status: armement.status,
                 attempts: armement.attempts,
                 ...(armement.deliveredAt !== undefined ? { deliveredAt: armement.deliveredAt } : {}),
+                ...(armement.reason !== undefined ? { reason: armement.reason } : {}),
+                ...(armement.abandonedAt !== undefined ? { abandonedAt: armement.abandonedAt } : {}),
               },
             }
           : {}),
@@ -1274,6 +1294,7 @@ export class OrderDO {
                     attempts: r.attempts,
                     ...(r.outcome !== undefined ? { outcome: r.outcome } : {}),
                     ...(r.reason !== undefined ? { reason: r.reason } : {}),
+                    ...(r.abandonedAt !== undefined ? { abandonedAt: r.abandonedAt } : {}),
                   },
                 ]),
               ),
@@ -1287,6 +1308,7 @@ export class OrderDO {
                 ...(porte.outcome !== undefined ? { outcome: porte.outcome } : {}),
                 ...(porte.reason !== undefined ? { reason: porte.reason } : {}),
                 ...(porte.deliveredAt !== undefined ? { deliveredAt: porte.deliveredAt } : {}),
+                ...(porte.abandonedAt !== undefined ? { abandonedAt: porte.abandonedAt } : {}),
               },
             }
           : {}),
@@ -1715,7 +1737,13 @@ export class OrderDO {
         }
         return Response.json({ ok: true, status: 'duplicate' });
       }
-      await this.state.storage.put(BOUTIK_REFUSED_KEY, { status: 'pending', event, attempts: 0 });
+      // P6 — a refused course is final for delivery (custody-spine: every
+      // refusal is sticky and the drop refuses `return_in_progress`), so the
+      // custody rows still waiting stop in the same write as the fact.
+      await this.state.storage.put({
+        [BOUTIK_REFUSED_KEY]: { status: 'pending', event, attempts: 0 },
+        ...(await this.custodyRowsAbandoned('course_refusee')),
+      });
       // REMBOURSEMENT-1 — the same fact opens her refund.
       await this.ouvrirRemboursement(event);
       await this.state.storage.setAlarm(Date.now()).catch(() => undefined);
@@ -1759,7 +1787,16 @@ export class OrderDO {
               },
             }
           : {};
-      if (deja === undefined) await this.state.storage.put({ [FOURNISSEUR_REFUS_KEY]: { at: body.at }, ...annule });
+      // P6 — the supplier's refusal is final for delivery (Boutik+'s ready and
+      // refuse exclude each other; Séra never admits the course), so the
+      // custody rows still waiting stop in the same write as the refusal.
+      if (deja === undefined) {
+        await this.state.storage.put({
+          [FOURNISSEUR_REFUS_KEY]: { at: body.at },
+          ...annule,
+          ...(await this.custodyRowsAbandoned('fournisseur_refuse')),
+        });
+      }
       await this.ouvrirRemboursementAvec({ nature: 'refus_fournisseur' }, null);
       if ((await this.remboursementADemander()) || Object.keys(annule).length > 0) {
         await this.state.storage.setAlarm(Date.now()).catch(() => undefined);
@@ -1827,6 +1864,10 @@ export class OrderDO {
       const next: TransitRecord =
         stage === 'en_route' ? { ...existing, departedAt: at } : { ...existing, arrivedAt: at };
       await this.state.storage.put(TRANSIT_KEY, next);
+      // P6 — the rider moving means custody now holds the course's file: a
+      // custody row waiting on `order_not_open` must not wait for the next
+      // rung of the backoff (up to an hour) — the code has to be there first.
+      if (await this.custodyRowPending()) await this.state.storage.setAlarm(Date.now()).catch(() => undefined);
       return Response.json({ ok: true, status: 'recorded', at });
     }
 
@@ -3232,6 +3273,9 @@ export class OrderDO {
     if (base !== '' && secret !== '') {
       const res = await fetch(`${base}/intake/funding`, {
         method: 'POST',
+        // P6 — one bounded attempt like every other wire: a Séra intake that
+        // never answers must not hold the alarm, and every wire behind it.
+        signal: AbortSignal.timeout(FLUSHER_TIMEOUT_MS),
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${secret}` },
         body: JSON.stringify(outbox.fact),
       }).catch(() => undefined);
@@ -3366,9 +3410,43 @@ export class OrderDO {
    * Custody HASHES the secret at its door (`digestSecret`) and stores only
    * the sha256; the plaintext dies with the request on that side.
    */
+  /** P6 — is any custody row (the arm, a door reference, the door signal) still waiting? */
+  private async custodyRowPending(): Promise<boolean> {
+    const arm = await this.state.storage.get<{ status?: string }>(CUSTODY_ARM_KEY);
+    const refs = await this.state.storage.get<Record<string, DoorReferenceRow>>(DOOR_REFERENCE_KEY);
+    const signal = await this.state.storage.get<{ status?: string }>(DOOR_SIGNAL_KEY);
+    return (
+      arm?.status === 'pending' ||
+      signal?.status === 'pending' ||
+      Object.values(refs ?? {}).some((r) => r.status === 'pending')
+    );
+  }
+
+  /**
+   * P6 — THE CUSTODY ROWS AN ENDING STOPS, for the caller's own put: every row
+   * still `pending` becomes `abandoned` with the reason, so the alarm (which
+   * skips anything not pending) never calls custody for it again. A row
+   * custody already took or refused is returned as it is — never rewritten.
+   */
+  private async custodyRowsAbandoned(reason: RaisonAbandon): Promise<Record<string, unknown>> {
+    const abandonedAt = new Date().toISOString();
+    const out: Record<string, unknown> = {};
+    const arm = await this.state.storage.get<{ status?: string }>(CUSTODY_ARM_KEY);
+    if (arm?.status === 'pending') out[CUSTODY_ARM_KEY] = { ...arm, status: 'abandoned', reason, abandonedAt };
+    const signal = await this.state.storage.get<{ status?: string }>(DOOR_SIGNAL_KEY);
+    if (signal?.status === 'pending') out[DOOR_SIGNAL_KEY] = { ...signal, status: 'abandoned', reason, abandonedAt };
+    const refs = await this.state.storage.get<Record<string, DoorReferenceRow>>(DOOR_REFERENCE_KEY);
+    if (refs !== undefined && Object.values(refs).some((r) => r.status === 'pending')) {
+      out[DOOR_REFERENCE_KEY] = Object.fromEntries(
+        Object.entries(refs).map(([ref, r]) => [ref, r.status === 'pending' ? { ...r, status: 'abandoned', reason, abandonedAt } : r]),
+      );
+    }
+    return out;
+  }
+
   private async flushCustodyArmOutbox(): Promise<number> {
     const outbox = await this.state.storage.get<{
-      status: 'pending' | 'delivered';
+      status: 'pending' | 'delivered' | 'abandoned';
       fact?: { orderId: string; command_id: string; kind: string; secret: string };
       attempts: number;
       deliveredAt?: string;
@@ -3478,7 +3556,7 @@ export class OrderDO {
 
   private async flushDoorSignalOutbox(): Promise<number> {
     const outbox = await this.state.storage.get<{
-      status: 'pending' | 'delivered';
+      status: 'pending' | 'delivered' | 'abandoned';
       fact?: { orderId: string; command_id: string; event: unknown };
       attempts: number;
       outcome?: 'accepted' | 'refused';

@@ -31,6 +31,10 @@ import { OPS_SECRET, seance } from './seance';
  * secret} — the kind vocabulary is closed and the secret is a bounded string
  * (this wire's kind always carries six digits); anything else is 400. A stub
  * looser than the door it stands for would pass bytes the real one refuses.
+ * And past those checks it answers like the real door with no file: 409
+ * `order_not_open` until the course's file is opened (sera main 5163e32,
+ * custody-do.ts :1998-2001, before `/secrets/arm` :2010; a taken arm is
+ * `{ ok: true, status: 'armed', kind }` :2045) — never `armed` before.
  *
  * ⚠ THE BUYER-SECRET TOKEN NAMES ARE ASSEMBLED AT RUNTIME (`drop${'Code'}`,
  * the established idiom) — the standing exposure gate scans these files for
@@ -66,6 +70,14 @@ const SUPPLY = [
 /** Every arm POST custody's door received, verbatim, with the answer it gave. */
 const armPosts: { auth: string | null; body: Record<string, unknown> | null; status: number }[] = [];
 let custodyRespond: 'ok' | 'down' = 'ok';
+/**
+ * Orders whose custody file Séra has opened. The real door has no file until
+ * Séra opens it at assignment (sera 5163e32 custody-do.ts `/order/open` :1814),
+ * and until then answers every produce-shop door, the arm included, with
+ * `order_not_open` 409 (:1998-2001, before `/secrets/arm` :2010) — so this
+ * stand-in does too. A test that needs the arm taken opens the file first.
+ */
+const dossiers = new Set<string>();
 
 let mf: Miniflare;
 
@@ -133,6 +145,8 @@ function makeMf(persistDir: string): Miniflare {
           ) {
             return answer(400, { ok: false, reason: 'malformed' });
           }
+          // custody-do.ts :1998-2001 — after the router's checks, no file, no arm.
+          if (!dossiers.has(body['orderId'] as string)) return answer(409, { ok: false, reason: 'order_not_open' });
           return answer(200, { ok: true, status: 'armed', kind: body['kind'] });
         }
         return Response.json({ status: 'not_found' }, { status: 404 });
@@ -354,6 +368,8 @@ describe('VRAI-SUIVI — the code remise is born at CONFIRM and custody is armed
     custodyRespond = 'ok';
     const o = await createdOrder('0002');
     expect(o.createStatus).toBe(200);
+    // The course is already admitted: Séra has opened its custody file.
+    dossiers.add(o.orderId);
     await confirmOrder(o.orderId, 12_500);
 
     await waitForArm(o.orderId);
