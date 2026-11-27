@@ -184,10 +184,10 @@ test('PAGES — the deep link boots through the 404 restore under the policy: bo
   await ecouterViolations(page);
   const failed: string[] = [];
   page.on('requestfailed', (r) => failed.push(r.url()));
-  await page.goto(`${PAGES}/shop-plus/v/aicha-4821`, { waitUntil: 'load' });
+  await page.goto(`${PAGES}/v/aicha-4821`, { waitUntil: 'load' });
   await expect(page.locator('.vt-root[data-screen="vitrine"]')).toBeVisible({ timeout: 10_000 });
   // The 404 page's script redirected, index.html's script restored: both ran.
-  expect(new URL(page.url()).pathname).toBe('/shop-plus/v/aicha-4821');
+  expect(new URL(page.url()).pathname).toBe('/v/aicha-4821');
   expect(failed).toEqual([]);
   expect((await metas(page)).csp).toContain("base-uri 'self'");
   expect(await violations(page)).toEqual([]);

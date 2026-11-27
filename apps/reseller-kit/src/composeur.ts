@@ -112,7 +112,8 @@ function qrOp(url: string, x: number, yCentre: number): Extract<Op, { kind: 'qr'
   const qr = encodeQr(url);
   const quiet = dimension.qr.quietZoneModules;
   const total = qr.size + 2 * quiet;
-  const module = Math.max(mmToPx(dimension.qr.printModuleMinMm), Math.round(mmToPx(dimension.qr.printSideMm) / total));
+  // Rounded UP: a module rounded down can leave the side under 48 mm (version 3).
+  const module = Math.max(mmToPx(dimension.qr.printModuleMinMm), Math.ceil(mmToPx(dimension.qr.printSideMm) / total));
   const side = module * total;
   return {
     kind: 'qr',
@@ -174,7 +175,14 @@ export function composeCard(input: CardInput): Card {
   // 5 — the QR block: the AFFICHE only, in the bottom third (scan or type).
   if (format === 'affiche') {
     const bandTop = Math.round(H * 0.7);
-    const qrCentre = Math.round((bandTop + (H - M)) / 2);
+    // The sand panel keeps the 6 px of clear space below the validity line that
+    // today's version-4 poster has; a larger matrix (version 3 rounds its module
+    // up to hold 48 mm) moves down instead of climbing into the line.
+    const DEGAGEMENT_PX = 6;
+    const validite = ops.find((o): o is Extract<Op, { kind: 'text' }> => o.kind === 'text' && o.role === 'validity')!;
+    const centreBande = Math.round((bandTop + (H - M)) / 2);
+    const cote = qrOp(input.qrUrl, M, centreBande).side;
+    const qrCentre = Math.max(centreBande, validite.y + validite.px + DEGAGEMENT_PX + Math.round(M * 0.4) + Math.round(cote / 2));
     const qr = qrOp(input.qrUrl, M, qrCentre);
     ops.push({ kind: 'fill', x: qr.x - M * 0.4, y: qr.y - M * 0.4, w: qr.side + M * 0.8, h: qr.side + M * 0.8, colour: theme.colours.sand });
     ops.push(qr);

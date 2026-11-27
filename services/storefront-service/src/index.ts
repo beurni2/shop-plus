@@ -722,7 +722,7 @@ async function handleMediaRead(key: string, env?: MediaEnv, rangeHeader: string 
 
 /**
  * RESELLER-STOREFRONT-WRITE-1 — CORS on the BUYER READ ROUTES ONLY. The buyer PWA
- * is served cross-origin from GitHub Pages, so its `fetch` of `GET /s/{slug}` needs
+ * is served cross-origin from its own address, so its `fetch` of `GET /s/{slug}` needs
  * an allow-origin header or the browser blocks the 200. EXACT ORIGIN, never a
  * wildcard (a wildcard would let any site's JS read storefront data). The WRITE
  * routes carry NO CORS — the reseller app is React Native (not subject to CORS),
@@ -730,7 +730,29 @@ async function handleMediaRead(key: string, env?: MediaEnv, rangeHeader: string 
  * Known, accepted limitation (JOURNAL): a LOCAL PWA build pointed at the live
  * Worker fails CORS until a dev origin is added deliberately — not a bug.
  */
-export const CORS_READ_ORIGIN = 'https://beurni2.github.io';
+export const CORS_READ_ORIGIN = 'https://shop-plus.pages.dev';
+/**
+ * ADRESSE-PROPRE — the buyer site's former address, a GitHub project page that
+ * shares its origin with every other page of the account (so her saved keys
+ * did too). Still answered, by exact name, only while its forwarder sends old
+ * links to `CORS_READ_ORIGIN`; a later slice removes it.
+ */
+export const CORS_ANCIENNE_ORIGINE = 'https://beurni2.github.io';
+/**
+ * The one exit every answer passes (the Worker's `fetch`): an answer that
+ * names the buyer site, asked from the old address, names the old address
+ * instead. Nothing else is touched — the console's and the reseller's doors
+ * keep their own origins, and a third origin still reads the buyer site's
+ * address, which its browser refuses. Every such answer already says
+ * `Vary: Origin` (withReadCors and both preflights), so no cache crosses them.
+ */
+export function origineAccordee(request: Request, res: Response): Response {
+  if (request.headers.get('Origin') !== CORS_ANCIENNE_ORIGINE) return res;
+  if (res.headers.get('Access-Control-Allow-Origin') !== CORS_READ_ORIGIN) return res;
+  const headers = new Headers(res.headers);
+  headers.set('Access-Control-Allow-Origin', CORS_ANCIENNE_ORIGINE);
+  return new Response(res.body, { status: res.status, statusText: res.statusText, headers });
+}
 export function withReadCors(res: Response): Response {
   const headers = new Headers(res.headers);
   headers.set('Access-Control-Allow-Origin', CORS_READ_ORIGIN);
@@ -900,4 +922,4 @@ export const handleRequest = async (request: Request, env?: StorefrontServiceEnv
   return withReadCors(await healthWithProvenance(request, env?.CUSTODY_WIRES, env?.PBKDF2_SONDE));
 };
 
-export default { fetch: handleRequest };
+export default { fetch: async (request: Request, env?: StorefrontServiceEnv): Promise<Response> => origineAccordee(request, await handleRequest(request, env)) };

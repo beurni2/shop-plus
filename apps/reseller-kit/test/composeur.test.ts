@@ -132,3 +132,56 @@ describe('NUIT is the only ink background; colours are tokens, never hex literal
     }
   });
 });
+
+describe('the affiche QR holds its 48 mm side for every version the shop links use', () => {
+  const dpi = 300;
+  const mm = (px: number): number => (px / dpi) * 25.4;
+  // A link at the buyer site's own address (version 3) and a longer boutique
+  // name that needs version 4: the side is rounded UP to whole pixels per
+  // module, never down below the canon 48 mm.
+  for (const [nom, url, version] of [
+    ['version 3', 'https://shop-plus.pages.dev/v/aicha-4821', 3],
+    ['version 4', 'https://shop-plus.pages.dev/v/mariamata-4821', 4],
+  ] as const) {
+    it(`${nom}: side ≥ 48 mm, module ≥ 1.0 mm`, () => {
+      expect(encodeQr(url).version).toBe(version);
+      const card = composeCard({ ...input('affiche'), qrUrl: url });
+      const qr = card.ops.find((o): o is Extract<Op, { kind: 'qr' }> => o.kind === 'qr')!;
+      expect(mm(qr.side)).toBeGreaterThanOrEqual(48);
+      expect(mm(qr.module)).toBeGreaterThanOrEqual(1);
+    });
+  }
+
+  it('the larger version-3 block still fits the bottom third: below the validity line, above the foot band, its text inside the sheet', () => {
+    const card = composeCard(input('affiche'));
+    const qr = card.ops.find((o): o is Extract<Op, { kind: 'qr' }> => o.kind === 'qr')!;
+    // the sand panel drawn just before the matrix
+    const fond = card.ops[card.ops.indexOf(qr) - 1] as Extract<Op, { kind: 'fill' }>;
+    expect(fond.kind).toBe('fill');
+    expect(fond.y).toBeLessThan(qr.y);
+    expect(fond.y + fond.h).toBeGreaterThan(qr.y + qr.side);
+    const validite = role(card.ops, 'validity')!;
+    expect(fond.y).toBeGreaterThan(validite.y + validite.px);
+    const pied = card.ops.filter((o): o is Extract<Op, { kind: 'fill' }> => o.kind === 'fill').at(-1)!;
+    expect(fond.y + fond.h).toBeLessThan(pied.y);
+    for (const r of ['qr-legend', 'qr-code', 'qr-fallback']) {
+      const t = role(card.ops, r)!;
+      expect(t.x).toBeGreaterThan(qr.x + qr.side);
+      expect(t.y + t.px).toBeLessThan(pied.y);
+    }
+  });
+});
+
+describe('a version-4 poster is drawn exactly as before', () => {
+  // The ops of a version-4 affiche, hashed on main before the 48 mm fix: the
+  // round-up and the clearance rule change nothing for it, to the byte.
+  const AVANT: Record<'clair' | 'nuit', string> = { clair: '6bd524d963fcf464f47a26dcc4e1fea1fde382ba3405e01975aaaab0852c6ff0', nuit: 'fd30b91f4091e70a55a837641f490c6d597c566de39072d9580d2841c57bd95c' };
+  for (const model of ['clair', 'nuit'] as const) {
+    it(`${model}: byte-identical display list`, async () => {
+      const { createHash } = await import('node:crypto');
+      const card = composeCard({ ...input('affiche', model), qrUrl: 'https://shop-plus.pages.dev/v/mariamata-4821' });
+      expect(encodeQr('https://shop-plus.pages.dev/v/mariamata-4821').version).toBe(4);
+      expect(createHash('sha256').update(JSON.stringify(card)).digest('hex')).toBe(AVANT[model]);
+    });
+  }
+});

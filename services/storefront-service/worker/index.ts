@@ -26,7 +26,7 @@ import {
 } from './reseller-accounts-do.js';
 import { DLQ_NAME, DeadLetterDO } from './dead-letter-do.js';
 import { BUYER_ACCOUNTS_NAME, BuyerAccountsDO } from './buyer-accounts-do.js';
-import { checkoutPreflight, handleRequest, withReadCors, type StorefrontServiceEnv } from '../src/index.js';
+import { checkoutPreflight, handleRequest, origineAccordee, withReadCors, type StorefrontServiceEnv } from '../src/index.js';
 import { SUPPLY_COLLECTION_ROUTE, SUPPLY_DIAGNOSTIC_ROUTE } from '../src/supply-collection.js';
 import { signPrice } from '../src/publish-price.js';
 import { resolveSupplySource } from '../src/supply-source.js';
@@ -259,7 +259,15 @@ async function bornerCorps(request: Request, max: number): Promise<Request | Res
 }
 
 export default {
+  // ADRESSE-PROPRE — every answer leaves through the one origin rule.
   async fetch(request: Request, env: Env): Promise<Response> {
+    return origineAccordee(request, await repondre(request, env));
+  },
+};
+
+// The Worker's routes, unchanged; kept at their former indentation so the
+// move into this function is the only change to them.
+async function repondre(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
     const { pathname } = url;
 
@@ -2262,8 +2270,7 @@ export default {
         : {}),
     };
     return handleRequest(request, serviceEnv);
-  },
-};
+}
 
 /**
  * RESELLER-AUTH-1 — the caller's ACTIVE session, or nobody. Only an `SPS-`

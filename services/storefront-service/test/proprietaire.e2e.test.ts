@@ -475,10 +475,10 @@ describe('RESELLER-AUTH-1 — a session creates, and creates only as herself', (
   it('CORPS-BORNE (AUDIT-SHOP-2 F-06) — a body heavier than its road allows is refused 413 by name BEFORE any route reads it; a body within the bound reaches the road; an undeclared length is bounded by the bytes themselves', async () => {
     const lourd = JSON.stringify({ requestKey: 'x'.repeat(70 * 1024) });
     // the anonymous quote road, in the buyer's own shape with CORS on the refusal
-    const devis = await mf.dispatchFetch('http://c/checkout/quote', { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: 'https://beurni2.github.io' }, body: lourd });
+    const devis = await mf.dispatchFetch('http://c/checkout/quote', { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: 'https://shop-plus.pages.dev' }, body: lourd });
     expect(devis.status).toBe(413);
     expect(await devis.json()).toEqual({ ok: false, reason: 'body_too_large' });
-    expect(devis.headers.get('Access-Control-Allow-Origin')).toBe('https://beurni2.github.io');
+    expect(devis.headers.get('Access-Control-Allow-Origin')).toBe('https://shop-plus.pages.dev');
     // the reseller book, and a session write
     expect((await appel('/reseller/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: lourd })).status).toBe(413);
     const pub = await appel('/listings', { method: 'POST', headers: A.bearer, body: lourd });
@@ -559,7 +559,7 @@ describe('RESELLER-AUTH-1 — a session creates, and creates only as herself', (
       }
       return { status: brut.status, json: safeJson(b) };
     };
-    const ORIGIN = 'https://beurni2.github.io';
+    const ORIGIN = 'https://shop-plus.pages.dev';
     const contest = await pareil((id) => `/reseller/ventes/${id}/contester`, {
       method: 'POST', headers: { ...A.bearer, Origin: ORIGIN }, body: JSON.stringify({ texte: 'Ce client est un vrai client.' }),
     });

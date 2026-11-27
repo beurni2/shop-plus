@@ -205,8 +205,8 @@ export function EnteteApercuSheet({
                   // Founder screenshot, 2026-08-04: « Aperçu pas affiché »
                   // over a shop that is perfectly online. The bug was mine.
                   //
-                  // Her vitrine is served by GitHub Pages, a STATIC host with
-                  // no router: `/shop-plus/v/{slug}` matches no file, so Pages
+                  // Her vitrine is served by a STATIC host with no router:
+                  // `/v/{slug}` matches no file, so the host
                   // answers **404** with `404.html`, whose script rewrites the
                   // path into `/?/v/{slug}` and the app boots from there. That
                   // 404 is the SPA fallback WORKING — it is how every `/v/`

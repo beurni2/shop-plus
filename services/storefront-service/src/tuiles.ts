@@ -1,3 +1,5 @@
+import { CORS_READ_ORIGIN } from './index.js';
+
 /**
  * ═══ TUILES-PROXY (AUDIT-SHOP-2 F-24) — THE BUYER'S MAP TILES COME THROUGH US ═══
  *
@@ -34,7 +36,7 @@ export const TUILES_ZOOM_MIN = 13;
 export const TUILES_ZOOM_MAX = 19;
 export const TUILES_AMONT = 'https://tile.openstreetmap.org';
 /** OSM's tile usage policy: a User-Agent that identifies the application. */
-export const TUILES_USER_AGENT = 'Shop+ buyer map (https://beurni2.github.io/shop-plus/)';
+export const TUILES_USER_AGENT = `Shop+ buyer map (${CORS_READ_ORIGIN}/)`;
 /** A week at the edge and in her browser: a street map of Ouaga does not move faster. */
 export const TUILES_CACHE_S = 7 * 24 * 3600;
 /** The host's budget before the tile is declared unreachable. */

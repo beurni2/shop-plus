@@ -17,15 +17,15 @@ import { expect, test } from '@playwright/test';
  */
 
 /**
- * Every walk drives the PAGES EMULATOR (4174: project sub-path + 404.html
- * fallback): the canon `/v/` and `/s/` paths the card navigates to have no
+ * Every walk drives the site's OWN HOST, emulated (4174: the root of its
+ * address + 404.html fallback): the canon `/v/` and `/s/` paths the card navigates to have no
  * file behind them, and vite preview (4173) cannot replay the 404 → restore
  * road the real deploy serves (deploy-base.spec.ts, same reason).
  */
 const PAGES = 'http://127.0.0.1:4174';
 
 test('the root is the honest card: no invented seller, one field, one act — and a pasted /v/ link opens the boutique', async ({ page }) => {
-  await page.goto(`${PAGES}/shop-plus/`);
+  await page.goto(`${PAGES}/`);
   await expect(page.locator('[data-screen="racine"]')).toBeVisible();
   // the fiction is gone from the front door
   await expect(page.locator('[data-role="boutique"]')).toHaveCount(0);
@@ -39,13 +39,13 @@ test('the root is the honest card: no invented seller, one field, one act — an
 
   await champ.fill('  « https://beurni2.github.io/shop-plus/v/aicha-4821. »  ');
   await ouvrir.click();
-  await expect(page).toHaveURL(`${PAGES}/shop-plus/v/aicha-4821`);
+  await expect(page).toHaveURL(`${PAGES}/v/aicha-4821`);
   await expect(page.locator('.vt-root[data-screen="vitrine"]')).toBeVisible({ timeout: 10_000 });
   await expect(page.locator('[data-role="vitrine-identity"]')).toContainText('Chez Aïcha Mode');
 });
 
 test('a refused paste keeps her on the card with the sentence and the field; the bare slug then opens the boutique', async ({ page }) => {
-  await page.goto(`${PAGES}/shop-plus/`);
+  await page.goto(`${PAGES}/`);
   const champ = page.locator('[data-role="racine-lien"]');
   const refus = page.locator('[data-role="racine-refus"]');
   await expect(refus).toBeHidden();
@@ -53,7 +53,7 @@ test('a refused paste keeps her on the card with the sentence and the field; the
   await champ.fill('https://wa.me/22670000000');
   await champ.press('Enter');
   // the tree survived, nothing navigated, the refusal is earned and visible
-  await expect(page).toHaveURL(`${PAGES}/shop-plus/`);
+  await expect(page).toHaveURL(`${PAGES}/`);
   await expect(refus).toBeVisible();
   await expect(refus).toHaveText('Ce lien ou ce code n’ouvre pas de boutique. Regardez s’il est bien écrit, ou demandez à votre vendeuse.');
   await expect(champ).toHaveAttribute('aria-invalid', 'true');
@@ -64,48 +64,48 @@ test('a refused paste keeps her on the card with the sentence and the field; the
   await champ.fill('AICHA-4821');
   await expect(refus).toBeHidden();
   await champ.press('Enter');
-  await expect(page).toHaveURL(`${PAGES}/shop-plus/v/aicha-4821`);
+  await expect(page).toHaveURL(`${PAGES}/v/aicha-4821`);
   await expect(page.locator('.vt-root[data-screen="vitrine"]')).toBeVisible({ timeout: 10_000 });
 });
 
 test('the signed offer link opens THAT product on the cliente C1', async ({ page }) => {
-  await page.goto(`${PAGES}/shop-plus/`);
+  await page.goto(`${PAGES}/`);
   await page.locator('[data-role="racine-lien"]').fill('/s/aicha-4821?pid=p2');
   await page.locator('[data-action="racine-ouvrir"]').click();
-  await expect(page).toHaveURL(`${PAGES}/shop-plus/s/aicha-4821?pid=p2`);
+  await expect(page).toHaveURL(`${PAGES}/s/aicha-4821?pid=p2`);
   await expect(page.locator('main.cl-root [data-screen="C1"]')).toBeVisible({ timeout: 10_000 });
   await expect(page.locator('.cl-prodtitle')).toHaveText('Pagne wax 6 yards');
 });
 
-test('on project-page hosting the card lands the link UNDER the deploy base (the F-19 404), and so does every directory href', async ({ page }) => {
-  await page.goto(`${PAGES}/shop-plus/`);
+test('on the root-hosted site the card lands the link at the site root (through the 404 fallback), and so does every directory href', async ({ page }) => {
+  await page.goto(`${PAGES}/`);
   await expect(page.locator('[data-screen="racine"]')).toBeVisible();
   await page.locator('[data-role="racine-lien"]').fill('/v/aicha-4821');
   await page.locator('[data-action="racine-ouvrir"]').click();
-  await expect(page).toHaveURL(`${PAGES}/shop-plus/v/aicha-4821`);
+  await expect(page).toHaveURL(`${PAGES}/v/aicha-4821`);
   await expect(page.locator('.vt-root[data-screen="vitrine"]')).toBeVisible({ timeout: 10_000 });
 
   // DECOUVERTE-RETIREE-1: the demo directory's harness lever is gone with the
   // directory — under the deploy base it lands on the honest card too.
-  await page.goto(`${PAGES}/shop-plus/?demo-boutiques=default`);
+  await page.goto(`${PAGES}/?demo-boutiques=default`);
   await expect(page.locator('[data-screen="racine"]')).toBeVisible();
   await expect(page.locator('[data-role="boutique"]')).toHaveCount(0);
 
   // the retired /boutiques path is the honest card too, and its base is still the app root
-  await page.goto(`${PAGES}/shop-plus/boutiques`);
+  await page.goto(`${PAGES}/boutiques`);
   await expect(page.locator('[data-screen="racine"]')).toBeVisible({ timeout: 10_000 });
   await page.locator('[data-role="racine-lien"]').fill('aicha-4821');
   await page.locator('[data-action="racine-ouvrir"]').click();
-  await expect(page).toHaveURL(`${PAGES}/shop-plus/v/aicha-4821`);
+  await expect(page).toHaveURL(`${PAGES}/v/aicha-4821`);
   await expect(page.locator('.vt-root[data-screen="vitrine"]')).toBeVisible({ timeout: 10_000 });
 });
 
 test('the vitrine\'s invalid-link exit returns to the honest card under the deploy base', async ({ page }) => {
-  await page.goto(`${PAGES}/shop-plus/v/inconnue-0000`);
+  await page.goto(`${PAGES}/v/inconnue-0000`);
   const sortie = page.locator('[data-action="decouvrir"]');
   await expect(sortie).toBeVisible({ timeout: 10_000 });
   await expect(sortie).toHaveText('Ouvrir une autre boutique');
   await sortie.click();
-  await expect(page).toHaveURL(`${PAGES}/shop-plus/`);
+  await expect(page).toHaveURL(`${PAGES}/`);
   await expect(page.locator('[data-screen="racine"]')).toBeVisible();
 });

@@ -26,7 +26,7 @@ function dimensionsPng(chemin: string): { largeur: number; hauteur: number } {
 }
 
 describe('the manifest declares real icons', () => {
-  it('192 and 512, PNG, any+maskable, relative to the manifest (one build serves / and /shop-plus/)', () => {
+  it('192 and 512, PNG, any+maskable, relative to the manifest (one build serves any base)', () => {
     expect(manifest.icons.map((i) => i.sizes).sort()).toEqual(['192x192', '512x512']);
     for (const icone of manifest.icons) {
       expect(icone.type).toBe('image/png');
@@ -42,7 +42,7 @@ describe('the manifest declares real icons', () => {
     expect(dimensionsPng(join(appDir, 'public/icons/apple-touch-icon.png'))).toEqual({ largeur: 180, hauteur: 180 });
     const index = readFileSync(join(appDir, 'index.html'), 'utf8');
     const fallback = readFileSync(join(appDir, 'public/404.html'), 'utf8');
-    for (const [nom, html, base] of [['index.html', index, '/'], ['404.html', fallback, '/shop-plus/']] as const) {
+    for (const [nom, html, base] of [['index.html', index, '/'], ['404.html', fallback, '/']] as const) {
       expect(html, `${nom}: theme-color`).toContain(`<meta name="theme-color" content="${shopPlusTheme.colours.primary}" />`);
       expect(html, `${nom}: apple-touch-icon`).toContain(`<link rel="apple-touch-icon" href="${base}icons/apple-touch-icon.png" />`);
     }

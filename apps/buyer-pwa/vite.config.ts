@@ -70,7 +70,7 @@ function coquilleHorsLigne(): Plugin {
 
 /**
  * POLITIQUE-CONTENU-1 (AUDIT-SHOP-2 F-61) — the Content-Security-Policy and the
- * referrer policy, as `<meta>` in both pages, because GitHub Pages sets no
+ * referrer policy, as `<meta>` in both pages, because the static host sets no
  * response header. Defence in depth: escaping is total (§7), so the policy is
  * the fence behind the fence — an injected script never runs, an injected
  * fetch never leaves, and a link a buyer shares never carries her `?liste=`
@@ -187,7 +187,7 @@ function politiqueContenuPlugin(): Plugin {
 
 export default defineConfig({
   // WO-4.2E: relative base — the SAME build serves the local harness, the
-  // payload gate, and GitHub Pages project hosting (beurni2.github.io/shop-plus/).
+  // payload gate, and the site at the root of its own address.
   base: './',
   build: { outDir: 'dist' },
   plugins: [politiqueContenuPlugin(), coquilleHorsLigne()],

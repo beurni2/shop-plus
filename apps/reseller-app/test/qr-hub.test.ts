@@ -26,12 +26,12 @@ const MOD = dimension.qr.moduleMinPx;
 const derivedSide = (modules: number) => (modules + 2 * QUIET) * MOD;
 
 describe('the on-screen QR side is DERIVED from canon dimension.qr (never hand-picked)', () => {
-  it('the canon URL encodes to V4 (33 modules) → 164 dp = (33 + 2·4)·4', () => {
+  it('the canon URL encodes to V3 (29 modules) → 148 dp = (29 + 2·4)·4', () => {
     const qr = encodeQr(DEMO_QR_URL);
-    expect(qr.size).toBe(33); // V4
+    expect(qr.size).toBe(29); // V3
     expect(QUIET).toBe(4);
     expect(MOD).toBe(4);
-    expect(derivedSide(qr.size)).toBe(164);
+    expect(derivedSide(qr.size)).toBe(148);
   });
 
   it('the side rides the version — a smaller/larger matrix moves it by the same law', () => {

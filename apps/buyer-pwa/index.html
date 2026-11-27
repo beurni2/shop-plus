@@ -20,8 +20,8 @@
           // URL. The restore replaceState moves location to the deep /v/{slug}
           // path; with vite's relative base ('./') that would re-root the module
           // script + assets at `<deep>/assets/*` and 404 them, so the app never
-          // boots on the real Pages deploy (beurni2.github.io/shop-plus/). Here
-          // l.pathname is the project root (e.g. /shop-plus/); a <base> element
+          // boots on a sub-path deploy (the old project address did this). Here
+          // l.pathname is the app root (/ at the buyer site's own address); a <base> element
           // pins baseURI to it, so './assets/*' always resolve to the app root
           // regardless of the restored path. No-op on normal loads (no `?/`).
           var b = document.createElement('base');

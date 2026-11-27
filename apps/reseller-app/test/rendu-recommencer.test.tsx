@@ -147,7 +147,7 @@ describe('RECOMMENCER — the address follows the name, in one confirmed tap', (
     expect(screen.shows(`En ligne : ${slugNeuf}`), `on screen: ${JSON.stringify(screen.texts().slice(0, 16))}`).toBe(true);
     const { Linking } = await import('./doubles/react-native');
     await screen.press('Voir ma boutique en ligne');
-    expect(Linking.opened[Linking.opened.length - 1]).toBe(`https://beurni2.github.io/shop-plus/v/${slugNeuf}`);
+    expect(Linking.opened[Linking.opened.length - 1]).toBe(`https://shop-plus.pages.dev/v/${slugNeuf}`);
 
     // And the identity SURVIVES a restart: the store now holds the new digits.
     const { expoIdentityStore } = await import('../src/identity/expoStore');
