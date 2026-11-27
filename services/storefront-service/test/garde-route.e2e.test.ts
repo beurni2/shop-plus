@@ -8,7 +8,7 @@ import { PlatformEventSchema } from '@platform/contracts';
 import { MockPaymentProvider } from '@shop-plus/commerce-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { composeSandboxConfirmation } from '../../../scripts/sandbox-payment-confirm.mjs';
-import { OPS_SECRET, seance } from './seance';
+import { OPS_SECRET, seance, boutiqueDe } from './seance';
 
 /**
  * ═══ GARDE-ROUTE — the buyer's code reaches custody in time, an order that
@@ -309,19 +309,19 @@ const rk = (): string => `rk-gr-${String((keySeq += 1)).padStart(4, '0')}-${'x'.
 
 type Mode = 'FULL_PREPAY' | 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR';
 
-let shopSeq = 0;
 async function boutique(n: string): Promise<{ slug: string; resellerId: string }> {
   const S = await seance(mf, `gr${n}`);
-  const shortCode = `GR-${String((shopSeq += 1)).padStart(4, '0')}`;
+  const B = boutiqueDe(S, 'GR');
+  const { shortCode } = B;
   const created = await post('/storefronts', {
-    commandId: `cmd-create-gr-${n}`, id: `sf-gr-${n}`, resellerId: S.accountId, shortCode,
+    commandId: `cmd-create-gr-${n}`, id: B.id, resellerId: S.accountId, shortCode,
     name: 'Boutique de Aïcha', zone: 'Ouagadougou', category: 'Général', correlationId: `corr-gr-${n}`, at: T0,
   }, S.bearer);
   if (created.status !== 200) throw new Error(`setup: storefront ${created.status} ${created.text}`);
-  await post(`/storefronts/sf-gr-${n}/publish`, { correlationId: 'corr-en-ligne' }, S.bearer);
+  await post(`/storefronts/${B.id}/publish`, { correlationId: 'corr-en-ligne' }, S.bearer);
   for (const [i, v] of SUPPLY.entries()) {
     const pub = await post('/listings', {
-      commandId: `cmd-listing-gr-${n}-${i}`, listingId: `lst-gr-${n}-${i}`, storefrontId: `sf-gr-${n}`,
+      commandId: `cmd-listing-gr-${n}-${i}`, listingId: `lst-gr-${n}-${i}`, storefrontId: B.id,
       resellerId: S.accountId, productVersionId: v.productVersionId, offerVersion: v.offerVersion,
       markup: 500, correlationId: `corr-gr-${n}`, at: T0,
     }, S.bearer);

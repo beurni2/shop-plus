@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { Miniflare } from 'miniflare';
 import { afterAll, describe, expect, it } from 'vitest';
 import { MAX_PRODUITS_DECRITS } from '../src/index.js';
+import { boutiqueDe } from './seance';
 
 /**
  * ═══ RESELLER-AUTH-1 (AUDIT-SHOP-1 slice a2a) — HER SESSION IS HER KEY, AND
@@ -161,8 +162,11 @@ const creer = (resellerId: string, id: string, headers: Record<string, string>) 
     method: 'POST',
     headers,
     body: JSON.stringify({
-      // the canon short code is LETTERS-4DIGITS (`SELLER-0001`); the id is not one
-      commandId: `cmd-create-${id}`, id, resellerId, shortCode: `OWN-${String((codes += 1)).padStart(4, '0')}`, name: `Boutique ${id}`,
+      // the canon short code is LETTERS-4DIGITS (`SELLER-0001`); a book-minted
+      // owner's code carries her own four digits, any other a running number
+      commandId: `cmd-create-${id}`, id, resellerId,
+      shortCode: /^rs-\d{4}$/.test(resellerId) ? boutiqueDe({ accountId: resellerId }, 'OWN').shortCode : `OWN-${String((codes += 1)).padStart(4, '0')}`,
+      name: `Boutique ${id}`,
       zone: 'Ouagadougou', category: 'Général', correlationId: `corr-${id}`, at: T0,
     }),
   });
@@ -205,14 +209,16 @@ let A!: Awaited<ReturnType<typeof seance>>;
 let B!: Awaited<ReturnType<typeof seance>>;
 let slugA = '';
 let slugB = '';
-const SF_A = 'sf-own-a';
-const SF_B = 'sf-own-b';
+let SF_A = '';
+let SF_B = '';
 const LST_A = 'lst-own-a';
 
 describe('RESELLER-AUTH-1 — a session creates, and creates only as herself', () => {
   it('A creates her shop with NO write key; B cannot create a shop in A\'s name; B creates her own', async () => {
     A = await seance();
     B = await seance();
+    SF_A = boutiqueDe(A, 'OWN').id;
+    SF_B = boutiqueDe(B, 'OWN').id;
     const a = await creer(A.accountId, SF_A, A.bearer);
     expect(a.status, a.text).toBe(200);
     expect(a.json['status']).toBe('created');
@@ -264,7 +270,7 @@ describe('RESELLER-AUTH-1 — a session creates, and creates only as herself', (
     expect(listeB.map((r) => r.id)).toEqual([SF_B]);
     // the founder's key-C read (ACCES-ARME-2's operator road) keeps the whole directory
     const tout = (await appel('/storefronts', { headers: cleC })).json as unknown as { id: string }[];
-    expect(tout.map((r) => r.id).sort()).toEqual([SF_A, SF_B]);
+    expect(tout.map((r) => r.id).sort()).toEqual([SF_A, SF_B].sort());
   });
 
   it('B\'s acts on A\'s shop — rename, remove an item, DELETE — are refused mute, and A\'s shop is untouched, public page included', async () => {
@@ -560,17 +566,17 @@ describe('RESELLER-AUTH-1 — a session creates, and creates only as herself', (
     expect(annuaire.filter((r) => r.slug === slugA).map((r) => r.id)).toEqual([SF_A]);
     expect(annuaire.some((r) => r.id === 'sf-own-vol')).toBe(false);
     // B's shop was DELETED on key C above: its slug is free, and B takes it back
-    // under a new id — the only road that ever frees a slug
-    const reprise = await creerAvec(B.accountId, 'sf-own-b2', B.bearer, codeB, 'cmd-reprise');
+    // under her own id — the only road that ever frees a slug
+    const reprise = await creerAvec(B.accountId, SF_B, B.bearer, codeB, 'cmd-reprise');
     expect(reprise.status, reprise.text).toBe(200);
     expect(reprise.json['status']).toBe('created');
-    expect((await appel('/storefronts/sf-own-b2/publish', { method: 'POST', headers: B.bearer, body: JSON.stringify({ correlationId: 'corr-en-ligne' }) })).status).toBe(200);
-    expect((await appel(`/s/${slugB}`, {})).json['id']).toBe('sf-own-b2');
+    expect((await appel(`/storefronts/${SF_B}/publish`, { method: 'POST', headers: B.bearer, body: JSON.stringify({ correlationId: 'corr-en-ligne' }) })).status).toBe(200);
+    expect((await appel(`/s/${slugB}`, {})).json['id']).toBe(SF_B);
     // …and now that B holds it, A cannot take it either — the law has no owner bias
     const retour = await creerAvec(A.accountId, 'sf-own-a2', A.bearer, codeB, 'cmd-retour');
     expect(retour.status, retour.text).toBe(409);
     expect(retour.json).toEqual({ error: 'slug_taken' });
-    expect((await appel(`/s/${slugB}`, {})).json['id']).toBe('sf-own-b2');
+    expect((await appel(`/s/${slugB}`, {})).json['id']).toBe(SF_B);
   });
 
   it('VITRINE-LECTURE-1 (AUDIT-SHOP-2 F-05, F-29) — one boutique read asks the producer ONCE for the whole shop; a pid the collection omits is asked alone (the denial road kept, nothing hidden); a producer that never answers costs the read its timeout, not the page — and the page SAYS it is incomplete', async () => {

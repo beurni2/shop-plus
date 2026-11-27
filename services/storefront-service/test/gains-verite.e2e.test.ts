@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { Miniflare } from 'miniflare';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { composeSandboxRefund } from '../../../scripts/sandbox-payment-confirm.mjs';
-import { cleC, seance, type Seance } from './seance';
+import { cleC, seance, type Seance, boutiqueDe } from './seance';
 
 /**
  * ═══ « MES GAINS » SHOWS EACH SALE AT THE RUNG THE SERVER RECORDS — on the
@@ -157,21 +157,22 @@ async function sonFil(S: Seance): Promise<Record<string, unknown>[]> {
 
 /** A provider-confirmed checkout leg on an order under HER attribution. */
 async function commandePayee(S: Seance, n: string, mode: Mode): Promise<string> {
+  const B = boutiqueDe(S, 'GV');
   const created = await poste('/storefronts', {
-    commandId: `cmd-create-${n}`, id: `sf-gv-${n}`, resellerId: S.accountId,
-    shortCode: `GV-${n}`, name: 'Boutique de Awa', zone: 'Ouagadougou',
+    commandId: `cmd-create-${B.id}`, id: B.id, resellerId: S.accountId,
+    shortCode: B.shortCode, name: 'Boutique de Awa', zone: 'Ouagadougou',
     category: 'Général', correlationId: `corr-gv-${n}`, at: T0,
   }, S.bearer);
   if (created.status !== 200) throw new Error(`setup: storefront ${created.status} ${created.text}`);
-  await poste(`/storefronts/${encodeURIComponent(`sf-gv-${n}`)}/publish`, { correlationId: 'corr-en-ligne' }, S.bearer);
+  await poste(`/storefronts/${encodeURIComponent(B.id)}/publish`, { correlationId: 'corr-en-ligne' }, S.bearer);
   const pub = await poste('/listings', {
-    commandId: `cmd-listing-${n}`, listingId: `lst-gv-${n}`, storefrontId: `sf-gv-${n}`,
+    commandId: `cmd-listing-${n}`, listingId: `lst-gv-${n}`, storefrontId: B.id,
     resellerId: S.accountId, productVersionId: 'pv-gv-1', offerVersion: 'ov-gv-1',
     markup: 1_500, correlationId: `corr-gv-${n}`, at: T0,
   }, S.bearer);
   if (pub.json['status'] !== 'published') throw new Error(`setup: listing ${pub.text}`);
   const quote = await poste('/checkout/quote', {
-    slug: `gv-${n}`, pid: 'pv-gv-1', paymentMode: mode, zoneTo: 'Ouagadougou',
+    slug: B.slug, pid: 'pv-gv-1', paymentMode: mode, zoneTo: 'Ouagadougou',
     attributionResellerId: S.accountId, requestKey: freshKey(),
   });
   const quoteId = quote.json['quoteId'];

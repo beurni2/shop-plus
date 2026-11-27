@@ -79,3 +79,24 @@ export async function seance(mf: Miniflare, etiquette = 'awa'): Promise<Seance> 
     octets: (contentType: string) => ({ Authorization: `Bearer ${session}`, 'Content-Type': contentType }),
   };
 }
+
+/**
+ * HER SHOP CARRIES HER DIGITS — the one shop an account may create is
+ * `sf-{the four digits of her rs- id}`, its short code `{STEM}-{the same four}`.
+ * A suite names the stem (2–12 capitals, the canon short-code letters) and
+ * never the digits: the book minted those.
+ */
+export interface Boutique {
+  readonly id: string;
+  readonly shortCode: string;
+  /** The public slug — the short code lower-cased (`/s/{slug}`). */
+  readonly slug: string;
+}
+
+export function boutiqueDe(S: { readonly accountId: string }, stem: string): Boutique {
+  const d = /^rs-(\d{4})$/.exec(S.accountId)?.[1];
+  if (d === undefined) throw new Error(`boutiqueDe: ${S.accountId} is not an rs-NNNN account`);
+  if (!/^[A-Z]{2,12}$/.test(stem)) throw new Error(`boutiqueDe: stem ${stem} is not 2–12 capitals`);
+  const shortCode = `${stem}-${d}`;
+  return { id: `sf-${d}`, shortCode, slug: shortCode.toLowerCase() };
+}

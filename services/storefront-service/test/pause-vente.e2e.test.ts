@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Miniflare } from 'miniflare';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { cleC, seance } from './seance';
+import { cleC, seance, boutiqueDe } from './seance';
 
 /**
  * ═══ PAUSE-VENTE-1 — « paused resellers can not sell anything until they are
@@ -110,27 +110,28 @@ const freshKey = (): string => `rk-pv-${String((keySeq += 1)).padStart(4, '0')}-
 
 /** Her shop with one published product, through the REAL doors on her session. */
 async function boutique(S: Seance, n: string): Promise<{ slug: string }> {
+  const B = boutiqueDe(S, 'PV');
   const created = await mf.dispatchFetch('http://c/storefronts', {
     method: 'POST', headers: S.bearer,
     body: JSON.stringify({
-      commandId: `cmd-create-${n}`, id: `sf-pv-${n}`, resellerId: S.accountId,
-      shortCode: `PV-${n}`, name: 'Boutique de Salimata', zone: 'Ouagadougou',
+      commandId: `cmd-create-${B.id}`, id: B.id, resellerId: S.accountId,
+      shortCode: B.shortCode, name: 'Boutique de Salimata', zone: 'Ouagadougou',
       category: 'Général', correlationId: `corr-pv-${n}`, at: T0,
     }),
   });
   // EN-LIGNE-1 — her app puts the shop online in the same act as creating it.
-  await mf.dispatchFetch(`http://c/storefronts/${encodeURIComponent(`sf-pv-${n}`)}/publish`, { method: 'POST', headers: S.bearer, body: JSON.stringify({ correlationId: 'corr-en-ligne' }) });
+  await mf.dispatchFetch(`http://c/storefronts/${encodeURIComponent(B.id)}/publish`, { method: 'POST', headers: S.bearer, body: JSON.stringify({ correlationId: 'corr-en-ligne' }) });
   if (created.status !== 200) throw new Error(`setup: storefront ${created.status} ${await created.text()}`);
   const pub = await mf.dispatchFetch('http://c/listings', {
     method: 'POST', headers: S.bearer,
     body: JSON.stringify({
-      commandId: `cmd-listing-${n}`, listingId: `lst-pv-${n}`, storefrontId: `sf-pv-${n}`,
+      commandId: `cmd-listing-${n}`, listingId: `lst-pv-${n}`, storefrontId: B.id,
       resellerId: S.accountId, productVersionId: 'pv-pause-1', offerVersion: 'ov-pause-1',
       markup: 1_500, correlationId: `corr-pv-${n}`, at: T0,
     }),
   });
   if (((await pub.json()) as { status?: string }).status !== 'published') throw new Error('setup: listing');
-  return { slug: `pv-${n}` };
+  return { slug: B.slug };
 }
 
 /** THE BUYER'S PAGE — credential-free, the only answer that settles « can she sell ». */

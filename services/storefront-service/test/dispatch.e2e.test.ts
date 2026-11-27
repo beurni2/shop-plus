@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { MockPaymentProvider } from '@shop-plus/commerce-core';
 import { Miniflare } from 'miniflare';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { OPS_SECRET, seance, type Seance } from './seance';
+import { OPS_SECRET, seance, type Seance, boutiqueDe } from './seance';
 
 /**
  * BC-1a — THE BUYER'S DISPATCH CONTACT, END TO END on real workerd (founder-
@@ -113,25 +113,26 @@ let keyN = 0;
 const freshKey = (): string => `rk-dispatch-${String((keyN += 1)).padStart(4, '0')}-${'x'.repeat(10)}`;
 
 async function seedShop(n: string): Promise<{ slug: string; resellerId: string; session: string; pid: string }> {
-  const shortCode = `DISP-${n}`;
   const S = await seance(mf, `disp${n}`);
+  const B = boutiqueDe(S, 'DISP');
+  const { shortCode } = B;
   const created = await mf.dispatchFetch('http://c/storefronts', {
     method: 'POST',
     headers: S.bearer,
     body: JSON.stringify({
-      commandId: `cmd-create-${n}`, id: `sf-disp-${n}`, resellerId: S.accountId, shortCode,
+      commandId: `cmd-create-${n}`, id: B.id, resellerId: S.accountId, shortCode,
       name: 'Boutique du fondateur', zone: 'Ouagadougou', category: 'Général',
       correlationId: `corr-${n}`, at: T0,
     }),
   });
   // EN-LIGNE-1 — her app puts the shop online in the same act as creating it.
-  await mf.dispatchFetch(`http://c/storefronts/${encodeURIComponent(`sf-disp-${n}`)}/publish`, { method: 'POST', headers: S.bearer, body: JSON.stringify({ correlationId: 'corr-en-ligne' }) });
+  await mf.dispatchFetch(`http://c/storefronts/${encodeURIComponent(B.id)}/publish`, { method: 'POST', headers: S.bearer, body: JSON.stringify({ correlationId: 'corr-en-ligne' }) });
   if (created.status !== 200) throw new Error(`seed: storefront ${created.status}`);
   const pub = await mf.dispatchFetch('http://c/listings', {
     method: 'POST',
     headers: S.bearer,
     body: JSON.stringify({
-      commandId: `cmd-listing-${n}`, listingId: `lst-disp-${n}`, storefrontId: `sf-disp-${n}`,
+      commandId: `cmd-listing-${n}`, listingId: `lst-disp-${n}`, storefrontId: B.id,
       resellerId: S.accountId, productVersionId: 'pv-dispatch-1', offerVersion: 'ov-dispatch-1',
       markup: 1_500, correlationId: `corr-${n}`, at: T0,
     }),
@@ -676,24 +677,25 @@ describe('RF-1a B2 — a row lost at confirmation time is repaired by the next w
       // she is seated on that same Worker; the accounts book is durable, so
       // the healed Worker below knows her id.
       const S = await seance(blind, 'b2');
+      const B = boutiqueDe(S, 'DISP');
       sessionB2 = S.session;
       const created = await blind.dispatchFetch('http://c/storefronts', {
         method: 'POST',
         headers: S.bearer,
         body: JSON.stringify({
-          commandId: `cmd-create-${N}`, id: `sf-disp-${N}`, resellerId: S.accountId, shortCode: `DISP-0021`,
+          commandId: `cmd-create-${N}`, id: B.id, resellerId: S.accountId, shortCode: B.shortCode,
           name: 'Boutique du fondateur', zone: 'Ouagadougou', category: 'Général',
           correlationId: `corr-${N}`, at: T0,
         }),
       });
       // EN-LIGNE-1 — her app puts the shop online in the same act as creating it.
-      await blind.dispatchFetch(`http://c/storefronts/${encodeURIComponent(`sf-disp-${N}`)}/publish`, { method: 'POST', headers: S.bearer, body: JSON.stringify({ correlationId: 'corr-en-ligne' }) });
+      await blind.dispatchFetch(`http://c/storefronts/${encodeURIComponent(B.id)}/publish`, { method: 'POST', headers: S.bearer, body: JSON.stringify({ correlationId: 'corr-en-ligne' }) });
       expect(created.status).toBe(200);
       const pub = await blind.dispatchFetch('http://c/listings', {
         method: 'POST',
         headers: S.bearer,
         body: JSON.stringify({
-          commandId: `cmd-listing-${N}`, listingId: `lst-disp-${N}`, storefrontId: `sf-disp-${N}`,
+          commandId: `cmd-listing-${N}`, listingId: `lst-disp-${N}`, storefrontId: B.id,
           resellerId: S.accountId, productVersionId: 'pv-dispatch-1', offerVersion: 'ov-dispatch-1',
           markup: 1_500, correlationId: `corr-${N}`, at: T0,
         }),
@@ -703,7 +705,7 @@ describe('RF-1a B2 — a row lost at confirmation time is repaired by the next w
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          slug: 'disp-0021', pid: 'pv-dispatch-1', paymentMode: 'FULL_PREPAY', zoneTo: 'Ouagadougou',
+          slug: B.slug, pid: 'pv-dispatch-1', paymentMode: 'FULL_PREPAY', zoneTo: 'Ouagadougou',
           attributionResellerId: S.accountId, requestKey: `rk-b2-0001-${'x'.repeat(10)}`,
         }),
       });
@@ -815,22 +817,23 @@ describe('RF-1a B3 — a feed longer than the fan-out cap is truncated and SAYS 
 
   it('THREE real confirmed sales, a cap of two: she sees two and the answer declares itself partial', async () => {
     const S = await seance(capped, 'cap');
+    const B = boutiqueDe(S, 'CAP');
     const RID = S.accountId;
     const seeded = await capped.dispatchFetch('http://c/storefronts', {
       method: 'POST', headers: S.bearer,
       body: JSON.stringify({
-        commandId: 'cmd-cap', id: 'sf-cap', resellerId: RID, shortCode: 'CAP-0001',
+        commandId: 'cmd-cap', id: B.id, resellerId: RID, shortCode: B.shortCode,
         name: 'Boutique du fondateur', zone: 'Ouagadougou', category: 'Général',
         correlationId: 'corr-cap', at: T0,
       }),
     });
     // EN-LIGNE-1 — her app puts the shop online in the same act as creating it.
-    await capped.dispatchFetch(`http://c/storefronts/${encodeURIComponent('sf-cap')}/publish`, { method: 'POST', headers: S.bearer, body: JSON.stringify({ correlationId: 'corr-en-ligne' }) });
+    await capped.dispatchFetch(`http://c/storefronts/${encodeURIComponent(B.id)}/publish`, { method: 'POST', headers: S.bearer, body: JSON.stringify({ correlationId: 'corr-en-ligne' }) });
     expect(seeded.status).toBe(200);
     const pub = await capped.dispatchFetch('http://c/listings', {
       method: 'POST', headers: S.bearer,
       body: JSON.stringify({
-        commandId: 'cmd-cap-l', listingId: 'lst-cap', storefrontId: 'sf-cap', resellerId: RID,
+        commandId: 'cmd-cap-l', listingId: 'lst-cap', storefrontId: B.id, resellerId: RID,
         productVersionId: 'pv-dispatch-1', offerVersion: 'ov-dispatch-1', markup: 1_500,
         correlationId: 'corr-cap', at: T0,
       }),
@@ -841,7 +844,7 @@ describe('RF-1a B3 — a feed longer than the fan-out cap is truncated and SAYS 
       const q = await capped.dispatchFetch('http://c/checkout/quote', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          slug: 'cap-0001', pid: 'pv-dispatch-1', paymentMode: 'FULL_PREPAY', zoneTo: 'Ouagadougou',
+          slug: B.slug, pid: 'pv-dispatch-1', paymentMode: 'FULL_PREPAY', zoneTo: 'Ouagadougou',
           attributionResellerId: RID, requestKey: `rk-cap-000${i}-${'x'.repeat(10)}`,
         }),
       });
@@ -958,23 +961,24 @@ describe('READINESS-RETURN-1c — preparation news arrives and reaches her feed'
 
   it('sets the stage: one confirmed sale of hers', async () => {
     const S = await seance(world, 'rr1c');
+    const B = boutiqueDe(S, 'RRC');
     RID = S.accountId;
     sessionRid = S.session;
     const sf = await world.dispatchFetch('http://c/storefronts', {
       method: 'POST', headers: S.bearer,
       body: JSON.stringify({
-        commandId: 'cmd-rr1c', id: 'sf-rr1c', resellerId: RID, shortCode: 'RRC-0001',
+        commandId: 'cmd-rr1c', id: B.id, resellerId: RID, shortCode: B.shortCode,
         name: 'Boutique du fondateur', zone: 'Ouagadougou', category: 'Général',
         correlationId: 'corr-rr1c', at: T0,
       }),
     });
     // EN-LIGNE-1 — her app puts the shop online in the same act as creating it.
-    await world.dispatchFetch(`http://c/storefronts/${encodeURIComponent('sf-rr1c')}/publish`, { method: 'POST', headers: S.bearer, body: JSON.stringify({ correlationId: 'corr-en-ligne' }) });
+    await world.dispatchFetch(`http://c/storefronts/${encodeURIComponent(B.id)}/publish`, { method: 'POST', headers: S.bearer, body: JSON.stringify({ correlationId: 'corr-en-ligne' }) });
     expect(sf.status).toBe(200);
     const pub = await world.dispatchFetch('http://c/listings', {
       method: 'POST', headers: S.bearer,
       body: JSON.stringify({
-        commandId: 'cmd-rr1c-l', listingId: 'lst-rr1c', storefrontId: 'sf-rr1c', resellerId: RID,
+        commandId: 'cmd-rr1c-l', listingId: 'lst-rr1c', storefrontId: B.id, resellerId: RID,
         productVersionId: 'pv-dispatch-1', offerVersion: 'ov-dispatch-1', markup: 1_500,
         correlationId: 'corr-rr1c', at: T0,
       }),
@@ -983,7 +987,7 @@ describe('READINESS-RETURN-1c — preparation news arrives and reaches her feed'
     const q = await world.dispatchFetch('http://c/checkout/quote', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        slug: 'rrc-0001', pid: 'pv-dispatch-1', paymentMode: 'FULL_PREPAY', zoneTo: 'Ouagadougou',
+        slug: B.slug, pid: 'pv-dispatch-1', paymentMode: 'FULL_PREPAY', zoneTo: 'Ouagadougou',
         attributionResellerId: RID, requestKey: `rk-rr1c-0001-${'x'.repeat(10)}`,
       }),
     });

@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Miniflare } from 'miniflare';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { OPS_SECRET, seance, type Seance } from './seance';
+import { OPS_SECRET, seance, type Seance, boutiqueDe } from './seance';
 
 /**
  * ═══ A SECOND « AJOUTER À MA VITRINE » CANNOT CHANGE HER PRICE ═══
@@ -32,7 +32,8 @@ import { OPS_SECRET, seance, type Seance } from './seance';
 const SCRIPT = 'dist/worker/worker.mjs';
 const persist = mkdtempSync(join(tmpdir(), 'republish-idem-'));
 
-const SF_ID = 'sf-republish-001';
+let SF_ID = '';
+let CODE = '';
 const PV = 'pv-republish-001';
 const BASE_PRICE = 10_000;
 
@@ -83,6 +84,7 @@ afterAll(async () => {
 let S: Seance;
 beforeAll(async () => {
   S = await seance(mf, 'republish');
+  ({ id: SF_ID, shortCode: CODE } = boutiqueDe(S, 'REPUB'));
 });
 
 const post = (p: string, b: unknown): Promise<Response> =>
@@ -92,11 +94,11 @@ const get = (p: string): Promise<Response> =>
 
 /** The app's own derivation (`listingIdFor` + `publish-${listingId}`), mirrored:
  *  a re-tap must be the SAME command, or this proves nothing about the screen. */
-const LISTING_ID = `lst-${SF_ID}-${PV}`;
+const listingId = (): string => `lst-${SF_ID}-${PV}`;
 const publish = (markup: number): Promise<Response> =>
   post('/listings', {
-    commandId: `publish-${LISTING_ID}`,
-    listingId: LISTING_ID,
+    commandId: `publish-${listingId()}`,
+    listingId: listingId(),
     storefrontId: SF_ID,
     resellerId: S.accountId,
     productVersionId: PV,
@@ -111,7 +113,7 @@ describe('RE-PUBLISH — the second « Ajouter » is a no-op, and her signed mar
       commandId: 'c-republish-001',
       id: SF_ID,
       resellerId: S.accountId,
-      shortCode: 'REPUB-0001',
+      shortCode: CODE,
       name: 'Boutique republish',
       zone: 'Ouagadougou',
       category: 'Général',
@@ -137,7 +139,7 @@ describe('RE-PUBLISH — the second « Ajouter » is a no-op, and her signed mar
     ).toBe('idempotent');
 
     // ── ASK THE LEDGER, not the answer ────────────────────────────────────
-    const listing = (await (await get(`/listings/${LISTING_ID}`)).json()) as { markup: number; version: number };
+    const listing = (await (await get(`/listings/${listingId()}`)).json()) as { markup: number; version: number };
     expect(listing.markup, 'the signed marge moved on a re-tap — the screen may not offer that button').toBe(0);
     expect(listing.version, 'a second version would mean a second signed price').toBe(1);
 

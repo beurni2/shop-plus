@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Miniflare } from 'miniflare';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { OPS_SECRET, seance, type Seance } from './seance';
+import { OPS_SECRET, seance, type Seance, boutiqueDe } from './seance';
 
 /**
  * ═══ EN-LIGNE-1 (founder ruling 2026-10-02, « fix this »; canon 3.27.0 §4.1) —
@@ -52,12 +52,14 @@ const mf = new Miniflare({
   },
 });
 
-const SF_ID = 'sf-el-1';
-const SLUG = 'el-0001';
+let SF_ID = '';
+let SLUG = '';
+let CODE = '';
 let S: Seance;
 
 beforeAll(async () => {
   S = await seance(mf, 'el');
+  ({ id: SF_ID, slug: SLUG, shortCode: CODE } = boutiqueDe(S, 'EL'));
   globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
     const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
     const { signal: _signal, ...reste } = init ?? {};
@@ -67,7 +69,7 @@ beforeAll(async () => {
   // put online: the state of a shop never published, or unpublished since.
   const created = await mf.dispatchFetch('http://sf/storefronts', {
     method: 'POST', headers: S.bearer,
-    body: JSON.stringify({ commandId: 'c-el-1', id: SF_ID, resellerId: S.accountId, shortCode: 'EL-0001', name: 'Chez Awa', zone: 'Ouagadougou', category: 'Général', correlationId: 'corr-el-1' }),
+    body: JSON.stringify({ commandId: 'c-el-1', id: SF_ID, resellerId: S.accountId, shortCode: CODE, name: 'Chez Awa', zone: 'Ouagadougou', category: 'Général', correlationId: 'corr-el-1' }),
   });
   expect(created.status).toBe(200);
   const pub = await mf.dispatchFetch('http://sf/listings', {
