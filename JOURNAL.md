@@ -1,6 +1,43 @@
 # JOURNAL — shop-plus
 Continuity ledger per CTO charter §6/§6bis. Every entry is evidence-grounded.
 
+## 2026-11-27 · COMPTES-REVENDEUSE-1 — her password counted on the profile door, her number and email changed only with it, two order roads that no longer throw on a bad link, her shop carries her own number · lane P9 · on the branch, NOT merged, NOT deployed
+
+**Founder.** « Now you start working on the next batch » (2026-11-27 15:13 UTC), batch 5 of the plan he approved: « A reseller's password can no longer be guessed without limit, and changing the email or phone needs it. One reseller can no longer take another's shop name. Two badly typed links stop failing with an error. » No choice card for this part.
+
+**Lane.** Lane P, slice P9. Lane commits on main `03d3530`: a tests-only fixture commit, a red commit, the fix, and one tests-only commit for the review's findings. Integrated on `claude/project-thread-jqj97g` on the i18n pin `be684ed` as two commits: `ab5decb` (the fixtures, tests only) and `ff331ee` (the red, the fix and the review's tests, squashed). Product and test files are the lane's byte for byte.
+
+**Spec.**
+- Shop-Plus-Build-Spec SP6 (l.189), the account rule: « changes her password (the current one first, every other session ended) … every wrong way in is the same refusal ».
+- This journal, the buyer book's profile door: « ten refusals per account per quarter hour, counted before the derivation ». The reseller login door's « count first, prove after ».
+- This journal, PUBLIC-DECODE-1: « a segment that will not decode is nobody's on EVERY road … never a 500 ».
+- This journal, the slug residue: « the digits-must-match-the-account rule was NOT added … his call ». The plan he approved makes that call: « One reseller can no longer take another's shop name. »
+
+**What changed.**
+- *The reseller profile door.* Every current-password guess is counted per account with the login door's own limit and window (ten refusals in the quarter hour, then `429 too_many_attempts`), counted before the hashing, the count cleared on success. No new number.
+- *Her number and her email.* A save that changes the phone (trimmed) or the email (trimmed, lowercased) needs her current password: missing is `400 bad_field currentPassword`, wrong is `401 bad_password`. The proof runs before the taken-email lookup. After the hashing the record is read again and the save is applied to it. A name-only save needs no password; `currentPassword` may now come alone.
+- *Two order roads* (her contest road; key C's related-party read and its `/resolve`). A segment that will not decode answers exactly what the road answers for an unknown, well-formed order id: `404 unknown_order`, with that road's CORS and cache headers.
+- *Her shop's number.* A reseller session creates a shop only as `sf-{the digits of her rs- id}`, with a short code ending `-{the same digits}`. Anything else is `403 not_owner`, decided from the session before the existence read, so the answer is the same whether the named shop exists or not. Key-C creates are unchanged. Existing shops are not touched.
+- *Reseller app.* A `429` on the profile reads « Trop d'essais » (`compte.trop_essais`), never the session-ended or no-network road. On « Mes informations », a password field appears while the number or email differs from the record, with one new approved sentence, `profil.infos_mdp_aide` (neutral, instruction): « Pour changer votre numéro ou votre email, tapez votre mot de passe. »
+
+**Evidence.**
+- Fixtures first: every seated test reseller now creates her shop as `sf-{her digits}`. That commit changes tests only; on main's Worker the 1 011 results were identical test by test.
+- Lane, red first on the real Worker (Miniflare), asking the book: a new file `comptes-revendeuse.e2e` (10 tests: the 11th guess is 429; in the window the right password is 429 too and the old one still logs in; the count starts again after a success; two guesses sent together count two; a phone or email change without the password is refused and the book keeps the old value; with it, the book holds the new one; a name-only save needs nothing; the counter comes before the hashing in the door's source, because the runtime cannot show the order). `proprietaire.e2e`: `%FF` on the three roads equals an unknown id's answer; a foreign id or foreign digits is 403 and the other's own create then succeeds; her own and her repeat succeed; key C unchanged; a fresh account's freed link is proven through the Worker (old link 404 after a delete and a new create).
+- Lane full storefront suite three times with random ids: 1021 / 1020 passed / 0 failed / 1 skipped; after the review commit 1022 / 1021 / 0 / 1. Reseller app: 93 files, 938 passed. Typechecks 0.
+- Screen walk « Mes informations » (`rendu-profil`): a name-only save with no field; a new number shows the field and the sentence, « Enregistrer » waits for it; a wrong password shows its sentence, the typing stays and she stays signed in; the right one saves and the hub shows the new number; a 429 shows « Trop d'essais », not the session-ended road; the stand-in is certified to the Worker's rule.
+- Mutations, each anchor matched once, each file restored byte-identical: the counter read off → 2 red; the contact-change check removed → 3 red; the digits rule's id half off → 2 red; one road's safe decode reverted → red; the delete's link cleanup removed → the freed-link proof red; the counter and the hashing swapped → the source-order test red.
+- Changed existing expectations, only where this order changes the behaviour: a foreign create 404 → 403; the slug « vol » and « retour » 409 → 403 (the book checks kept); three `accounts.e2e` saves now send `currentPassword`; two profile walks type the password.
+- Coordinator re-runs on `ff331ee` after `pnpm build`: comptes-revendeuse + proprietaire + accounts 54/54; reseller app rendu-profil + compte 42/42; copy-lint 600 entries, 0 violations; the « contact-change proof removed » mutation 3 red, restored; the delete's link cleanup removed → the freed-link case red (1 of 14), restored byte-identical, then 14/14.
+- Coordinator, full board on `ff331ee` (`pnpm build`, turbo forced): every gate passes except `playwright-e2e`, whose only two reds are the two known fallback-font tests (`cliente.spec.ts:474` and `:909`; they fail on a machine whose sans-serif is Inter and pass on CI, which is the authority for them): 330 passed, 2 failed. Fresh: storefront 1022/1022, reseller app 938/938, buyer site 1559/1559, attribution 45/45, commerce core 217/217; copy-lint 600, 711 and 22 entries with 0 violations; the accent fixture fails with 4 as required.
+
+**Verifier.** One pass on the first integration: 0 blocker, 2 should-fix, 5 notes, handled once. Fixed in this build: the fixture commit had made the freed-link case re-create the same id, so it no longer proved the delete freed the link (now proven with a fresh account through the Worker); « two together count two » cannot catch counting after the hashing (a source-order test added, no timing test); the three new walks carry `20_000`; the walk's stand-in answers an empty current password as the Worker does. Journalled, not changed: the re-read after the hashing has no test (the runtime lets no second request in there); a proved save writes the phone from the patch even when unchanged; the phone case reads the roster and a fresh profile, which is what `/contact-of` reads.
+
+**Release.** storefront-deploy from the branch, then the merge (which publishes the reseller app). Until her app updates, the old app cannot change her number or email (« Un champ ne va pas », « Retour » gets her out); names, rayons and the password change work as before, and its own shop creates pass the new rule.
+
+**Still open.** Held in the private batch record until their fixes deploy.
+
+---
+
 ## 2026-11-27 · VIE-PRIVEE-ACHETEUSE — MERGED and DEPLOYED
 
 **Founder.** « Release all four » (2026-11-27 14:34 UTC, decision card, on the buyer-privacy batch report), which named the order: the shared record, then Shop+ and its deploy, then Boutik+ (media, offer, console), then Séra.
