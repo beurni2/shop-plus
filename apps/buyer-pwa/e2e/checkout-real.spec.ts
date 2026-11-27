@@ -110,8 +110,10 @@ interface Wire {
   reserves: Array<{ url: string; body: Record<string, unknown> }>;
   /** SP3.3c — every `POST /checkout/order`, in order. */
   orders: Array<{ url: string; body: Record<string, unknown> }>;
-  /** …and every `GET /checkout/order/{id}`. */
+  /** …and every `GET /checkout/order/{id}` her token opened. */
   orderReads: string[];
+  /** Every order read that came WITHOUT her token — the service refused it. */
+  orderReadsRefused: string[];
   /** SP4.2b — every `POST …/door-charge`. */
   doorCharges: Array<{ url: string; body: Record<string, unknown> }>;
   /** VRAI-SUIVI — every `GET …/remise`, with the Authorization it carried. */
@@ -126,7 +128,7 @@ const BUYER_REF = 'ref-buyer-e2e-1';
 
 /** Install the scripted checkout service and return the wire log. */
 async function scriptService(page: Page, opts: Scripted = {}): Promise<Wire> {
-  const wire: Wire = { quotes: [], reserves: [], orders: [], orderReads: [], doorCharges: [], remises: [], sequence: [] };
+  const wire: Wire = { quotes: [], reserves: [], orders: [], orderReads: [], orderReadsRefused: [], doorCharges: [], remises: [], sequence: [] };
   const ttl = opts.ttlMs ?? 15 * 60_000;
   let issued = 0;
   /** How many times each order has been read back, so `orderStates` walks. */
@@ -204,6 +206,12 @@ async function scriptService(page: Page, opts: Scripted = {}): Promise<Wire> {
     const byId = /\/checkout\/order\/([^/]+)$/.exec(req.url());
     if (byId && req.method() === 'GET') {
       const orderId = decodeURIComponent(byId[1]!);
+      // The real Worker answers the order view only to its buyer's own token,
+      // with the uniform nameless 404 otherwise — scripted the same.
+      if ((req.headers()['authorization'] ?? '') !== `Bearer ${BUYER_REF}`) {
+        wire.orderReadsRefused.push(orderId);
+        return json(404, { ok: false });
+      }
       wire.orderReads.push(orderId);
       wire.sequence.push('order-read');
       const seen = reads.get(orderId) ?? 0;
@@ -1164,6 +1172,9 @@ test('VRAI-SUIVI · the timeline advances on server facts alone, and the code ar
   await page.locator('[data-action="suivi-terminer"]').click();
   expect(await page.evaluate(() => localStorage.getItem('sp-commandes:v1'))).toBeNull();
   await page.locator('[data-screen="C1"]').waitFor({ timeout: 10_000 });
+  // Every poll that moved her timeline carried her own token; none was refused.
+  expect(wire.orderReads.length).toBeGreaterThan(3);
+  expect(wire.orderReadsRefused, 'an order read went out without her token').toEqual([]);
 });
 
 /**
@@ -2216,7 +2227,7 @@ test('GEO-ACHAT-2 · the map asks, she answers — Annuler keeps nothing, Confir
   await page.locator('[data-action="geo-demander"]').click();
   await page.locator('[data-action="geo-confirmer"]').click();
   await page.locator('[data-role="geo-done"]').waitFor();
-  await expect(page.locator('[data-role="geo-done"]')).toContainText('Position ajoutée. Le point exact va seulement à votre livreur.');
+  await expect(page.locator('[data-role="geo-done"]')).toContainText('Position ajoutée. Le point exact va à l’équipe Séra et à votre livreur. Son appli de cartes peut s’en servir.');
 
   // RETIRER is total — the quiet offer returns, and she can change her mind back.
   await page.locator('[data-action="geo-retirer"]').click();

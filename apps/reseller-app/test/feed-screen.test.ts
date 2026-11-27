@@ -19,7 +19,6 @@ const row = (over: Partial<FeedVente> = {}): FeedVente => ({
   createdAt: '2026-08-02T08:00:00.000Z',
   resellerNet: 2_000,
   productVersionId: 'pv-1',
-  zoneTo: 'Ouagadougou',
   ...over,
 });
 

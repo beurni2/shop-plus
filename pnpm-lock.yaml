@@ -319,8 +319,8 @@ importers:
         specifier: ^4.20250705.0
         version: 4.20260702.1
       '@platform/recorded-answers':
-        specifier: git+https://github.com/beurni2/platform-contracts.git#b5fec572610499453b728b3c52b3a3245cd47912&path:packages/recorded-answers
-        version: https://codeload.github.com/beurni2/platform-contracts/tar.gz/b5fec572610499453b728b3c52b3a3245cd47912#path:packages/recorded-answers
+        specifier: git+https://github.com/beurni2/platform-contracts.git#8d0e7a8d615d2adb1a7c9a7a6820803cd5734249&path:packages/recorded-answers
+        version: https://codeload.github.com/beurni2/platform-contracts/tar.gz/8d0e7a8d615d2adb1a7c9a7a6820803cd5734249#path:packages/recorded-answers
       esbuild:
         specifier: ^0.25.5
         version: 0.25.12
@@ -1602,9 +1602,9 @@ packages:
     resolution: {path: packages/kernel-types, tarball: https://codeload.github.com/beurni2/platform-contracts/tar.gz/9c0c8d85891b6ad6521006e7397c8287f9a3241b}
     version: 3.28.0
 
-  '@platform/recorded-answers@https://codeload.github.com/beurni2/platform-contracts/tar.gz/b5fec572610499453b728b3c52b3a3245cd47912#path:packages/recorded-answers':
-    resolution: {path: packages/recorded-answers, tarball: https://codeload.github.com/beurni2/platform-contracts/tar.gz/b5fec572610499453b728b3c52b3a3245cd47912}
-    version: 3.27.0
+  '@platform/recorded-answers@https://codeload.github.com/beurni2/platform-contracts/tar.gz/8d0e7a8d615d2adb1a7c9a7a6820803cd5734249#path:packages/recorded-answers':
+    resolution: {path: packages/recorded-answers, tarball: https://codeload.github.com/beurni2/platform-contracts/tar.gz/8d0e7a8d615d2adb1a7c9a7a6820803cd5734249}
+    version: 3.28.0
 
   '@platform/taxonomy@https://codeload.github.com/beurni2/platform-contracts/tar.gz/1fb7649d981521329b5ad041ec52c89728981b14#path:packages/taxonomy':
     resolution: {path: packages/taxonomy, tarball: https://codeload.github.com/beurni2/platform-contracts/tar.gz/1fb7649d981521329b5ad041ec52c89728981b14}
@@ -5041,7 +5041,7 @@ snapshots:
     dependencies:
       zod: 4.6.7
 
-  '@platform/recorded-answers@https://codeload.github.com/beurni2/platform-contracts/tar.gz/b5fec572610499453b728b3c52b3a3245cd47912#path:packages/recorded-answers': {}
+  '@platform/recorded-answers@https://codeload.github.com/beurni2/platform-contracts/tar.gz/8d0e7a8d615d2adb1a7c9a7a6820803cd5734249#path:packages/recorded-answers': {}
 
   '@platform/taxonomy@https://codeload.github.com/beurni2/platform-contracts/tar.gz/1fb7649d981521329b5ad041ec52c89728981b14#path:packages/taxonomy': {}
 

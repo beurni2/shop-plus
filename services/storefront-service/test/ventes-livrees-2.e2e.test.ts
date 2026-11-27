@@ -151,8 +151,10 @@ async function vendre(S: Seance, slug: string, pid: string, n: string, livrer: b
     body: JSON.stringify({ quoteId, holderRef: `holder-${n}`, commandId: `cmd-order-${n}`, contact: { phone: '70 11 22 33', quartier: 'Gounghin', repere: 'près du marché' } }),
   });
   if (ordered.status !== 200) throw new Error(`setup: order ${ordered.status} ${await ordered.text()}`);
+  // The order view answers only its buyer: she reads it with the token her create gave her.
+  const jeton = String(safeJson(await ordered.text())['buyerRef']);
   const orderId = `ord-${quoteId}`;
-  const vue = safeJson(await (await mf.dispatchFetch(`http://c/checkout/order/${encodeURIComponent(orderId)}`)).text());
+  const vue = safeJson(await (await mf.dispatchFetch(`http://c/checkout/order/${encodeURIComponent(orderId)}`, { headers: { Authorization: `Bearer ${jeton}` } })).text());
   const nsOrd = await mf.getDurableObjectNamespace('ORDER');
   const audit = (await (await nsOrd.get(nsOrd.idFromName(orderId)).fetch('https://do/entry/audit')).json()) as { legKeys?: Record<string, string> };
   const paid = await mf.dispatchFetch('http://c/checkout/webhook/payment', {

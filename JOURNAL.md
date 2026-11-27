@@ -1,6 +1,62 @@
 # JOURNAL — shop-plus
 Continuity ledger per CTO charter §6/§6bis. Every entry is evidence-grounded.
 
+## 2026-11-27 · VIE-PRIVEE-ACHETEUSE — the buyer's details stay hers: her order view answers her own token, a finished order's dispatch row holds her contact back · lane P8 · on the branch, NOT merged, NOT deployed
+
+**Founder.**
+- « Now you can start the next batch » (2026-11-27 11:31 UTC): the buyer-privacy batch of the approved plan.
+- Sentence card (2026-11-27 11:44 UTC), option « Séra team, rider, his maps app »: the buyer site says « Le point exact va à l'équipe Séra et à votre livreur. Son appli de cartes peut s'en servir. » The rider's « Itinéraire » link is unchanged.
+
+**Lane.** Lane P, slice P8. Lane commits `44f5843` and `f405254` on `9257c95`. Integrated on `claude/project-thread-jqj97g` as `69908ef` (the lane diff, unchanged), plus the coordinator's pin commit `72efef5`.
+
+**Spec.**
+- Shop-Plus-Build-Spec SP6: « buyer-safe tracking (responsible next party, masked relay, no exact rider tracking) »; « her profile shows her own details to her alone ».
+- Shop-Plus-Build-Spec §12: « ⏳ Customer consent/retention/deletion. » Building Plan, decision gates: « Customer consent/retention/deletion | M6.3 | minimum-data; explicit consent ». Master reference Part 15: « Consent / data retention / deletion (BF law) | Launch | Strictest ». The strictest default is applied to what is SHOWN; nothing is deleted, and how long anything is kept stays the founder's open decision.
+
+**What changed.**
+- *Her order view.* `GET /checkout/order/{id}` answers only with her own token (`Authorization: Bearer <buyerRef>`, compared in constant time, against a decoy when none is stored). No header, an empty one, another order's token and an unknown order all get the same nameless `{ok:false}` 404. A 200 is `Cache-Control: private, no-store`. The steps-only `/suivi` read stays open for the gift link. A malformed id is still a 400.
+- *The buyer site.* It sends her token on every order read: tracking, re-entry, « Mes commandes », the panier band and the door watch. The account road passes the token the account kept.
+- *The founder's sandbox payment tool.* It reads the order it confirms through `GET /checkout/webhook/order/{id}`, behind the webhook secret, GET only, beside the leg-key and refund-key reads. It answers `{state, amountPaidAtCheckout, amountDueAtDelivery}` and nothing else, and it retires with the tool at the Real-Money Gate. A wrong secret prints the same guidance on both reads. No workflow change.
+- *The reseller's sales rows.* They carry no buyer area: the Worker sends `zoneTo: ""` this release, so reseller apps installed before the update keep every sale, and the reseller app no longer reads or keeps the field.
+- *The founder's dispatch list.* A finished order's row has `contact: null` and `contactMasque: true` (the key is present only then). Finished means: nothing for him to check, no refund open or blocked, and the order is over (delivered, refunded, its refund done or owed nothing, or cancelled). A failed payment and an order with something to check keep the contact. It is decided on every read; nothing is deleted. The refusal door reads her phone through an internal phone-only read, so a refusal on a finished order is still recorded.
+- *Five sentences* (`cl.c4.point_exact`, `cl.c3.geo_sous`, `cl.c3.geo_faite`, `vit.liste_geo_source`, `vit.liste_geo_faite`) say the exact point goes to the Séra team and her rider, and that his maps app can use it.
+- *The tile relay* answers zooms 13 to 19, for the founder's console map (12 and 20 are still refused).
+
+**Evidence.**
+- Seam test on the real combined Worker (Miniflare), asking the order's own records: 8/8. It covers the gift-link 404 matrix, her own read, the sandbox read's three keys, the sales rows, the finished rule (delivered, on the road, refused then refunded, something to check, a failed payment), the refusal door on a finished order, and the stored contact untouched.
+- Lane runs after `pnpm pretest`: storefront 1009/1009 at C3; after the fix commit vie-privee 8/8, sandbox-payment-confirm 9/9, dispatch 39/39, order-do 67/67, tuiles 9 + 5, tsc green. Buyer site: 1559 unit tests; browser walks compte + checkout-real 122/122, tsc green. Reseller app 934 and tsc green. Copy-lint clean.
+- Coordinator re-runs on a clean worktree: storefront key files 186/186 at C3 and 65/65 on the fix commit, buyer 233/233, reseller 41/41, three typechecks green.
+- Mutations, each anchor matched once, each file restored byte-identical: the token check removed → red; the area put back → red; the finished rule removed → 2 red; the sandbox read widened → red; « nothing to check » dropped from the rule → red.
+- Recorded answers: Shop+'s record run at `69908ef` passed 621/621 (620 + 1 skipped without the Boutik+ clone, as in CI), and every recorded form is given. The new forms are platform-contracts `8d0e7a8`, which `72efef5` pins.
+- Cross-check: the Boutik+ console's tile addresses against this relay, z13 to z19 answered, z12 and z20 refused.
+- Full board on `72efef5` after `pnpm build` (`TURBO_CONCURRENCY=1`): every gate passes except `playwright-e2e`, whose only two reds are the two known fallback-font tests (C5 at 360 px, `cliente.spec.ts:474` and `:909`; they fail on a machine whose sans-serif is Inter and pass on CI, which is the authority for them): 330 passed, 2 failed. The changed packages ran fresh: storefront 1011/1011, buyer site 1559/1559, reseller app 934/934, typechecks green; the recorded-answers gate is green; copy-lint 711/0, 599/0 and 22/0.
+
+**Independent review.** One fresh-context pass, handled once: 0 blocker, 0 major, 5 minor, 5 notes. Fixed in this build: comments in the present tense, two more kept-contact cases in the seam test, the account walk's stand-ins check her token, two sandbox probes check for a 200 first, the sandbox tool's wrong-secret guidance, an unused tile constant removed. The rest is kept in the private batch record.
+
+**Release order.** platform-contracts first (the recorded answers). Then Shop+: merge, then the shop service deploy. Then Boutik+ (its console follows closely: until it updates, it shows a held-back contact as « no contact left » and hides « Signaler »). Then Séra.
+- Nobody runs the sandbox payment workflow between the merge and the shop service deploy: its new read exists only on the deployed Worker.
+- A buyer tab opened before the deploy needs one reload to keep following her order.
+
+**Follow-on.** Drop the empty area key from the sales rows once old reseller apps are gone. Retention stays the founder's open decision.
+
+**Where it stands.** On the branch, not merged, not deployed.
+
+---
+
+## 2026-11-27 · COLIS-PERDU-1 — DEPLOYED and MERGED
+
+**Founder.** « Release all four » (2026-11-27 10:54 UTC, decision card, on the lost-parcel batch report), which named for Shop+: put the shop service live from the branch, then merge. Shop+ went live before Séra, so it was listening before Séra could speak.
+
+**Deploy first, from the designated branch at `227f9bd`.** storefront-deploy 129 (id 45986130283): canon 3.28.0 asserted, « CUSTODY ARMED — all four wires present on the live Worker », smokes OK (checkout refuses by name, tiles live, password hashing at 100 000), and the live health check reports release `227f9bd`.
+
+**Merge.** PR #9 merged as `9257c95` (merge commit, the branch shas kept). On main: pwa-preview 527 (buyer site) green · expo-preview 560 (reseller app) green · service-canon-drift 491 green · ci 749 green on its first attempt.
+
+**Deploy note, as reported.** No data migration; nothing to move or convert.
+
+**Still open.** As named in the slice entry below. Other open items for this slice are held in the private batch record until their fixes deploy.
+
+---
+
 ## 2026-11-27 · COLIS-PERDU-1 — a parcel Séra declares lost on the road refunds the buyer in full, delivery included · lane P7 · on the branch, NOT merged, NOT deployed
 
 **Founder.**

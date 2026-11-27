@@ -979,13 +979,13 @@
  },
  {
   "key": "vit.liste_geo_faite",
-  "fr": "Position ajoutée. Le point exact va seulement à votre livreur.",
+  "fr": "Position ajoutée. Le point exact va à l’équipe Séra et à votre livreur. Son appli de cartes peut s’en servir.",
   "register": "neutral",
   "screenClass": "status"
  },
  {
   "key": "vit.liste_geo_source",
-  "fr": "Le point exact va seulement à votre livreur. La carte autour vient d’OpenStreetMap.",
+  "fr": "Le point exact va à l’équipe Séra et à votre livreur. Son appli de cartes peut s’en servir. La carte autour vient d’OpenStreetMap.",
   "register": "neutral",
   "screenClass": "status"
  },
@@ -2839,7 +2839,7 @@
  },
  {
   "key": "cl.c3.geo_sous",
-  "fr": "Le point exact va seulement à votre livreur. La carte autour vient d’OpenStreetMap.",
+  "fr": "Le point exact va à l’équipe Séra et à votre livreur. Son appli de cartes peut s’en servir. La carte autour vient d’OpenStreetMap.",
   "register": "neutral",
   "screenClass": "status"
  },
@@ -2851,7 +2851,7 @@
  },
  {
   "key": "cl.c3.geo_faite",
-  "fr": "Position ajoutée. Le point exact va seulement à votre livreur.",
+  "fr": "Position ajoutée. Le point exact va à l’équipe Séra et à votre livreur. Son appli de cartes peut s’en servir.",
   "register": "neutral",
   "screenClass": "status"
  },
@@ -3049,7 +3049,7 @@
  },
  {
   "key": "cl.c4.point_exact",
-  "fr": "Le point exact va seulement à votre livreur.",
+  "fr": "Le point exact va à l’équipe Séra et à votre livreur. Son appli de cartes peut s’en servir.",
   "register": "neutral",
   "screenClass": "status"
  },

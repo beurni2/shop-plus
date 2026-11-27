@@ -486,7 +486,11 @@ async function caisse(page: Page): Promise<{ commandes: string[]; etat: string; 
       return json(200, { orderId, state: vu.creation, amountPaidAtCheckout: 13_000, amountDueAtDelivery: 0, doorLeg: 'none', buyerRef: BUYER_REF });
     }
     if (/\/checkout\/order\/[^/]+$/.test(req.url()) && req.method() === 'GET') {
-      return json(200, { orderId: decodeURIComponent(req.url().split('/').pop()!), state: vu.etat, amountPaidAtCheckout: 13_000, amountDueAtDelivery: 0, doorLeg: 'none' });
+      const id = decodeURIComponent(req.url().split('/').pop()!);
+      // The real Worker opens the order view only to the token its create
+      // answered for THAT order — the uniform 404 otherwise.
+      if (!vu.commandes.includes(id) || req.headers()['authorization'] !== `Bearer ${BUYER_REF}`) return json(404, { ok: false });
+      return json(200, { orderId: id, state: vu.etat, amountPaidAtCheckout: 13_000, amountDueAtDelivery: 0, doorLeg: 'none' });
     }
     if (/\/remise$/.test(req.url())) return json(404, { ok: false });
     if (corps['paymentMode'] === 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR') return json(422, { error: 'pay_at_door_not_eligible' });
@@ -629,7 +633,13 @@ function porteAilleurs(page: Page): { vu: { doorCharges: Record<string, unknown>
       return json(200, vue());
     }
     if (/\/remise$/.test(url)) return json(404, { ok: false });
-    if (/\/checkout\/order\/[^/]+$/.test(url) && req.method() === 'GET') return json(200, vue());
+    if (/\/checkout\/order\/[^/]+$/.test(url) && req.method() === 'GET') {
+      // The real Worker opens the order view only to the token her account
+      // kept for THAT order — the uniform 404 otherwise.
+      const attendu = { 'ord-quote-porte-1': 'REF-PORTE-1', 'ord-quote-prepaye-1': 'REF-PREPAYE-1' }[id];
+      if (attendu === undefined || req.headers()['authorization'] !== `Bearer ${attendu}`) return json(404, { ok: false });
+      return json(200, vue());
+    }
     return json(404, { ok: false });
   });
   };
@@ -699,6 +709,7 @@ test('PORTE-AUTRE-TELEPHONE-1 — paid at the door while signed in: the order jo
   const livre = new Livre();
   await dejaConnectee(page, livre);
   const vu = { reserves: [] as Record<string, unknown>[], etat: 'payment_pending' };
+  const creees = new Set<string>();
   const erreurs = await ouvrir(page, livre, '/?/s/aicha-4821&pid=p1', async () => {
     await page.route('**/checkout/**', async (route) => {
       const req = route.request();
@@ -711,10 +722,15 @@ test('PORTE-AUTRE-TELEPHONE-1 — paid at the door while signed in: the order jo
         return json(200, { status: 'reserved', reservationId: `res-${vu.reserves.length}` });
       }
       if (/\/checkout\/order$/.test(url) && req.method() === 'POST') {
+        creees.add(`ord-${String(corps['quoteId'])}`);
         return json(200, { orderId: `ord-${String(corps['quoteId'])}`, state: 'payment_pending', amountPaidAtCheckout: 1_000, amountDueAtDelivery: 11_500, doorLeg: 'due', buyerRef: BUYER_REF });
       }
       if (/\/checkout\/order\/[^/]+$/.test(url) && req.method() === 'GET') {
-        return json(200, { orderId: decodeURIComponent(url.split('/').pop()!), state: vu.etat, amountPaidAtCheckout: 1_000, amountDueAtDelivery: 11_500, doorLeg: 'due' });
+        const id = decodeURIComponent(url.split('/').pop()!);
+        // The real Worker opens the order view only to the token its create
+        // answered for THAT order — the uniform 404 otherwise.
+        if (!creees.has(id) || req.headers()['authorization'] !== `Bearer ${BUYER_REF}`) return json(404, { ok: false });
+        return json(200, { orderId: id, state: vu.etat, amountPaidAtCheckout: 1_000, amountDueAtDelivery: 11_500, doorLeg: 'due' });
       }
       if (/\/remise$/.test(url)) return json(404, { ok: false });
       if (corps['paymentMode'] === 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR') {
@@ -983,6 +999,7 @@ const FIG_PANIER: Record<string, { produit: number; frais: number }> = { p1: { p
  *  article's order and read token. */
 async function caissePanier(page: Page): Promise<{ groupes: number; etat: string }> {
   const vu = { groupes: 0, etat: 'payment_pending' };
+  const jetons = new Map<string, string>();
   await page.route('**/api/s/**', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(BOUTIQUE_DEUX) }));
   await page.route('**/checkout/**', async (route) => {
     const req = route.request();
@@ -1009,11 +1026,17 @@ async function caissePanier(page: Page): Promise<{ groupes: number; etat: string
     if (/\/checkout\/group$/.test(url) && req.method() === 'POST') {
       vu.groupes += 1;
       const v = vue('payment_pending', corps['quoteIds'] as string[]);
+      v.articles.forEach((a, i) => jetons.set(a.orderId, `${BUYER_REF}-${i}`));
       return json(200, { ...v, commandes: v.articles.map((a, i) => ({ orderId: a.orderId, buyerRef: `${BUYER_REF}-${i}` })) });
     }
     if (/\/checkout\/group\/[^/]+$/.test(url) && req.method() === 'GET') return json(200, vue(vu.etat, ['q-p1-A', 'q-p2-A']));
     if (/\/checkout\/order\/[^/]+$/.test(url) && req.method() === 'GET') {
-      return json(200, { orderId: decodeURIComponent(url.split('/').pop()!), state: vu.etat, amountPaidAtCheckout: 13_000, amountDueAtDelivery: 0, doorLeg: 'none' });
+      const id = decodeURIComponent(url.split('/').pop()!);
+      // The real Worker opens the order view only to the token its create
+      // answered for THAT order — the uniform 404 otherwise.
+      const attendu = jetons.get(id);
+      if (attendu === undefined || req.headers()['authorization'] !== `Bearer ${attendu}`) return json(404, { ok: false });
+      return json(200, { orderId: id, state: vu.etat, amountPaidAtCheckout: 13_000, amountDueAtDelivery: 0, doorLeg: 'none' });
     }
     if (/\/remise$/.test(url)) return json(404, { ok: false });
     if (corps['paymentMode'] === 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR') return json(422, { error: 'pay_at_door_not_eligible' });

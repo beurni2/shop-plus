@@ -163,7 +163,9 @@ async function commander(quoteId: string, n: string, phone = '76 00 99 88'): Pro
       contact: { phone, quartier: 'Gounghin', repere: 'en face de la pharmacie' },
     }),
   });
-  return { status: res.status, body: safeJson(await res.text()) };
+  const body = safeJson(await res.text());
+  if (typeof body['buyerRef'] === 'string') jetons.set(`ord-${quoteId}`, body['buyerRef']);
+  return { status: res.status, body };
 }
 
 const acces = (accountId: string, acte: 'pause' | 'resume') =>
@@ -192,7 +194,7 @@ const commeTape = (registered: string): string => {
 };
 
 async function payer(orderId: string): Promise<void> {
-  const vue = safeJson(await (await mf.dispatchFetch(`http://c/checkout/order/${encodeURIComponent(orderId)}`)).text());
+  const vue = safeJson(await (await mf.dispatchFetch(`http://c/checkout/order/${encodeURIComponent(orderId)}`, saVue(orderId))).text());
   const nsOrd = await mf.getDurableObjectNamespace('ORDER');
   const audit = (await (await nsOrd.get(nsOrd.idFromName(orderId)).fetch('https://do/entry/audit')).json()) as { legKeys?: Record<string, string> };
   const legKey = audit.legKeys?.['checkout'];
@@ -227,6 +229,16 @@ async function obligations(orderId: string): Promise<Obligation[]> {
   if (res.status !== 200) throw new Error(`founder read ${res.status} ${JSON.stringify(body)}`);
   return (body['obligations'] as Obligation[] | undefined) ?? [];
 }
+
+// The order view answers only its buyer: each read carries the token her
+// create answered, kept here per order.
+const jetons = new Map<string, string>();
+const saVue = (orderId: string) => {
+  const jeton = jetons.get(orderId);
+  // A read of an order this file never created would pass on an empty 404.
+  if (jeton === undefined) throw new Error(`no buyer token kept for ${orderId}`);
+  return { headers: { Authorization: `Bearer ${jeton}` } };
+};
 
 describe('PAUSE-VENTE-1 — on the real Worker, a paused reseller sells nothing, and everything comes back when she is reactivated', () => {
   it('HER PAGE: active ⇒ her products; paused ⇒ the designed pause with her name and NOTHING else; reactivated ⇒ her products again', async () => {
@@ -296,7 +308,7 @@ describe('PAUSE-VENTE-1 — on the real Worker, a paused reseller sells nothing,
     const ok = await commander(quoteId, '0003');
     expect(ok.status, `reactivated: ${JSON.stringify(ok.body)}`).toBe(200);
     expect(ok.body['orderId']).toBe(orderId);
-    expect((await mf.dispatchFetch(`http://c/checkout/order/${encodeURIComponent(orderId)}`)).status).toBe(200);
+    expect((await mf.dispatchFetch(`http://c/checkout/order/${encodeURIComponent(orderId)}`, saVue(orderId))).status).toBe(200);
   });
 
   it('§6.5 KEEPS ITS EYES: her own-number sale, made while active and delivered while she is PAUSED, is decided and HELD — never left undecided', async () => {

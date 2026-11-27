@@ -300,6 +300,7 @@ async function createdDoorOrder(n: string): Promise<{ orderId: string; quoteId: 
   });
   if (ordered.status !== 200) throw new Error(`setup: order ${ordered.status} ${await ordered.text()}`);
   const createJson = safeJson(await ordered.text());
+  jetons.set(`ord-${quote.quoteId}`, String(createJson['buyerRef']));
   return { orderId: `ord-${quote.quoteId}`, quoteId: quote.quoteId, buyerRef: createJson['buyerRef'] as string };
 }
 
@@ -392,7 +393,7 @@ async function remiseRead(orderId: string, jeton: string) {
 }
 
 async function vue(orderId: string) {
-  const res = await mf.dispatchFetch(`http://c/checkout/order/${encodeURIComponent(orderId)}`);
+  const res = await mf.dispatchFetch(`http://c/checkout/order/${encodeURIComponent(orderId)}`, saVue(orderId));
   return safeJson(await res.text());
 }
 
@@ -425,6 +426,16 @@ async function waitForDoorSignalDone(orderId: string, timeoutMs = 8_000) {
 }
 
 /* ═══════════ the double itself, certified before anything rides it ═══════════ */
+
+// The order view answers only its buyer: each read carries the token her
+// create answered, kept here per order.
+const jetons = new Map<string, string>();
+const saVue = (orderId: string) => {
+  const jeton = jetons.get(orderId);
+  // A read of an order this file never created would pass on an empty 404.
+  if (jeton === undefined) throw new Error(`no buyer token kept for ${orderId}`);
+  return { headers: { Authorization: `Bearer ${jeton}` } };
+};
 
 describe('PORTE-CUSTODY — the custody double is certified: never kinder than the real door', () => {
   const okAuth = `Bearer ${ARM_SECRET}`;

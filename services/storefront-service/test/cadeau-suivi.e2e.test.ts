@@ -133,7 +133,9 @@ describe('AUDIT-4 A-04 — the gift link reads where the parcel is, never what w
     expect(JSON.stringify(lu)).not.toMatch(/amount|1[0-9] ?[0-9]00|remboursement/);
 
     // CONTROL — the purchaser's own order view still carries her amounts.
-    const vue = (await (await mf.dispatchFetch(`http://sf/checkout/order/${encodeURIComponent(orderId)}`)).json()) as Record<string, unknown>;
+    const jeton = cree.order.buyerRef;
+    if (jeton === undefined) throw new Error('create answered no buyer token');
+    const vue = (await (await mf.dispatchFetch(`http://sf/checkout/order/${encodeURIComponent(orderId)}`, { headers: { Authorization: `Bearer ${jeton}` } })).json()) as Record<string, unknown>;
     expect(typeof vue['amountPaidAtCheckout']).toBe('number');
   }, 120_000);
 

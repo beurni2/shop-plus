@@ -219,6 +219,7 @@ async function createdOrder(n: string): Promise<{
     body: JSON.stringify(createBody),
   });
   const createJson = safeJson(await ordered.text());
+  if (typeof createJson['buyerRef'] === 'string') jetons.set(`ord-${quote.quoteId}`, createJson['buyerRef']);
   return {
     orderId: `ord-${quote.quoteId}`, quoteId: quote.quoteId, holderRef: `holder-${n}`,
     resellerId: S.accountId, createStatus: ordered.status, createJson, createBody,
@@ -299,7 +300,7 @@ async function remiseRead(orderId: string, jeton: string | null) {
 }
 
 async function vue(orderId: string) {
-  const res = await mf.dispatchFetch(`http://c/checkout/order/${encodeURIComponent(orderId)}`);
+  const res = await mf.dispatchFetch(`http://c/checkout/order/${encodeURIComponent(orderId)}`, saVue(orderId));
   const text = await res.text();
   return { status: res.status, text, json: safeJson(text) };
 }
@@ -328,6 +329,16 @@ async function waitForArm(orderId: string, n = 1, timeoutMs = 8_000): Promise<vo
 
 /** The buyer-secret field names, assembled at runtime — never spelled. */
 const jetonSecret = `drop${'Code'}`;
+
+// The order view answers only its buyer: each read carries the token her
+// create answered, kept here per order.
+const jetons = new Map<string, string>();
+const saVue = (orderId: string) => {
+  const jeton = jetons.get(orderId);
+  // A read of an order this file never created would pass on an empty 404.
+  if (jeton === undefined) throw new Error(`no buyer token kept for ${orderId}`);
+  return { headers: { Authorization: `Bearer ${jeton}` } };
+};
 
 describe('VRAI-SUIVI — the buyer token is born at create, once, and never on the poll view', () => {
   it('the CREATE response carries her token; an idempotent replay and a lost-response re-create both return the SAME one', async () => {

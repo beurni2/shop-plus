@@ -1560,7 +1560,7 @@ describe('httpQuotePort.order — the body is the service’s three-key allowlis
         seen = url;
         return jsonRes({ orderId: 'x', state: 'confirmed', amountPaidAtCheckout: 0, amountDueAtDelivery: 0 });
       }) as unknown as typeof fetch,
-      () => httpQuotePort('https://svc.example').orderState('ord-../../admin'),
+      () => httpQuotePort('https://svc.example').orderState('ord-../../admin', 'ref-1'),
     );
     expect(seen).toBe('https://svc.example/checkout/order/ord-..%2F..%2Fadmin');
   });
@@ -1586,7 +1586,7 @@ describe('httpQuotePort.order — the body is the service’s three-key allowlis
   it('a THROWN fetch is the only « unreachable » — nothing answered', async () => {
     const got = await withFetch(
       (async () => { throw new TypeError('network'); }) as unknown as typeof fetch,
-      () => httpQuotePort('https://s').orderState('ord-1'),
+      () => httpQuotePort('https://s').orderState('ord-1', 'ref-1'),
     );
     expect(got).toEqual({ status: 'unreachable' });
   });
@@ -1603,7 +1603,7 @@ describe('httpQuotePort.order — the body is the service’s three-key allowlis
     for (const body of partial) {
       const got = await withFetch(
         (async () => jsonRes(body)) as unknown as typeof fetch,
-        () => httpQuotePort('https://s').orderState('ord-1'),
+        () => httpQuotePort('https://s').orderState('ord-1', 'ref-1'),
       );
       expect(got, `this shape became an order: ${JSON.stringify(body)}`).toEqual({ status: 'unreadable' });
     }
@@ -1615,7 +1615,7 @@ describe('httpQuotePort.order — the body is the service’s three-key allowlis
         orderId: 'ord-1', state: 'confirmed', amountPaidAtCheckout: 12_500, amountDueAtDelivery: 0,
         sellerBasePrice: 10_000, resellerNet: 2_000, sellerFundedCommission: 1_000,
       })) as unknown as typeof fetch,
-      () => httpQuotePort('https://s').orderState('ord-1'),
+      () => httpQuotePort('https://s').orderState('ord-1', 'ref-1'),
     );
     expect(got.status).toBe('order');
     if (got.status !== 'order') return;
@@ -1753,7 +1753,7 @@ describe('demoQuotePort — the harness plays the service, including the part th
     if (o.status !== 'order') return expect.fail('no order');
     const states: string[] = [];
     for (let i = 0; i < DEMO_ATTENTES + 1; i += 1) {
-      const r = await port.orderState(o.order.orderId);
+      const r = await port.orderState(o.order.orderId, 'ref-1');
       states.push(r.status === 'order' ? r.order.state : r.status);
     }
     expect(states.slice(0, DEMO_ATTENTES)).toEqual(Array(DEMO_ATTENTES).fill('payment_pending'));

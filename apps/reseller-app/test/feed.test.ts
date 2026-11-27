@@ -15,7 +15,6 @@ const row = (over: Partial<FeedVente> = {}): FeedVente => ({
   createdAt: '2026-08-02T08:00:00.000Z',
   resellerNet: 2_800,
   productVersionId: 'pv-1',
-  zoneTo: 'Ouagadougou',
   ...over,
 });
 
@@ -38,7 +37,6 @@ describe('RF-1b — the boundary reader drops a bad row WHOLE', () => {
       { ...row(), resellerNet: '2800' }, // a franc must be a number
       { ...row(), resellerNet: 2_800.5 }, // …an INTEGER number of francs
       { ...row(), resellerNet: -1 },
-      { ...row(), zoneTo: null },
       { ...row(), productVersionId: 12 },
     ]) {
       expect(readFeedVente(bad), JSON.stringify(bad)).toBeNull();
@@ -354,5 +352,21 @@ describe('READINESS-RETURN-1c — her follow-up continues past payée, and stops
     expect(readFeedVente({ ...row(), readyAt: '2026-08-02T10:30:00.000Z' })!.readyAt).toBe(
       '2026-08-02T10:30:00.000Z',
     );
+  });
+});
+
+describe('VIE-PRIVEE-ACHETEUSE — her sales carry no buyer area', () => {
+  it('a row with no area, or an empty one, is a whole sale — and the area never rides into what the app keeps', () => {
+    const { zoneTo: _sans, ...sansZone } = row() as FeedVente & { zoneTo?: string };
+    for (const brut of [sansZone, { ...sansZone, zoneTo: '' }, { ...sansZone, zoneTo: 'Gounghin, Ouagadougou' }]) {
+      const lu = readFeedVente(brut);
+      expect(lu, JSON.stringify(brut)).not.toBeNull();
+      expect(lu!.resellerNet).toBe(2_800);
+      expect(lu as unknown as Record<string, unknown>, 'the reader keeps no area').not.toHaveProperty('zoneTo');
+    }
+    const vue = vueDesVentes([readFeedVente(sansZone)!], false);
+    if (vue.kind !== 'ready') throw new Error(`vue: ${vue.kind}`);
+    expect(vue.ventes).toHaveLength(1);
+    expect(vue.ventes[0] as unknown as Record<string, unknown>).not.toHaveProperty('zoneTo');
   });
 });

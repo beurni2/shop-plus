@@ -237,8 +237,9 @@ async function realOrder(n: string): Promise<string> {
   });
   if (ordered.status !== 200) throw new Error(`setup: order ${ordered.status}`);
   const orderId = `ord-${quote.quoteId}`;
+  jetons.set(orderId, String(safeJson(await ordered.text())['buyerRef']));
   devis.set(orderId, { amountPaidAtCheckout: Number(quote.amountPaidAtCheckout), deliveryFee: Number(quote.deliveryFee) });
-  const vue = safeJson(await (await mf.dispatchFetch(`http://c/checkout/order/${encodeURIComponent(orderId)}`)).text());
+  const vue = safeJson(await (await mf.dispatchFetch(`http://c/checkout/order/${encodeURIComponent(orderId)}`, saVue(orderId))).text());
   // NB-3: the event names the LEG KEY the order actually holds.
   const nsOrd = await mf.getDurableObjectNamespace('ORDER');
   const auditRec = (await (await nsOrd.get(nsOrd.idFromName(orderId)).fetch('https://do/entry/audit')).json()) as {
@@ -327,6 +328,16 @@ async function waitForDelivered(orderId: string, timeoutMs = 8_000): Promise<voi
   }
 }
 
+// The order view answers only its buyer: each read carries the token her
+// create answered, kept here per order.
+const jetons = new Map<string, string>();
+const saVue = (orderId: string) => {
+  const jeton = jetons.get(orderId);
+  // A read of an order this file never created would pass on an empty 404.
+  if (jeton === undefined) throw new Error(`no buyer token kept for ${orderId}`);
+  return { headers: { Authorization: `Bearer ${jeton}` } };
+};
+
 describe('BOUTIK-SUIVI — Séra’s delivery reaches the supplier’s book, once, on the road that exists', () => {
   it('a validated delivery relays the CANONICAL event to Boutik+ with the fulfillment bearer, and the outbox says delivered', async () => {
     const orderId = await realOrder('0001');
@@ -360,7 +371,7 @@ describe('BOUTIK-SUIVI — Séra’s delivery reaches the supplier’s book, onc
     const res = await progress(sansSupplier);
     expect(`${res.status} ${await res.text()}`).toBe('400 {"ok":false,"reason":"event_not_canonical"}');
     // and it never reached the ledger: no obligation, no relay
-    const vue = safeJson(await (await mf.dispatchFetch(`http://c/checkout/order/${encodeURIComponent(orderId)}`)).text());
+    const vue = safeJson(await (await mf.dispatchFetch(`http://c/checkout/order/${encodeURIComponent(orderId)}`, saVue(orderId))).text());
     expect(vue['state'], 'the order state is untouched by a refused signal').toBe('confirmed');
   }, 60_000);
 
@@ -460,7 +471,7 @@ describe('STOCK-VENDU-1b — the refused course reaches the supplier’s stock w
     // …and the ORDER stays `confirmed`: the stock relay moves no money. Her
     // refund is OPENED by the same fact (REMBOURSEMENT-1) and stays « en
     // cours » until the provider confirms it — below.
-    const vue = safeJson(await (await mf.dispatchFetch(`http://c/checkout/order/${encodeURIComponent(orderId)}`)).text());
+    const vue = safeJson(await (await mf.dispatchFetch(`http://c/checkout/order/${encodeURIComponent(orderId)}`, saVue(orderId))).text());
     expect(vue['state']).toBe('confirmed');
   }, 60_000);
 
@@ -557,7 +568,7 @@ describe('BOUTIK-SUIVI — a stranded delivery is recovered, never abandoned', (
  */
 describe('REMBOURSEMENT-1 — a refused course refunds her; only the provider\'s confirmation makes it so', () => {
   const vueDe = async (orderId: string) =>
-    safeJson(await (await mf.dispatchFetch(`http://c/checkout/order/${encodeURIComponent(orderId)}`)).text());
+    safeJson(await (await mf.dispatchFetch(`http://c/checkout/order/${encodeURIComponent(orderId)}`, saVue(orderId))).text());
   const auditDe = async (orderId: string) => {
     const ns = await mf.getDurableObjectNamespace('ORDER');
     return (await (await ns.get(ns.idFromName(orderId)).fetch('https://do/entry/audit')).json()) as {
@@ -762,7 +773,7 @@ describe('REMBOURSEMENT-2 — the supplier refuses a paid order: she is refunded
     };
   };
   const vueDe = async (orderId: string) =>
-    safeJson(await (await mf.dispatchFetch(`http://c/checkout/order/${encodeURIComponent(orderId)}`)).text());
+    safeJson(await (await mf.dispatchFetch(`http://c/checkout/order/${encodeURIComponent(orderId)}`, saVue(orderId))).text());
 
   it('the refusal opens her refund — every franc, asked of the provider — and her screen hears « indisponible »; a redelivery changes nothing', async () => {
     const orderId = await realOrder('0301');
