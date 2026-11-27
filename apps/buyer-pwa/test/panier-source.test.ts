@@ -287,10 +287,10 @@ describe('PAYER-TOUT-1 — the panier\'s price, spoken as one quote', () => {
     const r = await source(svc2.port).s.quoteSource('Gounghin');
     if (r.status !== 'ready') throw new Error('not ready');
     await r.commander('A', 0);
-    await r.etatCommande('grp-abc');
+    await r.etatCommande('grp-abc', 'ref-1');
     expect(panierOf('aicha-4821')).toEqual(['p1', 'p2', 'p5']);
     etat = 'confirmed';
-    await r.etatCommande('grp-abc');
+    await r.etatCommande('grp-abc', 'ref-1');
     expect(panierOf('aicha-4821')).toEqual(['p5']);
   });
 
@@ -373,7 +373,7 @@ describe('PAYER-TOUT-1 — the panier\'s price, spoken as one quote', () => {
     await attente.commander('A', 0);
     expect(panierPaye('grp-abc', garde)?.groupId).toBe('grp-abc');
     svcP.port.etat = async () => failed;
-    await attente.etatCommande('grp-abc');
+    await attente.etatCommande('grp-abc', 'ref-1');
     expect(panierPaye('grp-abc', garde)).toBeUndefined();
   });
 });

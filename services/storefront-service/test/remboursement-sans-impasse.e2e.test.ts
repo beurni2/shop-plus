@@ -174,7 +174,7 @@ const lignesDe = async (orderId: string) =>
   ((await doDe(orderId, '/entry/gains'))['obligations'] as { party: string; amount: number }[] | undefined) ?? [];
 const rangeeDe = async (orderId: string) => (await doDe(orderId, '/entry/dispatch'))['remboursement'];
 const vueDe = async (orderId: string) =>
-  safeJson(await (await mf.dispatchFetch(`http://c/checkout/order/${encodeURIComponent(orderId)}`)).text());
+  safeJson(await (await mf.dispatchFetch(`http://c/checkout/order/${encodeURIComponent(orderId)}`, saVue(orderId))).text());
 const alertesDe = async (orderId: string, nom: string) =>
   (await auditDe(orderId)).reconAlerts.filter((a) => a.payload['alert'] === nom);
 
@@ -208,6 +208,7 @@ async function commandePayee(n: string, mode: Mode = 'FULL_PREPAY'): Promise<str
   });
   if (ordered.status !== 200) throw new Error(`setup: order ${ordered.status} ${ordered.text}`);
   const orderId = `ord-${quoteId}`;
+  jetons.set(orderId, String(ordered.json['buyerRef']));
   const paye = Number(quote.json['amountPaidAtCheckout']);
   payes.set(orderId, paye);
   const provider = new MockPaymentProvider({});
@@ -272,6 +273,16 @@ async function confirmerTout(orderId: string): Promise<{ refundKey: string; amou
   }
   return demandes;
 }
+
+// The order view answers only its buyer: each read carries the token her
+// create answered, kept here per order.
+const jetons = new Map<string, string>();
+const saVue = (orderId: string) => {
+  const jeton = jetons.get(orderId);
+  // A read of an order this file never created would pass on an empty 404.
+  if (jeton === undefined) throw new Error(`no buyer token kept for ${orderId}`);
+  return { headers: { Authorization: `Bearer ${jeton}` } };
+};
 
 describe('a refund record that decided nothing is re-decided by the next refusal', () => {
   it('R1 — a garbled Séra refusal, then a readable one: she is refunded every franc she paid, once, and both views say done', async () => {

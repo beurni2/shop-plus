@@ -184,7 +184,8 @@ async function commandePayee(S: Seance, n: string, mode: Mode): Promise<string> 
   });
   if (ordered.status !== 200) throw new Error(`setup: order ${ordered.status} ${ordered.text}`);
   const orderId = `ord-${quoteId}`;
-  const vue = safeJson(await (await mf.dispatchFetch(`${BASE}/checkout/order/${encodeURIComponent(orderId)}`)).text());
+  jetons.set(orderId, String(ordered.json['buyerRef']));
+  const vue = safeJson(await (await mf.dispatchFetch(`${BASE}/checkout/order/${encodeURIComponent(orderId)}`, saVue(orderId))).text());
   const legKey = (await audit(orderId)).legKeys?.['checkout'];
   if (legKey === undefined) throw new Error(`no checkout leg key on ${orderId}`);
   const paid = await poste('/checkout/webhook/payment', {
@@ -255,6 +256,16 @@ async function sesGains(S: Seance) {
   const palier = (etat: string) => vue.paliers.find((p) => p.etat === etat)!;
   return { res, vue, palier };
 }
+
+// The order view answers only its buyer: each read carries the token her
+// create answered, kept here per order.
+const jetons = new Map<string, string>();
+const saVue = (orderId: string) => {
+  const jeton = jetons.get(orderId);
+  // A read of an order this file never created would pass on an empty 404.
+  if (jeton === undefined) throw new Error(`no buyer token kept for ${orderId}`);
+  return { headers: { Authorization: `Bearer ${jeton}` } };
+};
 
 describe('« Mes gains » shows each sale at the rung the server records — on the real Worker, read by her own app', () => {
   it('(a) product at the door, refused by the buyer with the fee kept: nothing is due back, and her sale leaves « Locked »', async () => {

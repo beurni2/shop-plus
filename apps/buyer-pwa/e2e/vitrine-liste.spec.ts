@@ -975,7 +975,7 @@ test('GEO-ACHAT-1 · her pin on the liste: consent spoken, RETIRER total, the cl
   await page.locator('[data-action="liste-geo-demander"]').click();
   await page.locator('[data-action="liste-geo-confirmer"]').click();
   await page.locator('[data-role="liste-geo-faite"]').waitFor();
-  await expect(page.locator('[data-role="liste-geo-faite"]')).toContainText('Le point exact va seulement à votre livreur');
+  await expect(page.locator('[data-role="liste-geo-faite"]')).toContainText('Le point exact va à l’équipe Séra et à votre livreur. Son appli de cartes peut s’en servir.');
 
   // RETIRER is total — the quiet offer returns.
   await page.locator('[data-action="liste-geo-retirer"]').click();

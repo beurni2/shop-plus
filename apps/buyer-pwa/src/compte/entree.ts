@@ -262,13 +262,13 @@ export function lierLesCommandesDues(
   port: ComptePort,
   local: Storage | undefined,
   onglet: Storage | undefined,
-  lireEtat: (orderId: string) => Promise<OrderOutcome>,
+  lireEtat: (orderId: string, buyerRef: string) => Promise<OrderOutcome>,
 ): void {
   const liens = liensDus(local, onglet);
   if (liens.length === 0) return;
   const rattacher = creerRattacheur(port, local, onglet);
   for (const l of liens) {
-    void lireEtat(l.orderId).then((r) => {
+    void lireEtat(l.orderId, l.buyerRef).then((r) => {
       const verdict = verdictBande(r);
       const reessayable = r.status === 'order' && r.order.state === 'payment_failed' && decidee(onglet, l.orderId);
       if (verdict === 'oublier' && !reessayable) oublierLien(local, onglet, l.orderId);

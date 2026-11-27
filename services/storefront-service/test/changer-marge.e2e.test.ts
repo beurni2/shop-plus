@@ -145,7 +145,9 @@ describe('CHANGER-MARGE-1 — a new marge on a product she already sells, signed
     });
     expect(ordered.status, await ordered.clone().text()).toBe(200);
     const orderId = `ord-${quoteId}`;
-    const lireCommande = async () => safeJson(await (await mf.dispatchFetch(`http://sf/checkout/order/${encodeURIComponent(orderId)}`)).text());
+    // The order view answers only its buyer: she reads it with the token her create gave her.
+    const jeton = String(safeJson(await ordered.text())['buyerRef']);
+    const lireCommande = async () => safeJson(await (await mf.dispatchFetch(`http://sf/checkout/order/${encodeURIComponent(orderId)}`, { headers: { Authorization: `Bearer ${jeton}` } })).text());
     const commandeAvant = await lireCommande();
     expect(Number(commandeAvant['amountPaidAtCheckout'])).toBe(Number(avant['buyerTotal']));
 

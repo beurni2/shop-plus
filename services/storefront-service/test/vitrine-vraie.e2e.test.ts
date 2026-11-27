@@ -152,7 +152,8 @@ async function vendreEtLivrer(S: Seance, slug: string, pid: string, n: string, l
   });
   if (ordered.status !== 200) throw new Error(`setup: order ${ordered.status} ${await ordered.text()}`);
   const orderId = `ord-${quoteId}`;
-  const vue = safeJson(await (await mf.dispatchFetch(`http://c/checkout/order/${encodeURIComponent(orderId)}`)).text());
+  jetons.set(orderId, String(safeJson(await ordered.text())['buyerRef']));
+  const vue = safeJson(await (await mf.dispatchFetch(`http://c/checkout/order/${encodeURIComponent(orderId)}`, saVue(orderId))).text());
   const nsOrd = await mf.getDurableObjectNamespace('ORDER');
   const audit = (await (await nsOrd.get(nsOrd.idFromName(orderId)).fetch('https://do/entry/audit')).json()) as { legKeys?: Record<string, string> };
   const paid = await mf.dispatchFetch('http://c/checkout/webhook/payment', {
@@ -187,6 +188,16 @@ async function valider(orderId: string): Promise<number> {
 
 let S1: Seance;
 let shop: { slug: string; sfId: string };
+
+// The order view answers only its buyer: each read carries the token her
+// create answered, kept here per order.
+const jetons = new Map<string, string>();
+const saVue = (orderId: string) => {
+  const jeton = jetons.get(orderId);
+  // A read of an order this file never created would pass on an empty 404.
+  if (jeton === undefined) throw new Error(`no buyer token kept for ${orderId}`);
+  return { headers: { Authorization: `Bearer ${jeton}` } };
+};
 
 describe('VITRINE-VRAIE-1 — every product of a big boutique reaches the buyer', () => {
   beforeAll(async () => {

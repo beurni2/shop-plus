@@ -179,7 +179,7 @@ async function commanderSurA(mode: 'A' | 'B'): Promise<{ orderId: string; buyerR
   // At the create — what flow.ts sends: the door key rides only a door order.
   rattacher({ orderId, buyerRef, ...(titulaire !== undefined ? { porte: titulaire } : {}) });
   // The service says her first leg moved; the page tells the linker « payée ».
-  const montant = Number((await port.httpQuotePort('http://sf').orderState(orderId) as { order?: { amountPaidAtCheckout?: number } }).order?.amountPaidAtCheckout);
+  const montant = Number((await port.httpQuotePort('http://sf').orderState(orderId, buyerRef) as { order?: { amountPaidAtCheckout?: number } }).order?.amountPaidAtCheckout);
   expect(await poster('/checkout/webhook/payment', webhook(orderId, await legKeyOf(orderId, 'checkout'), montant, false))).toBe(200);
   rattacher({ orderId, buyerRef, payee: true });
   await attendre(() => livre(session), (l) => l.some((c) => c.orderId === orderId));
@@ -228,7 +228,7 @@ describe('PORTE-AUTRE-TELEPHONE-1 — her door from « Mes commandes » on anoth
     expect((await port.httpQuotePort('http://sf').remise(a.orderId, a.buyerRef)).status, 'no code while the product is unpaid').toBe('refused');
 
     expect(await poster('/checkout/webhook/door', webhook(a.orderId, await legKeyOf(a.orderId, 'door'), 11_500, true))).toBe(200);
-    const apres = await port.httpQuotePort('http://sf').orderState(a.orderId);
+    const apres = await port.httpQuotePort('http://sf').orderState(a.orderId, a.buyerRef);
     expect(apres.status === 'order' && apres.order.doorLeg).toBe('paid');
     expect((await port.httpQuotePort('http://sf').remise(a.orderId, a.buyerRef)).status).toBe('code');
   }, 120_000);

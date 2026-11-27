@@ -97,8 +97,8 @@ export function monterSuiviArticle(
     suivi: {
       orderId: article.orderId,
       buyerRef: article.buyerRef,
-      etatCommande: async (id) => {
-        const r = await port.orderState(id);
+      etatCommande: async (id, ref) => {
+        const r = await port.orderState(id, ref);
         // Paid for good: the article leaves her boutique's panier here too,
         // for the tab that paid may have died before it heard (verifier minor 1).
         if (r.status === 'order' && !PAS_ENCORE_PAYE.has(r.order.state) && article.pid !== undefined && args.boutique.slug !== '') {

@@ -650,7 +650,7 @@ if (app) {
       suivi: {
         orderId,
         buyerRef,
-        etatCommande: (id) => port.orderState(id),
+        etatCommande: (id, ref) => port.orderState(id, ref),
         remise: (id, ref) => port.remise(id, ref),
         ...(porte !== undefined ? { payerALaPorte: porte } : {}),
         ...(oublier !== undefined ? { oublier } : {}),
@@ -1091,7 +1091,7 @@ if (app) {
             // journey's snapshot invisible to later non-liste visits too.
             lien: livraisonListe !== undefined ? `${signedSlug}#${pid}#liste:${listeRef}` : `${signedSlug}#${pid}`,
             storage: sessionStorageOrUndefined(),
-            etatCommande: (id) => quotePort.orderState(id),
+            etatCommande: (id, ref) => quotePort.orderState(id, ref),
             remise: (id, ref) => quotePort.remise(id, ref),
             // PORTE-APRES-RECHARGE-1 — a reload keeps her door when this
             // phone kept the order's holder.
@@ -1368,7 +1368,7 @@ if (app) {
   // the operator confirmed joins « Mes commandes » here, once the service says paid.
   const comptePortShell = clienteDemo === null ? resolveComptePort() : undefined;
   if (comptePortShell !== undefined) {
-    lierLesCommandesDues(comptePortShell, garde, sessionStorageOrUndefined(), (id) => resolveQuotePort().orderState(id));
+    lierLesCommandesDues(comptePortShell, garde, sessionStorageOrUndefined(), (id, ref) => resolveQuotePort().orderState(id, ref));
   }
   /**
    * COMMANDES-GARDEES-1 (AUDIT-4 A-02) — every order and every paid panier
@@ -1452,7 +1452,7 @@ if (app) {
   poserBande();
   for (const gardeeSure of commandesConnues) {
     if (gardeeSure.payee === true) continue;
-    void resolveQuotePort().orderState(gardeeSure.orderId).then((r) => {
+    void resolveQuotePort().orderState(gardeeSure.orderId, gardeeSure.buyerRef).then((r) => {
       const verdict = verdictBande(r);
       // A checkout that kept this order again since (a retry: same id, new
       // time; verifier minor 1) must not lose it to this older answer.
@@ -1469,7 +1469,7 @@ if (app) {
   for (const paye of paniersConnus) {
     if (paye.payee === true) continue;
     // The articles were paid in ONE payment, so the first article's order speaks for it.
-    void resolveSuiviArticle().orderState(paye.articles[0]!.orderId).then((r) => {
+    void resolveSuiviArticle().orderState(paye.articles[0]!.orderId, paye.articles[0]!.buyerRef).then((r) => {
       const verdict = verdictBande(r);
       const actuel = panierPaye(paye.groupId, garde);
       const encore = actuel?.at === paye.at;

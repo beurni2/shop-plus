@@ -12,9 +12,9 @@ import { OPS_SECRET, seance, type Seance } from './seance';
  * order creation; the FOUNDER — and only a caller holding CHECKOUT_OPS_SECRET
  * (« value C ») — reads it back on `GET /checkout/dispatch`.
  *
- * THE PROPERTY ABOVE ALL OTHERS: the contact NEVER appears on the public
- * order view. `GET /checkout/order/:id` is reachable by anyone holding the
- * order link; a phone number there would leak with every screenshot. The
+ * THE PROPERTY ABOVE ALL OTHERS: the contact NEVER appears on the order
+ * view. `GET /checkout/order/:id` answers her own token and is shown on her
+ * screen; a phone number there would travel with every screenshot. The
  * suite asserts absence on the RAW RESPONSE BYTES, not on parsed fields.
  *
  * ACCES-ARME-2 (2026-09-05): the shared write key is retired. Every shop
@@ -229,8 +229,11 @@ describe('BC-1a — the contact travels to exactly one reader', () => {
     // What the founder must check on this order: nothing yet.
     expect(row['aVerifier']).toBeNull();
 
-    // THE PROPERTY: the public order view — raw bytes — carries no contact.
-    const pub = await mf.dispatchFetch(`http://c/checkout/order/${encodeURIComponent(orderId)}`);
+    // THE PROPERTY: the order view — raw bytes, read with her own token, the
+    // only key that opens it — carries no contact.
+    const pub = await mf.dispatchFetch(`http://c/checkout/order/${encodeURIComponent(orderId)}`, {
+      headers: { Authorization: `Bearer ${String(created.json['buyerRef'])}` },
+    });
     const pubText = await pub.text();
     expect(pub.status).toBe(200);
     for (const secret of [CONTACT.phone, CONTACT.quartier, CONTACT.repere, 'contact']) {

@@ -123,6 +123,8 @@ export function composeSandboxRefund(orderId, remboursement, nowIso) {
 
 /** The header the webhook gate reads (`auth.ts` PAYMENT_WEBHOOK_KEY_HEADER). */
 export const WEBHOOK_KEY_HEADER = 'X-Payment-Webhook-Key';
+/** What the founder reads when the secret here is not the deployed one — every secret-gated read says the same. */
+const SECRET_REFUSE = 'KEY READ REFUSED 401 — PAYMENT_WEBHOOK_SECRET here does not match the deployed Worker. Re-run the payment-webhook-secret workflow, then this one.';
 
 async function main() {
   const base = (process.env.STOREFRONT_BASE ?? '').trim().replace(/\/+$/, '');
@@ -154,13 +156,21 @@ async function main() {
   const groupe = orderId.startsWith('grp-');
 
   const view = async () => {
-    const res = await fetch(`${base}/checkout/${groupe ? 'group' : 'order'}/${encodeURIComponent(orderId)}`);
+    // An order's own view answers only its buyer, so the founder reads its
+    // state behind the webhook secret; a group's view is read as before.
+    const res = groupe
+      ? await fetch(`${base}/checkout/group/${encodeURIComponent(orderId)}`)
+      : await fetch(`${base}/checkout/webhook/order/${encodeURIComponent(orderId)}`, { headers: { [WEBHOOK_KEY_HEADER]: secret } });
     const body = await res.json().catch(() => ({}));
     return { status: res.status, body };
   };
 
   // ── the order, before ────────────────────────────────────────────────────
   const before = await view();
+  if (before.status === 401) {
+    console.error(SECRET_REFUSE);
+    process.exit(1);
+  }
   if (before.status === 404) {
     console.error(`NO SUCH ORDER: ${orderId} — check the id (it starts with ord- or grp-).`);
     process.exit(1);
@@ -192,7 +202,7 @@ async function main() {
   });
   const keyBody = await keyRes.json().catch(() => ({}));
   if (keyRes.status === 401) {
-    console.error('KEY READ REFUSED 401 — PAYMENT_WEBHOOK_SECRET here does not match the deployed Worker. Re-run the payment-webhook-secret workflow, then this one.');
+    console.error(SECRET_REFUSE);
     process.exit(1);
   }
   if (keyRes.status !== 200 || typeof keyBody.legKey !== 'string') {
@@ -264,7 +274,9 @@ async function rembourser(base, orderId, secret) {
     }
     console.log(`refund of ${r.amount} FCFA (${r.legType}) confirmed: ${JSON.stringify(answer)}`);
   }
-  const after = await fetch(`${base}/checkout/order/${encodeURIComponent(orderId)}`);
+  const after = await fetch(`${base}/checkout/webhook/order/${encodeURIComponent(orderId)}`, {
+    headers: { [WEBHOOK_KEY_HEADER]: secret },
+  });
   const vue = await after.json().catch(() => ({}));
   console.log(`order ${orderId}: state=${String(vue.state ?? '')}`);
   if (vue.state !== 'refunded') {

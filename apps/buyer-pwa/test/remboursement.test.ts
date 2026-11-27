@@ -31,7 +31,7 @@ const NNBSP = '\u202f';
 const lire = (body: unknown) =>
   withFetch(
     (async () => jsonRes(body)) as unknown as typeof fetch,
-    () => httpQuotePort('https://svc.example').orderState('ord-1'),
+    () => httpQuotePort('https://svc.example').orderState('ord-1', 'ref-1'),
   );
 
 describe('readOrder — her refund crosses the wire as the server said it, or not at all', () => {

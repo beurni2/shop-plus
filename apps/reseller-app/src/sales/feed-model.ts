@@ -43,7 +43,6 @@ export interface VenteReelle {
   /** HER NET, copied. The only franc on this surface. */
   readonly netFcfa: number;
   readonly createdAt: string;
-  readonly zoneTo: string;
   /** Present only when Boutik+ has actually said so — the screen shows the
    *  step as not-yet-happened when absent, never as done. */
   readonly acceptedAt?: string;
@@ -141,7 +140,6 @@ export function vueDesVentes(rows: readonly FeedVente[], incomplet: boolean): Fe
         etatKey: etatKeyPour(r),
         netFcfa: r.resellerNet,
         createdAt: r.createdAt,
-        zoneTo: r.zoneTo,
         ...(r.acceptedAt !== undefined ? { acceptedAt: r.acceptedAt } : {}),
         ...(r.readyAt !== undefined ? { readyAt: r.readyAt } : {}),
       }),

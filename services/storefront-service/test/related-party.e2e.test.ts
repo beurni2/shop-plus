@@ -183,8 +183,10 @@ async function commandePayee(S: Seance, n: string, phoneAcheteuse: string): Prom
     }),
   });
   if (ordered.status !== 200) throw new Error(`setup: order ${ordered.status} ${await ordered.text()}`);
+  // The order view answers only its buyer: she reads it with the token her create gave her.
+  const jeton = String(safeJson(await ordered.text())['buyerRef']);
   const orderId = `ord-${quote.quoteId}`;
-  const vue = safeJson(await (await mf.dispatchFetch(`http://c/checkout/order/${encodeURIComponent(orderId)}`)).text());
+  const vue = safeJson(await (await mf.dispatchFetch(`http://c/checkout/order/${encodeURIComponent(orderId)}`, { headers: { Authorization: `Bearer ${jeton}` } })).text());
   const nsOrd = await mf.getDurableObjectNamespace('ORDER');
   const auditRec = (await (await nsOrd.get(nsOrd.idFromName(orderId)).fetch('https://do/entry/audit')).json()) as {
     legKeys?: Record<string, string>;

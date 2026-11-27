@@ -339,7 +339,8 @@ export default {
 
     // ═══ TUILES-PROXY (AUDIT-SHOP-2 F-24) — THE BUYER'S MAP TILES, PUBLIC AND READ-ONLY ═══
     // Above every gate on purpose: a buyer holds no key. The route matches its
-    // own exact path rule inside (the map's one zoom, in-range integers,
+    // own exact path rule inside (z13 to z19 — the buyer map and the founder
+    // console — in-range integers,
     // GET/HEAD) and asks the tile host as THIS Worker — nothing of her request
     // rides upstream, and the copy stays at the edge (src/tuiles.ts has the why).
     if (pathname.startsWith('/tiles/')) {
@@ -1733,8 +1734,8 @@ export default {
      *
      * The body carries ONE field — the §6.4 reason. It cannot carry a phone,
      * and that is the whole shape of this route: the key is read from the
-     * ORDER'S OWN contact, server-side, through the same internal projection
-     * the dispatch list uses. A console typo can therefore refuse the wrong
+     * ORDER'S OWN contact, server-side, through the order's internal
+     * phone-only read (`/entry/telephone-echelle`). A console typo can therefore refuse the wrong
      * ORDER (visible, and his to correct) but can never move a stranger's
      * ladder — which a phone field would have made a one-digit mistake away.
      * Same law as §6.1's facts: the values a decision is measured by come from
@@ -1769,17 +1770,19 @@ export default {
           }
         }
 
-        // THE ORDER'S OWN CONTACT, read the way the dispatch list reads it.
+        // THE ORDER'S OWN PHONE, read from its stored contact — not the
+        // dispatch row, which holds a finished order's contact back
+        // (VIE-PRIVEE-ACHETEUSE) while her ladder still needs its key.
         const orderRes = await env.ORDER.get(env.ORDER.idFromName(orderId)).fetch(
-          new Request('https://do/entry/dispatch'),
+          new Request('https://do/entry/telephone-echelle'),
         );
         const order = (await orderRes.json().catch(() => null)) as
-          | { ok?: boolean; exists?: boolean; contact?: { phone?: unknown } | null }
+          | { ok?: boolean; exists?: boolean; phone?: unknown }
           | null;
         if (order?.ok !== true || order.exists !== true) {
           return withDispatchCors(Response.json({ ok: false, reason: 'not_found' }, { status: 404 }));
         }
-        const phone = order.contact?.phone;
+        const phone = order.phone;
         if (typeof phone !== 'string' || phone === '') {
           // No contact on the order — there is no buyer to key a ladder to, and
           // inventing one is not on the table. Named so the console can say
@@ -1849,7 +1852,11 @@ export default {
      * declare money received — reading one opaque key widens nothing), GET
      * only, and it RETIRES with the tool at the Real-Money Gate.
      */
-    if (request.method === 'GET' && /^\/checkout\/webhook\/(leg-key|refund-key)\//.test(pathname)) {
+    // VIE-PRIVEE-ACHETEUSE — `order/{id}`: the same tool's read of the three
+    // facts it checks before and after it confirms (state and the two sums),
+    // now that the buyer's own view answers her token alone. Same secret, GET
+    // only; it retires with the tool at the Real-Money Gate.
+    if (request.method === 'GET' && /^\/checkout\/webhook\/(leg-key|refund-key|order)\//.test(pathname)) {
       if (!(await paymentWebhookAuthorized(request, env))) return unauthorized();
       return orderRouter.fetch(request, {
         ORDER: env.ORDER,
@@ -2604,12 +2611,12 @@ function feedFanoutMax(env: Env): number {
  */
 function projectVente(v: Record<string, unknown> | null): Record<string, unknown> | null {
   if (v === null || v['ok'] !== true || v['exists'] !== true) return null;
-  const { orderId, state, createdAt, resellerNet, productVersionId, zoneTo } = v;
+  const { orderId, state, createdAt, resellerNet, productVersionId } = v;
   if (typeof orderId !== 'string' || orderId === '') return null;
   if (typeof state !== 'string' || state === '') return null;
   if (typeof createdAt !== 'string' || createdAt === '') return null;
   if (typeof resellerNet !== 'number' || !Number.isInteger(resellerNet)) return null;
-  if (typeof productVersionId !== 'string' || typeof zoneTo !== 'string') return null;
+  if (typeof productVersionId !== 'string') return null;
   /**
    * READINESS-RETURN-1c — the preparation instants, carried ONLY when present
    * and only when they are strings. Absent stays absent: « not yet » is a real
@@ -2619,7 +2626,11 @@ function projectVente(v: Record<string, unknown> | null): Record<string, unknown
   const readyAt = v['readyAt'];
   const lienProche = lienProcheValide(v['lienProche']);
   return {
-    orderId, state, createdAt, resellerNet, productVersionId, zoneTo,
+    orderId, state, createdAt, resellerNet, productVersionId,
+    // VIE-PRIVEE-ACHETEUSE — never the buyer's area. An EMPTY value rides for
+    // this release only: a reseller app installed before the update drops a
+    // row without the key, and her sale must not vanish from her phone.
+    zoneTo: '',
     ...(typeof acceptedAt === 'string' && acceptedAt !== '' ? { acceptedAt } : {}),
     ...(typeof readyAt === 'string' && readyAt !== '' ? { readyAt } : {}),
     // The two settlement facts her « Mes gains » ranks a sale by: Séra

@@ -146,6 +146,7 @@ async function createdPaidOrder(n: string): Promise<string> {
   const createJson = safeJson(await ordered.text());
   if (ordered.status !== 200) throw new Error(`setup: order ${ordered.status}`);
   const orderId = `ord-${quote.quoteId}`;
+  jetons.set(orderId, String(createJson['buyerRef']));
   const ns = await mf.getDurableObjectNamespace('ORDER');
   const audit = (await (await ns.get(ns.idFromName(orderId)).fetch('https://do/entry/audit')).json()) as {
     legKeys?: Record<string, string>;
@@ -221,9 +222,19 @@ const transit = async (body: unknown, secret: string) => {
 };
 
 async function vue(orderId: string) {
-  const res = await mf.dispatchFetch(`http://c/checkout/order/${encodeURIComponent(orderId)}`);
+  const res = await mf.dispatchFetch(`http://c/checkout/order/${encodeURIComponent(orderId)}`, saVue(orderId));
   return safeJson(await res.text());
 }
+
+// The order view answers only its buyer: each read carries the token her
+// create answered, kept here per order.
+const jetons = new Map<string, string>();
+const saVue = (orderId: string) => {
+  const jeton = jetons.get(orderId);
+  // A read of an order this file never created would pass on an empty 404.
+  if (jeton === undefined) throw new Error(`no buyer token kept for ${orderId}`);
+  return { headers: { Authorization: `Bearer ${jeton}` } };
+};
 
 describe('SECTEURS-PROGRES-1 — with both secrets bound, each writer opens exactly its own doors', () => {
   it("THE AUDIT'S ATTACK, closed: Boutik+'s credential can no longer mint Séra's delivery marks — and Séra's still can", async () => {

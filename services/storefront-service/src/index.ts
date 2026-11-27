@@ -774,9 +774,8 @@ export function checkoutPreflight(): Response {
       // VRAI-SUIVI — `Authorization` joins `Content-Type`: the remise read
       // authenticates with the buyer's own Bearer token, and a preflight that
       // does not name the header makes the browser refuse the request it just
-      // approved. GRANTING THE HEADER GRANTS NOTHING — the remise route still
-      // refuses every token but the order's own, and no other checkout route
-      // reads Authorization at all.
+      // approved. GRANTING THE HEADER GRANTS NOTHING — the remise, liste-merci
+      // and order-view routes refuse every token but the order's own.
       'Access-Control-Allow-Headers': 'Authorization, Content-Type',
       'Access-Control-Max-Age': '86400',
       Vary: 'Origin',

@@ -317,7 +317,7 @@ describe('REPERE-AUDIO-REEL — the note rides the order, end to end on the real
 describe('GEO-ACHAT-1 — the pin rides the order, end to end on the real Worker', () => {
   it('SEAM: pin at create → stored on the contact → the dispatch read serves it EXACTLY; the public view never carries a coordinate', async () => {
     const quoteId = await reservedQuote('0011');
-    const { status } = await createOrder('0011', quoteId, {
+    const { status, body: cree } = await createOrder('0011', quoteId, {
       phone: '70 12 34 60', quartier: 'Gounghin', repere: 'Face à la pharmacie',
       pin: { lat: 12.371532, lng: -1.519931, accuracy: 12 },
     });
@@ -327,9 +327,10 @@ describe('GEO-ACHAT-1 — the pin rides the order, end to end on the real Worker
     expect(row).toBeDefined();
     const contact = row!['contact'] as Record<string, unknown>;
     expect(contact['pin']).toEqual({ lat: 12.371532, lng: -1.519931, accuracy: 12 });
-    // THE LEAK PROBE: the public order view — anyone holding the link — has
-    // no pin key and no coordinate byte.
-    const pub = await mf.dispatchFetch(`http://c/checkout/order/${encodeURIComponent(`ord-${quoteId}`)}`);
+    // THE LEAK PROBE: the order view — even read with her own token, the only
+    // key that opens it — has no pin key and no coordinate byte.
+    const jeton = String(cree['buyerRef']);
+    const pub = await mf.dispatchFetch(`http://c/checkout/order/${encodeURIComponent(`ord-${quoteId}`)}`, { headers: { Authorization: `Bearer ${jeton}` } });
     const bytes = await pub.text();
     expect(pub.status).toBe(200);
     expect(bytes).not.toContain('"pin"');
