@@ -1,6 +1,20 @@
 # JOURNAL — shop-plus
 Continuity ledger per CTO charter §6/§6bis. Every entry is evidence-grounded.
 
+## 2026-11-27 · COLIS-PERDU-1 — DEPLOYED and MERGED
+
+**Founder.** « Release all four » (2026-11-27 10:54 UTC, decision card, on the lost-parcel batch report), which named for Shop+: put the shop service live from the branch, then merge. Shop+ went live before Séra, so it was listening before Séra could speak.
+
+**Deploy first, from the designated branch at `227f9bd`.** storefront-deploy 129 (id 45986130283): canon 3.28.0 asserted, « CUSTODY ARMED — all four wires present on the live Worker », smokes OK (checkout refuses by name, tiles live, password hashing at 100 000), and the live health check reports release `227f9bd`.
+
+**Merge.** PR #9 merged as `9257c95` (merge commit, the branch shas kept). On main: pwa-preview 527 (buyer site) green · expo-preview 560 (reseller app) green · service-canon-drift 491 green · ci 749 green on its first attempt.
+
+**Deploy note, as reported.** No data migration; nothing to move or convert.
+
+**Still open.** As named in the slice entry below. Other open items for this slice are held in the private batch record until their fixes deploy.
+
+---
+
 ## 2026-11-27 · COLIS-PERDU-1 — a parcel Séra declares lost on the road refunds the buyer in full, delivery included · lane P7 · on the branch, NOT merged, NOT deployed
 
 **Founder.**
