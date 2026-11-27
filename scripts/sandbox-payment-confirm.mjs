@@ -45,6 +45,8 @@
  * would refuse.
  */
 
+import { createHash } from 'node:crypto';
+
 export const SANDBOX_ACTOR = 'payment-provider:sandbox';
 
 /**
@@ -121,6 +123,19 @@ export function composeSandboxRefund(orderId, remboursement, nowIso) {
   };
 }
 
+/**
+ * THIS SCRIPT'S LOG IS PUBLIC (the workflow runs in a public repository). It
+ * names an order or a group only by a short fingerprint of its id — the same
+ * id always gives the same « #1a2b3c4d », so two lines about one order still
+ * match — and never prints an amount, a key or a service answer: a refusal
+ * names only the service's error code.
+ */
+export const empreinte = (id) => `#${createHash('sha256').update(String(id)).digest('hex').slice(0, 8)}`;
+const codeErreur = (body) => {
+  const e = body && typeof body === 'object' ? body.error : undefined;
+  return typeof e === 'string' && /^[a-z_]{1,64}$/.test(e) ? e : 'sans code';
+};
+
 /** The header the webhook gate reads (`auth.ts` PAYMENT_WEBHOOK_KEY_HEADER). */
 export const WEBHOOK_KEY_HEADER = 'X-Payment-Webhook-Key';
 /** What the founder reads when the secret here is not the deployed one — every secret-gated read says the same. */
@@ -149,7 +164,7 @@ async function main() {
     });
     const probed = await probe.json().catch(() => ({}));
     if (probe.status === 200 && typeof probed.groupId === 'string') {
-      console.log(`order ${pasted} was paid in the grouped payment ${probed.groupId} — confirming the group.`);
+      console.log(`order ${empreinte(pasted)} was paid in the grouped payment ${empreinte(probed.groupId)} — confirming the group.`);
       orderId = probed.groupId;
     }
   }
@@ -172,16 +187,16 @@ async function main() {
     process.exit(1);
   }
   if (before.status === 404) {
-    console.error(`NO SUCH ORDER: ${orderId} — check the id (it starts with ord- or grp-).`);
+    console.error(`NO SUCH ORDER: ${empreinte(orderId)} — check the id (it starts with ord- or grp-).`);
     process.exit(1);
   }
   if (before.status !== 200) {
-    console.error(`order read failed: HTTP ${before.status} ${JSON.stringify(before.body)}`);
+    console.error(`order read failed: HTTP ${before.status} (${codeErreur(before.body)})`);
     process.exit(1);
   }
   const state = String(before.body.state ?? '');
   const amount = Number(before.body.amountPaidAtCheckout);
-  console.log(`order ${orderId}: state=${state} · amountPaidAtCheckout=${amount} FCFA · amountDueAtDelivery=${Number(before.body.amountDueAtDelivery)} FCFA`);
+  console.log(`order ${empreinte(orderId)}: state=${state}`);
 
   if (state === 'confirmed') {
     console.log('ALREADY CONFIRMED — nothing to do. (A redelivery would be absorbed; not sending one.)');
@@ -192,7 +207,7 @@ async function main() {
     process.exit(1);
   }
   if (!Number.isFinite(amount) || amount <= 0) {
-    console.error(`REFUSING: the order view names no positive amountPaidAtCheckout (${String(before.body.amountPaidAtCheckout)}). Nothing was sent.`);
+    console.error('REFUSING: the order view names no positive amountPaidAtCheckout. Nothing was sent.');
     process.exit(1);
   }
 
@@ -206,7 +221,7 @@ async function main() {
     process.exit(1);
   }
   if (keyRes.status !== 200 || typeof keyBody.legKey !== 'string') {
-    console.error(`KEY READ FAILED: HTTP ${keyRes.status} ${JSON.stringify(keyBody)} — a payment_pending order always holds its checkout leg key; investigate before retrying. Nothing was sent.`);
+    console.error(`KEY READ FAILED: HTTP ${keyRes.status} (${codeErreur(keyBody)}) — a payment_pending order always holds its checkout leg key; investigate before retrying. Nothing was sent.`);
     process.exit(1);
   }
 
@@ -222,15 +237,15 @@ async function main() {
     process.exit(1);
   }
   if (res.status !== 200) {
-    console.error(`WEBHOOK REFUSED: HTTP ${res.status} ${JSON.stringify(answer)} — nothing moved.`);
+    console.error(`WEBHOOK REFUSED: HTTP ${res.status} (${codeErreur(answer)}) — nothing moved.`);
     process.exit(1);
   }
-  console.log(`webhook accepted: ${JSON.stringify(answer)}`);
+  console.log('webhook accepted.');
 
   // ── the order, after — the vault's word, not the response's ─────────────
   const after = await view();
   const afterState = String(after.body.state ?? '');
-  console.log(`order ${orderId}: state=${afterState}`);
+  console.log(`order ${empreinte(orderId)}: state=${afterState}`);
   if (afterState !== 'confirmed') {
     console.error('the webhook answered 200 but the order did not reach confirmed — investigate before retrying.');
     process.exit(1);
@@ -258,7 +273,7 @@ async function rembourser(base, orderId, secret) {
     process.exit(1);
   }
   if (probe.status !== 200 || !Array.isArray(body.remboursements)) {
-    console.error(`NO REFUND ASKED for ${orderId} (HTTP ${probe.status}) — a refund exists only after Séra refused the delivery home. Nothing was sent.`);
+    console.error(`NO REFUND ASKED for ${empreinte(orderId)} (HTTP ${probe.status}) — a refund exists only after Séra refused the delivery home. Nothing was sent.`);
     process.exit(1);
   }
   for (const r of body.remboursements) {
@@ -269,16 +284,16 @@ async function rembourser(base, orderId, secret) {
     });
     const answer = await res.json().catch(() => ({}));
     if (res.status !== 200) {
-      console.error(`REFUND CONFIRMATION REFUSED: HTTP ${res.status} ${JSON.stringify(answer)} — nothing moved.`);
+      console.error(`REFUND CONFIRMATION REFUSED: HTTP ${res.status} (${codeErreur(answer)}) — nothing moved.`);
       process.exit(1);
     }
-    console.log(`refund of ${r.amount} FCFA (${r.legType}) confirmed: ${JSON.stringify(answer)}`);
+    console.log(`refund (${String(r.legType).replace(/[^a-z_]/g, '')} leg) confirmed.`);
   }
   const after = await fetch(`${base}/checkout/webhook/order/${encodeURIComponent(orderId)}`, {
     headers: { [WEBHOOK_KEY_HEADER]: secret },
   });
   const vue = await after.json().catch(() => ({}));
-  console.log(`order ${orderId}: state=${String(vue.state ?? '')}`);
+  console.log(`order ${empreinte(orderId)}: state=${String(vue.state ?? '')}`);
   if (vue.state !== 'refunded') {
     console.error('the confirmations answered 200 but the order is not refunded — investigate before retrying.');
     process.exit(1);

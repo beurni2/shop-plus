@@ -23,6 +23,8 @@ name: service-canon-drift
 # ask for something the service will refuse. Dispatch `storefront-deploy` and this
 # goes green. It runs on every push to main (the moment the gap opens) and daily
 # (so a gap opened by a rollback or an expired deploy cannot sit unseen).
+# Its last step also goes red when the live storefront was built from an older
+# commit than main in anything it is built from: a deploy is owed then too.
 
 on:
   push:
@@ -46,6 +48,10 @@ jobs:
       # CHAINE-DEPLOI-1 (AUDIT-SHOP-2 F-09) — actions pinned to commit SHAs
       # (tag kept beside each for reading); see ci.yml.
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          # The watch below compares the live release with main: it needs
+          # main's history, not only its newest commit.
+          fetch-depth: 0
       - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0 (what the moving v4 resolves to)
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
@@ -83,7 +89,8 @@ jobs:
           REPO_CANON=$(node -p "require('./node_modules/@platform/contracts/package.json').version")
           OUT=$(mktemp)
           CODE=$(curl -sS -o "$OUT" -w '%{http_code}' "$BASE/health")
-          echo "health: $CODE $(cat "$OUT")"
+          # The answer itself is never printed (this log is public): only canon and release.
+          echo "health: HTTP $CODE"
           if [ "$CODE" != "200" ]; then
             echo "THE LIVE SERVICE DID NOT ANSWER /health ($CODE) — drift cannot be ruled out."
             exit 1
@@ -106,3 +113,19 @@ jobs:
             exit 1
           fi
           echo "IN SYNC — the live Worker speaks the canon main ships ($REPO_CANON)."
+      # THE SECOND QUESTION: same canon is not same code. Each deploy proves the
+      # live Worker is the bundle that job built, not that it built main. This
+      # asks the live Worker which commit it was built from and goes red unless
+      # main has changed nothing the storefront is built from since — its
+      # folder, the packages and the attribution service it bundles, the lock
+      # file, the workspace manifests, the shared TypeScript base and the build
+      # plan (turbo.json, read by the deploy's `pnpm build`). An input missing
+      # from main is red too. Asked even when the canon step above is red.
+      - name: Does the live storefront still run main?
+        if: ${{ !cancelled() }}
+        run: >-
+          bash scripts/live-watch.sh storefront https://storefront-service.ilboudobernard2.workers.dev
+          services/storefront-service packages/observability packages/supply-consumer
+          packages/reseller-money packages/commerce-core packages/flags-client
+          services/attribution-service
+          pnpm-lock.yaml pnpm-workspace.yaml package.json tsconfig.base.json turbo.json
