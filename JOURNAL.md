@@ -1,6 +1,57 @@
 # JOURNAL — shop-plus
 Continuity ledger per CTO charter §6/§6bis. Every entry is evidence-grounded.
 
+## 2026-11-27 · LOIS-PARTOUT-1 — every tracked file refuses the retired names; an earner's balance is caught as a whole word or with its currency · lane O4 · on the branch, NOT merged
+
+**Founder.** « after everything is released, you can start the next batch 3 » (2026-11-27 04:21 UTC, project chat). The plan he approved says « every repository checks for the retired names ».
+
+**Lane.** Lane O, slice O4 (lane commits `2ea591e`, `eeabf04`). Integrated on `claude/project-thread-jqj97g` as one commit, `8139cbb`.
+
+**Spec.**
+- CLAUDE.md §4: « every invariant gate + the copy-lint + the contracts drift-check live from the first PR in every repo … A gate added later is a gate that already let something through. »
+- CLAUDE.md §3: Law 10 (the retired names) and Law 2 (« No wallet/balance module exists anywhere »).
+
+**What changed.** Gate files only: no app code, catalog, workflow or dependency.
+
+*The retired-names gate.*
+- It is the same file in all five repositories, and the board pins its sha256 (`cdfd9208…02dd`).
+- It reads every tracked file except a printed list: the 12 canon files by name, `design-reference/`, CLAUDE.md, AGENTS.md, JOURNAL.md, `_review/`, the gate itself, the roster, and its own negative fixtures. A throwaway-repository probe pins both edges of that list.
+- It refuses the two names whatever separates the words: white space, an escaped space or an HTML entity. It still refuses them right after an escape that ends in a letter, and it refuses « Mon shop » in lowercase. « ma boutique », « mon Shop+ » and « mon shopping » stay legal.
+- It has seven negative fixtures, each also run alone, and one legal fixture. The roster holds its six patterns, and the coverage gate proves each one load-bearing.
+
+*The wallet gate.* Its earner-balance pattern now refuses the balance of a seller, a supplier, a rider and the other earners, as a whole word or with its currency. It comes with its roster entry, the English fixture `earner-balance-forms.ts` (also run alone), and one French line in `solde-vendeur.fr.ts`.
+
+*The board.* The retired-names steps sit above the coverage comment, and the English earner-balance steps sit beside the wallet negative. No existing board line was removed.
+
+*Coordinator change at integration.* The left-out reason for the canon said the canon « states Law 10 itself ». It does not. It now reads « product truth, changed only by a canon slice », and the hash was re-pinned on all five boards.
+
+**Evidence.**
+- Full board on `8139cbb` after `pnpm build` (`TURBO_CONCURRENCY=1`): every gate passes except `playwright-e2e`, where the only two reds are the two known fallback-font tests (C5 at 360 px, `cliente.spec.ts:474` and `:909`). They fail on a machine whose sans-serif is Inter and pass on CI, which is the authority for them; they are not touched by this change (329 passed, 2 failed). The other fails in the log are must-fail negatives.
+- Red first, by the lane: a planted retired name and an earner's balance pass main `24600e4` and fail the branch.
+- Mutations. The lane ran ten (three at the first build, seven at the fix): each anchor matched once, each turned the board red, and each file was restored byte-identical. The coordinator re-ran two on `8139cbb`. With the earner tail reverted, its fixture passes alone and coverage exits 1. With the word gap back to a plain space, the escaped-space fixture passes alone and coverage exits 1. Both were restored, and `git status` was empty.
+
+**Independent review.** One fresh-context pass, handled once: 0 blocker, 2 major, 6 minor, 6 notes. Every major and minor was fixed in this build. The notes were fixed, or kept in the private batch record.
+
+**Still open.** Follow-ons for the gates are held in the private batch record.
+
+**Where it stands.** On the branch, not merged. Gate files only: merging is the whole release, and there is no deploy.
+
+---
+
+## 2026-11-27 · GARDE-ROUTE-1 — DEPLOYED and MERGED
+
+**Founder.** « Release all three » (2026-11-27 04:19 UTC, decision card, on the batch report), which named for Shop+: put the shop service live from the branch, then merge.
+
+**Deploy first, from the designated branch at `1301ef0`.** storefront-deploy 128 (id 45939347998): canon 3.27.0 asserted, « CUSTODY ARMED — all four wires present on the live Worker », smokes OK (checkout refuses by name, tiles live, password hashing at 100 000), and the live health check reports release `1301ef0`.
+
+**Merge.** main re-checked unchanged at `176bead`; PR #7 merged as `24600e4` (merge commit, the branch shas kept). On main: pwa-preview 525 (buyer site) green · expo-preview 558 (reseller app) green · service-canon-drift 489 green · ci 745 green on its second attempt. The first attempt was red on one test only: the reseller profile walk that opens the hub from the dock timed out at 5 038 ms against vitest's 5 000 ms default (931 of 932 reseller tests passed, every other gate green, the buyer site 331 of 331). The same test took 4 471 ms on ci 743, before this slice, and 4 020 ms on this PR's ci 744: a whole-app walk with no explicit limit, already near the default. Only the failed job was run again; nothing was changed.
+
+**Deploy note, as reported.** No shared data shape and no data migration; nothing to move or convert.
+
+**Still open.** As named in the slice entry below, plus: the reseller profile walk above needs the explicit limit this repository gives whole-app walks (`20_000`). Other open items for this slice are held in the private batch record until their fixes deploy.
+
+---
+
 ## 2026-11-27 · GARDE-ROUTE-1 — the buyer's code reaches custody as soon as the course opens; an order that will never travel stops calling custody; the reseller's waiting list survives a dying phone · lane P6 · on the branch, NOT merged, NOT deployed
 
 **Founder.** « You can start the next batch » (2026-11-27 01:21 UTC, in the project chat, on the batch plan).
