@@ -33,19 +33,21 @@ const offer = {
   productVersionId: PV, offerVersion: 'ov-1', basePrice: 10_000, resellerCommission: 1_000, available: 5,
   productName: 'Bazin riche', assetRefs: [] as string[], category: 'mode',
 };
-const storefront = {
-  id: 'SF', resellerId: 'RS', slug: 'boutique-0001', discoverable: true, curatedItems: [] as string[],
+const PAS_GARDE = 'L’envoi n’a pas marché. Réessayez dans un moment.';
+const boutique = (curatedItems: string[]) => ({
+  id: 'SF', resellerId: 'RS', slug: 'boutique-0001', discoverable: true, curatedItems,
   name: 'Boutique test', zone: 'Ouagadougou', category: 'mode',
   createdAt: '2026-09-12T08:00:00.000Z', updatedAt: '2026-09-12T08:00:00.000Z',
   tagline: '', bio: '', cover: { status: 'none' }, avatar: { mode: 'monogram' }, theme: 'laterite',
   sections: [], featuredItems: [], headerStyle: 'classique', productNotes: {},
-};
-const routes: Route[] = [
+});
+const routesAvec = (curated: string[]): Route[] => [
   (path) => (path === '/supply-projections' ? { status: 200, json: { offers: [offer], diagnostic: { status: 'ok', refusals: [] } } } : null),
   (path) => (path === '/storefronts' ? { status: 200, json: [] as never } : null),
-  (path) => (/^\/storefronts\/[^/]+$/.test(path) ? { status: 200, json: storefront as never } : null),
+  (path) => (/^\/storefronts\/[^/]+$/.test(path) ? { status: 200, json: boutique(curated) as never } : null),
   (path) => (/^\/listings\/by-pid\//.test(path) ? { status: 404, json: { error: 'not_found' } } : null),
 ];
+const routes = routesAvec([]);
 
 /** « No network » for every path, as when the signal goes. */
 function reseau(): { mort: boolean } {
@@ -125,10 +127,26 @@ describe('P6 — her waiting list could not be read', () => {
     await screen.press('Ajouter à ma vitrine');
     await screen.settle();
     await screen.settle();
-    // today's road with no list: nothing is claimed as kept
+    // today's road with no list: nothing is claimed as kept, and she is told it did not go
+    expect(screen.shows(PAS_GARDE), 'the sentence she is shown: it did not go, try again').toBe(true);
     expect(screen.shows('L’ajout de Bazin riche est gardé sur votre téléphone.'), 'never claimed as kept').toBe(false);
     expect(screen.shows('En attente d’envoi')).toBe(false);
     expect(screen.canPress('Ajouter à ma vitrine'), 'the tree survived and she can try again').toBe(true);
     expect(fichierBrut(LISTE)).toBe(MOITIE);
+  }, 20_000);
+
+  it('a shop that already has products: Ma Vitrine says the same sentence above them, and she closes it', async () => {
+    const { poserFichier } = await appareil();
+    poserFichier(LISTE, MOITIE);
+    wire(routesAvec([PV]));
+    const screen = await mountApp();
+    await screen.press('Ma Vitrine');
+    await screen.settle();
+    expect(screen.shows('Bazin riche'), 'the branch with her products').toBe(true);
+    expect(screen.shows(PERDUE), 'the loss is said there too').toBe(true);
+    expect(screen.canPress('Compris')).toBe(true);
+    await screen.press('Compris');
+    expect(screen.shows(PERDUE)).toBe(false);
+    expect(screen.shows('Bazin riche'), 'her products are still there').toBe(true);
   }, 20_000);
 });

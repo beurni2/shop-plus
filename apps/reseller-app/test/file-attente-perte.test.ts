@@ -1,7 +1,7 @@
 import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { FileAttente, type QueueStore } from '../src/offline/queue';
 import { expoFileAttenteStore } from '../src/offline/expoStore';
 import { PhoneMort, fichierBrut, fichiersSous, planterApres, poserFichier, resetFiles } from './doubles/expo-file-system';
@@ -84,6 +84,19 @@ describe('ouvrir — bytes that do not read are reported, kept aside, never dele
     expect(readFileSync(join(dir, gardes(dir)[0]!), 'utf8')).toBe(autre);
   });
 
+  it('an EMPTY file (zero bytes) is a loss too: reported, its empty bytes kept aside once, a fresh list — never « nothing was waiting »', async () => {
+    const { store, path, dir } = disque();
+    writeFileSync(path, '');
+    const q = await FileAttente.ouvrir(store);
+    expect(q.restauree, 'an empty file is not a list').toBe(false);
+    expect(q.tout()).toEqual([]);
+    const kept = gardes(dir);
+    expect(kept).toHaveLength(1);
+    expect(readFileSync(join(dir, kept[0]!), 'utf8')).toBe('');
+    expect(JSON.parse(readFileSync(path, 'utf8'))).toEqual({ version: 1, entries: [] });
+    expect((await FileAttente.ouvrir(store)).restauree, 'the next boot is quiet').toBe(true);
+  });
+
   it('nothing written yet, or a list that reads: `restauree` is true and nothing is kept aside', async () => {
     const { store, dir } = disque();
     expect((await FileAttente.ouvrir(store)).restauree).toBe(true);
@@ -146,6 +159,43 @@ describe('expoFileAttenteStore — no death can leave her without a whole list',
     const boot = await FileAttente.ouvrir(expoFileAttenteStore());
     expect(boot.restauree, 'the good copy survived the second death').toBe(true);
     expect(boot.tout().map((e) => e.pid)).toEqual(['p1', 'p2']);
+  });
+
+  it('the very first write dies right after the native truncation: the cold boot does not read « nothing was waiting » — the loss is said, and a fresh list opens', async () => {
+    const q = await FileAttente.ouvrir(expoFileAttenteStore());
+    planterApres({ acte: 'write', vide: true });
+    await expect(q.deposer('listing.publish', 'p1', { markup: 0 })).rejects.toBeInstanceOf(PhoneMort);
+    expect(fichierBrut(TMP), 'the death left an empty temporary file and no list').toBe('');
+    expect(fichierBrut(MAIN)).toBeUndefined();
+
+    const boot = await FileAttente.ouvrir(expoFileAttenteStore());
+    expect(boot.restauree, 'an empty file is reported').toBe(false);
+    expect(boot.tout()).toEqual([]);
+    const kept = fichiersSous(`${MAIN}.perdu-`);
+    expect(kept).toHaveLength(1);
+    expect(fichierBrut(kept[0]!)).toBe('');
+  });
+
+  it('with no open at all: a lone whole temporary file and no list, then a write that dies halfway — the list read afterwards is the old whole one', async () => {
+    poserFichier(TMP, liste(['p1', 'p2']));
+    const store = expoFileAttenteStore();
+    planterApres({ acte: 'write', moitie: true });
+    await expect(store.write(liste(['p9']))).rejects.toBeInstanceOf(PhoneMort);
+    expect(await expoFileAttenteStore().read(), 'the only good copy was moved into place before the write').toBe(liste(['p1', 'p2']));
+  });
+
+  it('two keep-asides in the same millisecond: two names, neither overwritten', async () => {
+    const store = expoFileAttenteStore();
+    const now = vi.spyOn(Date, 'now').mockReturnValue(1_790_000_000_000);
+    try {
+      await store.garder('premier');
+      await store.garder('second');
+    } finally {
+      now.mockRestore();
+    }
+    const kept = fichiersSous(`${MAIN}.perdu-`);
+    expect(kept).toHaveLength(2);
+    expect(kept.map((k) => fichierBrut(k)).sort()).toEqual(['premier', 'second']);
   });
 
   it('damaged bytes are kept aside under a new name in her document folder — and never deleted', async () => {

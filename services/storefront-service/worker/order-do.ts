@@ -3433,6 +3433,9 @@ export class OrderDO {
     const out: Record<string, unknown> = {};
     const arm = await this.state.storage.get<{ status?: string }>(CUSTODY_ARM_KEY);
     if (arm?.status === 'pending') out[CUSTODY_ARM_KEY] = { ...arm, status: 'abandoned', reason, abandonedAt };
+    // A refused course whose code custody already holds keeps its custody file:
+    // the door payment she made must still reach it, so the door rows go on.
+    if (reason === 'course_refusee' && arm?.status === 'delivered') return out;
     const signal = await this.state.storage.get<{ status?: string }>(DOOR_SIGNAL_KEY);
     if (signal?.status === 'pending') out[DOOR_SIGNAL_KEY] = { ...signal, status: 'abandoned', reason, abandonedAt };
     const refs = await this.state.storage.get<Record<string, DoorReferenceRow>>(DOOR_REFERENCE_KEY);
@@ -3469,6 +3472,7 @@ export class OrderDO {
     }
 
     if (delivered) {
+      // Custody's answer is the truth: it holds the code, whatever was written meanwhile.
       await this.state.storage.put(CUSTODY_ARM_KEY, {
         ...outbox,
         status: 'delivered',
@@ -3477,8 +3481,12 @@ export class OrderDO {
       });
       return 0;
     }
-    const attempts = outbox.attempts + 1;
-    await this.state.storage.put(CUSTODY_ARM_KEY, { ...outbox, attempts });
+    // This object went on answering while custody was asked: an ending may have
+    // been written since the read above. Write back only a row still waiting.
+    const fresh = await this.state.storage.get<typeof outbox>(CUSTODY_ARM_KEY);
+    if (fresh?.status !== 'pending') return 0;
+    const attempts = fresh.attempts + 1;
+    await this.state.storage.put(CUSTODY_ARM_KEY, { ...fresh, attempts });
     return attempts;
   }
 
@@ -3511,8 +3519,7 @@ export class OrderDO {
     const rows = await this.state.storage.get<Record<string, DoorReferenceRow>>(DOOR_REFERENCE_KEY);
     if (rows === undefined) return 0;
     const secret = this.env.SHOP_ARM_SECRET ?? '';
-    const next: Record<string, DoorReferenceRow> = { ...rows };
-    let pending = 0;
+    const tried = new Map<string, { outcome: 'accepted' | 'refused'; reason?: string } | undefined>();
     for (const [reference, row] of Object.entries(rows)) {
       if (row.status !== 'pending') continue;
       let done: { outcome: 'accepted' | 'refused'; reason?: string } | undefined;
@@ -3537,11 +3544,23 @@ export class OrderDO {
           }
         }
       }
+      tried.set(reference, done);
+    }
+    // Merged per reference over a FRESH read: this object went on answering
+    // while custody was asked, and an ending may have been written meanwhile.
+    // Custody's decisive answer is written; otherwise only a row still waiting.
+    const fresh = (await this.state.storage.get<Record<string, DoorReferenceRow>>(DOOR_REFERENCE_KEY)) ?? {};
+    const next: Record<string, DoorReferenceRow> = { ...fresh };
+    let pending = 0;
+    for (const [reference, now] of Object.entries(fresh)) {
+      const row = rows[reference];
+      if (row === undefined || !tried.has(reference)) continue;
+      const done = tried.get(reference);
       if (done !== undefined) {
         next[reference] = { ...row, status: 'delivered', outcome: done.outcome, ...(done.reason !== undefined ? { reason: done.reason } : {}), attempts: row.attempts + 1, deliveredAt: new Date().toISOString() };
-      } else {
-        next[reference] = { ...row, attempts: row.attempts + 1 };
-        pending = Math.max(pending, row.attempts + 1);
+      } else if (now.status === 'pending') {
+        next[reference] = { ...now, attempts: now.attempts + 1 };
+        pending = Math.max(pending, now.attempts + 1);
       }
     }
     await this.state.storage.put(DOOR_REFERENCE_KEY, next);
@@ -3636,8 +3655,11 @@ export class OrderDO {
       });
       return 0;
     }
-    const attempts = outbox.attempts + 1;
-    await this.state.storage.put(DOOR_SIGNAL_KEY, { ...outbox, attempts });
+    // As the arm wire: an ending written while custody was asked stands.
+    const fresh = await this.state.storage.get<typeof outbox>(DOOR_SIGNAL_KEY);
+    if (fresh?.status !== 'pending') return 0;
+    const attempts = fresh.attempts + 1;
+    await this.state.storage.put(DOOR_SIGNAL_KEY, { ...fresh, attempts });
     return attempts;
   }
 
