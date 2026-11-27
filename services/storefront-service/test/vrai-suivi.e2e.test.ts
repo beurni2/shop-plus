@@ -491,8 +491,11 @@ describe('VRAI-SUIVI — the remise door: one door, arrival-gated, token-gated, 
     const o = await createdOrder('0006');
     const jeton = o.createJson['buyerRef'] as string;
     expect(typeof jeton).toBe('string');
+    // The course is already admitted, so custody is really armed with the code.
+    dossiers.add(o.orderId);
     await confirmOrder(o.orderId, 12_500);
     await waitForArm(o.orderId);
+    expect((await outboxOf(o.orderId)).custodyArm?.status, 'custody took the arm').toBe('delivered');
     const secret = armPostsFor(o.orderId)[0]!.body!['secret'] as string;
 
     // BEFORE ARRIVAL, the RIGHT token learns nothing…

@@ -143,7 +143,9 @@ export class FileAttente {
     const raw = await store.read();
     let entries: QueueEntry[] = [];
     let lisible = true;
-    if (raw !== null && raw.length > 0) {
+    // An EXISTING file of zero bytes is unreadable too: it is what a write that
+    // died right after the native truncation leaves, never « nothing waiting ».
+    if (raw !== null) {
       try {
         const parsed = JSON.parse(raw) as Persisted;
         lisible = parsed.version === SCHEMA_VERSION && Array.isArray(parsed.entries);

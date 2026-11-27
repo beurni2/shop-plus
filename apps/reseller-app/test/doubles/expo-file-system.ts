@@ -52,28 +52,32 @@ export function resetFiles(): void {
  * P6 — THE TWO WRITE ROADS OF THE OUTBOX, as the native module walks them
  * (expo-file-system 57.0.6, Android), and a phone that dies in the middle:
  *   · `write` truncates then writes IN PLACE (`FileSystemFile.kt` :76-84):
- *     a death mid-write leaves a PREFIX of the new bytes, the old ones gone;
+ *     a death mid-write leaves a PREFIX of the new bytes (`moitie`) — or,
+ *     dying right after the truncation, NOTHING: an empty file (`vide`) —
+ *     the old bytes gone either way;
+ *   · `create()` makes an empty file and THROWS on one that exists, as the
+ *     native module does (`FileSystemFile.kt` `create`, no `overwrite`);
  *   · `move(dest, { overwrite: true })` first DELETES an existing destination
  *     (`fsops/CopyMoveStrategy.kt` `prepareAsDestination`), then renames —
  *     a death between the two leaves only the source; without `overwrite`
  *     an existing destination is refused. The object then names `dest`.
  * `planterApres` arms ONE death on the next matching act: the act is done
- * (for a `write` with `moitie`, half of it), then the call throws as the
+ * (for a `write` with `moitie`, half of it; with `vide`, none), then the call throws as the
  * process would stop. Nothing after it runs. `journalActes` is every act, in
  * order. Bound: bytes in a map and the order of acts — never timing, never
  * a real filesystem.
  */
 export type Acte = 'write' | 'delete' | 'rename';
 export const journalActes: { acte: Acte; cle: string; vers?: string }[] = [];
-let plantage: { acte: Acte; cle?: RegExp; moitie?: boolean } | null = null;
-export function planterApres(p: { acte: Acte; cle?: RegExp; moitie?: boolean }): void {
+let plantage: { acte: Acte; cle?: RegExp; moitie?: boolean; vide?: boolean } | null = null;
+export function planterApres(p: { acte: Acte; cle?: RegExp; moitie?: boolean; vide?: boolean }): void {
   plantage = p;
 }
-function peutPlanter(acte: Acte, cle: string): { moitie: boolean } | null {
+function peutPlanter(acte: Acte, cle: string): { moitie: boolean; vide: boolean } | null {
   if (plantage === null || plantage.acte !== acte || (plantage.cle !== undefined && !plantage.cle.test(cle))) return null;
-  const moitie = plantage.moitie === true;
+  const mort = { moitie: plantage.moitie === true, vide: plantage.vide === true };
   plantage = null;
-  return { moitie };
+  return mort;
 }
 export class PhoneMort extends Error {
   constructor() {
@@ -110,13 +114,14 @@ export class File {
     return FILES.get(this.key) ?? '';
   }
   create(): void {
-    if (!FILES.has(this.key)) FILES.set(this.key, '');
+    if (FILES.has(this.key)) throw new Error(`rendu: ${this.key} existe déjà`);
+    FILES.set(this.key, '');
   }
   write(data: string): void {
     journalActes.push({ acte: 'write', cle: this.key });
     const mort = peutPlanter('write', this.key);
     if (mort !== null) {
-      FILES.set(this.key, mort.moitie ? data.slice(0, Math.floor(data.length / 2)) : data);
+      FILES.set(this.key, mort.vide ? '' : mort.moitie ? data.slice(0, Math.floor(data.length / 2)) : data);
       throw new PhoneMort();
     }
     FILES.set(this.key, data);

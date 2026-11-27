@@ -74,8 +74,10 @@ const PANIER = ['pv-gr-a', 'pv-gr-b'];
 
 /** Orders whose custody file Séra has opened. Absent ⇒ every produce-shop door answers `order_not_open`. */
 const dossiers = new Set<string>();
-/** Orders for which custody is down (500) — an outage, not a refusal. */
+/** Custody down (500) — an outage, not a refusal: for a whole order, or for `orderId + path` (one door). */
 const enPanne = new Set<string>();
+/** Answers custody keeps back until the test lets them go, keyed `orderId + path`; one use each. */
+const retenues = new Map<string, { atteinte: () => void; reponse: Promise<409 | 500> }>();
 /** Every act custody's doors received, with the answer each gave, in order. */
 const custodyActs: { path: string; orderId: string; status: number; body: Record<string, unknown> }[] = [];
 /** The references each open file was told, per order. */
@@ -84,6 +86,15 @@ const declared = new Map<string, Set<string>>();
 const ouvrir = (orderId: string): void => {
   dossiers.add(orderId);
 };
+/** Hold custody's NEXT answer at one door: `atteinte` once the request is in, `relacher` gives the answer. */
+function retenir(orderId: string, path: string): { atteinte: Promise<void>; relacher: (status: 409 | 500) => void } {
+  let atteinte!: () => void;
+  let relacher!: (status: 409 | 500) => void;
+  const vue = new Promise<void>((r) => { atteinte = r; });
+  const reponse = new Promise<409 | 500>((r) => { relacher = r; });
+  retenues.set(`${orderId}${path}`, { atteinte, reponse });
+  return { atteinte: vue, relacher };
+}
 const actes = (orderId: string, path: string) => custodyActs.filter((a) => a.orderId === orderId && a.path === path);
 const ARM = '/produce-shop/secrets/arm';
 const REF = '/produce-shop/door-reference';
@@ -121,7 +132,14 @@ async function custody(request: Request): Promise<Response> {
       return answer(400, { ok: false, reason: 'malformed' });
     }
   }
-  if (enPanne.has(orderId)) return answer(500, { ok: false });
+  const retenue = retenues.get(`${orderId}${path}`);
+  if (retenue !== undefined) {
+    retenues.delete(`${orderId}${path}`);
+    retenue.atteinte();
+    // The two answers a waiting row can meet: no file yet, or an outage.
+    return (await retenue.reponse) === 409 ? answer(409, { ok: false, reason: 'order_not_open' }) : answer(500, { ok: false });
+  }
+  if (enPanne.has(orderId) || enPanne.has(`${orderId}${path}`)) return answer(500, { ok: false });
   // custody-do.ts :1998-2001 — no file, no door.
   if (!dossiers.has(orderId)) return answer(409, { ok: false, reason: 'order_not_open' });
   if (path === ARM) return answer(200, { ok: true, status: 'armed', kind: body['kind'] });
@@ -327,14 +345,20 @@ async function reserver(quoteId: string, holderRef: string): Promise<void> {
 }
 
 /** One article, alone, paid whole at checkout — the orderId and HER token. Custody's file is
- *  opened first when `dossierOuvert`, the way a course already admitted would have it. */
-async function commandePayee(n: string, opts: { dossierOuvert?: boolean } = {}): Promise<{ orderId: string; jeton: string }> {
+ *  opened first when `dossierOuvert`, the way a course already admitted would have it; custody
+ *  is down from the start when `panne`; `avant` sets up custody before the order exists. */
+async function commandePayee(
+  n: string,
+  opts: { dossierOuvert?: boolean; panne?: boolean; avant?: (orderId: string) => void } = {},
+): Promise<{ orderId: string; jeton: string }> {
   const shop = await boutique(n);
   const q = await devis(shop, 'pv-gr-a', 'FULL_PREPAY');
   const holderRef = `holder-gr-${n}`;
   await reserver(q.quoteId, holderRef);
   const orderId = `ord-${q.quoteId}`;
   if (opts.dossierOuvert === true) ouvrir(orderId);
+  if (opts.panne === true) enPanne.add(orderId);
+  opts.avant?.(orderId);
   const ordered = await post('/checkout/order', {
     quoteId: q.quoteId, holderRef, commandId: `cmd-order-gr-${n}`,
     contact: { phone: '70 12 34 56', quartier: 'Gounghin', repere: 'près du marché' },
@@ -350,6 +374,41 @@ async function commandePayee(n: string, opts: { dossierOuvert?: boolean } = {}):
   const paid = await post('/checkout/webhook/payment', provider.webhookDeliveryPlan()[0]!.event, signe);
   if (paid.status !== 200) throw new Error(`setup: webhook ${paid.status} ${paid.text}`);
   return { orderId, jeton };
+}
+
+/** Two articles of one package, paid at the door: the checkout leg is paid, she has chosen to pay
+ *  at the door (each article now holds a collection reference for custody), and `payer` confirms
+ *  the door payment. `avant` sets up custody before the package exists. */
+async function colisALaPorte(n: string, avant: (oa: string, ob: string) => void = () => undefined) {
+  const DOOR: Mode = 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR';
+  const shop = await boutique(n);
+  const [qa, qb] = [await devis(shop, 'pv-gr-a', DOOR, PANIER), await devis(shop, 'pv-gr-b', DOOR, PANIER)];
+  const holderRef = `holder-gr-${n}`;
+  for (const q of [qa, qb]) await reserver(q.quoteId, holderRef);
+  const [oa, ob] = [`ord-${qa.quoteId}`, `ord-${qb.quoteId}`];
+  avant(oa, ob);
+  const paid = await post('/checkout/group', {
+    quoteIds: [qa.quoteId, qb.quoteId], holderRef, commandId: `cmd-colis-gr-${n}`,
+    contact: { phone: '70 44 55 66', quartier: 'Dassasgho', repere: 'la boutique bleue' },
+  });
+  if (paid.status !== 200) throw new Error(`setup: group ${paid.status} ${paid.text}`);
+  const groupId = String(paid.json['groupId']);
+  const packageId = (paid.json['colis'] as { packageId: string }[])[0]!.packageId;
+  const k = await call(`/checkout/webhook/leg-key/${encodeURIComponent(groupId)}?leg=checkout`, { headers: signe });
+  const charge = await post('/checkout/webhook/payment', composeSandboxConfirmation(groupId, qa.amountPaidAtCheckout + qb.amountPaidAtCheckout, new Date().toISOString(), k.json['legKey']), signe);
+  if (charge.status !== 200) throw new Error(`setup: checkout leg ${charge.status} ${charge.text}`);
+  const collectId = `${groupId}-porte-1`;
+  const porte = await post(`/checkout/group/${groupId}/porte`, { packageId, orderIds: [oa, ob], holderRef, commandId: `cmd-porte-gr-${n}` });
+  if (porte.status !== 200) throw new Error(`setup: porte ${porte.status} ${porte.text}`);
+  const payer = async (): Promise<void> => {
+    const kd = await call(`/checkout/webhook/leg-key/${encodeURIComponent(collectId)}?leg=door`, { headers: signe });
+    const provider = new MockPaymentProvider({});
+    provider.initiateCharge({ orderId: collectId, paymentAttemptId: String(kd.json['legKey']), amount: qa.amountDueAtDelivery + qb.amountDueAtDelivery, correlationId: `corr-${collectId}`, requestedAtIso: T0, legType: 'door' });
+    const event = provider.webhookDeliveryPlan().find((d) => d.event.name === 'payment.door_leg_confirmed.v1')!.event;
+    const door = await post('/checkout/webhook/door', event, signe);
+    if (door.status !== 200) throw new Error(`setup: door leg ${door.status} ${door.text}`);
+  };
+  return { oa, ob, collectId, payer };
 }
 
 const sera = (path: string, body: unknown) =>
@@ -424,8 +483,7 @@ describe('GARDE-ROUTE — an order that will never travel stops calling custody'
   }, 60_000);
 
   it('F2 — Séra refuses the course while custody is down: the arm row is abandoned by name, and a later alarm pass sends custody nothing more', async () => {
-    const { orderId } = await commandePayee('F2', { dossierOuvert: true });
-    enPanne.add(orderId);
+    const { orderId } = await commandePayee('F2', { dossierOuvert: true, panne: true });
     try {
       await jusqua(() => boite(orderId), (b) => (b.custodyArm?.attempts ?? 0) >= 1);
       expect((await boite(orderId)).custodyArm).toMatchObject({ status: 'pending' });
@@ -456,32 +514,11 @@ describe('GARDE-ROUTE — an order that will never travel stops calling custody'
   }, 60_000);
 
   it('F4 — a package paid at the door: one article\'s course is refused while its file is closed — its door reference and door signal are abandoned by name; its sibling still travels, untouched', async () => {
-    const DOOR: Mode = 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR';
-    const shop = await boutique('F4');
-    const [qa, qb] = [await devis(shop, 'pv-gr-a', DOOR, PANIER), await devis(shop, 'pv-gr-b', DOOR, PANIER)];
-    const holderRef = 'holder-gr-F4';
-    for (const q of [qa, qb]) await reserver(q.quoteId, holderRef);
-    const paid = await post('/checkout/group', {
-      quoteIds: [qa.quoteId, qb.quoteId], holderRef, commandId: 'cmd-colis-gr-F4',
-      contact: { phone: '70 44 55 66', quartier: 'Dassasgho', repere: 'la boutique bleue' },
-    });
-    expect(paid.status, paid.text).toBe(200);
-    const groupId = String(paid.json['groupId']);
-    const packageId = (paid.json['colis'] as { packageId: string }[])[0]!.packageId;
-    const k = await call(`/checkout/webhook/leg-key/${encodeURIComponent(groupId)}?leg=checkout`, { headers: signe });
-    expect((await post('/checkout/webhook/payment', composeSandboxConfirmation(groupId, qa.amountPaidAtCheckout + qb.amountPaidAtCheckout, new Date().toISOString(), k.json['legKey']), signe)).status).toBe(200);
-    const [oa, ob] = [`ord-${qa.quoteId}`, `ord-${qb.quoteId}`];
-    const collectId = `${groupId}-porte-1`;
+    const { oa, ob, collectId, payer } = await colisALaPorte('F4');
 
     // She pays at the door; neither file is open yet, so each reference waits…
-    const porte = await post(`/checkout/group/${groupId}/porte`, { packageId, orderIds: [oa, ob], holderRef, commandId: 'cmd-porte-gr-F4' });
-    expect(porte.status, porte.text).toBe(200);
     await jusqua(() => [oa, ob].every((id) => actes(id, REF).length >= 1), (ok) => ok);
-    const kd = await call(`/checkout/webhook/leg-key/${encodeURIComponent(collectId)}?leg=door`, { headers: signe });
-    const provider = new MockPaymentProvider({});
-    provider.initiateCharge({ orderId: collectId, paymentAttemptId: String(kd.json['legKey']), amount: qa.amountDueAtDelivery + qb.amountDueAtDelivery, correlationId: `corr-${collectId}`, requestedAtIso: T0, legType: 'door' });
-    const event = provider.webhookDeliveryPlan().find((d) => d.event.name === 'payment.door_leg_confirmed.v1')!.event;
-    expect((await post('/checkout/webhook/door', event, signe)).status).toBe(200);
+    await payer();
     for (const id of [oa, ob]) {
       const b = await boite(id);
       expect(b.doorReferences?.[collectId], id).toMatchObject({ status: 'pending' });
@@ -492,6 +529,7 @@ describe('GARDE-ROUTE — an order that will never travel stops calling custody'
     expect((await sera('/fulfillment/progress', refusee(oa))).status).toBe(200);
     const a = await boite(oa);
     expect(a.doorReferences?.[collectId]).toMatchObject({ status: 'abandoned', reason: 'course_refusee' });
+    expect(typeof a.doorReferences?.[collectId]?.abandonedAt, 'the operator read shows when').toBe('string');
     expect(a.doorSignal).toMatchObject({ status: 'abandoned', reason: 'course_refusee' });
     expect(a.custodyArm).toMatchObject({ status: 'abandoned', reason: 'course_refusee' });
     const [refAvant, sigAvant] = [actes(oa, REF).length, actes(oa, SIGNAL).length];
@@ -508,6 +546,175 @@ describe('GARDE-ROUTE — an order that will never travel stops calling custody'
     await new Promise((r) => setTimeout(r, 300));
     expect(actes(oa, REF)).toHaveLength(refAvant);
     expect(actes(oa, SIGNAL)).toHaveLength(sigAvant);
+  }, 60_000);
+});
+
+/** Every wake the code has for a custody row still waiting: the rider moving. Then a short look. */
+async function reveil(orderId: string): Promise<void> {
+  expect((await sera('/fulfillment/transit', { orderId, stage: 'en_route', asOf: '2026-11-27T11:00:00.000Z' })).status).toBe(200);
+}
+/** Custody's door hears nothing more for this order within the bound. */
+async function plusRien(orderId: string, path: string, avant: number): Promise<void> {
+  const n = await jusqua(() => actes(orderId, path).length, (x) => x > avant, 3_000);
+  expect(n, `${path} heard nothing more`).toBe(avant);
+}
+
+describe('GARDE-ROUTE — an ending that lands while custody is still answering is never undone', () => {
+  for (const relache of [409, 500] as const) {
+    it(`R1-arm-${relache} — the course is refused while custody holds the arm's answer; custody then answers ${relache}: the row stays abandoned with its reason and time, and a wake sends custody nothing more`, async () => {
+      let tenue!: ReturnType<typeof retenir>;
+      const { orderId } = await commandePayee(`RA${relache}`, { avant: (id) => { tenue = retenir(id, ARM); } });
+      await tenue.atteinte;
+
+      expect((await sera('/fulfillment/progress', refusee(orderId))).status).toBe(200);
+      expect((await boite(orderId)).custodyArm).toMatchObject({ status: 'abandoned', reason: 'course_refusee' });
+      tenue.relacher(relache);
+
+      // The alarm that was waiting on custody has gone on to the relay — so its write is done.
+      await jusqua(() => refusRelais, (r) => r.includes(orderId));
+      expect(refusRelais).toContain(orderId);
+      const b = await boite(orderId);
+      expect(b.custodyArm, 'the answer did not undo the ending').toMatchObject({ status: 'abandoned', reason: 'course_refusee' });
+      expect(typeof b.custodyArm?.abandonedAt).toBe('string');
+
+      const avant = actes(orderId, ARM).length;
+      await reveil(orderId);
+      await plusRien(orderId, ARM, avant);
+      expect((await boite(orderId)).custodyArm).toEqual(b.custodyArm);
+    }, 60_000);
+
+    it(`R1-reference-${relache} — the course is refused while custody holds a door reference's answer; custody then answers ${relache}: the reference stays abandoned, and a wake sends custody nothing more`, async () => {
+      let tenue!: ReturnType<typeof retenir>;
+      const { oa, collectId } = await colisALaPorte(`RR${relache}`, (oa) => { tenue = retenir(oa, REF); });
+      await tenue.atteinte;
+
+      expect((await sera('/fulfillment/progress', refusee(oa))).status).toBe(200);
+      expect((await boite(oa)).doorReferences?.[collectId]).toMatchObject({ status: 'abandoned', reason: 'course_refusee' });
+      tenue.relacher(relache);
+
+      await jusqua(() => refusRelais, (r) => r.includes(oa));
+      expect(refusRelais).toContain(oa);
+      const b = await boite(oa);
+      expect(b.doorReferences?.[collectId], 'the answer did not undo the ending').toMatchObject({ status: 'abandoned', reason: 'course_refusee' });
+      expect(typeof b.doorReferences?.[collectId]?.abandonedAt).toBe('string');
+
+      const avant = actes(oa, REF).length;
+      await reveil(oa);
+      await plusRien(oa, REF, avant);
+      expect((await boite(oa)).doorReferences).toEqual(b.doorReferences);
+    }, 60_000);
+  }
+
+  it('R1-signal-500 — the course is refused while custody holds the door signal\'s answer; custody then answers 500: the signal stays abandoned, and a wake sends custody nothing more', async () => {
+    let tenue!: ReturnType<typeof retenir>;
+    let arme = '';
+    const { oa, collectId, payer } = await colisALaPorte('RS500', (oa, ob) => {
+      ouvrir(oa);
+      ouvrir(ob);
+      // The arm stays waiting (its door is down), so the refusal ends the door rows too.
+      arme = `${oa}${ARM}`;
+      enPanne.add(arme);
+      tenue = retenir(oa, SIGNAL);
+    });
+    try {
+      const ref = await jusqua(() => boite(oa), (x) => x.doorReferences?.[collectId]?.status === 'delivered');
+      expect(ref.doorReferences?.[collectId]).toMatchObject({ status: 'delivered', outcome: 'accepted' });
+      await payer();
+      await tenue.atteinte;
+
+      expect((await sera('/fulfillment/progress', refusee(oa))).status).toBe(200);
+      expect((await boite(oa)).doorSignal).toMatchObject({ status: 'abandoned', reason: 'course_refusee' });
+      tenue.relacher(500);
+
+      await jusqua(() => refusRelais, (r) => r.includes(oa));
+      expect(refusRelais).toContain(oa);
+      const b = await boite(oa);
+      expect(b.doorSignal, 'the answer did not undo the ending').toMatchObject({ status: 'abandoned', reason: 'course_refusee' });
+      expect(typeof b.doorSignal?.abandonedAt).toBe('string');
+
+      const avant = actes(oa, SIGNAL).length;
+      await reveil(oa);
+      await plusRien(oa, SIGNAL, avant);
+      expect((await boite(oa)).doorSignal).toEqual(b.doorSignal);
+    } finally {
+      enPanne.delete(arme);
+    }
+  }, 60_000);
+});
+
+describe('GARDE-ROUTE — a refused course whose code custody already holds still lets the door payment land', () => {
+  it('R2 — custody took the arm; the door reference waits on an outage; the course is refused: the reference and the door signal stay waiting, and both land once custody answers again', async () => {
+    let porteRef = '';
+    const { oa, collectId, payer } = await colisALaPorte('R2', (oa, ob) => {
+      ouvrir(oa);
+      ouvrir(ob);
+      porteRef = `${oa}${REF}`;
+      enPanne.add(porteRef);
+    });
+    try {
+      const attente = await jusqua(() => boite(oa), (x) => x.custodyArm?.status === 'delivered' && (x.doorReferences?.[collectId]?.attempts ?? 0) >= 1);
+      expect(attente.custodyArm).toMatchObject({ status: 'delivered' });
+      expect(attente.doorReferences?.[collectId]).toMatchObject({ status: 'pending' });
+      await payer();
+      expect((await boite(oa)).doorSignal).toMatchObject({ status: 'pending' });
+    } finally {
+      enPanne.delete(porteRef);
+    }
+
+    expect((await sera('/fulfillment/progress', refusee(oa))).status).toBe(200);
+    // Not ended (the refusal's own wake may already have landed them, which is the point).
+    const b = await boite(oa);
+    expect(b.doorReferences?.[collectId]?.status, 'not ended: custody holds the course').not.toBe('abandoned');
+    expect(b.doorSignal?.status).not.toBe('abandoned');
+
+    const fin = await jusqua(() => boite(oa), (x) => x.doorReferences?.[collectId]?.status === 'delivered' && x.doorSignal?.status === 'delivered');
+    expect(fin.doorReferences?.[collectId]).toMatchObject({ status: 'delivered', outcome: 'accepted' });
+    expect(fin.doorSignal).toMatchObject({ status: 'delivered', outcome: 'accepted' });
+    expect(actes(oa, REF).at(-1)).toMatchObject({ status: 200 });
+    expect(actes(oa, SIGNAL).at(-1)).toMatchObject({ status: 200 });
+  }, 60_000);
+
+  it('R5a — a door reference and a door signal custody already took are copied untouched by a refusal', async () => {
+    let arme = '';
+    const { oa, collectId, payer } = await colisALaPorte('R5a', (oa, ob) => {
+      ouvrir(oa);
+      ouvrir(ob);
+      arme = `${oa}${ARM}`;
+      enPanne.add(arme);
+    });
+    try {
+      await jusqua(() => boite(oa), (x) => x.doorReferences?.[collectId]?.status === 'delivered');
+      await payer();
+      const pris = await jusqua(() => boite(oa), (x) => x.doorSignal?.status === 'delivered');
+      expect(pris.doorSignal).toMatchObject({ status: 'delivered', outcome: 'accepted' });
+
+      expect((await sera('/fulfillment/progress', refusee(oa))).status).toBe(200);
+      const apres = await boite(oa);
+      expect(apres.custodyArm, 'the ending ran').toMatchObject({ status: 'abandoned', reason: 'course_refusee' });
+      expect(apres.doorReferences, 'byte for byte as custody left it').toEqual(pris.doorReferences);
+      expect(apres.doorSignal, 'byte for byte as custody left it').toEqual(pris.doorSignal);
+    } finally {
+      enPanne.delete(arme);
+    }
+  }, 60_000);
+
+  it('R5b — custody took the arm; a door reference waits on an outage that has ended: when the rider leaves, it is sent at once', async () => {
+    let porteRef = '';
+    const { oa, collectId } = await colisALaPorte('R5b', (oa, ob) => {
+      ouvrir(oa);
+      ouvrir(ob);
+      porteRef = `${oa}${REF}`;
+      enPanne.add(porteRef);
+    });
+    const attente = await jusqua(() => boite(oa), (x) => x.custodyArm?.status === 'delivered' && (x.doorReferences?.[collectId]?.attempts ?? 0) >= 1);
+    expect(attente.doorReferences?.[collectId]).toMatchObject({ status: 'pending' });
+    enPanne.delete(porteRef);
+    const avant = actes(oa, REF).length;
+
+    await reveil(oa);
+    const prise = await jusqua(() => actes(oa, REF), (a) => a.length > avant && a.at(-1)!.status === 200, 5_000);
+    expect(prise.length, 'sent at the departure, not at the next rung').toBeGreaterThan(avant);
+    expect((await jusqua(() => boite(oa), (x) => x.doorReferences?.[collectId]?.status === 'delivered', 2_000)).doorReferences?.[collectId]).toMatchObject({ status: 'delivered' });
   }, 60_000);
 });
 
