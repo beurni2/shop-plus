@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { Miniflare } from 'miniflare';
 import { afterAll, describe, expect, it } from 'vitest';
 import { MAX_PRODUITS_DECRITS } from '../src/index.js';
+import { boutiqueDe } from './seance';
 
 /**
  * ═══ RESELLER-AUTH-1 (AUDIT-SHOP-1 slice a2a) — HER SESSION IS HER KEY, AND
@@ -161,8 +162,11 @@ const creer = (resellerId: string, id: string, headers: Record<string, string>) 
     method: 'POST',
     headers,
     body: JSON.stringify({
-      // the canon short code is LETTERS-4DIGITS (`SELLER-0001`); the id is not one
-      commandId: `cmd-create-${id}`, id, resellerId, shortCode: `OWN-${String((codes += 1)).padStart(4, '0')}`, name: `Boutique ${id}`,
+      // the canon short code is LETTERS-4DIGITS (`SELLER-0001`); a book-minted
+      // owner's code carries her own four digits, any other a running number
+      commandId: `cmd-create-${id}`, id, resellerId,
+      shortCode: /^rs-\d{4}$/.test(resellerId) ? boutiqueDe({ accountId: resellerId }, 'OWN').shortCode : `OWN-${String((codes += 1)).padStart(4, '0')}`,
+      name: `Boutique ${id}`,
       zone: 'Ouagadougou', category: 'Général', correlationId: `corr-${id}`, at: T0,
     }),
   });
@@ -205,14 +209,16 @@ let A!: Awaited<ReturnType<typeof seance>>;
 let B!: Awaited<ReturnType<typeof seance>>;
 let slugA = '';
 let slugB = '';
-const SF_A = 'sf-own-a';
-const SF_B = 'sf-own-b';
+let SF_A = '';
+let SF_B = '';
 const LST_A = 'lst-own-a';
 
 describe('RESELLER-AUTH-1 — a session creates, and creates only as herself', () => {
   it('A creates her shop with NO write key; B cannot create a shop in A\'s name; B creates her own', async () => {
     A = await seance();
     B = await seance();
+    SF_A = boutiqueDe(A, 'OWN').id;
+    SF_B = boutiqueDe(B, 'OWN').id;
     const a = await creer(A.accountId, SF_A, A.bearer);
     expect(a.status, a.text).toBe(200);
     expect(a.json['status']).toBe('created');
@@ -235,8 +241,11 @@ describe('RESELLER-AUTH-1 — a session creates, and creates only as herself', (
     // hand her the rival's whole shop. The core answers `collision` WITH the
     // existing storefront at 200; with a session that body is the object the
     // by-id read is muted to hide. Mute here too, byte-checked on the answer.
+    // Her shop carries her own number, so a rival's id is refused 403 by its
+    // digits alone — before the book is read — and the answer stays mute.
     const collision = await creer(B.accountId, SF_A, B.bearer);
-    expect(collision.status, collision.text).toBe(404);
+    expect(collision.status, collision.text).toBe(403);
+    expect(collision.json['error']).toBe('not_owner');
     expect(collision.text).not.toContain('curatedItems');
     expect(collision.text).not.toContain(`Boutique ${SF_A}`);
     expect(collision.text).not.toContain(A.accountId);
@@ -264,7 +273,7 @@ describe('RESELLER-AUTH-1 — a session creates, and creates only as herself', (
     expect(listeB.map((r) => r.id)).toEqual([SF_B]);
     // the founder's key-C read (ACCES-ARME-2's operator road) keeps the whole directory
     const tout = (await appel('/storefronts', { headers: cleC })).json as unknown as { id: string }[];
-    expect(tout.map((r) => r.id).sort()).toEqual([SF_A, SF_B]);
+    expect(tout.map((r) => r.id).sort()).toEqual([SF_A, SF_B].sort());
   });
 
   it('B\'s acts on A\'s shop — rename, remove an item, DELETE — are refused mute, and A\'s shop is untouched, public page included', async () => {
@@ -537,9 +546,36 @@ describe('RESELLER-AUTH-1 — a session creates, and creates only as herself', (
     expect(leg.status, leg.text).toBe(400);
     expect(leg.json).toEqual({ error: 'bad_field', field: 'orderId' });
     expect((await appel('/checkout/webhook/leg-key/%FF', {})).status).toBe(401);
+    // her contest road and key C's related-party roads: a segment that will not
+    // decode is answered exactly as an order nobody has — status, body, headers
+    const pareil = async (chemin: (id: string) => string, init: RequestInit) => {
+      const brut = await mf.dispatchFetch(`http://c${chemin('%FF')}`, init);
+      const inconnu = await mf.dispatchFetch(`http://c${chemin('ord-personne-0001')}`, init);
+      const [b, i] = [await brut.text(), await inconnu.text()];
+      expect(brut.status, b).toBe(inconnu.status);
+      expect(b).toBe(i);
+      for (const h of ['access-control-allow-origin', 'cache-control', 'content-type']) {
+        expect(brut.headers.get(h), h).toBe(inconnu.headers.get(h));
+      }
+      return { status: brut.status, json: safeJson(b) };
+    };
+    const ORIGIN = 'https://beurni2.github.io';
+    const contest = await pareil((id) => `/reseller/ventes/${id}/contester`, {
+      method: 'POST', headers: { ...A.bearer, Origin: ORIGIN }, body: JSON.stringify({ texte: 'Ce client est un vrai client.' }),
+    });
+    expect(contest.status).toBe(404);
+    expect(contest.json).toEqual({ ok: false, reason: 'unknown_order' });
+    const lecture = await pareil((id) => `/orders/${id}/related-party`, { headers: { ...cleC, Origin: ORIGIN } });
+    expect(lecture.status).toBe(404);
+    expect(lecture.json).toEqual({ ok: false, reason: 'unknown_order' });
+    const decision = await pareil((id) => `/orders/${id}/related-party/resolve`, {
+      method: 'POST', headers: { ...cleC, Origin: ORIGIN }, body: JSON.stringify({ outcome: 'clear' }),
+    });
+    expect(decision.status).toBe(404);
+    expect(decision.json).toEqual({ ok: false, reason: 'unknown_order' });
   });
 
-  it('SLUG-UNIQUE-1 (AUDIT-SHOP-2 F-01) — a rival cannot take A\'s slug: her create under A\'s short code is refused by name, A\'s public page is byte-identical, nothing was created; the slug of a deleted shop is free again, and then held', async () => {
+  it('SLUG-UNIQUE-1 (AUDIT-SHOP-2 F-01) — a rival cannot take A\'s slug: her create under A\'s short code is refused by name, A\'s public page is byte-identical, nothing was created; a shop deleted on key C frees its old link (it answers 404, never the shop re-created under a new code), and a held slug stays held', async () => {
     // the canon short code is the slug upper-cased (`OWN-0001` → `own-0001`)
     const codeA = slugA.toUpperCase();
     const codeB = slugB.toUpperCase();
@@ -548,9 +584,12 @@ describe('RESELLER-AUTH-1 — a session creates, and creates only as herself', (
     expect(avant.json['id']).toBe(SF_A);
     // B, seated, names a NEW id of her own with A's short code — the hijack the
     // audit measured: this create used to answer `created` and re-point A's page
+    // Her shop carries her number, so A's short code can never be B's: refused
+    // 403 by its digits before the slug is even looked at (the slug-taken wall
+    // stays behind it in the object, proven at the object's own level).
     const vol = await creerAvec(B.accountId, 'sf-own-vol', B.bearer, codeA, 'cmd-vol');
-    expect(vol.status, vol.text).toBe(409);
-    expect(vol.json).toEqual({ error: 'slug_taken' });
+    expect(vol.status, vol.text).toBe(403);
+    expect(vol.json).toEqual({ error: 'not_owner' });
     expect(vol.text, 'the refusal names nothing of A').not.toContain(A.accountId);
     // THE BOOK: A's page resolves to A, byte for byte; B's id was never created;
     // the directory holds exactly one row for the slug
@@ -559,18 +598,39 @@ describe('RESELLER-AUTH-1 — a session creates, and creates only as herself', (
     const annuaire = (await appel('/storefronts', { headers: cleC })).json as unknown as { id: string; slug: string }[];
     expect(annuaire.filter((r) => r.slug === slugA).map((r) => r.id)).toEqual([SF_A]);
     expect(annuaire.some((r) => r.id === 'sf-own-vol')).toBe(false);
-    // B's shop was DELETED on key C above: its slug is free, and B takes it back
-    // under a new id — the only road that ever frees a slug
-    const reprise = await creerAvec(B.accountId, 'sf-own-b2', B.bearer, codeB, 'cmd-reprise');
+    // A SHOP DELETED ON KEY C FREES ITS OLD LINK, proved through the Worker: E's
+    // shop is deleted, then re-created under the SAME id with a NEW short code.
+    // The public read follows the slug's pointer to the id without checking the
+    // slug, so a pointer the delete left behind would serve E's new shop at the
+    // old link — the old link must answer the honest 404.
+    const E = await seance();
+    const dE = boutiqueDe(E, 'OWN').id.slice(3);
+    const sfE = `sf-${dE}`;
+    expect((await creerAvec(E.accountId, sfE, E.bearer, `OLDA-${dE}`, 'cmd-olda')).status).toBe(200);
+    expect((await appel(`/storefronts/${sfE}/publish`, { method: 'POST', headers: E.bearer, body: JSON.stringify({ correlationId: 'corr-en-ligne' }) })).status).toBe(200);
+    expect((await appel(`/s/olda-${dE}`, {})).json['id']).toBe(sfE);
+    expect((await appel(`/storefronts/${sfE}`, { method: 'DELETE', headers: cleC })).status).toBe(200);
+    const neuf = await creerAvec(E.accountId, sfE, E.bearer, `NEUF-${dE}`, 'cmd-neuf');
+    expect(neuf.status, neuf.text).toBe(200);
+    expect(neuf.json['status']).toBe('created');
+    expect((await appel(`/storefronts/${sfE}/publish`, { method: 'POST', headers: E.bearer, body: JSON.stringify({ correlationId: 'corr-en-ligne' }) })).status).toBe(200);
+    expect((await appel(`/s/neuf-${dE}`, {})).json['id']).toBe(sfE);
+    const ancien = await appel(`/s/olda-${dE}`, {});
+    expect(ancien.status, `the old link must be freed: ${ancien.text}`).toBe(404);
+
+    // B's shop was DELETED on key C above, and she re-creates her own id under
+    // her own code; this road alone cannot tell a freed slug from a pointer that
+    // already named her id — the case above is the proof that the delete frees it
+    const reprise = await creerAvec(B.accountId, SF_B, B.bearer, codeB, 'cmd-reprise');
     expect(reprise.status, reprise.text).toBe(200);
     expect(reprise.json['status']).toBe('created');
-    expect((await appel('/storefronts/sf-own-b2/publish', { method: 'POST', headers: B.bearer, body: JSON.stringify({ correlationId: 'corr-en-ligne' }) })).status).toBe(200);
-    expect((await appel(`/s/${slugB}`, {})).json['id']).toBe('sf-own-b2');
+    expect((await appel(`/storefronts/${SF_B}/publish`, { method: 'POST', headers: B.bearer, body: JSON.stringify({ correlationId: 'corr-en-ligne' }) })).status).toBe(200);
+    expect((await appel(`/s/${slugB}`, {})).json['id']).toBe(SF_B);
     // …and now that B holds it, A cannot take it either — the law has no owner bias
     const retour = await creerAvec(A.accountId, 'sf-own-a2', A.bearer, codeB, 'cmd-retour');
-    expect(retour.status, retour.text).toBe(409);
-    expect(retour.json).toEqual({ error: 'slug_taken' });
-    expect((await appel(`/s/${slugB}`, {})).json['id']).toBe('sf-own-b2');
+    expect(retour.status, retour.text).toBe(403);
+    expect(retour.json).toEqual({ error: 'not_owner' });
+    expect((await appel(`/s/${slugB}`, {})).json['id']).toBe(SF_B);
   });
 
   it('VITRINE-LECTURE-1 (AUDIT-SHOP-2 F-05, F-29) — one boutique read asks the producer ONCE for the whole shop; a pid the collection omits is asked alone (the denial road kept, nothing hidden); a producer that never answers costs the read its timeout, not the page — and the page SAYS it is incomplete', async () => {
@@ -648,5 +708,44 @@ describe('RESELLER-AUTH-1 — a session creates, and creates only as herself', (
     expect((pire.json['products'] as { pid: string }[]).length).toBe(MAX_PRODUITS_DECRITS);
     expect(pire.json['suite']).toBe(MAX_PRODUITS_DECRITS);
     collectionEnPanne = false;
+  }, 60_000);
+
+  it('HER SHOP CARRIES HER NUMBER — a create must name sf-{her digits} and a short code ending in the same digits, or it is refused 403 not_owner BEFORE the book is read', async () => {
+    const C = await seance();
+    const D = await seance();
+    const cC = boutiqueDe(C, 'OWN');
+    const cD = boutiqueDe(D, 'OWN');
+    const annuaire = async () => (await appel('/storefronts', { headers: cleC })).json as unknown as { id: string; slug: string }[];
+
+    // C names D's shop id (with her own short code): refused, and nothing is held for C
+    const squat = await creerAvec(C.accountId, cD.id, C.bearer, cC.shortCode, 'cmd-squat');
+    expect(squat.status, squat.text).toBe(403);
+    expect(squat.json).toEqual({ error: 'not_owner' });
+    expect((await annuaire()).some((r) => r.id === cD.id), 'nothing was created under D\'s id').toBe(false);
+    // the refusal is the same bytes whether the named shop exists (A's) or not (D's): no existence read behind it
+    const surExistant = await creerAvec(C.accountId, SF_A, C.bearer, cC.shortCode, 'cmd-squat-a');
+    expect(surExistant.status).toBe(403);
+    expect(surExistant.text).toBe(squat.text);
+    // …so D still creates her own, untouched
+    const dOwn = await creerAvec(D.accountId, cD.id, D.bearer, cD.shortCode, 'cmd-d-own');
+    expect(dOwn.status, dOwn.text).toBe(200);
+    expect(dOwn.json['status']).toBe('created');
+
+    // C names HER OWN id but D's digits in the short code: refused, nothing created
+    const codeVole = await creerAvec(C.accountId, cC.id, C.bearer, `OWN-${cD.id.slice(3)}`, 'cmd-code-vole');
+    expect(codeVole.status, codeVole.text).toBe(403);
+    expect(codeVole.json).toEqual({ error: 'not_owner' });
+    const apresCode = await annuaire();
+    expect(apresCode.some((r) => r.id === cC.id), 'nothing was created under C\'s id').toBe(false);
+    expect(apresCode.filter((r) => r.slug === cD.slug).map((r) => r.id)).toEqual([cD.id]);
+
+    // C's own id with her own digits: created; the same create again is the idempotent road
+    const cOwn = await creerAvec(C.accountId, cC.id, C.bearer, cC.shortCode, 'cmd-c-own');
+    expect(cOwn.status, cOwn.text).toBe(200);
+    expect(cOwn.json['status']).toBe('created');
+    expect((cOwn.json['storefront'] as { slug: string }).slug).toBe(cC.slug);
+    const cRejoue = await creerAvec(C.accountId, cC.id, C.bearer, cC.shortCode, 'cmd-c-own');
+    expect(cRejoue.status, cRejoue.text).toBe(200);
+    expect((await annuaire()).filter((r) => r.id === cC.id)).toHaveLength(1);
   }, 60_000);
 });

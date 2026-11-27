@@ -5,7 +5,7 @@ import { PlatformEventSchema } from '@platform/contracts';
 import { MockPaymentProvider } from '@shop-plus/commerce-core';
 import { Miniflare } from 'miniflare';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { OPS_SECRET, seance } from './seance';
+import { OPS_SECRET, seance, boutiqueDe } from './seance';
 import { composeSandboxRefund } from '../../../scripts/sandbox-payment-confirm.mjs';
 
 /**
@@ -256,21 +256,22 @@ const CONTACT = { phone: '70 12 34 56', quartier: 'Gounghin', repere: 'près du 
 /** The buyer's road to a CREATED pay-at-door order, over the public routes. */
 async function createdDoorOrder(n: string): Promise<{ orderId: string; quoteId: string; buyerRef: string }> {
   const S = await seance(mf, `pc${n}`);
+  const B = boutiqueDe(S, 'PC');
   const created = await mf.dispatchFetch('http://c/storefronts', {
     method: 'POST', headers: S.bearer,
     body: JSON.stringify({
-      commandId: `cmd-create-${n}`, id: `sf-pc-${n}`, resellerId: S.accountId,
-      shortCode: `PC-${n}`, name: 'Boutique du fondateur', zone: 'Ouagadougou',
+      commandId: `cmd-create-${n}`, id: B.id, resellerId: S.accountId,
+      shortCode: B.shortCode, name: 'Boutique du fondateur', zone: 'Ouagadougou',
       category: 'Général', correlationId: `corr-pc-${n}`, at: T0,
     }),
   });
   // EN-LIGNE-1 — her app puts the shop online in the same act as creating it.
-  await mf.dispatchFetch(`http://c/storefronts/${encodeURIComponent(`sf-pc-${n}`)}/publish`, { method: 'POST', headers: S.bearer, body: JSON.stringify({ correlationId: 'corr-en-ligne' }) });
+  await mf.dispatchFetch(`http://c/storefronts/${encodeURIComponent(B.id)}/publish`, { method: 'POST', headers: S.bearer, body: JSON.stringify({ correlationId: 'corr-en-ligne' }) });
   if (created.status !== 200) throw new Error(`setup: storefront ${created.status}`);
   const pub = await mf.dispatchFetch('http://c/listings', {
     method: 'POST', headers: S.bearer,
     body: JSON.stringify({
-      commandId: `cmd-listing-${n}`, listingId: `lst-pc-${n}`, storefrontId: `sf-pc-${n}`,
+      commandId: `cmd-listing-${n}`, listingId: `lst-pc-${n}`, storefrontId: B.id,
       resellerId: S.accountId, productVersionId: 'pv-pc-1', offerVersion: 'ov-pc-1',
       markup: 1_500, correlationId: `corr-pc-${n}`, at: T0,
     }),
@@ -279,7 +280,7 @@ async function createdDoorOrder(n: string): Promise<{ orderId: string; quoteId: 
   const quoteRes = await mf.dispatchFetch('http://c/checkout/quote', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      slug: `pc-${n}`, pid: 'pv-pc-1', paymentMode: 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR',
+      slug: B.slug, pid: 'pv-pc-1', paymentMode: 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR',
       zoneTo: 'Ouagadougou', attributionResellerId: S.accountId, requestKey: freshKey(),
     }),
   });

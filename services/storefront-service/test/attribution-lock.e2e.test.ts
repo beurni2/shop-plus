@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { Miniflare } from 'miniflare';
 import { afterAll, describe, expect, it } from 'vitest';
 import { orderIdForQuote } from '../src/order-core.js';
-import { OPS_SECRET, seance } from './seance';
+import { OPS_SECRET, seance, boutiqueDe } from './seance';
 
 /**
  * C1/C2 (audit) — THE ATTRIBUTION LOCK IS DURABLE AND CLAIMED IN PRODUCTION.
@@ -87,30 +87,31 @@ function safeJson(text: string): Record<string, unknown> {
 
 async function seedShop(n: string): Promise<{ slug: string; resellerId: string }> {
   const S = await seance(mf, `attr${n}`);
+  const B = boutiqueDe(S, 'ATTR');
   const created = await mf.dispatchFetch('http://c/storefronts', {
     method: 'POST',
     headers: S.bearer,
     body: JSON.stringify({
-      commandId: `cmd-create-${n}`, id: `sf-attr-${n}`, resellerId: S.accountId,
-      shortCode: `ATTR-${n}`, name: 'Boutique du fondateur', zone: 'Ouagadougou',
+      commandId: `cmd-create-${n}`, id: B.id, resellerId: S.accountId,
+      shortCode: B.shortCode, name: 'Boutique du fondateur', zone: 'Ouagadougou',
       category: 'Général', correlationId: `corr-${n}`, at: T0,
     }),
   });
   // EN-LIGNE-1 — her app puts the shop online in the same act as creating it.
-  await mf.dispatchFetch(`http://c/storefronts/${encodeURIComponent(`sf-attr-${n}`)}/publish`, { method: 'POST', headers: S.bearer, body: JSON.stringify({ correlationId: 'corr-en-ligne' }) });
+  await mf.dispatchFetch(`http://c/storefronts/${encodeURIComponent(B.id)}/publish`, { method: 'POST', headers: S.bearer, body: JSON.stringify({ correlationId: 'corr-en-ligne' }) });
   if (created.status !== 200) throw new Error(`setup: storefront ${created.status}`);
   const pub = await mf.dispatchFetch('http://c/listings', {
     method: 'POST',
     headers: S.bearer,
     body: JSON.stringify({
-      commandId: `cmd-listing-${n}`, listingId: `lst-attr-${n}`, storefrontId: `sf-attr-${n}`,
+      commandId: `cmd-listing-${n}`, listingId: `lst-attr-${n}`, storefrontId: B.id,
       resellerId: S.accountId, productVersionId: 'pv-attr-1', offerVersion: 'ov-attr-1',
       markup: 1_500, correlationId: `corr-${n}`, at: T0,
     }),
   });
   const decision = (await pub.json()) as { status?: string };
   if (decision.status !== 'published') throw new Error(`setup: listing ${JSON.stringify(decision)}`);
-  return { slug: `attr-${n}`, resellerId: S.accountId };
+  return { slug: B.slug, resellerId: S.accountId };
 }
 
 /** quote → reserve, returning the ids the create needs. */

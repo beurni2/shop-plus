@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Miniflare } from 'miniflare';
 import { afterAll, describe, expect, it } from 'vitest';
-import { OPS_SECRET, seance, type Seance } from './seance';
+import { OPS_SECRET, seance, type Seance, boutiqueDe } from './seance';
 
 /**
  * SP3.2a — THE DURABLE CHECKOUT PATH ON REAL WORKERD (Miniflare), through the
@@ -176,15 +176,16 @@ async function seedShop(
   n: string,
   markup = 1_500,
   pid = 'pv-checkout-1',
-): Promise<{ slug: string; resellerId: string; pid: string; seance: Seance }> {
-  const shortCode = `CHECK-${n}`;
+): Promise<{ id: string; slug: string; resellerId: string; pid: string; seance: Seance }> {
   const S = await seance(mf, `check${n}`);
+  const B = boutiqueDe(S, 'CHECK');
+  const { shortCode } = B;
   const created = await mf.dispatchFetch('http://c/storefronts', {
     method: 'POST',
     headers: S.bearer,
     body: JSON.stringify({
       commandId: `cmd-create-${n}`,
-      id: `sf-checkout-${n}`,
+      id: B.id,
       resellerId: S.accountId,
       shortCode,
       name: 'Boutique du fondateur',
@@ -195,7 +196,7 @@ async function seedShop(
     }),
   });
   // EN-LIGNE-1 — her app puts the shop online in the same act as creating it.
-  await mf.dispatchFetch(`http://c/storefronts/${encodeURIComponent(`sf-checkout-${n}`)}/publish`, { method: 'POST', headers: S.bearer, body: JSON.stringify({ correlationId: 'corr-en-ligne' }) });
+  await mf.dispatchFetch(`http://c/storefronts/${encodeURIComponent(B.id)}/publish`, { method: 'POST', headers: S.bearer, body: JSON.stringify({ correlationId: 'corr-en-ligne' }) });
   if (created.status !== 200) throw new Error(`seed: storefront create ${created.status}`);
   const pub = await mf.dispatchFetch('http://c/listings', {
     method: 'POST',
@@ -203,7 +204,7 @@ async function seedShop(
     body: JSON.stringify({
       commandId: `cmd-listing-${n}`,
       listingId: `lst-checkout-${n}`,
-      storefrontId: `sf-checkout-${n}`,
+      storefrontId: B.id,
       resellerId: S.accountId,
       productVersionId: pid,
       offerVersion: 'ov-checkout-1',
@@ -214,7 +215,7 @@ async function seedShop(
   });
   const decision = (await pub.json()) as { status?: string };
   if (decision.status !== 'published') throw new Error(`seed: listing publish ${JSON.stringify(decision)}`);
-  return { slug: shortCode.toLowerCase(), resellerId: S.accountId, pid, seance: S };
+  return { id: B.id, slug: shortCode.toLowerCase(), resellerId: S.accountId, pid, seance: S };
 }
 
 interface QuoteBody {
@@ -1266,13 +1267,26 @@ describe('CheckoutDO — the SHARED buyer wire fixture answers a reconciling quo
    * against her shop is 422 `attribution_mismatch`. The five other keys and
    * their bytes stay the fixture's own; the payee is the seated reseller's,
    * spliced into the raw bytes and asserted to be the ONLY difference.
+   *
+   * And for the same reason, the slug's four DIGITS: a shop's short code
+   * carries its owner's account digits, so `aicha-4821` can only be the shop
+   * of `rs-4821`, which the book may never mint here. The slug's letters stay
+   * the fixture's; its digits are the seated reseller's, spliced the same way.
    */
   let payeeFixture = '';
+  let slugFixture = '';
   const fixtureBytes = (): string => {
     const raw = readFileSync(join(import.meta.dirname, '..', '..', '..', 'gates', 'fixtures', 'buyer-quote-request.json'), 'utf8');
-    const spliced = raw.replace(JSON.stringify(FIXTURE['attributionResellerId']), JSON.stringify(payeeFixture));
-    expect(spliced, 'the payee must be spliced exactly once').not.toBe(raw);
-    expect(spliced.replace(JSON.stringify(payeeFixture), JSON.stringify(FIXTURE['attributionResellerId']))).toBe(raw);
+    const spliced = raw
+      .replace(JSON.stringify(FIXTURE['attributionResellerId']), JSON.stringify(payeeFixture))
+      .replace(JSON.stringify(FIXTURE['slug']), JSON.stringify(slugFixture));
+    expect(spliced, 'the payee and the slug must be spliced').not.toBe(raw);
+    expect(slugFixture.split('-')[0], 'the slug keeps the fixture\'s letters').toBe(FIXTURE['slug']!.split('-')[0]);
+    expect(
+      spliced
+        .replace(JSON.stringify(payeeFixture), JSON.stringify(FIXTURE['attributionResellerId']))
+        .replace(JSON.stringify(slugFixture), JSON.stringify(FIXTURE['slug'])),
+    ).toBe(raw);
     return spliced;
   };
 
@@ -1280,15 +1294,17 @@ describe('CheckoutDO — the SHARED buyer wire fixture answers a reconciling quo
    *  HER zone is a real one; her resellerId is the id the book minted. */
   async function seedFixtureShop(): Promise<void> {
     const S = await seance(mf, 'fixture');
+    const B = boutiqueDe(S, FIXTURE['slug']!.split('-')[0]!.toUpperCase());
     payeeFixture = S.accountId;
+    slugFixture = B.slug;
     const created = await mf.dispatchFetch('http://c/storefronts', {
       method: 'POST',
       headers: S.bearer,
       body: JSON.stringify({
         commandId: 'cmd-create-fixture',
-        id: 'sf-checkout-fixture',
+        id: B.id,
         resellerId: S.accountId,
-        shortCode: FIXTURE['slug']!.toUpperCase(),
+        shortCode: B.shortCode,
         name: 'Chez Aïcha Mode',
         zone: 'Rood Woko · Ouagadougou',
         category: 'Général',
@@ -1297,7 +1313,7 @@ describe('CheckoutDO — the SHARED buyer wire fixture answers a reconciling quo
       }),
     });
     // EN-LIGNE-1 — her app puts the shop online in the same act as creating it.
-    await mf.dispatchFetch(`http://c/storefronts/${encodeURIComponent('sf-checkout-fixture')}/publish`, { method: 'POST', headers: S.bearer, body: JSON.stringify({ correlationId: 'corr-en-ligne' }) });
+    await mf.dispatchFetch(`http://c/storefronts/${encodeURIComponent(B.id)}/publish`, { method: 'POST', headers: S.bearer, body: JSON.stringify({ correlationId: 'corr-en-ligne' }) });
     if (created.status !== 200) throw new Error(`fixture seed: storefront create ${created.status} ${await created.text()}`);
     const pub = await mf.dispatchFetch('http://c/listings', {
       method: 'POST',
@@ -1305,7 +1321,7 @@ describe('CheckoutDO — the SHARED buyer wire fixture answers a reconciling quo
       body: JSON.stringify({
         commandId: 'cmd-listing-fixture',
         listingId: 'lst-checkout-fixture',
-        storefrontId: 'sf-checkout-fixture',
+        storefrontId: B.id,
         resellerId: S.accountId,
         productVersionId: FIXTURE['pid'],
         offerVersion: 'ov-checkout-1',
@@ -1339,7 +1355,7 @@ describe('CheckoutDO — the SHARED buyer wire fixture answers a reconciling quo
     await seedFixtureShop();
     // …and the fixture's OWN payee is refused by name against her shop — the
     // reason the splice exists, asserted rather than assumed.
-    const litteral = await postQuote({ ...(FIXTURE as unknown as QuoteBody), requestKey: freshKey() });
+    const litteral = await postQuote({ ...(FIXTURE as unknown as QuoteBody), slug: slugFixture, requestKey: freshKey() });
     expect(litteral.status, litteral.text).toBe(422);
     expect(litteral.json['error']).toBe('attribution_mismatch');
     const res = await mf.dispatchFetch('http://c/checkout/quote', {
@@ -1365,6 +1381,7 @@ describe('CheckoutDO — the SHARED buyer wire fixture answers a reconciling quo
   it('THE DEFECT THIS SLICE CLOSED: the same request with a NON-Ouaga quartier is still refused by name', async () => {
     const res = await postQuote({
       ...(FIXTURE as unknown as QuoteBody),
+      slug: slugFixture,
       attributionResellerId: payeeFixture,
       zoneTo: 'Sector 15, Bobo-Dioulasso',
       requestKey: freshKey(),
@@ -1499,25 +1516,26 @@ describe('CheckoutDO — a supply read that FAILS no longer costs her the door, 
   }
 
   async function seedOn(inst: Miniflare, n: string): Promise<{ slug: string; resellerId: string }> {
-    const shortCode = `BROKE-${n}`;
     const S = await seance(inst, `broke${n}`);
+    const B = boutiqueDe(S, 'BROKE');
+    const { shortCode } = B;
     const created = await inst.dispatchFetch('http://c/storefronts', {
       method: 'POST',
       headers: S.bearer,
       body: JSON.stringify({
-        commandId: `cmd-create-${n}`, id: `sf-broke-${n}`, resellerId: S.accountId, shortCode,
+        commandId: `cmd-create-${n}`, id: B.id, resellerId: S.accountId, shortCode,
         name: 'Boutique du fondateur', zone: 'Ouagadougou', category: 'Général',
         correlationId: `corr-${n}`, at: T0,
       }),
     });
     // EN-LIGNE-1 — her app puts the shop online in the same act as creating it.
-    await inst.dispatchFetch(`http://c/storefronts/${encodeURIComponent(`sf-broke-${n}`)}/publish`, { method: 'POST', headers: S.bearer, body: JSON.stringify({ correlationId: 'corr-en-ligne' }) });
+    await inst.dispatchFetch(`http://c/storefronts/${encodeURIComponent(B.id)}/publish`, { method: 'POST', headers: S.bearer, body: JSON.stringify({ correlationId: 'corr-en-ligne' }) });
     if (created.status !== 200) throw new Error(`seed: storefront create ${created.status}`);
     const pub = await inst.dispatchFetch('http://c/listings', {
       method: 'POST',
       headers: S.bearer,
       body: JSON.stringify({
-        commandId: `cmd-listing-${n}`, listingId: `lst-broke-${n}`, storefrontId: `sf-broke-${n}`,
+        commandId: `cmd-listing-${n}`, listingId: `lst-broke-${n}`, storefrontId: B.id,
         resellerId: S.accountId, productVersionId: 'pv-checkout-1', offerVersion: 'ov-checkout-1',
         markup: 1_500, correlationId: `corr-${n}`, at: T0,
       }),
@@ -1600,18 +1618,19 @@ describe('CheckoutDO — a supply read that FAILS no longer costs her the door, 
       // No supply source ⇒ publish cannot sign a price either (PUBLISH-PRICE-1),
       // so the listing itself refuses — which is the same fail-closed answer one
       // step earlier. Assert what the buyer is actually told: never a quote.
-      const shortCode = 'ABSENT-0001';
       const S = await seance(inst, 'absent');
+      const B = boutiqueDe(S, 'ABSENT');
+      const { shortCode } = B;
       await inst.dispatchFetch('http://c/storefronts', {
         method: 'POST', headers: S.bearer,
         body: JSON.stringify({
-          commandId: 'cmd-create-abs', id: 'sf-abs', resellerId: S.accountId, shortCode,
+          commandId: 'cmd-create-abs', id: B.id, resellerId: S.accountId, shortCode,
           name: 'Boutique du fondateur', zone: 'Ouagadougou', category: 'Général',
           correlationId: 'corr-abs', at: T0,
         }),
       });
       // EN-LIGNE-1 — her app puts the shop online in the same act as creating it.
-      await inst.dispatchFetch(`http://c/storefronts/${encodeURIComponent('sf-abs')}/publish`, { method: 'POST', headers: S.bearer, body: JSON.stringify({ correlationId: 'corr-en-ligne' }) });
+      await inst.dispatchFetch(`http://c/storefronts/${encodeURIComponent(B.id)}/publish`, { method: 'POST', headers: S.bearer, body: JSON.stringify({ correlationId: 'corr-en-ligne' }) });
       const door = await doorQuoteOn(inst, { slug: shortCode.toLowerCase(), resellerId: S.accountId });
       expect([404, 422]).toContain(door.status);
       expect(door.text.includes('amountDueAtDelivery')).toBe(false);
@@ -1705,7 +1724,7 @@ describe('VITRINE-RETRAIT — a product she took out of her shop cannot be quote
    * obeys it too, not only the page.
    */
   it('quotes before the removal and refuses after — by the SAME name an unknown product gets', async () => {
-    const { slug, resellerId, pid, seance: elle } = await seedShop('9100');
+    const { id, slug, resellerId, pid, seance: elle } = await seedShop('9100');
 
     // BEFORE: the link works, which is what makes the after meaningful.
     const avant = await postQuote({
@@ -1715,7 +1734,7 @@ describe('VITRINE-RETRAIT — a product she took out of her shop cannot be quote
     expect(avant.status, avant.text).toBe(200);
 
     // She takes it out of her vitrine — as herself.
-    const removed = await mf.dispatchFetch('http://c/storefronts/sf-checkout-9100/items/remove', {
+    const removed = await mf.dispatchFetch(`http://c/storefronts/${id}/items/remove`, {
       method: 'POST', headers: elle.bearer, body: JSON.stringify({ pid, at: T0 }),
     });
     expect(removed.status, await removed.clone().text()).toBe(200);
@@ -1739,7 +1758,7 @@ describe('VITRINE-RETRAIT — a product she took out of her shop cannot be quote
   });
 
   it('her OTHER products still quote — a removal removes ONE thing', async () => {
-    const { slug, resellerId, seance: elle } = await seedShop('9101');
+    const { id, slug, resellerId, seance: elle } = await seedShop('9101');
     // Add a second product to the same shop, then remove only the first.
     // A pid the supply fixture actually knows —  has no
     // economics, so its publish would refuse and the test would prove nothing.
@@ -1748,13 +1767,13 @@ describe('VITRINE-RETRAIT — a product she took out of her shop cannot be quote
       method: 'POST', headers: elle.bearer,
       body: JSON.stringify({
         commandId: 'cmd-listing-9101b', listingId: 'lst-checkout-9101b',
-        storefrontId: 'sf-checkout-9101', resellerId, productVersionId: second,
+        storefrontId: id, resellerId, productVersionId: second,
         offerVersion: 'ov-checkout-1', markup: 1_500, correlationId: 'corr-9101b', at: T0,
       }),
     });
     expect(((await pub.json()) as { status?: string }).status).toBe('published');
 
-    await mf.dispatchFetch('http://c/storefronts/sf-checkout-9101/items/remove', {
+    await mf.dispatchFetch(`http://c/storefronts/${id}/items/remove`, {
       method: 'POST', headers: elle.bearer, body: JSON.stringify({ pid: 'pv-checkout-1', at: T0 }),
     });
 
@@ -1877,29 +1896,32 @@ describe('G4 CHECKOUT-KILL — env-armed kill switch on the real Worker', () => 
   it('killed: every new quote refuses 503 checkout_killed — while her boutique keeps working; disarmed across a restart: the same buyer quotes normally', async () => {
     const killedMf = makeKillMf(true);
     let payeeKill = '';
+    let slugKill = '';
     try {
       // The WRITE surface still works while checkout is killed — the switch
       // stops NEW QUOTES, never her shop. She is seated on the killed Worker
       // itself: the accounts book is not behind the switch either.
       const S = await seance(killedMf, 'kill');
+      const B = boutiqueDe(S, 'CHECK');
       payeeKill = S.accountId;
+      slugKill = B.slug;
       const created = await killedMf.dispatchFetch('http://c/storefronts', {
         method: 'POST',
         headers: S.bearer,
         body: JSON.stringify({
-          commandId: 'cmd-create-kill', id: 'sf-checkout-kill', resellerId: S.accountId,
-          shortCode: 'CHECK-9401', name: 'Boutique du fondateur', zone: 'Ouagadougou',
+          commandId: 'cmd-create-kill', id: B.id, resellerId: S.accountId,
+          shortCode: B.shortCode, name: 'Boutique du fondateur', zone: 'Ouagadougou',
           category: 'Général', correlationId: 'corr-kill', at: T0,
         }),
       });
       // EN-LIGNE-1 — her app puts the shop online in the same act as creating it.
-      await killedMf.dispatchFetch(`http://c/storefronts/${encodeURIComponent('sf-checkout-kill')}/publish`, { method: 'POST', headers: S.bearer, body: JSON.stringify({ correlationId: 'corr-en-ligne' }) });
+      await killedMf.dispatchFetch(`http://c/storefronts/${encodeURIComponent(B.id)}/publish`, { method: 'POST', headers: S.bearer, body: JSON.stringify({ correlationId: 'corr-en-ligne' }) });
       expect(created.status).toBe(200);
       const pub = await killedMf.dispatchFetch('http://c/listings', {
         method: 'POST',
         headers: S.bearer,
         body: JSON.stringify({
-          commandId: 'cmd-listing-kill', listingId: 'lst-checkout-kill', storefrontId: 'sf-checkout-kill',
+          commandId: 'cmd-listing-kill', listingId: 'lst-checkout-kill', storefrontId: B.id,
           resellerId: S.accountId, productVersionId: 'pv-checkout-1', offerVersion: 'ov-checkout-1',
           markup: 1_500, correlationId: 'corr-kill', at: T0,
         }),
@@ -1910,7 +1932,7 @@ describe('G4 CHECKOUT-KILL — env-armed kill switch on the real Worker', () => 
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          slug: 'check-9401', pid: 'pv-checkout-1', paymentMode: 'FULL_PREPAY',
+          slug: B.slug, pid: 'pv-checkout-1', paymentMode: 'FULL_PREPAY',
           zoneTo: 'Ouagadougou', attributionResellerId: S.accountId,
           requestKey: 'rk-kill-0001-xxxxxxxxxxxx',
         }),
@@ -1931,7 +1953,7 @@ describe('G4 CHECKOUT-KILL — env-armed kill switch on the real Worker', () => 
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          slug: 'check-9401', pid: 'pv-checkout-1', paymentMode: 'FULL_PREPAY',
+          slug: slugKill, pid: 'pv-checkout-1', paymentMode: 'FULL_PREPAY',
           zoneTo: 'Ouagadougou', attributionResellerId: payeeKill,
           requestKey: 'rk-kill-0002-xxxxxxxxxxxx',
         }),

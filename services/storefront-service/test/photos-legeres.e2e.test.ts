@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Miniflare } from 'miniflare';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { OPS_SECRET, seance, type Seance } from './seance';
+import { OPS_SECRET, seance, type Seance, boutiqueDe } from './seance';
 
 /**
  * ═══ PHOTOS-LEGERES-1 (AUDIT-4 B-02) — her photo's small copy, through the
@@ -79,13 +79,13 @@ async function lire(adresse: string): Promise<{ status: number; taille: number; 
   return { status: res.status, taille: bytes.length, marque: bytes[40], cache: res.headers.get('cache-control') };
 }
 
-let seq = 0;
+// Her ONE shop: every case re-creates it with the same command (the app's
+// idempotent re-tap) and works on photos it uploads itself.
 async function boutique(port: InstanceType<App['HttpStorefrontService']>, qui: Seance): Promise<string> {
-  seq += 1;
-  const id = `sf-pl-${String(seq).padStart(4, '0')}`;
+  const { id, shortCode } = boutiqueDe(qui, 'PL');
   const created = await port.create({
-    commandId: `c-pl-${seq}`, id, resellerId: qui.accountId, shortCode: `PL-${String(seq).padStart(4, '0')}`,
-    name: 'Boutique légère', zone: 'Ouagadougou', category: 'Général', correlationId: `corr-pl-${seq}`,
+    commandId: `c-pl-${id}`, id, resellerId: qui.accountId, shortCode,
+    name: 'Boutique légère', zone: 'Ouagadougou', category: 'Général', correlationId: `corr-pl-${id}`,
   });
   expect(created.ok, JSON.stringify(created)).toBe(true);
   return id;

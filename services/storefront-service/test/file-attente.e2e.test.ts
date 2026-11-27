@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Miniflare } from 'miniflare';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { OPS_SECRET, seance, type Seance } from './seance';
+import { OPS_SECRET, seance, type Seance, boutiqueDe } from './seance';
 
 /**
  * ═══ FILE-ATTENTE-1 (AUDIT-SHOP-2 F-17b) — THE RESELLER'S OUTBOX AGAINST THE REAL WORKER ═══
@@ -26,8 +26,6 @@ const SCRIPT = 'dist/worker/worker.mjs';
 const persist = mkdtempSync(join(tmpdir(), 'file-attente-'));
 const disque = mkdtempSync(join(tmpdir(), 'file-attente-outbox-'));
 
-const SF_ID = 'sf-attente-001';
-const SLUG = 'attente-0001';
 const PV = 'pv-attente-001';
 const BASE_PRICE = 10_000;
 
@@ -71,9 +69,13 @@ afterAll(async () => {
 
 /** The network switch around the app's `fetch`: dead ⇒ RN's own throw. */
 const reseau = { mort: false };
+let SF_ID = '';
+let SLUG = '';
+let CODE = '';
 let S: Seance;
 beforeAll(async () => {
   S = await seance(mf, 'attente');
+  ({ id: SF_ID, slug: SLUG, shortCode: CODE } = boutiqueDe(S, 'ATTENTE'));
   globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
     if (reseau.mort) throw new TypeError('Network request failed');
     const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
@@ -121,7 +123,7 @@ describe('FILE-ATTENTE-1 — the outbox replays through the app’s port onto th
 
     // her shop, through the app's own create
     const created = await port.create({
-      commandId: 'c-attente-001', id: SF_ID, resellerId: S.accountId, shortCode: 'ATTENTE-0001',
+      commandId: 'c-attente-001', id: SF_ID, resellerId: S.accountId, shortCode: CODE,
       name: 'Boutique attente', zone: 'Ouagadougou', category: 'Général', correlationId: 'corr-attente-001',
     });
     expect(created.ok, JSON.stringify(created)).toBe(true);

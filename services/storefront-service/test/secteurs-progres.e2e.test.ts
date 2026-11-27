@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Miniflare } from 'miniflare';
 import { afterAll, describe, expect, it } from 'vitest';
-import { OPS_SECRET, seance } from './seance';
+import { OPS_SECRET, seance, boutiqueDe } from './seance';
 
 /**
  * ═══ SECTEURS-PROGRES-1 (AUDIT-SHOP-1 slice e) — one credential per writer,
@@ -105,21 +105,22 @@ function safeJson(text: string): Record<string, unknown> {
 
 async function createdPaidOrder(n: string): Promise<string> {
   const S = await seance(mf, `sp${n}`);
+  const B = boutiqueDe(S, 'SPLIT');
   const created = await mf.dispatchFetch('http://c/storefronts', {
     method: 'POST', headers: S.bearer,
     body: JSON.stringify({
-      commandId: `cmd-create-${n}`, id: `sf-sp-${n}`, resellerId: S.accountId,
-      shortCode: `SPLIT-${n}`, name: 'Boutique du fondateur', zone: 'Ouagadougou',
+      commandId: `cmd-create-${n}`, id: B.id, resellerId: S.accountId,
+      shortCode: B.shortCode, name: 'Boutique du fondateur', zone: 'Ouagadougou',
       category: 'Général', correlationId: `corr-sp-${n}`, at: T0,
     }),
   });
   // EN-LIGNE-1 — her app puts the shop online in the same act as creating it.
-  await mf.dispatchFetch(`http://c/storefronts/${encodeURIComponent(`sf-sp-${n}`)}/publish`, { method: 'POST', headers: S.bearer, body: JSON.stringify({ correlationId: 'corr-en-ligne' }) });
+  await mf.dispatchFetch(`http://c/storefronts/${encodeURIComponent(B.id)}/publish`, { method: 'POST', headers: S.bearer, body: JSON.stringify({ correlationId: 'corr-en-ligne' }) });
   if (created.status !== 200) throw new Error(`setup: storefront ${created.status}`);
   const pub = await mf.dispatchFetch('http://c/listings', {
     method: 'POST', headers: S.bearer,
     body: JSON.stringify({
-      commandId: `cmd-listing-${n}`, listingId: `lst-sp-${n}`, storefrontId: `sf-sp-${n}`,
+      commandId: `cmd-listing-${n}`, listingId: `lst-sp-${n}`, storefrontId: B.id,
       resellerId: S.accountId, productVersionId: 'pv-sp-1', offerVersion: 'ov-sp-1',
       markup: 1_500, correlationId: `corr-sp-${n}`, at: T0,
     }),
@@ -128,7 +129,7 @@ async function createdPaidOrder(n: string): Promise<string> {
   const quoteRes = await mf.dispatchFetch('http://c/checkout/quote', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      slug: `split-${n}`, pid: 'pv-sp-1', paymentMode: 'FULL_PREPAY', zoneTo: 'Ouagadougou',
+      slug: B.slug, pid: 'pv-sp-1', paymentMode: 'FULL_PREPAY', zoneTo: 'Ouagadougou',
       attributionResellerId: S.accountId, requestKey: `rk-sp-${n}-${'x'.repeat(12)}`,
     }),
   });

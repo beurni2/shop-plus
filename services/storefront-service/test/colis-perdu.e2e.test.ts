@@ -5,7 +5,7 @@ import { Miniflare } from 'miniflare';
 import { PackageLostEventSchema, PlatformEventSchema } from '@platform/contracts';
 import { MockPaymentProvider } from '@shop-plus/commerce-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { OPS_SECRET, seance } from './seance';
+import { OPS_SECRET, seance, boutiqueDe } from './seance';
 import { composeSandboxRefund } from '../../../scripts/sandbox-payment-confirm.mjs';
 
 /**
@@ -172,21 +172,22 @@ const vueDe = async (orderId: string) =>
 /** The buyer's own road to a paid order, the checkout leg confirmed by the certified mock. */
 async function commandePayee(n: string, mode: Mode = 'FULL_PREPAY'): Promise<string> {
   const S = await seance(mf, `cp${n}`);
+  const B = boutiqueDe(S, 'CP');
   const created = await post('/storefronts', {
-    commandId: `cmd-create-${n}`, id: `sf-cp-${n}`, resellerId: S.accountId,
-    shortCode: `CP-${n}`, name: 'Boutique du fondateur', zone: 'Ouagadougou',
+    commandId: `cmd-create-${n}`, id: B.id, resellerId: S.accountId,
+    shortCode: B.shortCode, name: 'Boutique du fondateur', zone: 'Ouagadougou',
     category: 'Général', correlationId: `corr-cp-${n}`, at: T0,
   }, S.bearer);
   if (created.status !== 200) throw new Error(`setup: storefront ${created.status} ${created.text}`);
-  await post(`/storefronts/${encodeURIComponent(`sf-cp-${n}`)}/publish`, { correlationId: 'corr-en-ligne' }, S.bearer);
+  await post(`/storefronts/${encodeURIComponent(B.id)}/publish`, { correlationId: 'corr-en-ligne' }, S.bearer);
   const pub = await post('/listings', {
-    commandId: `cmd-listing-${n}`, listingId: `lst-cp-${n}`, storefrontId: `sf-cp-${n}`,
+    commandId: `cmd-listing-${n}`, listingId: `lst-cp-${n}`, storefrontId: B.id,
     resellerId: S.accountId, productVersionId: 'pv-rsi-1', offerVersion: 'ov-rsi-1',
     markup: 1_500, correlationId: `corr-cp-${n}`, at: T0,
   }, S.bearer);
   if (pub.json['status'] !== 'published') throw new Error(`setup: listing ${pub.text}`);
   const quote = await post('/checkout/quote', {
-    slug: `cp-${n}`, pid: 'pv-rsi-1', paymentMode: mode, zoneTo: 'Ouagadougou',
+    slug: B.slug, pid: 'pv-rsi-1', paymentMode: mode, zoneTo: 'Ouagadougou',
     attributionResellerId: S.accountId, requestKey: freshKey(),
   });
   const quoteId = quote.json['quoteId'];

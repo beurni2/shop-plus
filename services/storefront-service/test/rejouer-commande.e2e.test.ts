@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Miniflare } from 'miniflare';
 import { afterAll, describe, expect, it } from 'vitest';
-import { OPS_SECRET, seance } from './seance';
+import { OPS_SECRET, seance, boutiqueDe } from './seance';
 
 /**
  * ═══ COMMANDE-REJOUER-1 (AUDIT-SHOP-1 slice c) — A LOST CREATE ANSWER IS
@@ -103,23 +103,24 @@ function safeJson(text: string): Record<string, unknown> {
 
 async function creerCommande(n: string) {
   const S = await seance(mf, `rejoue${n}`);
+  const B = boutiqueDe(S, 'REJOU');
   const created = await mf.dispatchFetch('http://c/storefronts', {
     method: 'POST',
     headers: S.bearer,
     body: JSON.stringify({
-      commandId: `cmd-create-${n}`, id: `sf-rejoue-${n}`, resellerId: S.accountId, shortCode: `REJOU-${n}`,
+      commandId: `cmd-create-${n}`, id: B.id, resellerId: S.accountId, shortCode: B.shortCode,
       name: 'Boutique du fondateur', zone: 'Ouagadougou', category: 'Général',
       correlationId: `corr-${n}`, at: T0,
     }),
   });
   // EN-LIGNE-1 — her app puts the shop online in the same act as creating it.
-  await mf.dispatchFetch(`http://c/storefronts/${encodeURIComponent(`sf-rejoue-${n}`)}/publish`, { method: 'POST', headers: S.bearer, body: JSON.stringify({ correlationId: 'corr-en-ligne' }) });
+  await mf.dispatchFetch(`http://c/storefronts/${encodeURIComponent(B.id)}/publish`, { method: 'POST', headers: S.bearer, body: JSON.stringify({ correlationId: 'corr-en-ligne' }) });
   if (created.status !== 200) throw new Error(`seed: storefront ${created.status}`);
   const pub = await mf.dispatchFetch('http://c/listings', {
     method: 'POST',
     headers: S.bearer,
     body: JSON.stringify({
-      commandId: `cmd-listing-${n}`, listingId: `lst-rejoue-${n}`, storefrontId: `sf-rejoue-${n}`,
+      commandId: `cmd-listing-${n}`, listingId: `lst-rejoue-${n}`, storefrontId: B.id,
       resellerId: S.accountId, productVersionId: 'pv-rejoue-1', offerVersion: 'ov-rejoue-1',
       markup: 1_500, correlationId: `corr-${n}`, at: T0,
     }),
@@ -129,7 +130,7 @@ async function creerCommande(n: string) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      slug: `rejou-${n}`, pid: 'pv-rejoue-1', paymentMode: 'FULL_PREPAY', zoneTo: 'Ouagadougou',
+      slug: B.slug, pid: 'pv-rejoue-1', paymentMode: 'FULL_PREPAY', zoneTo: 'Ouagadougou',
       attributionResellerId: S.accountId, requestKey: `rk-rejoue-${n}-${'x'.repeat(12)}`,
     }),
   });

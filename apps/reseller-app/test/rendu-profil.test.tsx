@@ -35,7 +35,11 @@ import { RAYONS } from '../src/vitrine/rayons';
  * answers carry accountId/name/email/phone/state(+categories), a wrong current
  * password answers 401 {reason:'bad_password'}, a dead session 401
  * {reason:'no_session'}, a pause 403, a taken email 409, a bad field 400
- * {field}, and a patch's absent fields stay untouched.
+ * {field}, and a patch's absent fields stay untouched. A NEW number or a NEW
+ * email (compared trimmed, the email lowercased) needs her current password:
+ * none → 400 {field:'currentPassword'}, a wrong one → 401 bad_password, the
+ * count full → 429 too_many_attempts — and the proof is asked BEFORE the
+ * taken-email lookup (comptes-revendeuse.e2e).
  *
  * WHAT IT MAY NEVER CLAIM: appearance. No layout, no colour, no spacing, no
  * touch size (the bound in test/doubles/react-native.tsx).
@@ -59,6 +63,9 @@ const AUCUN = 'Aucun rayon choisi. On vous montre tout.';
 const RESEAU = 'Pas de réseau. Réessayez dès que ça revient.';
 const CHAMP = 'Un champ ne va pas. Vérifiez et réessayez.';
 const FINIE = 'Votre session est finie. Connectez-vous à nouveau pour continuer.';
+const MDP_AIDE = 'Pour changer votre numéro ou votre email, tapez votre mot de passe.';
+const MDP_REFUSE = "Ce n'est pas votre mot de passe actuel. Vérifiez et réessayez.";
+const TROP_ESSAIS = "Trop d'essais. Attendez un quart d'heure, puis réessayez.";
 
 interface ProfilServeur {
   accountId: string;
@@ -86,6 +93,8 @@ interface Drapeaux {
   refuserSauve?: 409 | 400;
   /** The next SAVE answers 401 no_session — the book says the session is over. */
   sessionMorte?: boolean;
+  /** Her password count is full: any save carrying a current password answers 429. */
+  tropEssais?: boolean;
 }
 
 /**
@@ -137,11 +146,18 @@ function routes(serveur: ProfilServeur, drapeaux: Drapeaux = {}, feed: readonly 
       if (drapeaux.profilCoupe === true) return { status: 403, json: { ok: false, reason: 'paused' } };
       const estSauve = body !== null && Object.keys(body).length > 0;
       if (estSauve && drapeaux.sessionMorte === true) return { status: 401, json: { ok: false, reason: 'no_session' } };
-      if (estSauve && drapeaux.refuserSauve === 409) return { status: 409, json: { ok: false, reason: 'email_taken' } };
       if (estSauve && drapeaux.refuserSauve === 400) return { status: 400, json: { ok: false, reason: 'bad_field', field: 'phone' } };
-      if (body?.['currentPassword'] !== undefined || body?.['newPassword'] !== undefined) {
-        if (drapeaux.refuserMdp === true) return { status: 401, json: { ok: false, reason: 'bad_password' } };
+      const nouveauContact =
+        (typeof body?.['phone'] === 'string' && body['phone'].trim() !== serveur.phone) ||
+        (typeof body?.['email'] === 'string' && body['email'].trim().toLowerCase() !== serveur.email);
+      if ((nouveauContact && body?.['currentPassword'] === undefined) || body?.['currentPassword'] === '' || (body?.['newPassword'] !== undefined && body?.['currentPassword'] === undefined)) {
+        return { status: 400, json: { ok: false, reason: 'bad_field', field: 'currentPassword' } };
       }
+      if (body?.['currentPassword'] !== undefined || body?.['newPassword'] !== undefined) {
+        if (drapeaux.tropEssais === true) return { status: 429, json: { ok: false, reason: 'too_many_attempts' } };
+        if (drapeaux.refuserMdp === true || body?.['currentPassword'] !== MDP) return { status: 401, json: { ok: false, reason: 'bad_password' } };
+      }
+      if (estSauve && drapeaux.refuserSauve === 409) return { status: 409, json: { ok: false, reason: 'email_taken' } };
       if (typeof body?.['name'] === 'string') serveur.name = body['name'];
       if (typeof body?.['phone'] === 'string') serveur.phone = body['phone'];
       if (typeof body?.['email'] === 'string') serveur.email = body['email'];
@@ -335,11 +351,15 @@ describe('PROFIL-PRO-1 — « Mes informations »: reach, edit, save, return; a 
 
     await screen.type('Awa Ouédraogo', 'Votre nom');
     await screen.type('76 55 44 33', 'Votre numéro WhatsApp');
+    // a new number asks for her password, and the save waits for it
+    expect(screen.shows(MDP_AIDE)).toBe(true);
+    expect(screen.canPress('Enregistrer'), 'no save before her password').toBe(false);
+    await screen.type(MDP, 'Votre mot de passe actuel');
     await screen.press('Enregistrer');
 
     const lues = lectures(fils);
     expect(lues, 'the read, then the save').toHaveLength(2);
-    expect(lues[1]!.body).toEqual({ name: 'Awa Ouédraogo', phone: '76 55 44 33', email: 'awa@example.bf' });
+    expect(lues[1]!.body).toEqual({ name: 'Awa Ouédraogo', phone: '76 55 44 33', email: 'awa@example.bf', currentPassword: MDP });
     expect(screen.shows("C'est enregistré.")).toBe(true);
     // Back on the hub, and the door already says the new number: the hub
     // reads the same answer the save just replaced, no re-read.
@@ -360,6 +380,7 @@ describe('PROFIL-PRO-1 — « Mes informations »: reach, edit, save, return; a 
     await screen.press('Mes informations');
 
     await screen.type('awa.neuve@example.bf', 'Votre email');
+    await screen.type(MDP, 'Votre mot de passe actuel');
     await screen.press('Enregistrer');
     expect(screen.shows('Cet email appartient déjà à un autre compte. Essayez-en un autre.'), JSON.stringify(screen.texts())).toBe(true);
     expect(screen.shows('Connectez-vous plutôt')).toBe(false);
@@ -376,6 +397,92 @@ describe('PROFIL-PRO-1 — « Mes informations »: reach, edit, save, return; a 
     expect(screen.shows('Mon profil')).toBe(true);
     screen.unmount();
   });
+});
+
+describe('« Mes informations »: a new number or email asks for her password; a name alone never does', () => {
+  it('a name change saves with NO password field — even with her email retyped in capitals — and lands on the hub', async () => {
+    await seedCompte();
+    const serveur = profilInitial();
+    const fils = wire(routes(serveur));
+    const screen = await mountApp();
+    await screen.press('Profil');
+    await screen.press('Mes informations');
+
+    await screen.type('Awa Ouédraogo', 'Votre nom');
+    await screen.type(' AWA@example.bf ', 'Votre email');
+    expect(screen.shows(MDP_AIDE), 'the same address is no change').toBe(false);
+    expect(champs(screen), 'name, number, email: nothing else to type').toHaveLength(3);
+    await screen.press('Enregistrer');
+    const lues = lectures(fils);
+    expect(lues).toHaveLength(2);
+    expect(lues[1]!.body).toEqual({ name: 'Awa Ouédraogo', phone: '70 11 22 33', email: 'AWA@example.bf' });
+    expect(screen.shows("C'est enregistré.")).toBe(true);
+    expect(screen.shows('Mon profil')).toBe(true);
+    screen.unmount();
+  }, 20_000);
+
+  it('a new number shows the masked password field; typing the old number back hides it; a wrong password speaks, keeps her typing and her session; the right one saves', async () => {
+    await seedCompte();
+    const serveur = profilInitial();
+    const fils = wire(routes(serveur));
+    const screen = await mountApp();
+    await screen.press('Profil');
+    await screen.press('Mes informations');
+
+    await screen.type('76 55 44 33', 'Votre numéro WhatsApp');
+    expect(screen.shows(MDP_AIDE)).toBe(true);
+    const mdp = () => champs(screen).filter((i) => i.props['accessibilityLabel'] === 'Votre mot de passe actuel');
+    expect(mdp(), 'the password field').toHaveLength(1);
+    expect(mdp()[0]!.props['secureTextEntry'], 'masked by default').toBe(true);
+    await screen.press('Voir');
+    expect(mdp()[0]!.props['secureTextEntry']).toBe(false);
+    await screen.press('Cacher');
+    expect(mdp()[0]!.props['secureTextEntry']).toBe(true);
+    expect(screen.canPress('Enregistrer'), 'no save before her password').toBe(false);
+
+    // the old number back: no change, no password asked
+    await screen.type('70 11 22 33', 'Votre numéro WhatsApp');
+    expect(screen.shows(MDP_AIDE)).toBe(false);
+    expect(mdp()).toHaveLength(0);
+
+    await screen.type('76 55 44 33', 'Votre numéro WhatsApp');
+    await screen.type('pas-le-bon-8', 'Votre mot de passe actuel');
+    await screen.press('Enregistrer');
+    expect(screen.shows(MDP_REFUSE), JSON.stringify(screen.texts())).toBe(true);
+    expect(screen.shows(FINIE), 'a wrong password is never the end of her session').toBe(false);
+    expect(screen.shows('Mes informations'), 'still on the leaf').toBe(true);
+    expect(valeurs(screen)).toEqual(['Awa Traoré', '76 55 44 33', 'awa@example.bf', 'pas-le-bon-8']);
+    expect(screen.canPress('Enregistrer'), 'the act stays live').toBe(true);
+
+    await screen.type(MDP, 'Votre mot de passe actuel');
+    await screen.press('Enregistrer');
+    const lues = lectures(fils);
+    expect(lues).toHaveLength(3);
+    expect(lues[2]!.body).toEqual({ name: 'Awa Traoré', phone: '76 55 44 33', email: 'awa@example.bf', currentPassword: MDP });
+    expect(screen.shows('Mon profil')).toBe(true);
+    expect(screen.shows('76 55 44 33')).toBe(true);
+    screen.unmount();
+  }, 20_000);
+
+  it('her password count full: « Trop d’essais », never the end of her session; « Retour » still takes her to the hub', async () => {
+    await seedCompte();
+    const serveur = profilInitial();
+    wire(routes(serveur, { tropEssais: true }));
+    const screen = await mountApp();
+    await screen.press('Profil');
+    await screen.press('Mes informations');
+
+    await screen.type('awa.neuve@example.bf', 'Votre email');
+    await screen.type(MDP, 'Votre mot de passe actuel');
+    await screen.press('Enregistrer');
+    expect(screen.shows(TROP_ESSAIS), JSON.stringify(screen.texts())).toBe(true);
+    expect(screen.shows(FINIE)).toBe(false);
+    expect(screen.shows(RESEAU)).toBe(false);
+    expect(screen.canPress('Enregistrer')).toBe(true);
+    await screen.press('Retour');
+    expect(screen.shows('Mon profil')).toBe(true);
+    screen.unmount();
+  }, 20_000);
 });
 
 describe('RAYONS-CANON-1 — « Mes rayons » offers Boutik+’s WHOLE taxonomy, on a wire that carries none of it', () => {

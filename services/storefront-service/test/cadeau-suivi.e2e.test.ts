@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Miniflare } from 'miniflare';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { OPS_SECRET, seance, type Seance } from './seance';
+import { OPS_SECRET, seance, type Seance, boutiqueDe } from './seance';
 
 /**
  * ═══ AUDIT-4 A-04 — the gift link's read, through the BUYER APP'S OWN ports,
@@ -62,9 +62,13 @@ function memoire(): Storage {
   };
 }
 
+let SF_ID = '';
+let SLUG = '';
+let CODE = '';
 let S: Seance;
 beforeAll(async () => {
   S = await seance(mf, 'cs');
+  ({ id: SF_ID, slug: SLUG, shortCode: CODE } = boutiqueDe(S, 'CS'));
   globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
     const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
     const { signal: _signal, ...reste } = init ?? {};
@@ -72,15 +76,15 @@ beforeAll(async () => {
   }) as typeof fetch;
   const created = await mf.dispatchFetch('http://sf/storefronts', {
     method: 'POST', headers: S.bearer,
-    body: JSON.stringify({ commandId: 'c-cs-1', id: 'sf-cs-1', resellerId: S.accountId, shortCode: 'CS-0001', name: 'Boutique cadeau', zone: 'Ouagadougou', category: 'Général', correlationId: 'corr-cs-1' }),
+    body: JSON.stringify({ commandId: 'c-cs-1', id: SF_ID, resellerId: S.accountId, shortCode: CODE, name: 'Boutique cadeau', zone: 'Ouagadougou', category: 'Général', correlationId: 'corr-cs-1' }),
   });
   // EN-LIGNE-1 — her app puts the shop online in the same act as creating it.
-  await mf.dispatchFetch(`http://sf/storefronts/${encodeURIComponent('sf-cs-1')}/publish`, { method: 'POST', headers: S.bearer, body: JSON.stringify({ correlationId: 'corr-en-ligne' }) });
+  await mf.dispatchFetch(`http://sf/storefronts/${encodeURIComponent(SF_ID)}/publish`, { method: 'POST', headers: S.bearer, body: JSON.stringify({ correlationId: 'corr-en-ligne' }) });
   expect(created.status).toBe(200);
   const pub = await mf.dispatchFetch('http://sf/listings', {
     method: 'POST', headers: S.bearer,
     body: JSON.stringify({
-      commandId: 'cmd-listing-cs-1', listingId: 'lst-cs-1', storefrontId: 'sf-cs-1', resellerId: S.accountId,
+      commandId: 'cmd-listing-cs-1', listingId: 'lst-cs-1', storefrontId: SF_ID, resellerId: S.accountId,
       productVersionId: PV, offerVersion: 'ov-cs-1', markup: 1_500, correlationId: 'corr-cs-1', at: new Date().toISOString(),
     }),
   });
@@ -100,7 +104,7 @@ describe('AUDIT-4 A-04 — the gift link reads where the parcel is, never what w
     const session = memoire();
     const pret = await modele.fetchClienteQuote(
       port.httpQuotePort('http://sf'),
-      { slug: 'cs-0001', pid: PV, zoneTo: 'Ouagadougou', attributionResellerId: S.accountId },
+      { slug: SLUG, pid: PV, zoneTo: 'Ouagadougou', attributionResellerId: S.accountId },
       (intent) => port.requestKeyFor(intent, session),
       (quoteId) => port.commandIdFor(quoteId, session),
       1_500,

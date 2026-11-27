@@ -5,7 +5,7 @@ import { join, resolve } from 'node:path';
 import { promisify } from 'node:util';
 import { Miniflare } from 'miniflare';
 import { afterAll, describe, expect, it } from 'vitest';
-import { OPS_SECRET, seance } from './seance';
+import { OPS_SECRET, seance, boutiqueDe } from './seance';
 
 /**
  * ═══ SANDBOX-PAY-1 — the founder's tool, run EXACTLY as the workflow runs it ═══
@@ -126,23 +126,24 @@ const freshKey = (): string => `rk-sandbox-${String((keyN += 1)).padStart(4, '0'
 /** The buyer's own road: storefront → listing → quote → reserve → order. */
 async function realOrder(n: string): Promise<{ orderId: string }> {
   const S = await seance(mf, `sand${n}`);
+  const B = boutiqueDe(S, 'SAND');
   const created = await mf.dispatchFetch('http://c/storefronts', {
     method: 'POST',
     headers: S.bearer,
     body: JSON.stringify({
-      commandId: `cmd-create-${n}`, id: `sf-sand-${n}`, resellerId: S.accountId,
-      shortCode: `SAND-${n}`, name: 'Boutique du fondateur', zone: 'Ouagadougou',
+      commandId: `cmd-create-${n}`, id: B.id, resellerId: S.accountId,
+      shortCode: B.shortCode, name: 'Boutique du fondateur', zone: 'Ouagadougou',
       category: 'Général', correlationId: `corr-${n}`, at: T0,
     }),
   });
   // EN-LIGNE-1 — her app puts the shop online in the same act as creating it.
-  await mf.dispatchFetch(`http://c/storefronts/${encodeURIComponent(`sf-sand-${n}`)}/publish`, { method: 'POST', headers: S.bearer, body: JSON.stringify({ correlationId: 'corr-en-ligne' }) });
+  await mf.dispatchFetch(`http://c/storefronts/${encodeURIComponent(B.id)}/publish`, { method: 'POST', headers: S.bearer, body: JSON.stringify({ correlationId: 'corr-en-ligne' }) });
   if (created.status !== 200) throw new Error(`setup: storefront ${created.status}`);
   const pub = await mf.dispatchFetch('http://c/listings', {
     method: 'POST',
     headers: S.bearer,
     body: JSON.stringify({
-      commandId: `cmd-listing-${n}`, listingId: `lst-sand-${n}`, storefrontId: `sf-sand-${n}`,
+      commandId: `cmd-listing-${n}`, listingId: `lst-sand-${n}`, storefrontId: B.id,
       resellerId: S.accountId, productVersionId: 'pv-sandbox-1', offerVersion: 'ov-sandbox-1',
       markup: 1_500, correlationId: `corr-${n}`, at: T0,
     }),
@@ -154,7 +155,7 @@ async function realOrder(n: string): Promise<{ orderId: string }> {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      slug: `sand-${n}`, pid: 'pv-sandbox-1', paymentMode: 'FULL_PREPAY', zoneTo: 'Ouagadougou',
+      slug: B.slug, pid: 'pv-sandbox-1', paymentMode: 'FULL_PREPAY', zoneTo: 'Ouagadougou',
       attributionResellerId: S.accountId, requestKey: freshKey(),
     }),
   });
@@ -271,18 +272,19 @@ describe('SANDBOX-PAY-1 — the founder plays the provider against the real Work
 
   it('PAYER-TOUT-1 — handed ONE article of a grouped payment, the script confirms the GROUP; the vault agrees for every order', async () => {
     const S = await seance(mf, 'sandgrp');
+    const B = boutiqueDe(S, 'SAND');
     const n = '0020';
     const created = await mf.dispatchFetch('http://c/storefronts', {
       method: 'POST',
       headers: S.bearer,
       body: JSON.stringify({
-        commandId: `cmd-create-${n}`, id: `sf-sand-${n}`, resellerId: S.accountId,
-        shortCode: `SAND-${n}`, name: 'Boutique du fondateur', zone: 'Ouagadougou',
+        commandId: `cmd-create-${n}`, id: B.id, resellerId: S.accountId,
+        shortCode: B.shortCode, name: 'Boutique du fondateur', zone: 'Ouagadougou',
         category: 'Général', correlationId: `corr-${n}`, at: T0,
       }),
     });
     // EN-LIGNE-1 — her app puts the shop online in the same act as creating it.
-    await mf.dispatchFetch(`http://c/storefronts/${encodeURIComponent(`sf-sand-${n}`)}/publish`, { method: 'POST', headers: S.bearer, body: JSON.stringify({ correlationId: 'corr-en-ligne' }) });
+    await mf.dispatchFetch(`http://c/storefronts/${encodeURIComponent(B.id)}/publish`, { method: 'POST', headers: S.bearer, body: JSON.stringify({ correlationId: 'corr-en-ligne' }) });
     expect(created.status).toBe(200);
     const quoteIds: string[] = [];
     for (const [i, pid] of ['pv-sandbox-1', 'pv-sandbox-2'].entries()) {
@@ -290,7 +292,7 @@ describe('SANDBOX-PAY-1 — the founder plays the provider against the real Work
         method: 'POST',
         headers: S.bearer,
         body: JSON.stringify({
-          commandId: `cmd-listing-${n}-${i}`, listingId: `lst-sand-${n}-${i}`, storefrontId: `sf-sand-${n}`,
+          commandId: `cmd-listing-${n}-${i}`, listingId: `lst-sand-${n}-${i}`, storefrontId: B.id,
           resellerId: S.accountId, productVersionId: pid, offerVersion: pid.replace('pv-', 'ov-'),
           markup: 1_500, correlationId: `corr-${n}`, at: T0,
         }),
@@ -300,7 +302,7 @@ describe('SANDBOX-PAY-1 — the founder plays the provider against the real Work
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          slug: `sand-${n}`, pid, paymentMode: 'FULL_PREPAY', zoneTo: 'Ouagadougou',
+          slug: B.slug, pid, paymentMode: 'FULL_PREPAY', zoneTo: 'Ouagadougou',
           attributionResellerId: S.accountId, requestKey: freshKey(),
         }),
       });

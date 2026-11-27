@@ -161,6 +161,12 @@ describe('RESELLER-ACCOUNTS-1d — the four calls, honestly mapped', () => {
     expect(await port.profil('SPS-1')).toEqual({ ok: false, reason: 'unreachable' });
   });
 
+  it('a 429 on the profile door is her password count, read as « trop d\'essais » — never the dead-network road', async () => {
+    vi.stubEnv(BASE, 'https://shop.example');
+    stubFetch(async () => new Response(JSON.stringify({ ok: false, reason: 'too_many_attempts' }), { status: 429 }));
+    expect(await resolveCompteService()!.profil('SPS-1', { phone: '76 55 44 33', currentPassword: 'x'.repeat(8) })).toEqual({ ok: false, reason: 'trop_essais' });
+  });
+
   it('PROFIL-REVENDEUR-1 — an answer missing email or phone is NOT a profile, whatever its status says', async () => {
     vi.stubEnv(BASE, 'https://shop.example');
     stubFetch(async () => new Response(JSON.stringify({ ok: true, ...COMPTE, state: 'active', email: 'awa@example.bf' })));
