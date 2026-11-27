@@ -1,6 +1,23 @@
 # JOURNAL — shop-plus
 Continuity ledger per CTO charter §6/§6bis. Every entry is evidence-grounded.
 
+## 2026-11-27 · VIE-PRIVEE-ACHETEUSE — MERGED and DEPLOYED
+
+**Founder.** « Release all four » (2026-11-27 14:34 UTC, decision card, on the buyer-privacy batch report), which named the order: the shared record, then Shop+ and its deploy, then Boutik+ (media, offer, console), then Séra.
+
+**Merge.** PR #10 merged as `03d3530` (merge commit, the branch shas kept). On main: pwa-preview 528 (buyer site) green · expo-preview 561 (reseller app) green · service-canon-drift 492 green · ci 751 green on its first attempt.
+
+**Deploy.**
+- storefront-deploy 130 (id 46017353862), from main `03d3530`: the Worker went live, canon 3.28.0 asserted, « CUSTODY ARMED — all four wires present on the live Worker », checkout smoke OK, a zoom-17 tile answered 200. The run then went red at the tile smoke: it still asked for zoom 16 to be refused, and this release makes 13 to 19 valid. The password-hashing smoke after it did not run. The deploy workflow was not updated with the relay; that was the coordinator's miss.
+- `bc50e4c` on the designated branch moves the refused-zoom probe to 12, below the relay's range. Nothing else changes.
+- storefront-deploy 131 (id 46018725571), from the designated branch at `bc50e4c`: every step green: canon 3.28.0, custody armed, checkout refuses by name, tiles (zoom 17 is 200 image/png, zoom 12 is 404 `tile_not_found`), password hashing at 100 000. The live health check reports release `bc50e4c`, which is main `03d3530` plus the workflow fix only.
+
+**Deploy note, as reported.** No data migration; nothing to move or convert. Nobody ran the sandbox payment workflow between the merge and the deploy.
+
+**Still open.** As named in the slice entry below. The workflow fix reaches main with the next Shop+ PR.
+
+---
+
 ## 2026-11-27 · VIE-PRIVEE-ACHETEUSE — the buyer's details stay hers: her order view answers her own token, a finished order's dispatch row holds her contact back · lane P8 · on the branch, NOT merged, NOT deployed
 
 **Founder.**
