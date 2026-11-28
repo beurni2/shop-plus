@@ -19,6 +19,10 @@ import { ORDER_STATUSES, PlatformEventSchema, type PlatformEvent } from '@platfo
  *            refunded → paid   (REMBOURSEMENT-2 — ONLY a door payment the
  *            provider confirms after the refund, a charge in flight at the
  *            door: money is held again until its own refund is confirmed)
+ *            payment_failed | cancelled → refunded   (Shop+ SP6, founder
+ *            ruling 2026-11-28 — the provider collected a charge that had
+ *            already failed here; reached ONLY by the vault's refund judge,
+ *            once the provider confirms that money went back)
  *
  * Unknown or out-of-order transitions REFUSE CLOSED. Every accepted
  * transition emits one enveloped PlatformEvent. Chain ids are write-once,
@@ -42,7 +46,8 @@ const FAILURE_NEXT: Readonly<Partial<Record<OrderState, readonly OrderState[]>>>
   quote_issued: ['cancelled'],
   reserved: ['cancelled'],
   payment_pending: ['payment_failed', 'cancelled'],
-  payment_failed: ['payment_pending', 'cancelled'],
+  payment_failed: ['payment_pending', 'cancelled', 'refunded'],
+  cancelled: ['refunded'],
   paid: ['refunded'],
   confirmed: ['refunded'],
   refunded: ['paid'],
@@ -80,7 +85,9 @@ export type TransitionRefusalReason =
   | 'out_of_order'
   | 'chain_id_conflict'
   | 'refund_required_e3'
-  | 'retry_requires_new_attempt_id';
+  | 'retry_requires_new_attempt_id'
+  /** Shop+ SP6 — the provider collected this order's failed charge; it is being refunded, never charged again. */
+  | 'paiement_rembourse';
 
 export type TransitionOutcome =
   | { ok: true; journey: OrderJourney; event: PlatformEvent }

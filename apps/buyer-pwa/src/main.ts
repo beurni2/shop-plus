@@ -1457,9 +1457,10 @@ if (app) {
       // A checkout that kept this order again since (a retry: same id, new
       // time; verifier minor 1) must not lose it to this older answer.
       const encore = commandeGardee(gardeeSure.orderId, garde)?.at === gardeeSure.at;
-      if (verdict === 'oublier' && encore) oublierCommande(gardeeSure.orderId, garde);
-      // Her door holder is per order, so it leaves with THIS order's failure.
-      if (verdict === 'oublier') oublierPorte(gardeeSure.orderId, garde);
+      // No money yet: the order stays, so a late payment's refund still finds
+      // it. Its door holder leaves: late money on it is refunded, never paid
+      // at the door, and a retry in its checkout keeps the holder again.
+      if (verdict === 'sans_argent') oublierPorte(gardeeSure.orderId, garde);
       if (verdict !== 'payee') return;
       if (encore) garderCommande({ ...gardeeSure, payee: true }, garde);
       commandesPayees.set(gardeeSure.orderId, gardeeSure);
@@ -1473,7 +1474,8 @@ if (app) {
       const verdict = verdictBande(r);
       const actuel = panierPaye(paye.groupId, garde);
       const encore = actuel?.at === paye.at;
-      if (verdict === 'oublier' && encore) oublierPanierPaye(paye.groupId, garde);
+      // Its record keeps these articles out of « payer ensemble », so a panier no money moved for must leave.
+      if (verdict === 'sans_argent' && encore) oublierPanierPaye(paye.groupId, garde);
       if (verdict !== 'payee') return;
       // The record as it is NOW: an article finished in another tab since this
       // page loaded stays finished (verifier NOTE 1).

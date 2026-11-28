@@ -297,7 +297,7 @@ describe('PROFIL-PRO-1 — the hub is an INDEX: who she is, four doors with what
     expect(screen.canPress('Enregistrer')).toBe(false);
     expect(champs(screen)).toHaveLength(0);
     screen.unmount();
-  });
+  }, 20_000); // the file's first full-app mount pays the cold import (~2 s alone, past 5 s on a loaded runner): the house budget for a full-app walk (rendu-file-attente)
 
   it('the accueil header (monogram + name) walks the journey edge to the same hub', async () => {
     await seedCompte();

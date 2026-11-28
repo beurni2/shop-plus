@@ -239,7 +239,10 @@ export type RefusCourse =
   | { readonly nature: 'refus_enlevement'; readonly faultClass: string }
   /** COLIS-PERDU-1 — Séra declared the parcel lost on the road (`package.lost.v1`):
    *  nothing in it is her fault, so every paid leg comes back, the delivery fee included. */
-  | { readonly nature: 'colis_perdu' };
+  | { readonly nature: 'colis_perdu' }
+  /** Shop+ SP6 — the provider collected a charge that had already failed here:
+   *  that money never paid the order, so all of it goes back. */
+  | { readonly nature: 'paiement_apres_echec' };
 
 export function lireRefusCourse(payload: unknown): RefusCourse | undefined {
   if (payload === null || typeof payload !== 'object' || Array.isArray(payload)) return undefined;
@@ -315,6 +318,7 @@ export class OrderSpine {
   private doorLeg: DoorLegState = 'none';
   private doorSignal: PlatformEvent | undefined;
   private relatedParty: RelatedPartyView | undefined;
+  private paidAfterFailureState = false;
 
   constructor(args: {
     quote: Quote;
@@ -410,13 +414,30 @@ export class OrderSpine {
     return this.paymentFailure;
   }
 
-  /** Retry after failure — a NEW payment attempt (the machine audits the replacement). */
+  /**
+   * Shop+ SP6 — the provider confirmed money for this order after its payment
+   * failed here (`onProviderPaymentAfterFailure`): that money is being
+   * refunded, and the order is never paid by it.
+   */
+  get paidAfterFailure(): boolean {
+    return this.paidAfterFailureState;
+  }
+
+  /**
+   * Retry after failure — a NEW payment attempt (the machine audits the
+   * replacement). Shop+ SP6: refused once the provider has confirmed money for
+   * the failed charge — that money is going back, and a retry would charge her
+   * a second time.
+   */
   retryPayment(cmd: {
     command_id: string;
     actor: string;
     serverTime: string;
     newPaymentAttemptId: string;
   }): TransitionOutcome {
+    if (this.paidAfterFailureState) {
+      return { ok: false, journey: this.journeyState, reason: 'paiement_rembourse', attempted: 'payment_pending' };
+    }
     return this.advance({
       command_id: cmd.command_id,
       actor: cmd.actor,
@@ -894,6 +915,106 @@ export class OrderSpine {
   }
 
   /**
+   * Shop+ SP6 (founder ruling 2026-11-28) — THE PROVIDER COLLECTED A CHARGE
+   * THAT HAD ALREADY FAILED HERE. `onProviderPaymentEvent` keeps refusing it
+   * (`out_of_order`, with its alert); this records the same confirmation as
+   * money held for this order WITHOUT moving the order: it still reads
+   * `payment_failed` (or `cancelled`), nothing is confirmed, and the only road
+   * out is the refund (`decideRefund({ nature: 'paiement_apres_echec' })`).
+   *
+   * Only THIS order's charge, for exactly the amount its immutable Quote asked
+   * the provider for, to the franc: any other amount, key, order or status
+   * records nothing and stays on the founder's console by the payment judge's
+   * own alert. Idempotent on the envelope like every judge here.
+   */
+  onProviderPaymentAfterFailure(raw: unknown, expectedProviderKey?: string | null): SpineOutcome {
+    const parsed = PlatformEventSchema.safeParse(raw);
+    if (!parsed.success) return { applied: false, reason: 'not_a_platform_event' };
+    const event = parsed.data;
+    if (event.name !== 'payment.checkout_leg_confirmed.v1') return { applied: false, reason: 'unexpected_event_name' };
+    if (event.envelope.correlation_id !== this.journeyState.correlationId) {
+      return { applied: false, reason: 'wrong_correlation' };
+    }
+    if (this.processedCommandIds.has(event.envelope.command_id)) return { applied: true, duplicate: true };
+    const p = event.payload as Record<string, unknown>;
+    const pres = this.echecPayable(p, this.checkWebhookIds(p, expectedProviderKey));
+    if (pres !== null) return { applied: false, reason: pres };
+    if (p['amount'] !== this.quote.amountPaidAtCheckout) return { applied: false, reason: 'amount_mismatch' };
+    return this.garderApresEchec(event, p, this.quote.amountPaidAtCheckout, typeof p['fee'] === 'number' ? p['fee'] : 0);
+  }
+
+  /**
+   * Shop+ SP6 — the grouped twin: the group's collection, confirmed after the
+   * group's charge failed here. The amount must be the group's total to the
+   * franc and this order's share its own Quote's; it holds ITS OWN share
+   * against the collection's reference, with its share of the one fee.
+   */
+  onGroupProviderPaymentAfterFailure(
+    raw: unknown,
+    expectedProviderKey: string | null,
+    groupe: GroupPaymentShares,
+  ): SpineOutcome {
+    const parsed = PlatformEventSchema.safeParse(raw);
+    if (!parsed.success) return { applied: false, reason: 'not_a_platform_event' };
+    const event = parsed.data;
+    if (event.name !== 'payment.checkout_leg_confirmed.v1') return { applied: false, reason: 'unexpected_event_name' };
+    if (event.envelope.correlation_id !== groupe.correlationId) return { applied: false, reason: 'wrong_correlation' };
+    if (this.processedCommandIds.has(event.envelope.command_id)) return { applied: true, duplicate: true };
+    const p = event.payload as Record<string, unknown>;
+    const pres = this.echecPayable(p, this.checkGroupWebhookIds(p, expectedProviderKey, groupe));
+    if (pres !== null) return { applied: false, reason: pres };
+    const own = groupe.parts.find((part) => part.orderId === this.orderId);
+    if (own === undefined || own.amount !== this.quote.amountPaidAtCheckout) {
+      return { applied: false, reason: 'group_share_mismatch' };
+    }
+    let total = 0;
+    for (const part of groupe.parts) {
+      if (!Number.isSafeInteger(part.amount) || part.amount <= 0) return { applied: false, reason: 'group_share_mismatch' };
+      total += part.amount;
+    }
+    if (!Number.isSafeInteger(total) || p['amount'] !== total) return { applied: false, reason: 'amount_mismatch' };
+    return this.garderApresEchec(
+      event,
+      p,
+      this.quote.amountPaidAtCheckout,
+      typeof p['fee'] === 'number' ? partDesFrais(groupe.parts, p['fee'], this.orderId!) : 0,
+    );
+  }
+
+  /** The checks both after-failure judges share, in the payment judge's order; null when they hold. */
+  private echecPayable(p: Record<string, unknown>, idCheck: 'attempt_mismatch' | 'order_mismatch' | null): SpineRefusalReason | null {
+    const etat = this.journeyState.state;
+    if ((etat !== 'payment_failed' && etat !== 'cancelled') || this.paymentFailure === undefined || this.orderId === undefined) {
+      return 'out_of_order';
+    }
+    if (idCheck !== null) return idCheck;
+    if (p['status'] !== 'held' && p['status'] !== 'captured') return 'unfunded_leg_status';
+    if (escrowPayloadMalformed(p)) return 'malformed_payload';
+    return null;
+  }
+
+  /** Records the held money for this order — the state does not move. */
+  private garderApresEchec(event: PlatformEvent, p: Record<string, unknown>, amount: number, fee: number): SpineOutcome {
+    const recorded = this.ledger.recordEscrowFromProvider({
+      orderId: this.orderId!,
+      provider: String(p['provider'] ?? 'sandbox-provider'),
+      paymentAttemptId: String(p['payment_attempt_id'] ?? ''),
+      legType: 'checkout',
+      collectRef: String(p['collectRef'] ?? event.envelope.command_id),
+      // This order's own amount, copied from its immutable Quote — proven
+      // above to be what the provider stated (alone, or as its share).
+      amount,
+      fee,
+      status: p['status'] as 'held' | 'captured',
+    });
+    if (!recorded.ok) return { applied: false, reason: recorded.reason };
+    if (recorded.replay) return { applied: true, duplicate: true };
+    this.processedCommandIds.add(event.envelope.command_id);
+    this.paidAfterFailureState = true;
+    return { applied: true, duplicate: false };
+  }
+
+  /**
    * Order confirmation — NO CONFIRMED ORDER WITHOUT FUNDED LEGS (SP3.2,
    * SP-I13). The runtime check inspects the recorded EscrowTxn: a checkout
    * leg with status held|captured covering amountPaidAtCheckout exactly.
@@ -1264,7 +1385,13 @@ export class OrderSpine {
   decideRefund(refus: RefusCourse): PlanRemboursement {
     const escrow = this.orderId === undefined ? undefined : this.ledger.escrowFor(this.orderId);
     const etat = this.journeyState.state;
-    if (escrow === undefined || (etat !== 'paid' && etat !== 'confirmed' && etat !== 'refunded')) {
+    // Shop+ SP6 — money held after the payment failed is refunded from the
+    // states that failure leaves; every other cause only once the order was paid.
+    const payee =
+      refus.nature === 'paiement_apres_echec'
+        ? this.paidAfterFailureState && (etat === 'payment_failed' || etat === 'cancelled' || etat === 'refunded')
+        : etat === 'paid' || etat === 'confirmed' || etat === 'refunded';
+    if (escrow === undefined || !payee) {
       return { ok: false, reason: 'pas_paye' };
     }
     if (this.ledger.obligationsFor(this.orderId!).length > 0) return { ok: false, reason: 'livraison_acceptee' };
@@ -1313,7 +1440,8 @@ export class OrderSpine {
     const ref = p['order_id'];
     if (typeof ref === 'string' && ref !== '' && ref !== this.orderId) return { applied: false, reason: 'order_mismatch' };
     const etat = this.journeyState.state;
-    if (etat !== 'paid' && etat !== 'confirmed' && etat !== 'refunded') return { applied: false, reason: 'out_of_order' };
+    const apresEchec = this.paidAfterFailureState && (etat === 'payment_failed' || etat === 'cancelled');
+    if (etat !== 'paid' && etat !== 'confirmed' && etat !== 'refunded' && !apresEchec) return { applied: false, reason: 'out_of_order' };
     const amount = p['amount'];
     if (typeof amount !== 'number' || amount !== attendu.amount) {
       return {
@@ -1429,6 +1557,7 @@ export class OrderSpine {
       supplierRef: this.supplierRef,
       escrow: this.orderId === undefined ? undefined : this.ledger.escrowFor(this.orderId),
       obligations: this.orderId === undefined ? [] : this.ledger.obligationsFor(this.orderId),
+      paidAfterFailure: this.paidAfterFailureState,
     };
   }
 

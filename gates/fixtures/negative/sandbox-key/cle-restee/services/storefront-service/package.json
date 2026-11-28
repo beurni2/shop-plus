@@ -1,0 +1,7 @@
+{
+  "name": "fixture-storefront-service",
+  "private": true,
+  "scripts": {
+    "bundle:worker:combined": "esbuild worker/index.ts --bundle --format=esm --outfile=dist/worker/worker.mjs --platform=neutral --conditions=import --alias:@shop-plus/commerce-core=./worker/commerce-core-worker.ts"
+  }
+}

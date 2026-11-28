@@ -133,6 +133,8 @@ jobs:
             case "$SERVICE:$1" in
             storefront-service:SERA_INTAKE_SECRET|storefront-service:SHOP_ARM_SECRET) echo "run storefront-deploy on main (it writes this key on every run)" ;;
             storefront-service:PAYMENT_WEBHOOK_SECRET) echo "run payment-webhook-secret on main" ;;
+            storefront-service:SANDBOX_CONFIRM_SECRET|storefront-service:PAYMENT_WEBHOOK_SECRET_NEXT|storefront-service:SANDBOX_CONFIRM_SECRET_NEXT) echo "run payment-webhook-secret on main (it writes this key while the repository holds it, and deletes it from the Worker once the repository does not)" ;;
+            *_NEXT) echo "if that key change is finished, delete $1 from the Worker by hand (no deploy writes or deletes it); if it is still under way, put today's next value back by hand" ;;
             storefront-service:STOREFRONT_WRITE_SECRET) echo "run storefront-deploy on main (it deletes this retired key again)" ;;
               *) echo "run this service's deploy on main, or put it again the way it was first set" ;;
             esac

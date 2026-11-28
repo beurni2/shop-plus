@@ -1999,10 +1999,14 @@ async function repondre(request: Request, env: Env): Promise<Response> {
      * THE SECRET IS ITS OWN (`PAYMENT_WEBHOOK_SECRET`, a `wrangler secret`,
      * never `[vars]`, never in a bundle) and it FAILS CLOSED like every gate in
      * `auth.ts`: with no secret configured, every webhook is
-     * 401. The check runs HERE, before any dispatch, so a rejected webhook never
-     * reaches a Durable Object and the 401 can never become an existence oracle
-     * for order ids. Matched with `===` and POST only — every other method on
-     * this path falls through to the write gate and is refused there.
+     * 401. The founder's sandbox tool holds a key of its own
+     * (`SANDBOX_CONFIRM_SECRET`) that opens these same doors only while the
+     * Worker charges through the sandbox, and each key has a `_NEXT` so it can
+     * change with no gap (auth.ts). The check runs HERE, before any dispatch,
+     * so a rejected webhook never reaches a Durable Object and the 401 can
+     * never become an existence oracle for order ids. Matched with `===` and
+     * POST only — every other method on this path falls through to the write
+     * gate and is refused there.
      */
     /**
      * SP4.2a — THE DOOR LEG'S WEBHOOK JOINS IT, on the SAME secret and the SAME
@@ -2019,13 +2023,13 @@ async function repondre(request: Request, env: Env): Promise<Response> {
      * now refuses any webhook naming a charge the order never initiated, and a
      * real aggregator knows its key because we charged it with one — the
      * founder's SANDBOX-PAY-1 tool stands in for that aggregator, so it reads
-     * the key here. SAME secret as the webhook itself (its holder can already
+     * the key here. SAME gate as the webhook itself (its holder can already
      * declare money received — reading one opaque key widens nothing), GET
      * only, and it RETIRES with the tool at the Real-Money Gate.
      */
     // VIE-PRIVEE-ACHETEUSE — `order/{id}`: the same tool's read of the three
     // facts it checks before and after it confirms (state and the two sums),
-    // now that the buyer's own view answers her token alone. Same secret, GET
+    // now that the buyer's own view answers her token alone. Same gate, GET
     // only; it retires with the tool at the Real-Money Gate.
     if (request.method === 'GET' && /^\/checkout\/webhook\/(leg-key|refund-key|order)\//.test(pathname)) {
       if (!(await paymentWebhookAuthorized(request, env))) return unauthorized();

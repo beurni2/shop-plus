@@ -1,6 +1,97 @@
 # JOURNAL — shop-plus
 Continuity ledger per CTO charter §6/§6bis. Every entry is evidence-grounded.
 
+## 2026-11-28 · REMBOURSEMENT-APRES-ECHEC-1 — money the provider confirms for an order whose payment already failed is refunded in full, single and grouped; her phone keeps the order so she can follow it · lane P14 · on the branch, NOT merged, NOT deployed
+
+**Founder.** « you can start the next batch » (2026-11-28 06:17 UTC), batch 8 of the plan he approved: « Money taken for a « failed » order gets its way back, using the option you choose. » His card at 06:28 UTC, « Refund it automatically »: « When the provider says it took money for an order we already closed as failed, Shop+ refunds every franc, like a refused delivery. Your console shows it until the refund is confirmed. »
+
+**Lane.** Lane P14. The build as one local commit, integrated byte-identical as `0a459d4`; the review's fixes as one local commit, integrated unchanged by fast-forward as `53faf12`. The coordinator's own commits: `0db4278` (the copy gate pins the six new strings in the money register) and `e295c2a` (the recorded answers pinned at the record run, platform-contracts `e8ba886`).
+
+**Spec.**
+- Shop+ Build Spec SP6 (canon 3.29.0): « **Money the provider confirms for an order whose payment had already failed is refunded in full the same way** … that money never pays the order. The charge is refunded under its own refund key, for exactly the amount the order asked the provider for, to the franc (a grouped collection: each order its own share, as above); a confirmation naming any other amount is not refunded by itself and stays on the founder's console. Once that refund is asked, no retry of the order charges again. Her tracking tells her calmly that the payment did not go through and that her money comes back; the founder's console shows the refund until the provider confirms it, and the order reads `refunded` only then. »
+- Ten Laws #2 and #4: provider confirmations are the only payment truth; a buyer refund is never gated on the Protection Fund.
+
+**What changed.**
+- *The late confirmation.* A checkout confirmation that reaches an order already `payment_failed` or `cancelled` here is recorded against that order only when it names this order's own charge for exactly the amount its quote asked (a panier: the collection's exact total, each order its own share and its share of the fee). It answers 200 `applied`. The state does not move. Any other late confirmation keeps 409 `out_of_order` and its alert. The alert `genuine_webhook_after_local_failure` is still written for the right amount too, so the founder sees every late confirmation.
+- *The refund.* It opens on the existing refund road: one line under its own refund key, nothing kept, no provider fee taken off. The order reads `refunded` only on the provider's refund confirmation. The Protection Fund is not touched.
+- *Nothing else starts.* No confirmation, no supplier, Séra or custody message, no reseller sale, no settlement.
+- *No second charge.* Once that money is recorded, a retry of the order or of its panier is refused before any charge with `paiement_rembourse`, checked before any freshness decision, including after the hold or the quote expired.
+- *Her screens.* Tracking says « Le paiement n'a pas abouti. Votre argent revient sur le numéro qui a payé. », then « … L'argent est revenu sur le numéro qui a payé. ». A second « Payer » is answered « Votre argent vous revient. » with « Rien de plus ne sera pris pour cette commande. » and « Voir la boutique ». The six strings are in the money register, pinned by the copy gate.
+- *Her phone (review fix).* A single order whose payment failed, with no money yet, now stays on her phone and in her owed account links, with no « Ma commande » band, and is asked again on her next visit. So if the provider confirms the money later, the refund reaches her from « Ma commande ». Its door holder still leaves. A panier with no money moved still leaves her phone: its record keeps its articles out of « payer ensemble ».
+- *The founder's rows.* The dispatch row of such an order carries the refund's state (`en_cours`, `fait`, or `bloque` with its reason) and no amount.
+- *Reconciliation (review fix).* The order's snapshot carries the fact that the provider confirmed its charge after the failure. Money held for that refund is no longer named « escrow on an unpaid order »; every other unpaid order with money recorded still is.
+
+**Evidence.**
+- Lane: every new test red first for the right reason, then green. Seam tests through the real Worker for one order and for a grouped collection of two: the right amount refunded under its own key, the wrong amount alert only, a redelivered confirmation answered `duplicate` with nothing written, each starts-nothing case beside a positive control, the founder's row naming the refund before it is confirmed, the reconciliation route clean. Walks: a failed order later refunded and reached from « Ma commande »; a panier paid again after a late confirmation answered calmly with no new charge.
+- Mutations: 14 at the build and 2 at the fixes (the single order forgotten again; the reconciliation exception removed), each anchor matched once, each red, each restored byte-identical.
+- Suites at the lane: commerce-core 230, storefront unit 392, buyer unit 1576, Playwright checkout, account and panier walks green, typecheck clean in the three packages, copy gate OK. The recorded-answers certifier: no recorded form missing.
+- Coordinator: diffs read line by line, changed files checked against the claim and its written extensions. Re-run at `53faf12`: reconciliation 17 of 17, the buyer's band, account and refund tests 106 of 106, the refund seam 13 of 13.
+- Full board on `53faf12` in a fresh clone, Boutik+ beside it: every gate green except the two known browser checks of the fallback font (cliente :474 and :909), which fail only where the machine's sans-serif is Inter and pass on GitHub. Uncached on the board: storefront 1120 of 1120, Boutik+ seam included; buyer 1576; commerce-core 230; Playwright 339 passed.
+
+**Verifier.** One fresh-context pass on the build, handled once, never re-verified: 0 blocker, 1 major, 3 minor, 5 notes.
+- Major, fixed here: her phone forgot a failed order before late money arrived, so her tracking could never show its refund. Fixed for a single order and her account links as above. For a panier the phone keeps forgetting, on purpose (see Still open).
+- Minor, fixed here: the reconciliation pass named the held refund money as a hole.
+- Minor, fixed here: the grouped seam test now checks the redelivered confirmation and the founder's row before the refund is confirmed.
+- Minor, fixed here: a panier walk was added.
+- Note, journalled and kept: « Réessayer » stays on the payment screen after the refund opens; a tap on it is answered calmly and charges nothing.
+- Note, journalled: the second-layer refusals on the retry road are reached only in a race; they stay as defence in depth.
+- Note, asked of the founder: after a refund is confirmed, the order stays in « À vérifier » on his console, by the existing alert rule.
+- Two notes are held in the private batch record.
+
+**Not checked.** The live services were not called from here. A real provider was not involved: the sandbox stands in.
+
+**Still open.** On a panier, a phone that read the failure before the late money arrived does not show the refund in « Mes articles »; the refund itself still happens automatically. Other open items are held in the private batch record until their fixes deploy.
+
+---
+
+## 2026-11-28 · CANON 3.29.0 + CLE-OUTIL-TEST-1 + CLE-SUIVANTE-1 — the test « money received » tool gets its own key, every checked key can change with no gap · lane P13 · on the branch, NOT merged, NOT deployed
+
+**Founder.** « you can start the next batch » (2026-11-28 06:17 UTC), batch 8 of the plan he approved: « The test button that says « money received » gets its own key, and a check makes sure it is gone before real money. » and « During a change, the old and new keys both work for a short window, so nothing stops. » His card at 06:28 UTC, « Refund it automatically », is the ruling canon 3.29.0 writes down; its code is the next slice and ships in the same release.
+
+**Lane.** Lane P13, built from `671d1c9`. Integrated on `claude/project-thread-jqj97g` as `c2e6682` (canon pin), `0549ace` (workflows, coordinator), `bd6aae3` (Worker, tool script, gate, tests), then `f674ece` and `6b32c96` (the review's fixes).
+
+**Spec.** Ten Laws #2 « Provider webhooks are the only payment truth »; Execution Contract §8 item 12 (canon 3.29.0): the sandbox tool that declares money received, and its key, are removed; a CI gate fails while either still sits beside a real provider; §11 « key rotation … overlapping windows … version retirement »; §3 « overlapping validation windows + explicit deprecation/retirement ». Shop-Plus-Build-Spec §12: the aggregator Decision stays ⏳, so no provider is named and the payment vault is unchanged.
+
+**What changed.**
+- *Canon.* The contracts, kernel-types and certification pins move to platform-contracts `bfad55c` (3.29.0); the two changed canon docs are copied. No shape or export changed.
+- *The test tool's key.* The sandbox tool presents `SANDBOX_CONFIRM_SECRET` and never reads the provider's key. The Worker accepts it on the webhook doors only while the one provider fact in `src/payment-port.ts` reads `'sandbox'`. The provider's key opens the same doors exactly as before.
+- *Next keys.* Every key the Worker checks has a `_NEXT` twin that opens exactly what the key opens. Both constant-time compares always run, an empty value never matches, the one 401 is unchanged, and the log line does not say which value opened. The progress classifier never widens a class, in either mode, with or without each next key.
+- *Gate.* `sandbox-key-beside-real-provider` fails the board while a provider other than the sandbox is built and anything of the tool remains: its key accepted, the provider line, its workflow, any other workflow naming its key, or its script. It fails (exit 2) when it cannot see a provider at all. A legal fixture, a blind fixture and eight negatives, one per way of breaking the rule. Its bound is written in its header: a real adapter must implement the payment port; money taken outside the port is not seen, and the Real-Money Gate review says so.
+- *Workflows.* payment-webhook-secret writes and checks the tool's key and the next keys, judges lengths and « the tool's key is its own » on the bytes it stores, and hands every key to curl on standard input. Each sandbox run waits for the founder's tap. storefront-deploy says which key change is still open and never reddens a release over a listing it cannot get. rollback names how each next key and the tool's key come back.
+- *Secret scan.* A written-down next value is caught exactly like its key; a negative fixture plants one.
+
+**Evidence.** Lane: red first, then green; the seam on the real Worker (Miniflare) with the tool script's own composition: the tool's key confirms a real order and the buyer's own view reads it; the provider's key still opens; any other, empty or missing value is the one 401 on all six doors; the script exits by name when its key is unset. Mutations, each anchor matched once and restored byte-identical: the next compare removed, its length guard dropped, the provider fact ignored, the gate judging by name only — each red. Coordinator: each diff read line by line; the gate re-run on every fixture (real tree 0, legal 0, blind 2, eight negatives 1, each with its violation line read). Full board on `bd6aae3` (`CI=true`, `TURBO_CONCURRENCY=1`, the Boutik+ sibling beside it): every gate green except the known reds — the browser tests' two font checks (`cliente.spec.ts` l.474 and l.909, Inter as the default sans-serif here, green on GitHub) and one timing race in `colis.e2e.test.ts` (14/14 alone); storefront 1102 of 1103, 336 browser tests passed.
+
+**Verifier.** One fresh-context pass, handled once: no blocker, no major, six minors, six notes. All six minors fixed in `f674ece` and `6b32c96` (bytes compared as stored, keys off argument lists, next names in the secret scan, the gate's bound written down, the tool's script and any renamed workflow counted, the rollback page naming each new key). Notes kept here:
+- Merge the canon change as a merge commit so `bfad55c` stays reachable; every pin in this repository names it.
+- A negative fixture counts as red on exit 1; an unexpected crash also exits 1, so each negative's violation line was read once by hand.
+- « Each sandbox run waits for the founder's tap » rests on the `production` environment's reviewers, a GitHub setting not visible from here; checked on the first real run.
+- The seam's test run rebuilds the service bundle; it came out byte-identical to a fresh build.
+- The workflows' French warning titles are founder-facing release text, not app copy, as in the other workflows.
+- The canon copy states the new refund rule; the code for it ships in the same release.
+
+**Release.** The founder makes `SANDBOX_CONFIRM_SECRET` first (at least 32 characters, never the provider's key). Then storefront-deploy, then payment-webhook-secret, then the sandbox tool works with its own key.
+
+**Still open.** Other open items are held in the private batch record until their fixes deploy.
+
+---
+
+## 2026-11-28 · JOURNAL-SERVICE-1 + POIDS-PAGE-1 — storefront DEPLOYED; MERGED; buyer site and reseller app PUBLISHED
+
+**Founder.** « Release everything » (2026-11-28 05:13 UTC, decision card, on the batch 7 report), which named for Shop+: the shop service from the branch, then the merge.
+
+**Service.** storefront-deploy 134 (id 46111164522, dispatch on `claude/project-thread-jqj97g` at `18dfc72`, the open PR's head) green 05:20–05:21 UTC. It waited for the founder's approval in the `production` environment (queued 05:14, started 05:20 after his approval). The release guard passed; the live Worker speaks the canon this job bundled; the smokes answered « SMOKE OK — the tile road is live and refuses by name. » and « SMOKE OK — the live runtime derives PBKDF2 at 100000 iterations. »
+
+**Merge.** PR #13 merged as `ff031d9` (merge commit, the branch shas kept; its tree is byte-identical to the PR head `18dfc72`, green in ci 756, and to what storefront-deploy 134 shipped). service-canon-drift 496 on main green.
+
+**On main.** ci 757 (id 46111847214) green on its first attempt · pwa-preview 532 (id 46113341660) green · expo-preview 565 (id 46113341648) green, both from main's newest commit.
+
+**Not checked.** The live service was not called from here. Whether the logging service adds anything of its own to each line is read on one real line before anyone says the log holds no address. The page weight is measured with stand-in photos at their ceilings; a real boutique page on a real phone is the check still to make.
+
+**Still open.** As named in the slice entry below. Other open items are held in the private batch record until their fixes deploy.
+
+---
+
 ## 2026-11-28 · JOURNAL-SERVICE-1 + POIDS-PAGE-1 — the storefront service keeps a log with no personal data; the buyer page's weight is measured · lane P · on the branch, NOT merged, NOT deployed
 
 **Founder.** « done, now you can start the next batch » (2026-11-28 00:38 UTC), batch 7 of the plan he approved: « Every service, one lane per app. Each one keeps a log of what it did and what went wrong, with no personal data in it. » and « Photos sent and downloaded are held to their phone budgets, and the buyer page's total weight is measured. » Boutik+ holds the photos to their budgets; this repository measures what a boutique costs a buyer.

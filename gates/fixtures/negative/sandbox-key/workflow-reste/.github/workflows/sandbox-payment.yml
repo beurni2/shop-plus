@@ -1,0 +1,11 @@
+# THE BREAK: the sandbox tool's workflow is still here after the switch.
+# A stand-in: the gate reads only that this file exists.
+name: sandbox-payment
+on: workflow_dispatch
+permissions:
+  contents: read
+jobs:
+  confirm:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "stand-in"

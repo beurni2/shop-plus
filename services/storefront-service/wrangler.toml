@@ -256,6 +256,21 @@ PRODUCT_MEDIA_BASE = "https://media-service.ilboudobernard2.workers.dev"
 # by design — which means an order can be created and charged but can never be
 # confirmed until the secret is set. That is the correct failure direction.
 #
+# SANDBOX_CONFIRM_SECRET — the founder's sandbox tool's OWN key, also absent from
+# this file. It opens the same webhook doors, but ONLY while `PAYMENT_PROVIDER_KIND`
+# in src/payment-port.ts reads 'sandbox': the day a real provider is wired that
+# line changes and this key opens nothing, so the tool never holds the provider's
+# key. It retires with the tool at the Real-Money Gate, and the board's gate
+# `sandbox-key-beside-real-provider` fails while a real provider is built beside
+# it, its workflow, or that line.
+#
+# EVERY KEY THIS WORKER CHECKS HAS A `_NEXT` TWIN (PAYMENT_WEBHOOK_SECRET_NEXT,
+# SANDBOX_CONFIRM_SECRET_NEXT, CHECKOUT_OPS_SECRET_NEXT, PROGRESS_WRITE_SECRET_NEXT,
+# SERA_PROGRESS_SECRET_NEXT), absent unless a change is under way. Either value
+# opens exactly what the key opens, and an empty one opens nothing. To change a
+# key with no gap: put the new value in `X_NEXT`, move every caller to it, put it
+# in `X`, then delete `X_NEXT`. Nothing logs or answers which of the two matched.
+#
 # PAYMENT_SANDBOX_BEHAVIOR is also absent, and absent is its DEPLOYED value: it
 # configures the certified sandbox mock's misbehaviour for tests. It carries no
 # payment truth (webhooks are the only payment truth) and names no provider.
@@ -444,6 +459,10 @@ simple = { limit = 600, period = 60 }
 # Order does not matter: every Séra wire is a durable outbox on alarm
 # backoff, so marks born inside the swap window retry until both sides hold
 # the value. Nothing is lost.
+#
+# Both keys change through their `_NEXT` twin (above). SERA_PROGRESS_SECRET
+# ALONE arms the split: SERA_PROGRESS_SECRET_NEXT opens nothing while
+# SERA_PROGRESS_SECRET is unset, so the next value cannot arm it by itself.
 
 # ═══════════════════════════════════════════════════════════════════════════
 # THE SERVICE'S LOG — one line per request, one per fault, never a person's data.

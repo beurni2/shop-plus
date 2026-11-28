@@ -251,12 +251,10 @@ export function creerRattacheur(
 /**
  * MES-COMMANDES-PAYEES — the tab that paid may have closed before the operator
  * confirmed. On each visit, every order still owed asks the service once:
- * paid ⇒ it joins her list; failed or cancelled ⇒ owed no more; still waiting
- * or no answer ⇒ asked again next visit. The same rule as the band at the
- * head of her pages (`verdictBande`) — save one case: a payment that failed in
- * the tab still open stays owed, since « Réessayer » there answers the same
- * order and a late « failed » must not drop what the retry still needs
- * (verifier minor 4).
+ * paid ⇒ it joins her list; anything else ⇒ asked again next visit. The same
+ * rule as the band at the head of her pages (`verdictBande`): a payment that
+ * failed stays owed too — « Réessayer » answers the same order, and money the
+ * provider confirms late opens a refund she must be able to follow from here.
  */
 export function lierLesCommandesDues(
   port: ComptePort,
@@ -269,10 +267,7 @@ export function lierLesCommandesDues(
   const rattacher = creerRattacheur(port, local, onglet);
   for (const l of liens) {
     void lireEtat(l.orderId, l.buyerRef).then((r) => {
-      const verdict = verdictBande(r);
-      const reessayable = r.status === 'order' && r.order.state === 'payment_failed' && decidee(onglet, l.orderId);
-      if (verdict === 'oublier' && !reessayable) oublierLien(local, onglet, l.orderId);
-      if (verdict === 'payee') rattacher({ orderId: l.orderId, buyerRef: l.buyerRef, payee: true });
+      if (verdictBande(r) === 'payee') rattacher({ orderId: l.orderId, buyerRef: l.buyerRef, payee: true });
     });
   }
 }

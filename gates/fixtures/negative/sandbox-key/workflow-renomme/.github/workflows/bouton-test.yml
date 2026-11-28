@@ -1,0 +1,14 @@
+# THE BREAK: the sandbox tool's workflow survives the switch under another
+# name, still holding its key. A stand-in: the gate reads only that a workflow
+# names the tool's key.
+name: bouton-test
+on: workflow_dispatch
+permissions:
+  contents: read
+jobs:
+  confirm:
+    runs-on: ubuntu-latest
+    steps:
+      - run: node scripts/confirm.mjs
+        env:
+          SANDBOX_CONFIRM_SECRET: ${{ secrets.SANDBOX_CONFIRM_SECRET }}

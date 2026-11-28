@@ -72,7 +72,7 @@ const base = `http://127.0.0.1:${server.address().port}`;
 
 const run = (orderId, remboursement = 'false') => new Promise((done) => {
   const child = spawn(process.execPath, [script], {
-    env: { PATH: process.env.PATH, STOREFRONT_BASE: base, ORDER_ID: orderId, REMBOURSEMENT: remboursement, PAYMENT_WEBHOOK_SECRET: 'proof-secret-not-real' },
+    env: { PATH: process.env.PATH, STOREFRONT_BASE: base, ORDER_ID: orderId, REMBOURSEMENT: remboursement, SANDBOX_CONFIRM_SECRET: 'proof-secret-not-real' },
   });
   let out = '';
   child.stdout.on('data', (d) => { out += d; });

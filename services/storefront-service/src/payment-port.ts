@@ -185,6 +185,16 @@ export function readSandboxBehavior(raw: string | undefined): SandboxBehavior {
 }
 
 /**
+ * WHICH PROVIDER THIS WORKER CHARGES THROUGH — one fact in code, never a secret.
+ * While it reads 'sandbox', the founder's sandbox tool key (`SANDBOX_CONFIRM_SECRET`,
+ * auth.ts) may open the money doors; the day a real adapter is wired this line
+ * changes and that key opens nothing. The board's gate
+ * `scripts/gates/sandbox-key-beside-real-provider.mjs` fails while any other
+ * provider is built here and this line, the tool's key or its workflow remains.
+ */
+export const PAYMENT_PROVIDER_KIND = 'sandbox' as const;
+
+/**
  * THE ONE IMPLEMENTATION: the FROZEN VAULT's certified sandbox mock, wrapped —
  * not reimplemented, not adapted. Every behaviour below is the mock's own.
  *

@@ -181,6 +181,9 @@ capture no-expo-token-leak-negative fail node scripts/gates/no-expo-token-leak.m
 log "gate: no-expo-token-leak — NEGATIVE FIXTURE (audit E3: generic secret literal, no EXPO_TOKEN, must fail)"
 capture no-expo-token-leak-secret-negative fail node scripts/gates/no-expo-token-leak.mjs gates/fixtures/negative/no-expo-token-leak/generic-secret.env
 
+log "gate: no-expo-token-leak — NEGATIVE FIXTURE (a key's next value written down, must fail)"
+capture no-expo-token-leak-next-negative fail node scripts/gates/no-expo-token-leak.mjs gates/fixtures/negative/no-expo-token-leak/next-key.env
+
 log "gate: single-level — repo source (must pass)"
 capture single-level-positive pass node scripts/gates/single-level.mjs
 
@@ -602,6 +605,25 @@ capture live-watch-proof pass node scripts/gates/live-watch-proof.mjs
 
 log "gate: public logs — the sandbox confirm tool prints no order id, key or amount (must pass)"
 capture sandbox-confirm-log-proof pass node scripts/gates/sandbox-confirm-log-proof.mjs
+
+# The sandbox tool's key leaves with the sandbox: no provider but the sandbox
+# may be built while the tool's key, its workflow or the 'sandbox' line
+# remains. The real tree, a legal tree after the switch, a tree the gate
+# cannot see into, and one negative folder per way of breaking the rule.
+log "gate: sandbox-key-beside-real-provider — the real tree (must pass)"
+capture sandbox-key-beside-real-provider pass node scripts/gates/sandbox-key-beside-real-provider.mjs
+
+log "gate: sandbox-key-beside-real-provider — POSITIVE FIXTURE (after the switch, nothing of the tool left, must pass)"
+capture sandbox-key-legal pass node scripts/gates/sandbox-key-beside-real-provider.mjs gates/fixtures/sandbox-key-legal
+
+log "gate: sandbox-key-beside-real-provider — BLIND FIXTURE (no provider in sight, must exit 2)"
+capture sandbox-key-blind 2 node scripts/gates/sandbox-key-beside-real-provider.mjs gates/fixtures/sandbox-key-blind
+
+for fx in gates/fixtures/negative/sandbox-key/*/; do
+  n="$(basename "$fx")"
+  log "gate: sandbox-key-beside-real-provider — NEGATIVE FIXTURE ALONE ($n, must fail)"
+  capture "sandbox-key-negative-$n" fail node scripts/gates/sandbox-key-beside-real-provider.mjs "$fx"
+done
 
 if [ $FAILED -ne 0 ]; then
   echo ""

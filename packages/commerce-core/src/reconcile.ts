@@ -37,6 +37,8 @@ export interface ReconciliationSnapshot {
   supplierRef: string;
   escrow: EscrowTxn | undefined;
   obligations: readonly SettlementObligation[];
+  /** SP6 — the provider confirmed this order's charge after its payment failed here; that money is held for its refund. */
+  paidAfterFailure: boolean;
 }
 
 /** One provider-side charge record, as the provider itself reports it. */
@@ -101,8 +103,10 @@ export function reconcileOrder(
     });
   }
 
-  // The inverse hole: money recorded while the journey never reached paid.
-  if (snapshot.escrow !== undefined && UNPAID_STATES.includes(snapshot.state)) {
+  // The inverse hole: money recorded while the journey never reached paid —
+  // save money the provider confirmed after the payment failed here, which is
+  // held for its refund (SP6) and already named when it landed.
+  if (snapshot.escrow !== undefined && UNPAID_STATES.includes(snapshot.state) && !snapshot.paidAfterFailure) {
     mint('escrow_without_paid_order', anchor, {
       collect_refs: legs.map((leg) => leg.collectRef),
     });
