@@ -285,6 +285,29 @@ describe('E3 — reconcileOrder: the pass compares the records and names every d
     expect(scenariosOf(alerts)).toContain('escrow_without_paid_order');
   });
 
+  it('SP6 — money held for its refund after a failed payment is not « escrow on an unpaid order »; an unpaid order with escrow still is', () => {
+    for (const [seed, abandon] of [['pae1', false], ['pae2', true]] as const) {
+      const quote = issuedQuote();
+      const spine = spineAtPaymentPending(quote, seed);
+      expect(spine.failPayment({ command_id: `fail-${seed}`, actor: 'a', serverTime: LATER(1), reason: 'charge_timeout' }).ok).toBe(true);
+      if (abandon) expect(spine.cancelOrder({ command_id: `cancel-${seed}`, actor: 'buyer', serverTime: LATER(2) }).ok).toBe(true);
+      expect(spine.onProviderPaymentAfterFailure(genuineWebhook(quote, seed), `pay-${seed}`)).toEqual({ applied: true, duplicate: false });
+      const truth = spine.reconciliationSnapshot();
+      expect(truth.state).toBe(abandon ? 'cancelled' : 'payment_failed');
+      expect(truth.escrow?.paymentLegs).toHaveLength(1);
+      expect(reconcileOrder(truth, { serverTime: LATER(5) }), seed).toEqual([]);
+      expect(truth.paidAfterFailure).toBe(true);
+      // The same records without that fact: the alert stands.
+      const sansLeFait: ReconciliationSnapshot = { ...truth, paidAfterFailure: false };
+      expect(scenariosOf(reconcileOrder(sansLeFait, { serverTime: LATER(5) })), seed).toContain('escrow_without_paid_order');
+    }
+    // An ordinary order whose journey never reached paid, with money recorded: still named.
+    const { spine } = confirmedSpine('pae3');
+    const ordinaire = spine.reconciliationSnapshot();
+    expect(ordinaire.paidAfterFailure).toBe(false);
+    expect(scenariosOf(reconcileOrder({ ...ordinaire, state: 'payment_failed' }, { serverTime: LATER(5) }))).toContain('escrow_without_paid_order');
+  }, 10_000);
+
   it('the DOOR projection diverging from the escrow record is named, in both directions', () => {
     const { spine } = confirmedSpine('dp1', 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR');
     const truth = spine.reconciliationSnapshot();

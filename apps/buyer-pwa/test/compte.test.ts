@@ -478,7 +478,7 @@ describe('COMPTE-CLIENTE-2 · MES-COMMANDES-PAYEES — her orders join « Mes co
     expect(liensDus(local, undefined).map((l) => l.orderId)).toEqual(['ord-11', 'ord-10', 'ord-9', 'ord-8', 'ord-7', 'ord-6', 'ord-5', 'ord-4', 'ord-3', 'ord-2']);
   });
 
-  it('the next visit asks the service for each owed order: paid joins, failed or cancelled is dropped, waiting is kept', async () => {
+  it('the next visit asks the service for each owed order: paid joins; failed, cancelled and waiting stay owed', async () => {
     const local = memoire();
     const onglet = memoire();
     garderSession(local, { session: SESSION, prenom: 'Awa' });
@@ -494,7 +494,7 @@ describe('COMPTE-CLIENTE-2 · MES-COMMANDES-PAYEES — her orders join « Mes co
     await attendre();
     await attendre();
     expect(envoyes).toEqual([{ session: SESSION, ajouter: [{ orderId: 'ord-paye', buyerRef: 'r-ord-paye' }] }]);
-    expect(liensDus(local, onglet).map((l) => l.orderId).sort()).toEqual(['ord-attente', 'ord-muet']);
+    expect(liensDus(local, onglet).map((l) => l.orderId).sort()).toEqual(['ord-annule', 'ord-attente', 'ord-echec', 'ord-muet']);
   });
 
   it('a payment that failed in the tab still open stays owed: « Réessayer » there answers the same order (verifier minor 4)', async () => {

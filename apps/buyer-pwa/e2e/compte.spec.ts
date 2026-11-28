@@ -917,10 +917,9 @@ for (const [etatPlusTard, rejoint] of [['confirmed', true], ['payment_failed', f
     } else {
       await page.waitForTimeout(1_500);
       expect(livre.commandes.get('70123456') ?? []).toEqual([]);
-      // Failed: owed no more. Still waiting: kept, asked again next visit.
+      // Failed or still waiting: kept, asked again next visit.
       const dus = await page.evaluate(() => localStorage.getItem('sp-liens-dus:v1') ?? '');
-      if (etatPlusTard === 'payment_failed') expect(dus).not.toContain(vu.commandes[0]!);
-      else expect(dus).toContain(vu.commandes[0]!);
+      expect(dus).toContain(vu.commandes[0]!);
     }
     expect(await page.content()).not.toContain(BUYER_REF);
     expect(erreurs).toEqual([]);
@@ -1244,8 +1243,8 @@ const garde = (page: Page, cle: string) => page.evaluate((k) => localStorage.get
 const commandesDuTel = (page: Page) => page.evaluate(() => (localStorage.getItem('sp-commandes:v1') ?? '') + (localStorage.getItem('sp-commande:v1') ?? ''));
 const paniersDuTel = (page: Page) => page.evaluate(() => (localStorage.getItem('sp-paniers-payes:v1') ?? '') + (localStorage.getItem('sp-panier-paye:v1') ?? ''));
 
-for (const [etat, oublie] of [['payment_pending', false], ['payment_failed', true], ['cancelled', true], [null, false]] as const) {
-  test(`BANDE-PAYEE — an order the service says is ${etat ?? 'unreachable'}: no « Ma commande » band${oublie ? ', and the phone forgets it' : ', and the phone keeps it for the next visit'}`, async ({ page }) => {
+for (const [etat, sansArgent] of [['payment_pending', false], ['payment_failed', true], ['cancelled', true], [null, false]] as const) {
+  test(`BANDE-PAYEE — an order the service says is ${etat ?? 'unreachable'}: no « Ma commande » band, and the phone keeps it for the next visit${sansArgent ? ', and its door holder leaves' : ''}`, async ({ page }) => {
     const livre = new Livre();
     // PORTE-APRES-RECHARGE-1 — the phone also keeps this order's door holder,
     // and another order's.
@@ -1262,13 +1261,12 @@ for (const [etat, oublie] of [['payment_pending', false], ['payment_failed', tru
     await expect(page.locator('[data-role="ma-commande"]'), 'a band for an order nobody paid').toHaveCount(0, { timeout: 2_000 });
     // It asked the service — and after the answer landed, still no band.
     await expect.poll(() => lus.length).toBeGreaterThan(0);
-    if (oublie) await expect.poll(() => commandesDuTel(page)).toBe('');
+    // A failed order's door holder leaves with it; nobody else's does.
+    if (sansArgent) await expect.poll(() => garde(page, 'sp-portes:v1')).toBe(JSON.stringify([autrePorte]));
     await page.waitForTimeout(500);
     await expect(page.locator('[data-role="ma-commande"]')).toHaveCount(0);
-    if (!oublie) expect(await commandesDuTel(page)).toContain(COMMANDE_KEPT.orderId);
-    // A failed order's door holder leaves with it; nobody else's does.
-    if (oublie) await expect.poll(() => garde(page, 'sp-portes:v1')).toBe(JSON.stringify([autrePorte]));
-    else expect(await garde(page, 'sp-portes:v1')).toContain(COMMANDE_KEPT.orderId);
+    expect(await commandesDuTel(page)).toContain(COMMANDE_KEPT.orderId);
+    if (!sansArgent) expect(await garde(page, 'sp-portes:v1')).toContain(COMMANDE_KEPT.orderId);
     expect(erreurs).toEqual([]);
   });
 }

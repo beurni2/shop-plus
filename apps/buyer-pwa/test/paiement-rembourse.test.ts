@@ -1,6 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { httpQuotePort, verdictBande } from '../src/cliente/quote-port';
+import { creerRattacheur, lierLesCommandesDues } from '../src/compte/entree';
+import { garderSession, liensDus } from '../src/compte/garde';
 import { renderC7, renderRefus } from '../src/cliente/screens';
 import { t } from '../src/i18n';
 
@@ -47,20 +49,67 @@ describe('her refund after a failed payment crosses the wire with its reason', (
   }, 10_000);
 });
 
-describe('her phone keeps a failed order only when it carries a refund', () => {
-  it('payment_failed or cancelled WITH a refund ⇒ the band; without one ⇒ forgotten, as before', async () => {
+describe('her phone keeps a failed order, so money that comes late can still be followed', () => {
+  it('payment_failed or cancelled WITH a refund ⇒ the band; without one ⇒ « no money moved », never « paid »', async () => {
     for (const state of ['payment_failed', 'cancelled']) {
       const avec = await lire({ ...ECHOUEE, state, remboursement: { etat: 'en_cours', montant: 3_333, motif: 'paiement' } });
       expect(verdictBande(avec), `${state} + refund`).toBe('payee');
       const sans = await lire({ ...ECHOUEE, state });
-      expect(verdictBande(sans), state).toBe('oublier');
+      expect(verdictBande(sans), state).toBe('sans_argent');
     }
   }, 10_000);
 
-  it('a refund the wire read dropped (an unknown reason) keeps the old verdict', async () => {
+  it('one order read twice: first no money (no band), then the late refund (the band)', async () => {
+    const premiere = await lire(ECHOUEE);
+    expect(verdictBande(premiere)).toBe('sans_argent');
+    const seconde = await lire({ ...ECHOUEE, remboursement: { etat: 'en_cours', montant: 3_333, motif: 'paiement' } });
+    expect(verdictBande(seconde)).toBe('payee');
+  }, 10_000);
+
+  it('a refund the wire read dropped (an unknown reason) is still « no money moved »', async () => {
     const inconnu = await lire({ ...ECHOUEE, remboursement: { etat: 'en_cours', montant: 3_333, motif: 'autre' } });
     expect(inconnu.status === 'order' && inconnu.order.remboursement).toBeUndefined();
-    expect(verdictBande(inconnu)).toBe('oublier');
+    expect(verdictBande(inconnu)).toBe('sans_argent');
+  }, 10_000);
+});
+
+describe('her account keeps a failed order owed, so a late refund still joins « Mes commandes »', () => {
+  const memoire = (): Storage => {
+    const m = new Map<string, string>();
+    return {
+      getItem: (k: string) => m.get(k) ?? null,
+      setItem: (k: string, v: string) => void m.set(k, v),
+      removeItem: (k: string) => void m.delete(k),
+      clear: () => m.clear(),
+      key: (i: number) => [...m.keys()][i] ?? null,
+      get length() { return m.size; },
+    } as Storage;
+  };
+  const attendre = () => new Promise((ok) => setTimeout(ok, 0));
+
+  it('first visit: failed, no refund ⇒ still owed, nothing sent; next visit: the refund ⇒ it joins her list', async () => {
+    const local = memoire();
+    garderSession(local, { session: 'SPC-ABCD-EFGH-IJKL-MNOP', prenom: 'Awa' });
+    const envoyes: { session: string; ajouter: unknown }[] = [];
+    const port = { commandes: async (session: string, ajouter?: unknown) => { envoyes.push({ session, ajouter }); return { kind: 'ok', value: [] }; } } as never;
+    creerRattacheur(port, local, memoire())({ orderId: 'ord-1', buyerRef: 'ref-1' });
+
+    for (const state of ['payment_failed', 'cancelled']) {
+      lierLesCommandesDues(port, local, memoire(), async (id) => ({ status: 'order', order: { orderId: id, state, amountPaidAtCheckout: 3_333, amountDueAtDelivery: 0 } }));
+      await attendre();
+      await attendre();
+      expect(envoyes, state).toEqual([]);
+      expect(liensDus(local, memoire()).map((l) => l.orderId), state).toEqual(['ord-1']);
+    }
+
+    lierLesCommandesDues(port, local, memoire(), async (id) => ({
+      status: 'order',
+      order: { orderId: id, state: 'payment_failed', amountPaidAtCheckout: 3_333, amountDueAtDelivery: 0, remboursement: { etat: 'en_cours', montant: 3_333, motif: 'paiement' } },
+    }));
+    await attendre();
+    await attendre();
+    expect(envoyes).toEqual([{ session: 'SPC-ABCD-EFGH-IJKL-MNOP', ajouter: [{ orderId: 'ord-1', buyerRef: 'ref-1' }] }]);
+    expect(liensDus(local, memoire())).toEqual([]);
   }, 10_000);
 });
 

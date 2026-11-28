@@ -108,8 +108,19 @@ const FIG: Record<string, { produit: number; frais: number }> = {
   p4: { produit: 9_200, frais: 1_000 },
 };
 
-async function service(page: Page, o: { refuseReserveOf?: string; groupStates?: string[]; door?: boolean } = {}): Promise<Wire> {
+/**
+ * SP6 — `tardif`: the provider confirmed the timed-out collection after all, and
+ * the service refunds it. Once `arrive`, a payment under a NEW pay command is
+ * refused `paiement_rembourse` before any charge (the orders' own guard); a pay
+ * command already answered gets its first answer again (the group's replay
+ * road), exactly as the service does.
+ */
+async function service(
+  page: Page,
+  o: { refuseReserveOf?: string; groupStates?: string[]; door?: boolean; groupCreateState?: string; tardif?: { arrive: boolean } } = {},
+): Promise<Wire> {
   const w: Wire = { quotes: [], reserves: [], prix: [], groupes: [], groupReads: [], orderReads: [], doorCharges: [] };
+  const reponses = new Map<string, unknown>();
   const expiry = (): string => new Date(Date.now() + 15 * 60_000).toISOString();
   await page.route('**/checkout/**', async (route: Route) => {
     const req = route.request();
@@ -161,8 +172,13 @@ async function service(page: Page, o: { refuseReserveOf?: string; groupStates?: 
     };
     if (/\/checkout\/group$/.test(url) && req.method() === 'POST') {
       w.groupes.push(body);
-      const v = vue('payment_pending', body['quoteIds'] as string[]);
-      return json(200, { ...v, commandes: v.articles.map((a, i) => ({ orderId: a.orderId, buyerRef: `ref-secret-${i}` })) });
+      const cmd = String(body['commandId']);
+      if (o.tardif !== undefined && reponses.has(cmd)) return json(200, reponses.get(cmd));
+      if (o.tardif?.arrive === true) return json(409, { error: 'paiement_rembourse' });
+      const v = vue(o.groupCreateState ?? 'payment_pending', body['quoteIds'] as string[]);
+      const reponse = { ...v, commandes: v.articles.map((a, i) => ({ orderId: a.orderId, buyerRef: `ref-secret-${i}` })) };
+      reponses.set(cmd, reponse);
+      return json(200, reponse);
     }
     if (/\/checkout\/group\/[^/]+$/.test(url) && req.method() === 'GET') {
       w.groupReads.push(url);
@@ -306,6 +322,75 @@ test('REAL · the tab that paid is left before the operator confirms: opening an
   await expect.poll(() => w.orderReads.includes('ord-q-p1-A')).toBe(true);
   // Its order reads paid: THAT article leaves her panier; the others stay.
   await expect.poll(panier).toEqual(['p2', 'p5']);
+});
+
+/**
+ * SP6 — THE COLLECTION TIMED OUT, THEN THE PROVIDER CONFIRMED IT AFTER ALL.
+ * She paid her two articles together and was told the payment did not go
+ * through. The money had in fact been taken, and the service gives it back by
+ * itself. Her boutique still offers the two articles together; her next
+ * payment for them is answered calmly — the money is coming back, nothing more
+ * is taken — and nothing is charged.
+ */
+test('REAL · SP6 · the collection timed out, then was confirmed late: paying the two articles again is answered calmly, and nothing is charged', async ({ page }) => {
+  test.setTimeout(120_000);
+  const erreurs: string[] = [];
+  page.on('pageerror', (e) => erreurs.push(e.message));
+  const tardif = { arrive: false };
+  const w = await service(page, { groupCreateState: 'payment_failed', groupStates: ['payment_failed'], tardif });
+  await page.goto(`${BASE}/`);
+  await page.evaluate(() => localStorage.setItem('shopplus.panier.v1', JSON.stringify({ 'aicha-4821': ['p1', 'p2'] })));
+
+  // The collection timed out: « Le paiement n'a pas abouti ».
+  await jusquauPaiement(page);
+  await page.locator('[data-action="payer"]').click();
+  await page.locator('[data-etat="echec"]').waitFor({ timeout: 15_000 });
+  expect(w.groupes).toHaveLength(1);
+  const premier = w.groupes[0]!;
+
+  // The provider confirms it took the money; the service refunds it by itself.
+  tardif.arrive = true;
+
+  // Her boutique still offers the two articles together, and the button is wired.
+  await page.goto(`${BASE}/?demo-vitrine=aicha-4821`);
+  await expect(page.locator('.vt-root[data-etat="ready"]')).toBeVisible();
+  const ensemble = page.locator('[data-action="panier-payer"]');
+  await expect(ensemble).toHaveText('Payer les 2 articles ensemble');
+  await Promise.all([page.waitForURL(/\/s\/aicha-4821\?panier=/), ensemble.click()]);
+  const pids = new URL(page.url()).searchParams.get('panier') ?? '';
+  expect(pids.split(',').sort()).toEqual(['p1', 'p2']);
+  // The signed road it opens, at this harness's address for it.
+  await jusquauPaiement(page, 'A', `${BASE}/?demo-signed=aicha-4821&panier=${encodeURIComponent(pids)}`);
+  await page.locator('[data-action="payer"]').click();
+  // The same panier in the same tab sends the same pay command: the service answers it as it did.
+  await page.locator('[data-etat="echec"]').waitFor({ timeout: 15_000 });
+  expect(w.groupes).toHaveLength(2);
+  expect(w.groupes[1]!['commandId']).toBe(premier['commandId']);
+
+  // She tries again: told her money is coming back, never charged again.
+  await page.locator('[data-action="reessayer-paiement"]').click();
+  const refus = page.locator('[data-screen="REFUS"]');
+  await refus.waitFor({ timeout: 15_000 });
+  expect(await refus.getAttribute('data-motif')).toBe('paiement_rembourse');
+  const texte = (await refus.innerText()).replace(/\s+/g, ' ');
+  expect(texte).toContain('Votre argent vous revient.');
+  expect(texte).toContain('Le paiement n’a pas abouti, et votre argent revient sur le numéro qui a payé. Rien de plus ne sera pris pour cette commande.');
+  expect(texte, 'money did move: never the no-money sentence').not.toContain('Rien n’a été payé');
+  for (const action of ['payer', 'reessayer-paiement', 'panier-payer']) {
+    await expect(page.locator(`[data-action="${action}"]`), action).toHaveCount(0);
+  }
+  await expect(refus.locator('[data-action="voir-boutique"]')).toBeVisible();
+  expect(w.groupes).toHaveLength(3);
+  const refusee = w.groupes[2]!;
+  expect(refusee['commandId'], 'her retry is a new pay command').not.toBe(premier['commandId']);
+  expect((refusee['quoteIds'] as string[]).sort()).toEqual((premier['quoteIds'] as string[]).sort());
+  expect(refusee['holderRef']).toBe(premier['holderRef']);
+
+  // Nothing more is asked of the service: no payment, no door charge.
+  await page.waitForTimeout(1_000);
+  expect(w.groupes, 'no payment after the refusal').toHaveLength(3);
+  expect(w.doorCharges).toEqual([]);
+  expect(erreurs).toEqual([]);
 });
 
 test('REAL · pay at the door: the one payment is the delivery fees; each article pays its product at ITS door, under the panier\'s holder', async ({ page }) => {

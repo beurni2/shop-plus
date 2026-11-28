@@ -1557,6 +1557,7 @@ export class OrderSpine {
       supplierRef: this.supplierRef,
       escrow: this.orderId === undefined ? undefined : this.ledger.escrowFor(this.orderId),
       obligations: this.orderId === undefined ? [] : this.ledger.obligationsFor(this.orderId),
+      paidAfterFailure: this.paidAfterFailureState,
     };
   }
 

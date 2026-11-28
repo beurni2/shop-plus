@@ -1599,6 +1599,76 @@ test('SP6 · a payment that failed, then confirmed late: the retry is answered c
 });
 
 /**
+ * ═══ SHOP+ SP6 — HER PHONE STILL KNOWS THE ORDER WHEN THE LATE MONEY ARRIVES ═══
+ *
+ * Her charge timed out and she left. On her next visit the service still says
+ * no money moved: no band, but the phone keeps the order. The provider then
+ * confirms it took the money after all, and the refund opens by itself: on the
+ * visit after that, « Ma commande » opens her refund.
+ */
+test('SP6 · failed with no money yet: no band, the order kept; the late refund then opens from « Ma commande »', async ({ page }) => {
+  test.setTimeout(120_000);
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  const wire = await scriptService(page, { orderStates: ['payment_failed'] });
+  // The service's read once the late money is being refunded; before that, the scripted one above.
+  let rembourse = false;
+  await page.route('**/checkout/order/*', async (route: Route) => {
+    const req = route.request();
+    if (!rembourse || req.method() !== 'GET' || (req.headers()['authorization'] ?? '') !== `Bearer ${BUYER_REF}`) return route.fallback();
+    const orderId = decodeURIComponent(/\/checkout\/order\/([^/]+)$/.exec(req.url())![1]!);
+    wire.orderReads.push(orderId);
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        orderId, state: 'payment_failed', amountPaidAtCheckout: 12_500, amountDueAtDelivery: 0, doorLeg: 'none',
+        remboursement: { etat: 'en_cours', montant: 12_500, motif: 'paiement' },
+      }),
+    });
+  });
+  await askForPrice(page);
+  await toPayer(page, 'A');
+  await page.locator('[data-action="payer"]').click();
+  await page.locator('[data-etat="echec"]').waitFor({ timeout: 15_000 });
+  const orderId = `ord-${String(wire.orders[0]!.body['quoteId'])}`;
+  const commandesDuTel = (): Promise<string> => page.evaluate(() => localStorage.getItem('sp-commandes:v1') ?? '');
+  expect(await commandesDuTel()).toContain(orderId);
+
+  // SHE COMES BACK — no money moved yet: no band, and the phone keeps the order.
+  await page.evaluate(() => sessionStorage.clear());
+  const avant = wire.orderReads.length;
+  await page.goto(ENTRY);
+  await page.locator('[data-screen="C1"]').waitFor();
+  await expect.poll(() => wire.orderReads.length, { timeout: 15_000 }).toBeGreaterThan(avant);
+  await page.waitForTimeout(800);
+  await expect(page.locator('[data-role="ma-commande"]'), 'a band for an order with no money').toHaveCount(0);
+  expect(await commandesDuTel(), 'the phone kept the order for the next visit').toContain(orderId);
+  expect(await commandesDuTel()).not.toContain('"payee":true');
+
+  // THE LATE MONEY ARRIVES, its refund opens — and the next visit reaches it.
+  rembourse = true;
+  await page.evaluate(() => sessionStorage.clear());
+  await page.goto(ENTRY);
+  await page.locator('[data-screen="C1"]').waitFor();
+  const bande = page.locator('[data-role="ma-commande"]');
+  await bande.waitFor({ timeout: 15_000 });
+  await bande.click();
+  const carte = page.locator('[data-role="remboursement"]');
+  await carte.waitFor({ timeout: 15_000 });
+  expect(await screenOf(page)).toBe('C7');
+  await expect(carte).toHaveAttribute('data-etat', 'en-cours');
+  const texte = (await carte.innerText()).replace(/\s+/g, ' ');
+  expect(texte).toContain('12 500 FCFA vous reviennent');
+  expect(texte).toContain('Le paiement n’a pas abouti. Votre argent revient sur le numéro qui a payé.');
+  for (const action of ['payer', 'reessayer-paiement', 'porte', 'voir-code']) {
+    await expect(page.locator(`[data-action="${action}"]`), action).toHaveCount(0);
+  }
+  expect(wire.orders, 'no second order was ever asked for').toHaveLength(1);
+  expect(errors).toEqual([]);
+});
+
+/**
  * ═══ REMBOURSEMENT-2 — THE ARTICLE WAS NOT AVAILABLE ═══
  *
  * She paid; before anything left, the supplier said « je ne peux pas fournir »

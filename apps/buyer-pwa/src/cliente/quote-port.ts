@@ -1489,16 +1489,19 @@ export function oublierCommande(orderId: string, storage?: Storage): void {
  * promise that she HAS an order, so it waits for the service's own state:
  *  · `paid` · `confirmed` · `refunded` — the only states after her money moved
  *    (the order machine) ⇒ the band;
- *  · `payment_failed` · `cancelled` — no money moved under this order, and a
- *    failed payment is retried only inside the checkout that made it (whose
- *    create answer keeps the order again) ⇒ the phone forgets it — UNLESS the
- *    service says a refund is coming (SP6: the provider collected the failed
- *    payment anyway), which is money of hers she must be able to follow ⇒ the band;
+ *  · `payment_failed` · `cancelled` WITH a refund (SP6: the provider collected
+ *    the failed payment anyway) — money of hers she must be able to follow ⇒
+ *    the band;
+ *  · `payment_failed` · `cancelled` with no refund ⇒ `sans_argent`: no money
+ *    moved under this order YET, so no band. The provider may still confirm it
+ *    took the money, and a refund then opens by itself, so each caller decides
+ *    what to keep: a single order and an owed account link stay, and the next
+ *    visit asks again;
  *  · `payment_pending`, a state this client has never heard of, or a read that
  *    did not land ⇒ no band, the record kept: she may still be paying, and the
  *    next visit asks again. FAIL CLOSED, as `etatDeC6` does.
  */
-export type VerdictBande = 'payee' | 'oublier' | 'attendre';
+export type VerdictBande = 'payee' | 'sans_argent' | 'attendre';
 
 const ARGENT_PASSE = new Set(['paid', 'confirmed', 'refunded']);
 const SANS_ARGENT = new Set(['payment_failed', 'cancelled']);
@@ -1506,7 +1509,7 @@ const SANS_ARGENT = new Set(['payment_failed', 'cancelled']);
 export function verdictBande(r: OrderOutcome): VerdictBande {
   if (r.status !== 'order') return 'attendre';
   if (ARGENT_PASSE.has(r.order.state)) return 'payee';
-  if (SANS_ARGENT.has(r.order.state)) return r.order.remboursement !== undefined ? 'payee' : 'oublier';
+  if (SANS_ARGENT.has(r.order.state)) return r.order.remboursement !== undefined ? 'payee' : 'sans_argent';
   return 'attendre';
 }
 

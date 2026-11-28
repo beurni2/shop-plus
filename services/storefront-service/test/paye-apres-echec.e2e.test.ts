@@ -310,6 +310,8 @@ describe('one order: the payment failed here, the provider collected 3 333 F', (
     const v = await vue(o.orderId);
     expect(v['state']).toBe('payment_failed');
     expect(v['remboursement']).toEqual({ etat: 'en_cours', montant: 3_333, motif: 'paiement' });
+    // The founder's reconciliation pass reads her held money as the refund it is, not as a hole.
+    expect((await doLire(o.orderId, '/entry/reconcile')).json).toMatchObject({ ok: true, clean: true, alerts: [] });
   }, LIMITE);
 
   it('a redelivered confirmation is absorbed: nothing new is written, no second line, no second key', async () => {
@@ -453,7 +455,8 @@ async function panierEchoue(n: string) {
 describe('a grouped collection of two orders: the charge failed here, the provider collected 15 833 F', () => {
   it('each order holds its own share against the collection\'s reference, each refund its own amount under its own key; the panier\'s retry is refused before any charge; each reads `refunded` on its confirmation', async () => {
     const g = await panierEchoue('0101');
-    const r = await webhook(confirmation(g.groupId, g.key, 15_833, {}, `corr-${g.groupId}`));
+    const collecte = confirmation(g.groupId, g.key, 15_833, {}, `corr-${g.groupId}`);
+    const r = await webhook(collecte);
     expect(`${r.status} ${String(r.json['status'])}`, r.text).toBe('200 applied');
 
     const cles = new Set<string>();
@@ -464,8 +467,20 @@ describe('a grouped collection of two orders: the charge failed here, the provid
       expect(a.remboursement?.lignes, p.orderId).toEqual([expect.objectContaining({ legType: 'checkout', amount: p.amount, collectRef: `collect-${g.key}` })]);
       cles.add(a.remboursement!.lignes[0]!.refundKey);
       expect((await vue(p.orderId))['remboursement']).toEqual({ etat: 'en_cours', montant: p.amount, motif: 'paiement' });
+      expect((await ligneDispatch(p.orderId))?.['remboursement'], 'the founder\'s row names the refund').toEqual({ etat: 'en_cours' });
+      expect((await doLire(p.orderId, '/entry/reconcile')).json, p.orderId).toMatchObject({ ok: true, clean: true, alerts: [] });
     }
     expect(cles.size, 'each order its own refund key').toBe(2);
+
+    // The provider delivers the same collection confirmation again: absorbed, nothing written.
+    const avantDoublon = await Promise.all(g.parts.map((p) => audit(p.orderId)));
+    const doublon = await webhook(collecte);
+    expect(`${doublon.status} ${String(doublon.json['status'])}`, doublon.text).toBe('200 duplicate');
+    for (const [i, p] of g.parts.entries()) {
+      const a = await audit(p.orderId);
+      expect(a.inputCount, p.orderId).toBe(avantDoublon[i]!.inputCount);
+      expect(a.remboursement!.lignes.map((l) => [l.refundKey, l.amount]), p.orderId).toEqual(avantDoublon[i]!.remboursement!.lignes.map((l) => [l.refundKey, l.amount]));
+    }
 
     const avant = await Promise.all(g.parts.map((p) => audit(p.orderId)));
     for (const q of g.quoteIds) await reserver(q, g.holderRef);

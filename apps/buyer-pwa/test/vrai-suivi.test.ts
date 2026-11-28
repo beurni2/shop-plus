@@ -667,8 +667,8 @@ describe('BANDE-PAYEE — the service says whether « Ma commande » may stand (
     for (const st of ['paid', 'confirmed', 'refunded']) expect(verdictBande(lue(st)), st).toBe('payee');
   });
 
-  it('a payment that failed or an order cancelled is forgotten — no money moved under it', () => {
-    for (const st of ['payment_failed', 'cancelled']) expect(verdictBande(lue(st)), st).toBe('oublier');
+  it('a payment that failed or an order cancelled, no refund: no money moved yet — no band, the caller decides what to keep', () => {
+    for (const st of ['payment_failed', 'cancelled']) expect(verdictBande(lue(st)), st).toBe('sans_argent');
   });
 
   it('still paying, a state never heard of, or no answer ⇒ no band yet, the record kept (fail closed)', () => {
