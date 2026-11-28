@@ -149,6 +149,27 @@ jobs:
           else
             echo "STOREFRONT_WRITE_SECRET: already absent"
           fi
+      # KEY CHANGE WINDOW (batch 8) — the keys this Worker checks that no
+      # workflow writes (CHECKOUT_OPS_SECRET, PROGRESS_WRITE_SECRET,
+      # SERA_PROGRESS_SECRET) are changed by hand: X_NEXT is set beside X, the
+      # sender moves, X takes the new value, X_NEXT is deleted. A forgotten
+      # X_NEXT would keep an old value open, so every release says which ones
+      # are still set. Names only.
+      - name: Say which key changes are still open (names only)
+        working-directory: services/storefront-service
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          LISTED=$(pnpm exec wrangler secret list)
+          OPEN=$(grep -o '"name": *"[A-Z0-9_]*_NEXT"' <<<"$LISTED" | sed 's/.*"\([A-Z0-9_]*\)"$/\1/' || true)
+          if [ -z "$OPEN" ]; then
+            echo "No key change open on this Worker."
+          else
+            for NAME in $OPEN; do
+              echo "::warning title=Changement de clé en cours::$NAME is set on the Worker — the old and the new value of ${NAME%_NEXT} both open its doors. Finish the change and delete $NAME."
+            done
+          fi
       # DEPLOY-SMOKE-1 — PROVE THE DEPLOYED SURFACE ANSWERS, here and nowhere else.
       #
       # A green `wrangler deploy` proves the upload was accepted. It does NOT prove
