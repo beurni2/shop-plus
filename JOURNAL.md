@@ -1,6 +1,38 @@
 # JOURNAL — shop-plus
 Continuity ledger per CTO charter §6/§6bis. Every entry is evidence-grounded.
 
+## 2026-11-28 · CANON 3.29.0 + CLE-OUTIL-TEST-1 + CLE-SUIVANTE-1 — the test « money received » tool gets its own key, every checked key can change with no gap · lane P13 · on the branch, NOT merged, NOT deployed
+
+**Founder.** « you can start the next batch » (2026-11-28 06:17 UTC), batch 8 of the plan he approved: « The test button that says « money received » gets its own key, and a check makes sure it is gone before real money. » and « During a change, the old and new keys both work for a short window, so nothing stops. » His card at 06:28 UTC, « Refund it automatically », is the ruling canon 3.29.0 writes down; its code is the next slice and ships in the same release.
+
+**Lane.** Lane P13, built from `671d1c9`. Integrated on `claude/project-thread-jqj97g` as `c2e6682` (canon pin), `0549ace` (workflows, coordinator), `bd6aae3` (Worker, tool script, gate, tests), then `f674ece` and `6b32c96` (the review's fixes).
+
+**Spec.** Ten Laws #2 « Provider webhooks are the only payment truth »; Execution Contract §8 item 12 (canon 3.29.0): the sandbox tool that declares money received, and its key, are removed; a CI gate fails while either still sits beside a real provider; §11 « key rotation … overlapping windows … version retirement »; §3 « overlapping validation windows + explicit deprecation/retirement ». Shop-Plus-Build-Spec §12: the aggregator Decision stays ⏳, so no provider is named and the payment vault is unchanged.
+
+**What changed.**
+- *Canon.* The contracts, kernel-types and certification pins move to platform-contracts `bfad55c` (3.29.0); the two changed canon docs are copied. No shape or export changed.
+- *The test tool's key.* The sandbox tool presents `SANDBOX_CONFIRM_SECRET` and never reads the provider's key. The Worker accepts it on the webhook doors only while the one provider fact in `src/payment-port.ts` reads `'sandbox'`. The provider's key opens the same doors exactly as before.
+- *Next keys.* Every key the Worker checks has a `_NEXT` twin that opens exactly what the key opens. Both constant-time compares always run, an empty value never matches, the one 401 is unchanged, and the log line does not say which value opened. The progress classifier never widens a class, in either mode, with or without each next key.
+- *Gate.* `sandbox-key-beside-real-provider` fails the board while a provider other than the sandbox is built and anything of the tool remains: its key accepted, the provider line, its workflow, any other workflow naming its key, or its script. It fails (exit 2) when it cannot see a provider at all. A legal fixture, a blind fixture and eight negatives, one per way of breaking the rule. Its bound is written in its header: a real adapter must implement the payment port; money taken outside the port is not seen, and the Real-Money Gate review says so.
+- *Workflows.* payment-webhook-secret writes and checks the tool's key and the next keys, judges lengths and « the tool's key is its own » on the bytes it stores, and hands every key to curl on standard input. Each sandbox run waits for the founder's tap. storefront-deploy says which key change is still open and never reddens a release over a listing it cannot get. rollback names how each next key and the tool's key come back.
+- *Secret scan.* A written-down next value is caught exactly like its key; a negative fixture plants one.
+
+**Evidence.** Lane: red first, then green; the seam on the real Worker (Miniflare) with the tool script's own composition: the tool's key confirms a real order and the buyer's own view reads it; the provider's key still opens; any other, empty or missing value is the one 401 on all six doors; the script exits by name when its key is unset. Mutations, each anchor matched once and restored byte-identical: the next compare removed, its length guard dropped, the provider fact ignored, the gate judging by name only — each red. Coordinator: each diff read line by line; the gate re-run on every fixture (real tree 0, legal 0, blind 2, eight negatives 1, each with its violation line read). Full board on `bd6aae3` (`CI=true`, `TURBO_CONCURRENCY=1`, the Boutik+ sibling beside it): every gate green except the known reds — the browser tests' two font checks (`cliente.spec.ts` l.474 and l.909, Inter as the default sans-serif here, green on GitHub) and one timing race in `colis.e2e.test.ts` (14/14 alone); storefront 1102 of 1103, 336 browser tests passed.
+
+**Verifier.** One fresh-context pass, handled once: no blocker, no major, six minors, six notes. All six minors fixed in `f674ece` and `6b32c96` (bytes compared as stored, keys off argument lists, next names in the secret scan, the gate's bound written down, the tool's script and any renamed workflow counted, the rollback page naming each new key). Notes kept here:
+- Merge the canon change as a merge commit so `bfad55c` stays reachable; every pin in this repository names it.
+- A negative fixture counts as red on exit 1; an unexpected crash also exits 1, so each negative's violation line was read once by hand.
+- « Each sandbox run waits for the founder's tap » rests on the `production` environment's reviewers, a GitHub setting not visible from here; checked on the first real run.
+- The seam's test run rebuilds the service bundle; it came out byte-identical to a fresh build.
+- The workflows' French warning titles are founder-facing release text, not app copy, as in the other workflows.
+- The canon copy states the new refund rule; the code for it ships in the same release.
+
+**Release.** The founder makes `SANDBOX_CONFIRM_SECRET` first (at least 32 characters, never the provider's key). Then storefront-deploy, then payment-webhook-secret, then the sandbox tool works with its own key.
+
+**Still open.** Other open items are held in the private batch record until their fixes deploy.
+
+---
+
 ## 2026-11-28 · JOURNAL-SERVICE-1 + POIDS-PAGE-1 — storefront DEPLOYED; MERGED; buyer site and reseller app PUBLISHED
 
 **Founder.** « Release everything » (2026-11-28 05:13 UTC, decision card, on the batch 7 report), which named for Shop+: the shop service from the branch, then the merge.
