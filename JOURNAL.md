@@ -1,6 +1,22 @@
 # JOURNAL — shop-plus
 Continuity ledger per CTO charter §6/§6bis. Every entry is evidence-grounded.
 
+## 2026-11-28 · JOURNAL-SERVICE-1 + POIDS-PAGE-1 — storefront DEPLOYED; MERGED; buyer site and reseller app PUBLISHED
+
+**Founder.** « Release everything » (2026-11-28 05:13 UTC, decision card, on the batch 7 report), which named for Shop+: the shop service from the branch, then the merge.
+
+**Service.** storefront-deploy 134 (id 46111164522, dispatch on `claude/project-thread-jqj97g` at `18dfc72`, the open PR's head) green 05:20–05:21 UTC. It waited for the founder's approval in the `production` environment (queued 05:14, started 05:20 after his approval). The release guard passed; the live Worker speaks the canon this job bundled; the smokes answered « SMOKE OK — the tile road is live and refuses by name. » and « SMOKE OK — the live runtime derives PBKDF2 at 100000 iterations. »
+
+**Merge.** PR #13 merged as `ff031d9` (merge commit, the branch shas kept; its tree is byte-identical to the PR head `18dfc72`, green in ci 756, and to what storefront-deploy 134 shipped). service-canon-drift 496 on main green.
+
+**On main.** ci 757 (id 46111847214) green on its first attempt · pwa-preview 532 (id 46113341660) green · expo-preview 565 (id 46113341648) green, both from main's newest commit.
+
+**Not checked.** The live service was not called from here. Whether the logging service adds anything of its own to each line is read on one real line before anyone says the log holds no address. The page weight is measured with stand-in photos at their ceilings; a real boutique page on a real phone is the check still to make.
+
+**Still open.** As named in the slice entry below. Other open items are held in the private batch record until their fixes deploy.
+
+---
+
 ## 2026-11-28 · JOURNAL-SERVICE-1 + POIDS-PAGE-1 — the storefront service keeps a log with no personal data; the buyer page's weight is measured · lane P · on the branch, NOT merged, NOT deployed
 
 **Founder.** « done, now you can start the next batch » (2026-11-28 00:38 UTC), batch 7 of the plan he approved: « Every service, one lane per app. Each one keeps a log of what it did and what went wrong, with no personal data in it. » and « Photos sent and downloaded are held to their phone budgets, and the buyer page's total weight is measured. » Boutik+ holds the photos to their budgets; this repository measures what a boutique costs a buyer.
