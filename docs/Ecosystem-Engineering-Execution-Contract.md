@@ -158,6 +158,7 @@ Real public money does not flow until **every** item is proven true:
 9. **A package can be located at every state.**
 10. **Older supported mobile versions remain compatible.**
 11. **No unresolved severity-1 security issue exists** (security review passed; pen test scheduled/passed per E6).
+12. **No sandbox stand-in remains on the money route:** the sandbox tool that declares money received, and its key, are removed; a CI gate fails while either still sits beside a real provider.
 
 ---
 
