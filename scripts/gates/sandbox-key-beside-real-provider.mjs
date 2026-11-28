@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
@@ -18,7 +18,8 @@ import ts from 'typescript';
  *   P — the storefront Worker builds, imports or defines a payment provider
  *       other than the certified sandbox;
  *   S — something of the sandbox remains: `.github/workflows/sandbox-payment.yml`
- *       exists, or the Worker's code (never its comments) names
+ *       or `scripts/sandbox-payment-confirm.mjs` exists, any workflow names
+ *       `SANDBOX_CONFIRM_SECRET`, or the Worker's code (never its comments) names
  *       `SANDBOX_CONFIRM_SECRET` or `SANDBOX_CONFIRM_SECRET_NEXT`, or
  *       `PAYMENT_PROVIDER_KIND` still reads 'sandbox'.
  *
@@ -46,7 +47,10 @@ import ts from 'typescript';
  * BOUND: it proves the source graph, not the bundle's bytes. The vault's mock is
  * trusted by its path (the vault keeps its own guards), and a provider reached
  * only through an untyped value (`any`) is seen only where its definition sits
- * in the Worker's own source.
+ * in the Worker's own source. A real provider is seen only as a PaymentProvider
+ * (one of the port verbs above): money taken by a plain function outside the
+ * port is not seen here, so a real adapter MUST implement the port — say so at
+ * the Real-Money Gate.
  *
  * Usage: sandbox-key-beside-real-provider.mjs [root]   (default: this repository)
  */
@@ -55,6 +59,8 @@ const ROOT = resolve(process.argv[2] ?? join(dirname(fileURLToPath(import.meta.u
 const SERVICE = join(ROOT, 'services', 'storefront-service');
 const PORT_FILE = join(SERVICE, 'src', 'payment-port.ts');
 const WORKFLOW = join(ROOT, '.github', 'workflows', 'sandbox-payment.yml');
+const WORKFLOWS = join(ROOT, '.github', 'workflows');
+const TOOL_SCRIPT = join(ROOT, 'scripts', 'sandbox-payment-confirm.mjs');
 const ALIAS_NAME = '@shop-plus/commerce-core';
 const VAULT_MOCK = /[\\/]packages[\\/]commerce-core[\\/](src|dist)[\\/]mocks[\\/]payment-provider-mock\.(ts|d\.ts|js)$/;
 const VERBS = ['initiateCharge', 'initiateRefund', 'chargeStatus'];
@@ -331,6 +337,15 @@ if (constructionsSeen === 0) blind(`no payment provider is built anywhere in the
 // ── S: what of the sandbox remains ─────────────────────────────────────────
 const S = [];
 if (existsSync(WORKFLOW)) S.push(`${rel(WORKFLOW)} exists`);
+if (existsSync(TOOL_SCRIPT)) S.push(`${rel(TOOL_SCRIPT)} exists`);
+// A renamed copy of the tool's workflow still carries its key.
+if (existsSync(WORKFLOWS)) {
+  for (const name of readdirSync(WORKFLOWS).sort()) {
+    if (!/\.ya?ml$/.test(name)) continue;
+    const file = join(WORKFLOWS, name);
+    if (file !== WORKFLOW && /\bSANDBOX_CONFIRM_SECRET\b/.test(readFileSync(file, 'utf8'))) S.push(`${rel(file)} names \`SANDBOX_CONFIRM_SECRET\``);
+  }
+}
 for (const sf of own) {
   walk(sf, (n) => {
     if ((ts.isIdentifier(n) || ts.isStringLiteralLike(n)) && TOOL_KEYS.has(n.text)) S.push(`${where(n)} names \`${n.text}\``);

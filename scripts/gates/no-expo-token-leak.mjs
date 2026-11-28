@@ -44,14 +44,15 @@ runScanGate({
        a literal value in a committed artifact is the same leak the EXPO rule
        catches, generalised. Match an ALL-CAPS name ending SECRET/TOKEN/API_KEY,
        = or :, then a value that is NOT a $reference and carries 32+ UNBROKEN
-       alphanumerics — the entropy signature of a real key. The unbroken run is
+       alphanumerics — the entropy signature of a real key. A name ending in
+       _NEXT (a key's next value, during a change) is held to the same rule. The unbroken run is
        what makes it false-positive-safe: test fixtures assign DASHED fakes
        (`WEBHOOK_SECRET = 'test-payment-webhook-secret-vs001'`), whose longest
        alnum run is far under 32, so they never match. Verified: zero hits on the
        whole tracked tree. */
     {
       name: 'secret literal assignment',
-      regex: /['"]?[A-Z][A-Z0-9_]*(?:SECRET|TOKEN|API_KEY)['"]?\s*[:=]\s*['"]?(?!\$)[A-Za-z0-9]{32,}/,
+      regex: /['"]?[A-Z][A-Z0-9_]*(?:SECRET|TOKEN|API_KEY)(?:_NEXT)?['"]?\s*[:=]\s*['"]?(?!\$)[A-Za-z0-9]{32,}/,
     },
   ],
   defaultRoots: trackedFiles,
