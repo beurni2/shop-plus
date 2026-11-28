@@ -158,7 +158,10 @@ const REFUS_VIEWS = ['generique', 'listing_unknown', 'not_found', 'listing_not_l
   'boutique_hors_ligne',
   // PRODUIT-REFUSÉ-1 (founder order 2026-09-17) — the producer refused the
   // product at the price ask; the way out is the boutique.
-  'product_unavailable'];
+  'product_unavailable',
+  // SP6 (founder ruling 2026-11-28) — her failed payment was collected anyway
+  // and is being given back: a second « Payer » is refused, the way out is the boutique.
+  'paiement_rembourse'];
 const REFUS_SANS_ACTION = new Set(['no_secure_random', 'liste_contact_conflit', 'reseller_paused', 'boutique_hors_ligne', 'liste_hors_boutique']);
 for (const view of REFUS_VIEWS) {
   const fields = { overline: L(), titre: S(), phrase: S() };
@@ -287,6 +290,7 @@ const ECRANS = {
   'cl.remboursement.rien_corps': M('money', S()),
   'cl.remboursement.indisponible_corps': M('money', S()), 'cl.remboursement.indisponible_fait_corps': M('money', S()),
   'cl.remboursement.perdu_corps': M('money', S()), 'cl.remboursement.perdu_fait_corps': M('money', S()),
+  'cl.remboursement.paiement_corps': M('money', S()), 'cl.remboursement.paiement_fait_corps': M('money', S()),
 };
 
 /** Every pinned key, flattened: key → { register, screenClass, fills }. */
