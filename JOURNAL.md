@@ -1,6 +1,49 @@
 # JOURNAL — shop-plus
 Continuity ledger per CTO charter §6/§6bis. Every entry is evidence-grounded.
 
+## 2026-11-28 · REMBOURSEMENT-APRES-ECHEC-1 — money the provider confirms for an order whose payment already failed is refunded in full, single and grouped; her phone keeps the order so she can follow it · lane P14 · on the branch, NOT merged, NOT deployed
+
+**Founder.** « you can start the next batch » (2026-11-28 06:17 UTC), batch 8 of the plan he approved: « Money taken for a « failed » order gets its way back, using the option you choose. » His card at 06:28 UTC, « Refund it automatically »: « When the provider says it took money for an order we already closed as failed, Shop+ refunds every franc, like a refused delivery. Your console shows it until the refund is confirmed. »
+
+**Lane.** Lane P14. The build as one local commit, integrated byte-identical as `0a459d4`; the review's fixes as one local commit, integrated unchanged by fast-forward as `53faf12`. The coordinator's own commits: `0db4278` (the copy gate pins the six new strings in the money register) and `e295c2a` (the recorded answers pinned at the record run, platform-contracts `e8ba886`).
+
+**Spec.**
+- Shop+ Build Spec SP6 (canon 3.29.0): « **Money the provider confirms for an order whose payment had already failed is refunded in full the same way** … that money never pays the order. The charge is refunded under its own refund key, for exactly the amount the order asked the provider for, to the franc (a grouped collection: each order its own share, as above); a confirmation naming any other amount is not refunded by itself and stays on the founder's console. Once that refund is asked, no retry of the order charges again. Her tracking tells her calmly that the payment did not go through and that her money comes back; the founder's console shows the refund until the provider confirms it, and the order reads `refunded` only then. »
+- Ten Laws #2 and #4: provider confirmations are the only payment truth; a buyer refund is never gated on the Protection Fund.
+
+**What changed.**
+- *The late confirmation.* A checkout confirmation that reaches an order already `payment_failed` or `cancelled` here is recorded against that order only when it names this order's own charge for exactly the amount its quote asked (a panier: the collection's exact total, each order its own share and its share of the fee). It answers 200 `applied`. The state does not move. Any other late confirmation keeps 409 `out_of_order` and its alert. The alert `genuine_webhook_after_local_failure` is still written for the right amount too, so the founder sees every late confirmation.
+- *The refund.* It opens on the existing refund road: one line under its own refund key, nothing kept, no provider fee taken off. The order reads `refunded` only on the provider's refund confirmation. The Protection Fund is not touched.
+- *Nothing else starts.* No confirmation, no supplier, Séra or custody message, no reseller sale, no settlement.
+- *No second charge.* Once that money is recorded, a retry of the order or of its panier is refused before any charge with `paiement_rembourse`, checked before any freshness decision, including after the hold or the quote expired.
+- *Her screens.* Tracking says « Le paiement n'a pas abouti. Votre argent revient sur le numéro qui a payé. », then « … L'argent est revenu sur le numéro qui a payé. ». A second « Payer » is answered « Votre argent vous revient. » with « Rien de plus ne sera pris pour cette commande. » and « Voir la boutique ». The six strings are in the money register, pinned by the copy gate.
+- *Her phone (review fix).* A single order whose payment failed, with no money yet, now stays on her phone and in her owed account links, with no « Ma commande » band, and is asked again on her next visit. So if the provider confirms the money later, the refund reaches her from « Ma commande ». Its door holder still leaves. A panier with no money moved still leaves her phone: its record keeps its articles out of « payer ensemble ».
+- *The founder's rows.* The dispatch row of such an order carries the refund's state (`en_cours`, `fait`, or `bloque` with its reason) and no amount.
+- *Reconciliation (review fix).* The order's snapshot carries the fact that the provider confirmed its charge after the failure. Money held for that refund is no longer named « escrow on an unpaid order »; every other unpaid order with money recorded still is.
+
+**Evidence.**
+- Lane: every new test red first for the right reason, then green. Seam tests through the real Worker for one order and for a grouped collection of two: the right amount refunded under its own key, the wrong amount alert only, a redelivered confirmation answered `duplicate` with nothing written, each starts-nothing case beside a positive control, the founder's row naming the refund before it is confirmed, the reconciliation route clean. Walks: a failed order later refunded and reached from « Ma commande »; a panier paid again after a late confirmation answered calmly with no new charge.
+- Mutations: 14 at the build and 2 at the fixes (the single order forgotten again; the reconciliation exception removed), each anchor matched once, each red, each restored byte-identical.
+- Suites at the lane: commerce-core 230, storefront unit 392, buyer unit 1576, Playwright checkout, account and panier walks green, typecheck clean in the three packages, copy gate OK. The recorded-answers certifier: no recorded form missing.
+- Coordinator: diffs read line by line, changed files checked against the claim and its written extensions. Re-run at `53faf12`: reconciliation 17 of 17, the buyer's band, account and refund tests 106 of 106, the refund seam 13 of 13.
+- Full board on `53faf12` in a fresh clone, Boutik+ beside it: every gate green except the two known browser checks of the fallback font (cliente :474 and :909), which fail only where the machine's sans-serif is Inter and pass on GitHub. Uncached on the board: storefront 1120 of 1120, Boutik+ seam included; buyer 1576; commerce-core 230; Playwright 339 passed.
+
+**Verifier.** One fresh-context pass on the build, handled once, never re-verified: 0 blocker, 1 major, 3 minor, 5 notes.
+- Major, fixed here: her phone forgot a failed order before late money arrived, so her tracking could never show its refund. Fixed for a single order and her account links as above. For a panier the phone keeps forgetting, on purpose (see Still open).
+- Minor, fixed here: the reconciliation pass named the held refund money as a hole.
+- Minor, fixed here: the grouped seam test now checks the redelivered confirmation and the founder's row before the refund is confirmed.
+- Minor, fixed here: a panier walk was added.
+- Note, journalled and kept: « Réessayer » stays on the payment screen after the refund opens; a tap on it is answered calmly and charges nothing.
+- Note, journalled: the second-layer refusals on the retry road are reached only in a race; they stay as defence in depth.
+- Note, asked of the founder: after a refund is confirmed, the order stays in « À vérifier » on his console, by the existing alert rule.
+- Two notes are held in the private batch record.
+
+**Not checked.** The live services were not called from here. A real provider was not involved: the sandbox stands in.
+
+**Still open.** On a panier, a phone that read the failure before the late money arrived does not show the refund in « Mes articles »; the refund itself still happens automatically. Other open items are held in the private batch record until their fixes deploy.
+
+---
+
 ## 2026-11-28 · CANON 3.29.0 + CLE-OUTIL-TEST-1 + CLE-SUIVANTE-1 — the test « money received » tool gets its own key, every checked key can change with no gap · lane P13 · on the branch, NOT merged, NOT deployed
 
 **Founder.** « you can start the next batch » (2026-11-28 06:17 UTC), batch 8 of the plan he approved: « The test button that says « money received » gets its own key, and a check makes sure it is gone before real money. » and « During a change, the old and new keys both work for a short window, so nothing stops. » His card at 06:28 UTC, « Refund it automatically », is the ruling canon 3.29.0 writes down; its code is the next slice and ships in the same release.
