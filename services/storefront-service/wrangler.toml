@@ -444,3 +444,24 @@ simple = { limit = 600, period = 60 }
 # Order does not matter: every Séra wire is a durable outbox on alarm
 # backoff, so marks born inside the swap window retry until both sides hold
 # the value. Nothing is lost.
+
+# ═══════════════════════════════════════════════════════════════════════════
+# THE SERVICE'S LOG — one line per request, one per fault, never a person's data.
+# ═══════════════════════════════════════════════════════════════════════════
+# The Worker writes its OWN structured lines (route template, method, status,
+# duration, correlation id, and only a server-minted order/quote/group id).
+# Every line is kept (`head_sampling_rate = 1`): a fault seen once is the one
+# that matters.
+#
+# `invocation_logs = false` on purpose: the platform's own per-invocation
+# record carries the raw URL — a reseller's shop name, a buyer's map tile, a
+# list token — and that is exactly what the Worker's line leaves out.
+# `redact_query_string = true` is the second lock if that record is ever
+# switched back on.
+[observability]
+enabled = true
+head_sampling_rate = 1
+redact_query_string = true
+
+[observability.logs]
+invocation_logs = false

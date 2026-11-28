@@ -26,7 +26,9 @@ export * from './listing-aggregate.js';
 export * from './media/media-store.js';
 export * from './media/service.js';
 
-const health = makeHealthFetch(SERVICE_NAME);
+// Silent sink: the combined Worker writes the service's one line per request,
+// and the shared handler's own 404 line would name the raw path.
+const health = makeHealthFetch(SERVICE_NAME, () => undefined);
 
 /**
  * SERVICE-PROVENANCE-1 — /health answers WHICH BUILD is live (`release`, the git
