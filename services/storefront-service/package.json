@@ -32,7 +32,7 @@
   "devDependencies": {
     "typescript": "^5.9.2",
     "vitest": "^3.2.4",
-    "@platform/recorded-answers": "git+https://github.com/beurni2/platform-contracts.git#8d0e7a8d615d2adb1a7c9a7a6820803cd5734249&path:packages/recorded-answers",
+    "@platform/recorded-answers": "git+https://github.com/beurni2/platform-contracts.git#e8ba886a38a6d7a0736d95fe1ba3ee8c8eff05e9&path:packages/recorded-answers",
     "@cloudflare/workers-types": "^4.20250705.0",
     "esbuild": "^0.25.5",
     "miniflare": "^4.20250705.0",
