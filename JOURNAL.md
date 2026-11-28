@@ -1,6 +1,59 @@
 # JOURNAL — shop-plus
 Continuity ledger per CTO charter §6/§6bis. Every entry is evidence-grounded.
 
+## 2026-11-28 · JOURNAL-SERVICE-1 + POIDS-PAGE-1 — the storefront service keeps a log with no personal data; the buyer page's weight is measured · lane P · on the branch, NOT merged, NOT deployed
+
+**Founder.** « done, now you can start the next batch » (2026-11-28 00:38 UTC), batch 7 of the plan he approved: « Every service, one lane per app. Each one keeps a log of what it did and what went wrong, with no personal data in it. » and « Photos sent and downloaded are held to their phone budgets, and the buyer page's total weight is measured. » Boutik+ holds the photos to their budgets; this repository measures what a boutique costs a buyer.
+
+**Lane.** Lane P, local commits `f746854` and `20274a2` (log), `9c556ca`, `4a6d442` and `94775c4` (page weight), on `9d89fa1`. Integrated on `claude/project-thread-jqj97g` as `266acdf` (log) and `e27db60` (page weight) on `6155fd5`; files byte-identical to the lane's `94775c4`.
+
+**Spec.** Execution Contract §6 « **Standards:** structured logs »; `docs/PERF-BUDGETS.md` « 3G-class: 1.5 Mbps, 300 ms RTT », « Viewport 360×800 », « Product-card payload | ≤ 25 KB compressed per card, thumbnail included », « Image sizes | thumbnail ≤ 15 KB · hero ≤ 80 KB · full view ≤ 150 KB ». There is no canon number for a whole boutique page, so none is asserted. CLAUDE.md Law 7 (performance budgets enforced) and Law 3 (no code or secret in any line).
+
+**What changed.**
+- *Log (storefront service).* One JSON line per request: the route template (never the path), the method from a closed set, the status, the duration, the correlation id cut to 64, and an order, quote or group id only when the route names it and the value has the server-minted shape. One line per delivery try that does not land (the outbox's fixed key, the order or group, the attempt, the far side's status or a plain reason), per failed alarm re-arm, and per failed best-effort mirror or park, an error named by its class only. A thrown request is logged once and still reaches the caller as the runtime's own failure. Answers, retries and rows are unchanged. `[observability]` on in `wrangler.toml` at full sampling, queries redacted, the per-invocation log off.
+- *Page weight (buyer site, test only).* A Playwright walk on the deploy build opens a 12-product boutique at 360×800 on the reference network, with every picture served at exactly its ceiling, and counts every byte. It asserts two things: each grid card, its tile picture included, stays within 25 600 B, and every tile asks its vignette while « À la une » asks the full photograph. A card's picture counts only when a photo service answered it 200. Everything else is printed.
+
+**Measured (printed by the walk, not asserted).** After the Boutik+ photo budgets: the first view is the whole page, 773 830 B in 25 requests (site code 140 618 B, fonts 145 844 B, data 968 B, pictures 486 400 B), at least 7.4 s on the reference network; cards 15 855–15 868 B; « À la une » 154 096 B, the full photograph by design. Photos stored before those budgets: 6 775 494 B, at least 39.4 s, cards about 98.8 KB. The payload gate counts 316 152 B where the walk sees 285 448 B of site files. The service worker's first-visit install is 332 683 B in 16 requests.
+
+**Evidence.** Lane: every new test red first for the right reason, then green; mutations each red with the anchor matched once, restored byte-identical (log: the wrapper's call, the fault line, the raw path, the query, the rethrow; walk: a tile switched to the full photograph, a card made 10 KB heavier, a picture answered by something other than the photo service). Storefront suite and typecheck green; the walk stable over repeated runs. Coordinator: each diff read line by line; decisive tests re-run at the lane heads. Full board on `e27db60` (`CI=true`, `TURBO_CONCURRENCY=1`, the Boutik+ sibling on its integrated head): every gate green except the browser tests' two known font checks (`cliente.spec.ts` l.474 and l.909, which fail only where the default sans-serif is Inter, as on this machine, and pass on GitHub), the same two as on the last release's board; 336 browser tests passed, the page-weight walk among them.
+
+**Verifier.** One fresh-context pass per slice, handled once. Log: pass with notes; the rethrow is now tested on a real throw, the sweep covers every door, and a rare marker clash in the test's own ids is gone. Page weight: pass with notes; a picture is now counted only from a photo the photo service answered.
+
+**Release.** storefront-deploy from the branch, then the merge. The buyer site changes no product code.
+
+**Still open.**
+- Whether the logging service adds anything of its own to each line is checked on one real line after the release, before anyone says the log holds no address.
+- The walk measures a desktop browser under a throttled network, not a low-end phone; « À la une » costs a full photograph by design.
+- Other open items are held in the private batch record until their fixes deploy.
+
+---
+
+## 2026-11-27 · SORTIES-SURES-1 + ADRESSE-PROPRE-1 — storefront DEPLOYED; MERGED; buyer site PUBLISHED at its own address; former address FORWARDS; reseller app PUBLISHED
+
+**Founder.** « Release all five » (2026-11-27 22:43 UTC, decision card, on the batch 6 report), which named for Shop+: storefront-deploy from the branch first, then the merge, which publishes the buyer site to its own address, then the forwarding page at the former address, then the reseller app. His earlier cards: « Yes, for the services » (approval before each service release) and « Free Cloudflare address » (`https://shop-plus.pages.dev`).
+
+**Service.** storefront-deploy 133 (id 46078394003, dispatch on `claude/project-thread-jqj97g` at `350c1ca`, the open PR's head) green 22:43–22:44 UTC: the release guard passed, then provenance OK for `350c1ca`. The `production` environment named on the job did not hold it for approval; it ran at once (see « Still open »).
+
+**Merge.** platform-contracts PR #5 merged first (`b36e360`). PR #12 merged as `9d89fa1` (merge commit, the branch shas kept; its tree is byte-identical to the PR head `350c1ca`, green in ci 754, and to what storefront-deploy 133 shipped). service-canon-drift 495 on main green: the live storefront matches main.
+
+**On main.**
+- ci 755, first attempt RED: the tests gate, storefront-service `colis.e2e` « REMBOURSEMENT-PORTE-FERMEE » twice, `reserve 409 already_reserved`. Its helper re-reserves right after a failed payment, and the hold's release rides the order's alarm, so on a slow runner the release landed after the re-reserve. Neither the test nor that code changed in this batch. pwa-preview 530 and expo-preview 563 were skipped, as designed: nothing ships from a red ci.
+- The failed job was re-run once (attempt 2): green 23:27 UTC.
+- pwa-preview 531 (id 46082646416) green from that green ci: the decision step let main's newest commit ship; the Cloudflare Pages project `shop-plus` was created by this run, its address matched the pinned one, and the check « NEW ADDRESS OK » saw this build's page and its not-found page answered there (deployment `b6af0c70`). Only then was the forwarding page published to the former GitHub Pages address (Pages deploy « Reported success! »). This settles the open question of the last entry: the token may create and publish the project.
+- expo-preview 564 (id 46082646389) green: the reseller app's preview update published from `main@9d89fa1`. The skipped runs did not block the later ones.
+
+**Not checked.** The live addresses cannot be reached from here, so the forwarding page's behaviour on the real former address was not seen; its proof is the forwarder walk in a real browser (see ADRESSE-PROPRE-1 below). The reseller app on a real phone, and a buyer opening an old link on a real phone, are the checks still to make.
+
+**Follow-on.**
+- The `colis.e2e` helper waits for the hold's release before it reserves again, so a slow runner cannot turn main red.
+- A buyer who retries at once after a failed payment can briefly hear « already reserved » until the order's alarm runs; to be measured and, if it matters, shortened.
+- The rollback page and workflow name the previous release's last version (a release writes two versions; see the platform journal's drill).
+- Buyers who saved the old site to their home screen add the new one once; the former address's acceptance by the service is removed in a later slice.
+
+**Still open.** GitHub started the service run without waiting for the `production` environment's approval; the founder approved in chat, and the environment's reviewer setting is being checked. Other open items are as named in the slice entries below, or held in the private batch record until their fixes deploy.
+
+---
+
 ## 2026-11-27 · SORTIES-SURES-1 — a service goes live only from a green commit, with the founder's approval; apps publish only after green checks; a rollback page; the board and a live check every day · lane O5 · on the branch, NOT merged, NOT deployed
 
 **Founder.** « Go on for batch 6 » (2026-11-27 19:38 UTC), batch 6 of the plan he approved: « A service goes live only after its checks passed on that exact version, with your approval in front of it. Apps publish only after green checks. One page per app says how to roll back, and we practise it once. The boards run every day, not only when someone pushes. A daily watch checks that the live services run `main`. Public logs stop printing order numbers, amounts and your catalogue. » His card on the GitHub approval is still open; this is built on its recommended answer (every service release waits for his approval in GitHub; app updates need green checks only).

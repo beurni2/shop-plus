@@ -43,6 +43,8 @@ import { readSandboxBehavior, sandboxPaymentProvider, type ChargeOutcome } from 
 import { LISTE_REF } from '../src/wishlist-core.js';
 import { lireEligibilite } from './buyer-ladder-do.js';
 import { timingSafeEqual } from './auth.js';
+import { createLogger, type Logger } from '@shop-plus/observability';
+import { SERVICE_NAME } from '../src/index.js';
 
 /** SP6.3 — the one mode whose order consults the §6.4 ladder. Spelled once
  *  so the check and the vault agree on one string. */
@@ -1705,7 +1707,7 @@ export class OrderDO {
             strandedPorte?.status === 'pending') &&
           (await this.state.storage.getAlarm()) === null
         ) {
-          await this.state.storage.setAlarm(Date.now()).catch(() => undefined);
+          await this.state.storage.setAlarm(Date.now()).catch((e) => this.rearmeEchoue(e));
         }
         // RELATED-PARTY-1 — the redelivery also repairs an UNDECIDED order.
         await this.lienProcheSiAbsent(spine, quote, origin.orderId, log);
@@ -1756,7 +1758,7 @@ export class OrderDO {
         [LOG_KEY]: [...log, ...entrees],
         [BOUTIK_DELIVERED_KEY]: { status: 'pending', event, attempts: 0 },
       });
-      await this.state.storage.setAlarm(Date.now()).catch(() => undefined);
+      await this.state.storage.setAlarm(Date.now()).catch((e) => this.rearmeEchoue(e));
       // VITRINE-VRAIE-1 (SP8) — a validated delivery is one more « vente
       // livrée » on HER boutique, counted once per order in her feed book.
       await this.marquerLivree(quote.attributionResellerId, origin.orderId);
@@ -1790,7 +1792,7 @@ export class OrderDO {
         // opened, and the alarm must then run for IT even when the relay is done.
         await this.ouvrirRemboursement(event);
         if ((existing.status === 'pending' || (await this.remboursementADemander())) && (await this.state.storage.getAlarm()) === null) {
-          await this.state.storage.setAlarm(Date.now()).catch(() => undefined);
+          await this.state.storage.setAlarm(Date.now()).catch((e) => this.rearmeEchoue(e));
         }
         return Response.json({ ok: true, status: 'duplicate' });
       }
@@ -1803,7 +1805,7 @@ export class OrderDO {
       });
       // REMBOURSEMENT-1 — the same fact opens her refund.
       await this.ouvrirRemboursement(event);
-      await this.state.storage.setAlarm(Date.now()).catch(() => undefined);
+      await this.state.storage.setAlarm(Date.now()).catch((e) => this.rearmeEchoue(e));
       return Response.json({ ok: true, status: 'recorded' });
     }
 
@@ -1856,7 +1858,7 @@ export class OrderDO {
       }
       await this.ouvrirRemboursementAvec({ nature: 'refus_fournisseur' }, null);
       if ((await this.remboursementADemander()) || Object.keys(annule).length > 0) {
-        await this.state.storage.setAlarm(Date.now()).catch(() => undefined);
+        await this.state.storage.setAlarm(Date.now()).catch((e) => this.rearmeEchoue(e));
       }
       return Response.json({ ok: true, status: deja === undefined ? 'recorded' : 'duplicate' });
     }
@@ -1885,7 +1887,7 @@ export class OrderDO {
       }
       await this.ouvrirRemboursementAvec({ nature: 'colis_perdu' }, null);
       if (await this.remboursementADemander()) {
-        await this.state.storage.setAlarm(Date.now()).catch(() => undefined);
+        await this.state.storage.setAlarm(Date.now()).catch((e) => this.rearmeEchoue(e));
       }
       return Response.json({ ok: true, status: deja === undefined ? 'recorded' : 'duplicate' });
     }
@@ -1953,7 +1955,7 @@ export class OrderDO {
       // P6 — the rider moving means custody now holds the course's file: a
       // custody row waiting on `order_not_open` must not wait for the next
       // rung of the backoff (up to an hour) — the code has to be there first.
-      if (await this.custodyRowPending()) await this.state.storage.setAlarm(Date.now()).catch(() => undefined);
+      if (await this.custodyRowPending()) await this.state.storage.setAlarm(Date.now()).catch((e) => this.rearmeEchoue(e));
       return Response.json({ ok: true, status: 'recorded', at });
     }
 
@@ -2375,7 +2377,7 @@ export class OrderDO {
         [PORTES_COLIS_KEY]: { ...portes, [args.collectId]: collecte },
         [DOOR_REFERENCE_KEY]: { ...references, [args.collectId]: { status: 'pending', orderId: c.orderId as string, attempts: 0 } },
       });
-      await this.state.storage.setAlarm(Date.now()).catch(() => undefined);
+      await this.state.storage.setAlarm(Date.now()).catch((e) => this.rearmeEchoue(e));
       return Response.json({ ok: true, status: 'entered' });
     }
 
@@ -3294,6 +3296,22 @@ export class OrderDO {
     }
   }
 
+  /**
+   * THE SERVICE'S LOG — one line per try that did not deliver: the row's fixed
+   * key, the attempt it reached, and the far side's status or a plain reason.
+   * Never the row, never the far side's body; the row still decides the retry.
+   */
+  private async nonLivre(outbox: string, attempts: number, panne: Panne): Promise<void> {
+    const orderId = (await this.state.storage.get<StoredOrigin>(ORIGIN_KEY).catch(() => undefined))?.orderId;
+    journalService(orderId)[niveauPanne(panne)]('outbox_undelivered', { outbox, ...idJournal(orderId), attempts, ...panne });
+  }
+
+  /** A re-arm that failed is said once, by name; the next alarm any wire arms still carries the row. */
+  private async rearmeEchoue(e: unknown): Promise<void> {
+    const orderId = (await this.state.storage.get<StoredOrigin>(ORIGIN_KEY).catch(() => undefined))?.orderId;
+    journalService(orderId).error('alarm_rearm_failed', { ...idJournal(orderId), error: nomErreur(e) });
+  }
+
   /** Returns the attempt count if still pending after this try, else 0. */
   private async flushBoutikOutbox(): Promise<number> {
     const outbox = await this.state.storage.get<{
@@ -3305,6 +3323,7 @@ export class OrderDO {
     if (outbox === undefined || outbox.status !== 'pending' || outbox.event === undefined) return 0;
 
     let delivered = false;
+    let panne: Panne = { reason: 'not_configured' };
     if (this.env.OFFER !== undefined) {
       const res = await this.env.OFFER.fetch(
         new Request('https://offer/fulfillment/order-confirmed', {
@@ -3321,6 +3340,7 @@ export class OrderDO {
         }),
       ).catch(() => undefined);
       delivered = res !== undefined && res.ok;
+      panne = panneDe(res);
     }
 
     if (delivered) {
@@ -3334,6 +3354,7 @@ export class OrderDO {
     }
     const attempts = outbox.attempts + 1;
     await this.state.storage.put(OUTBOX_KEY, { ...outbox, attempts });
+    await this.nonLivre(OUTBOX_KEY, attempts, panne);
     return attempts;
   }
 
@@ -3357,6 +3378,7 @@ export class OrderDO {
     const base = (this.env.SERA_INTAKE_BASE ?? '').replace(/\/+$/, '');
     const secret = this.env.SERA_INTAKE_SECRET ?? '';
     let delivered = false;
+    let panne: Panne = { reason: 'not_configured' };
     if (base !== '' && secret !== '') {
       const res = await fetch(`${base}/intake/funding`, {
         method: 'POST',
@@ -3367,6 +3389,7 @@ export class OrderDO {
         body: JSON.stringify(outbox.fact),
       }).catch(() => undefined);
       delivered = res !== undefined && res.ok;
+      panne = panneDe(res);
     }
 
     if (delivered) {
@@ -3380,6 +3403,7 @@ export class OrderDO {
     }
     const attempts = outbox.attempts + 1;
     await this.state.storage.put(key, { ...outbox, attempts });
+    await this.nonLivre(key, attempts, panne);
     return attempts;
   }
 
@@ -3401,6 +3425,7 @@ export class OrderDO {
     if (outbox === undefined || outbox.status !== 'pending' || outbox.event === undefined) return 0;
 
     let delivered = false;
+    let panne: Panne = { reason: 'not_configured' };
     if (this.env.OFFER !== undefined) {
       const res = await this.env.OFFER.fetch(
         new Request('https://offer/fulfillment/delivered', {
@@ -3417,6 +3442,7 @@ export class OrderDO {
         }),
       ).catch(() => undefined);
       delivered = res !== undefined && res.ok;
+      panne = panneDe(res);
     }
 
     if (delivered) {
@@ -3430,6 +3456,7 @@ export class OrderDO {
     }
     const attempts = outbox.attempts + 1;
     await this.state.storage.put(BOUTIK_DELIVERED_KEY, { ...outbox, attempts });
+    await this.nonLivre(BOUTIK_DELIVERED_KEY, attempts, panne);
     return attempts;
   }
 
@@ -3451,6 +3478,7 @@ export class OrderDO {
     if (outbox === undefined || outbox.status !== 'pending' || outbox.event === undefined) return 0;
 
     let delivered = false;
+    let panne: Panne = { reason: 'not_configured' };
     if (this.env.OFFER !== undefined) {
       const res = await this.env.OFFER.fetch(
         new Request('https://offer/fulfillment/delivery-refused', {
@@ -3467,6 +3495,7 @@ export class OrderDO {
         }),
       ).catch(() => undefined);
       delivered = res !== undefined && res.ok;
+      panne = panneDe(res);
     }
 
     if (delivered) {
@@ -3480,6 +3509,7 @@ export class OrderDO {
     }
     const attempts = outbox.attempts + 1;
     await this.state.storage.put(BOUTIK_REFUSED_KEY, { ...outbox, attempts });
+    await this.nonLivre(BOUTIK_REFUSED_KEY, attempts, panne);
     return attempts;
   }
 
@@ -3545,6 +3575,7 @@ export class OrderDO {
 
     const secret = this.env.SHOP_ARM_SECRET ?? '';
     let delivered = false;
+    let panne: Panne = { reason: 'not_configured' };
     if (this.env.CUSTODY !== undefined && secret !== '') {
       const res = await this.env.CUSTODY.fetch(
         new Request('https://custody/produce-shop/secrets/arm', {
@@ -3556,6 +3587,7 @@ export class OrderDO {
         }),
       ).catch(() => undefined);
       delivered = res !== undefined && res.ok;
+      panne = panneDe(res);
     }
 
     if (delivered) {
@@ -3574,6 +3606,7 @@ export class OrderDO {
     if (fresh?.status !== 'pending') return 0;
     const attempts = fresh.attempts + 1;
     await this.state.storage.put(CUSTODY_ARM_KEY, { ...fresh, attempts });
+    await this.nonLivre(CUSTODY_ARM_KEY, attempts, panne);
     return attempts;
   }
 
@@ -3607,9 +3640,11 @@ export class OrderDO {
     if (rows === undefined) return 0;
     const secret = this.env.SHOP_ARM_SECRET ?? '';
     const tried = new Map<string, { outcome: 'accepted' | 'refused'; reason?: string } | undefined>();
+    const pannes = new Map<string, Panne>();
     for (const [reference, row] of Object.entries(rows)) {
       if (row.status !== 'pending') continue;
       let done: { outcome: 'accepted' | 'refused'; reason?: string } | undefined;
+      let panne: Panne = { reason: 'not_configured' };
       if (this.env.CUSTODY !== undefined && secret !== '') {
         const res = await this.env.CUSTODY.fetch(
           new Request('https://custody/produce-shop/door-reference', {
@@ -3619,6 +3654,7 @@ export class OrderDO {
             body: JSON.stringify({ orderId: row.orderId, command_id: `door-reference-${row.orderId}-${reference}`, reference }),
           }),
         ).catch(() => undefined);
+        panne = panneDe(res);
         if (res !== undefined) {
           if (res.ok) {
             done = { outcome: 'accepted' };
@@ -3632,6 +3668,7 @@ export class OrderDO {
         }
       }
       tried.set(reference, done);
+      pannes.set(reference, panne);
     }
     // Merged per reference over a FRESH read: this object went on answering
     // while custody was asked, and an ending may have been written meanwhile.
@@ -3651,6 +3688,12 @@ export class OrderDO {
       }
     }
     await this.state.storage.put(DOOR_REFERENCE_KEY, next);
+    // One line per reference still waiting; the reference itself is never written.
+    for (const [reference, row] of Object.entries(next)) {
+      if (row.status === 'pending' && tried.has(reference) && tried.get(reference) === undefined) {
+        await this.nonLivre(DOOR_REFERENCE_KEY, row.attempts, pannes.get(reference) ?? { reason: 'no_answer' });
+      }
+    }
     return pending;
   }
 
@@ -3673,6 +3716,7 @@ export class OrderDO {
 
     const secret = this.env.SHOP_ARM_SECRET ?? '';
     let done: { outcome: 'accepted' | 'refused'; reason?: string } | undefined;
+    let panne: Panne = { reason: 'not_configured' };
     if (this.env.CUSTODY !== undefined && secret !== '') {
       /**
        * ⚠ THE OUTER COMMAND ID IS PER-ATTEMPT (verifier BLOCKER, 2026-08-14,
@@ -3699,6 +3743,7 @@ export class OrderDO {
           }),
         }),
       ).catch(() => undefined);
+      panne = panneDe(res);
       if (res !== undefined) {
         if (res.ok) {
           done = { outcome: 'accepted' };
@@ -3747,6 +3792,7 @@ export class OrderDO {
     if (fresh?.status !== 'pending') return 0;
     const attempts = fresh.attempts + 1;
     await this.state.storage.put(DOOR_SIGNAL_KEY, { ...fresh, attempts });
+    await this.nonLivre(DOOR_SIGNAL_KEY, attempts, panne);
     return attempts;
   }
 
@@ -3773,6 +3819,7 @@ export class OrderDO {
     if (outbox === undefined || outbox.status !== 'pending' || outbox.fact === undefined) return 0;
 
     let delivered = false;
+    let panne: Panne = { reason: 'not_configured' };
     const ns = this.env.WISHLIST;
     if (ns !== undefined) {
       const res = await ns
@@ -3785,6 +3832,7 @@ export class OrderDO {
         )
         .catch(() => undefined);
       delivered = res !== undefined && res.ok;
+      panne = panneDe(res);
     }
 
     if (delivered) {
@@ -3798,6 +3846,7 @@ export class OrderDO {
     }
     const attempts = outbox.attempts + 1;
     await this.state.storage.put(LISTE_OFFERT_KEY, { ...outbox, attempts });
+    await this.nonLivre(LISTE_OFFERT_KEY, attempts, panne);
     return attempts;
   }
 
@@ -3822,7 +3871,7 @@ export class OrderDO {
     // that failed to schedule here is recovered by the next alarm any wire
     // arms — the stuck watch's, armed at create and at every retry — never
     // by a webhook: a payment_failed order hears no duplicate-webhook recovery.
-    await this.state.storage.setAlarm(Date.now()).catch(() => undefined);
+    await this.state.storage.setAlarm(Date.now()).catch((e) => this.rearmeEchoue(e));
   }
 
   /**
@@ -3842,7 +3891,7 @@ export class OrderDO {
       attempts: 0,
     };
     await this.state.storage.put(HOLD_RELEASE_KEY, row);
-    await this.state.storage.setAlarm(Date.now()).catch(() => undefined);
+    await this.state.storage.setAlarm(Date.now()).catch((e) => this.rearmeEchoue(e));
   }
 
   /** Returns the attempt count if still pending after this try, else 0. */
@@ -3852,9 +3901,11 @@ export class OrderDO {
     if (this.env.OFFER === undefined) {
       const attempts = row.attempts + 1;
       await this.state.storage.put(HOLD_RELEASE_KEY, { ...row, attempts });
+      await this.nonLivre(HOLD_RELEASE_KEY, attempts, { reason: 'not_configured' });
       return attempts;
     }
     let answer: { status: string | null; httpStatus: number } | null = null;
+    let panne: Panne = { reason: 'no_answer' };
     try {
       const res = await this.env.OFFER.fetch(
         new Request('https://offer/fulfillment/stock-hold/release', {
@@ -3872,6 +3923,8 @@ export class OrderDO {
       if (res.ok || res.status === 404) {
         const body = (await res.json().catch(() => null)) as { status?: unknown } | null;
         answer = { status: typeof body?.status === 'string' ? body.status : null, httpStatus: res.status };
+      } else {
+        panne = panneDe(res);
       }
     } catch {
       answer = null;
@@ -3879,6 +3932,7 @@ export class OrderDO {
     if (answer === null) {
       const attempts = row.attempts + 1;
       await this.state.storage.put(HOLD_RELEASE_KEY, { ...row, attempts });
+      await this.nonLivre(HOLD_RELEASE_KEY, attempts, panne);
       return attempts;
     }
     await this.state.storage.put(HOLD_RELEASE_KEY, {
@@ -3899,9 +3953,11 @@ export class OrderDO {
     if (ns === undefined) {
       const attempts = row.attempts + 1;
       await this.state.storage.put(RELEASE_KEY, { ...row, attempts });
+      await this.nonLivre(RELEASE_KEY, attempts, { reason: 'not_configured' });
       return attempts;
     }
     let decision: ReleaseAnswer | null = null;
+    let panne: Panne = { reason: 'no_answer' };
     try {
       const res = await ns.get(ns.idFromName(row.quoteId)).fetch(
         new Request('https://do/entry/release', {
@@ -3916,12 +3972,14 @@ export class OrderDO {
       // RESERVATION-REGLE-2 — only a 2xx is an ANSWER (a refusal by name rides
       // 200); a 503 or a 400 is the wire failing and the row stays pending.
       decision = res.ok ? ((await res.json().catch(() => null)) as ReleaseAnswer | null) : null;
+      panne = panneDe(res);
     } catch {
       decision = null;
     }
     if (decision === null || typeof decision.ok !== 'boolean') {
       const attempts = row.attempts + 1;
       await this.state.storage.put(RELEASE_KEY, { ...row, attempts });
+      await this.nonLivre(RELEASE_KEY, attempts, panne);
       // RESERVATION-REGLE-2 — THE NET'S LIVE ARM (verifier MAJOR on REGLE-1):
       // a release that did not deliver is the one case the net exists for, so
       // it is judged HERE, on the hold as it stands now, not on an answer that
@@ -4032,7 +4090,7 @@ export class OrderDO {
   private async armStuckWatch(nowIso: string): Promise<void> {
     const due = Date.parse(nowIso) + this.stuckTtlMs() + 1;
     const existing = await this.state.storage.getAlarm().catch(() => null);
-    if (existing === null || existing > due) await this.state.storage.setAlarm(due).catch(() => undefined);
+    if (existing === null || existing > due) await this.state.storage.setAlarm(due).catch((e) => this.rearmeEchoue(e));
   }
 
   /** The vault's watch on the alarm; returns the next due time while the order is still pending and unreported. */
@@ -4306,7 +4364,7 @@ export class OrderDO {
           strandedPorte?.status === 'pending' || strandedOffert?.status === 'pending') &&
         (await this.state.storage.getAlarm()) === null
       ) {
-        await this.state.storage.setAlarm(Date.now()).catch(() => undefined);
+        await this.state.storage.setAlarm(Date.now()).catch((e) => this.rearmeEchoue(e));
       }
       /**
        * RF-1a (verifier B2) — AND THE SAME REDELIVERY REPAIRS HER FEED. The
@@ -4437,7 +4495,7 @@ export class OrderDO {
       // SE-LIVE-2a: armed for EITHER wire — Séra's fact is always pending at
       // this point, so an unsendable boutik composition must no longer leave
       // the alarm unset (it would strand the funding fact forever).
-      await this.state.storage.setAlarm(Date.now()).catch(() => undefined);
+      await this.state.storage.setAlarm(Date.now()).catch((e) => this.rearmeEchoue(e));
     } else {
       await this.state.storage.put(LOG_KEY, next);
     }
@@ -4834,7 +4892,7 @@ export class OrderDO {
       // REMBOURSEMENT-1 — and for a late door leg's refund a lost write never added.
       await this.etendreRemboursement();
       if (strandedPorte?.status === 'pending' || (await this.remboursementADemander())) {
-        await this.state.storage.setAlarm(Date.now()).catch(() => undefined);
+        await this.state.storage.setAlarm(Date.now()).catch((e) => this.rearmeEchoue(e));
       }
       return Response.json({ ok: true, status: 'duplicate', doorLeg: spine.doorLegState });
     }
@@ -4875,7 +4933,7 @@ export class OrderDO {
     // A scheduling throw must never 500 a door confirmation already durably
     // stored — the duplicate-redelivery hook above is the recovery for a row
     // left pending without an alarm (the confirm branch's own discipline).
-    await this.state.storage.setAlarm(Date.now()).catch(() => undefined);
+    await this.state.storage.setAlarm(Date.now()).catch((e) => this.rearmeEchoue(e));
     return Response.json({ ok: true, status: 'applied', doorLeg: spine.doorLegState });
   }
 
@@ -5017,7 +5075,7 @@ export class OrderDO {
     // order with no alarm at all; an alarm booked later for another wire would
     // leave these new lines unasked until it fires.
     if (existant !== undefined && record.lignes.length > 0) {
-      await this.state.storage.setAlarm(Date.now()).catch(() => undefined);
+      await this.state.storage.setAlarm(Date.now()).catch((e) => this.rearmeEchoue(e));
     }
   }
 
@@ -5086,6 +5144,7 @@ export class OrderDO {
         ligne.refundRef = reponse.refundRef;
       } else if (reponse.reason === 'timeout') {
         pending = Math.max(pending, ligne.essais);
+        await this.nonLivre(REFUND_KEY, ligne.essais, { reason: 'timeout' });
       } else {
         // REMBOURSEMENT-2 — a refusal by name is final for this line: the
         // operator is told BEFORE the line records it (the sink is idempotent
@@ -5103,6 +5162,7 @@ export class OrderDO {
         }
         ligne.etat = 'refuse';
         ligne.motifRefus = reponse.reason;
+        await this.nonLivre(REFUND_KEY, ligne.essais, { reason: 'refused' });
       }
       await this.state.storage.put(REFUND_KEY, r);
     }
@@ -5294,8 +5354,10 @@ async function parkPoison(env: Env, texte: string, args: { reason: string; corre
         }),
       }),
     );
-  } catch {
-    // named refusal already on its way; the book's fault is not the provider's
+  } catch (e) {
+    // The named refusal is already on its way; the book's fault is said here, never to the provider.
+    const id = args.correlationId.replace(/^corr-/, '');
+    journalService(id).warn('dlq_park_failed', { ...idJournal(id), reason: args.reason, error: nomErreur(e) });
   }
 }
 
@@ -5368,6 +5430,52 @@ export function decodeId(raw: string): string | undefined {
   } catch {
     return undefined;
   }
+}
+
+/**
+ * THE SERVICE'S LOG — the id shapes this server mints. A line names an order,
+ * a quote or a group only when the value has one of these exact shapes, so a
+ * value a caller made up never reaches the log, whatever it holds.
+ */
+export const FORME_ID = {
+  quoteId: /^quote-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
+  orderId: /^ord-quote-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
+  groupId: /^grp-[0-9a-f]{40}$/,
+} as const;
+
+/** The id a log line may carry: an order or a group id in its minted shape, else none. */
+export function idJournal(id: unknown): { orderId: string } | { groupId: string } | Record<string, never> {
+  if (typeof id !== 'string') return {};
+  if (FORME_ID.orderId.test(id)) return { orderId: id };
+  if (FORME_ID.groupId.test(id)) return { groupId: id };
+  return {};
+}
+
+/** The service's logger on the order's or the group's own chain, else on a fresh one. */
+export function journalService(id?: unknown): Logger {
+  const ids = idJournal(id);
+  const cle = 'orderId' in ids ? ids.orderId : 'groupId' in ids ? ids.groupId : undefined;
+  return createLogger({ service: SERVICE_NAME, correlationId: cle === undefined ? crypto.randomUUID() : `corr-${cle}` });
+}
+
+/** An error's class name only: its message can carry the very data it failed on. */
+export function nomErreur(e: unknown): string {
+  return e instanceof Error ? e.name : 'non_error';
+}
+
+/** Why a wire's try did not deliver: the far side's status (never its body), or a plain reason. */
+export type Panne =
+  | { readonly status: number }
+  | { readonly reason: 'no_answer' | 'not_configured' | 'timeout' | 'refused' };
+
+export function panneDe(res: Response | undefined): Panne {
+  return res === undefined ? { reason: 'no_answer' } : { status: res.status };
+}
+
+/** A refused key, a wire never configured and a refused refund wait on a person: error. Every other miss retries: warn. */
+export function niveauPanne(p: Panne): 'warn' | 'error' {
+  if ('status' in p) return p.status === 401 || p.status === 403 ? 'error' : 'warn';
+  return p.reason === 'not_configured' || p.reason === 'refused' ? 'error' : 'warn';
 }
 
 /** COLIS-FOURNISSEUR-1 — a package door collection's id: `<groupId>-porte-<n>`. */

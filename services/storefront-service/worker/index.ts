@@ -2,7 +2,7 @@ import sfRouter, { StorefrontDO } from './storefront-do.js';
 import { decodeSur } from '../src/decode-sur.js';
 import lstRouter, { ListingDO } from './listing-do.js';
 import checkoutRouter, { CheckoutDO } from './checkout-do.js';
-import orderRouter, { OrderDO, televerserNoteVocale } from './order-do.js';
+import orderRouter, { FORME_ID, OrderDO, idJournal, journalService, nomErreur, televerserNoteVocale } from './order-do.js';
 import { PaymentGroupDO, groupRouter } from './payment-group-do.js';
 import { isGroupId } from '../src/payment-group-core.js';
 import {
@@ -26,7 +26,8 @@ import {
 } from './reseller-accounts-do.js';
 import { DLQ_NAME, DeadLetterDO } from './dead-letter-do.js';
 import { BUYER_ACCOUNTS_NAME, BuyerAccountsDO } from './buyer-accounts-do.js';
-import { checkoutPreflight, handleRequest, origineAccordee, withReadCors, type StorefrontServiceEnv } from '../src/index.js';
+import { SERVICE_NAME, checkoutPreflight, handleRequest, origineAccordee, withReadCors, type StorefrontServiceEnv } from '../src/index.js';
+import { CORRELATION_HEADER, CORRELATION_ID_MAX, correlationIdFrom, createLogger } from '@shop-plus/observability';
 import { SUPPLY_COLLECTION_ROUTE, SUPPLY_DIAGNOSTIC_ROUTE } from '../src/supply-collection.js';
 import { signPrice } from '../src/publish-price.js';
 import { resolveSupplySource } from '../src/supply-source.js';
@@ -258,10 +259,158 @@ async function bornerCorps(request: Request, max: number): Promise<Request | Res
   return new Request(request.url, { method: request.method, headers: request.headers, body: bytes });
 }
 
+/**
+ * THE SERVICE'S LOG — every path this Worker answers, as a template. A line
+ * names the template, never the path: a path can carry a reseller's shop
+ * name, a buyer's map tile or a list's key. A literal template comes before
+ * the parameter one it would otherwise lose to; `*` takes the rest of a path.
+ */
+const ROUTES: readonly string[] = [
+  '/health',
+  '/tiles/:z/:x/:y',
+  '/s/:slug',
+  '/media/upload',
+  '/media/*',
+  '/supply-projections',
+  '/supply-projections/diagnostic',
+  '/storefronts',
+  '/storefronts/:storefrontId',
+  '/storefronts/:storefrontId/publish',
+  '/storefronts/:storefrontId/unpublish',
+  '/storefronts/:storefrontId/identity',
+  '/storefronts/:storefrontId/media',
+  '/storefronts/:storefrontId/voice',
+  '/storefronts/:storefrontId/voice/remove',
+  '/storefronts/:storefrontId/items',
+  '/storefronts/:storefrontId/items/remove',
+  '/listings',
+  '/listings/by-pid/:pid/:variant',
+  '/listings/by-pid/:pid/:variant/economics',
+  '/listings/:listingId',
+  '/listings/:listingId/hide',
+  '/listes',
+  '/listes/:liste',
+  '/listes/:liste/fermer',
+  '/listes/:liste/cadeaux',
+  '/checkout/quote',
+  '/checkout/quote/:quoteId',
+  '/checkout/quote/:quoteId/reserve',
+  '/checkout/order',
+  '/checkout/order/:orderId',
+  '/checkout/order/:orderId/door-charge',
+  '/checkout/order/:orderId/remise',
+  '/checkout/order/:orderId/liste-merci',
+  '/checkout/order/:orderId/suivi',
+  '/checkout/group',
+  '/checkout/group/price',
+  '/checkout/group/:groupId',
+  '/checkout/group/:groupId/porte',
+  '/checkout/webhook/payment',
+  '/checkout/webhook/door',
+  '/checkout/webhook/refund',
+  '/checkout/webhook/leg-key/:id',
+  '/checkout/webhook/refund-key/:id',
+  '/checkout/webhook/order/:orderId',
+  '/checkout/dlq',
+  '/checkout/dlq/acknowledge',
+  '/checkout/gains',
+  '/checkout/dispatch',
+  '/checkout/dispatch/:orderId/refusal',
+  '/orders/:orderId/related-party',
+  '/orders/:orderId/related-party/resolve',
+  '/fulfillment/progress',
+  '/fulfillment/transit',
+  '/reseller/signup',
+  '/reseller/login',
+  '/reseller/session',
+  '/reseller/admission',
+  '/reseller/profile',
+  '/reseller/logout',
+  '/reseller/accounts',
+  '/reseller/accounts/access-code',
+  '/reseller/accounts/access-code/reveal',
+  '/reseller/accounts/pause',
+  '/reseller/accounts/resume',
+  '/reseller/suivi',
+  '/reseller/ventes',
+  '/reseller/ventes/:orderId/contester',
+  '/buyer/signup',
+  '/buyer/login',
+  '/buyer/recover',
+  '/buyer/profile',
+  '/buyer/logout',
+  '/buyer/orders',
+  '/buyer/articles',
+  '/buyer/delete',
+  '/buyer/accounts/recovery-code',
+];
+
+type IdsRoute = { orderId?: string; quoteId?: string; groupId?: string };
+
+/** The template a path answers to, and the ids it names — each only in its minted shape. */
+function routeDe(pathname: string): { route: string; ids: IdsRoute } {
+  const segments = pathname.split('/').slice(1);
+  for (const route of ROUTES) {
+    const modele = route.split('/').slice(1);
+    const reste = modele[modele.length - 1] === '*';
+    const fixes = reste ? modele.length - 1 : modele.length;
+    if (reste ? segments.length <= fixes : segments.length !== fixes) continue;
+    if (reste && segments.slice(fixes).join('/') === '') continue;
+    const ids: IdsRoute = {};
+    let ok = true;
+    for (let i = 0; i < fixes && ok; i++) {
+      const m = modele[i]!;
+      const seg = segments[i]!;
+      if (!m.startsWith(':')) {
+        ok = m === seg;
+        continue;
+      }
+      ok = seg !== '';
+      const nom = m.slice(1);
+      if ((nom === 'orderId' || nom === 'quoteId' || nom === 'groupId') && FORME_ID[nom].test(seg)) ids[nom] = seg;
+    }
+    if (ok) return { route, ids };
+  }
+  return { route: 'unmatched', ids: {} };
+}
+
+const METHODES = new Set(['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']);
+/** A refused key, a refused owner, a body too big, a ceiling reached: worth a look, not a fault. */
+const STATUTS_AVERTIS = new Set([401, 403, 413, 429]);
+
 export default {
   // ADRESSE-PROPRE — every answer leaves through the one origin rule.
+  // THE SERVICE'S LOG — and every request writes ONE line; the answer leaves untouched.
   async fetch(request: Request, env: Env): Promise<Response> {
-    return origineAccordee(request, await repondre(request, env));
+    const debut = Date.now();
+    const { route, ids } = routeDe(new URL(request.url).pathname);
+    const method = METHODES.has(request.method) ? request.method : 'OTHER';
+    let res: Response;
+    try {
+      res = origineAccordee(request, await repondre(request, env));
+    } catch (e) {
+      // Said once, then thrown on unchanged: the caller gets the runtime's own answer.
+      createLogger({ service: SERVICE_NAME, correlationId: correlationIdFrom(request) }).error('request', {
+        route,
+        method,
+        status: 500,
+        durationMs: Date.now() - debut,
+        ...ids,
+        error: nomErreur(e),
+      });
+      throw e;
+    }
+    // The chain the answer carries (health mints one when none came in), else the caller's.
+    const correlationId = (res.headers.get(CORRELATION_HEADER) ?? correlationIdFrom(request)).slice(0, CORRELATION_ID_MAX);
+    const niveau = res.status >= 500 ? 'error' : STATUTS_AVERTIS.has(res.status) ? 'warn' : 'info';
+    createLogger({ service: SERVICE_NAME, correlationId })[niveau]('request', {
+      route,
+      method,
+      status: res.status,
+      durationMs: Date.now() - debut,
+      ...ids,
+    });
+    return res;
   },
 };
 
@@ -2739,10 +2888,10 @@ function dispatchPreflight(methods: 'GET' | 'POST' = 'GET'): Response {
  * the mirror can never register a row the route would not have addressed.
  */
 async function mirrorDispatchRow(env: Env, source: Request): Promise<void> {
+  let orderId: string | undefined;
   try {
     const body = (await source.json().catch(() => null)) as Record<string, unknown> | null;
     if (body === null) return;
-    let orderId: string | undefined;
     if (typeof body['quoteId'] === 'string' && body['quoteId'] !== '') {
       orderId = orderIdForQuote(body['quoteId']);
     } else {
@@ -2765,9 +2914,10 @@ async function mirrorDispatchRow(env: Env, source: Request): Promise<void> {
     await env.DISPATCH.get(env.DISPATCH.idFromName(DISPATCH_INDEX_NAME)).fetch(
       new Request('https://do/register', { method: 'POST', body: JSON.stringify({ orderId }) }),
     );
-  } catch {
+  } catch (e) {
     // Swallowed on purpose — see above. Nothing downstream depends on this row
-    // existing; the dispatch list self-repairs at the next webhook.
+    // existing; the dispatch list self-repairs at the next webhook. Said once.
+    journalService(orderId).warn('dispatch_mirror_failed', { ...idJournal(orderId), error: nomErreur(e) });
   }
 }
 
@@ -2779,8 +2929,9 @@ async function mirrorDispatchRows(env: Env, orderIds: readonly unknown[]): Promi
       await env.DISPATCH.get(env.DISPATCH.idFromName(DISPATCH_INDEX_NAME)).fetch(
         new Request('https://do/register', { method: 'POST', body: JSON.stringify({ orderId }) }),
       );
-    } catch {
-      // Swallowed on purpose, like its single twin: the next webhook repairs.
+    } catch (e) {
+      // Swallowed on purpose, like its single twin: the next webhook repairs. Said once.
+      journalService(orderId).warn('dispatch_mirror_failed', { ...idJournal(orderId), error: nomErreur(e) });
     }
   }
 }
@@ -2791,10 +2942,11 @@ async function mirrorReservationReceipt(
   reserveRequest: Request,
   reserveResponse: Response,
 ): Promise<void> {
+  let quoteId: string | undefined;
   try {
     const match = /^\/checkout\/quote\/([^/]+)\/reserve$/.exec(pathname);
     if (match === null) return;
-    const quoteId = decodeURIComponent(match[1]!);
+    quoteId = decodeURIComponent(match[1]!);
     const asked = (await reserveRequest.json().catch(() => null)) as { holderRef?: unknown } | null;
     const answered = (await reserveResponse.json().catch(() => null)) as
       | { status?: unknown; reservationId?: unknown; expiresAt?: unknown }
@@ -2814,8 +2966,10 @@ async function mirrorReservationReceipt(
         body: JSON.stringify({ quoteId, reservationId, holderRef, expiresAt }),
       }),
     );
-  } catch {
+  } catch (e) {
     // Swallowed on purpose — see the paragraph above. The order path fails
-    // CLOSED without this copy; the reservation itself is unaffected.
+    // CLOSED without this copy; the reservation itself is unaffected. Said once.
+    const orderId = quoteId === undefined ? undefined : orderIdForQuote(quoteId);
+    journalService(orderId).warn('reservation_mirror_failed', { ...idJournal(orderId), error: nomErreur(e) });
   }
 }

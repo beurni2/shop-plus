@@ -36,7 +36,12 @@ import {
   statusForWebhook,
   televerserNoteVocale,
   STUCK_SAGA_TTL_MS,
+  idJournal,
+  journalService,
+  niveauPanne,
+  nomErreur,
   type BuyerContact,
+  type Panne,
 } from './order-do.js';
 
 /**
@@ -591,6 +596,7 @@ export class PaymentGroupDO {
     }
     const attempts = notice.attempts + 1;
     await this.state.storage.put(NOTICE_KEY, { ...notice, remaining: still, attempts });
+    await this.nonLivre(NOTICE_KEY, attempts, { remaining: still.length });
     await this.armer(Date.now() + Math.min(3_600_000, 60_000 * 2 ** Math.min(attempts, 6)));
     return { heard: false, views };
   }
@@ -598,7 +604,24 @@ export class PaymentGroupDO {
   /** The alarm at the EARLIER of what it holds and `t`: the notice and a door payment's refund share it (verifier m4). */
   private async armer(t: number): Promise<void> {
     const arme = await this.state.storage.getAlarm().catch(() => null);
-    if (arme === null || t < arme) await this.state.storage.setAlarm(t).catch(() => undefined);
+    if (arme === null || t < arme) await this.state.storage.setAlarm(t).catch((e) => this.rearmeEchoue(e));
+  }
+
+  /**
+   * THE SERVICE'S LOG — one line per try that did not deliver, on the group's
+   * own chain: the row's fixed key, the attempt, and how many orders still
+   * wait or why the try failed. Never the row; the row still decides the retry.
+   */
+  private async nonLivre(outbox: string, attempts: number, champs: Panne | { readonly remaining: number }): Promise<void> {
+    const groupId = (await this.state.storage.get<StoredGroup>(GROUP_KEY).catch(() => undefined))?.groupId;
+    const niveau = 'remaining' in champs ? 'warn' : niveauPanne(champs);
+    journalService(groupId)[niveau]('outbox_undelivered', { outbox, ...idJournal(groupId), attempts, ...champs });
+  }
+
+  /** A re-arm that failed is said once, by name; the next alarm still carries the rows. */
+  private async rearmeEchoue(e: unknown): Promise<void> {
+    const groupId = (await this.state.storage.get<StoredGroup>(GROUP_KEY).catch(() => undefined))?.groupId;
+    journalService(groupId).error('alarm_rearm_failed', { ...idJournal(groupId), error: nomErreur(e) });
   }
 
   async alarm(): Promise<void> {
@@ -1060,8 +1083,10 @@ export class PaymentGroupDO {
           r = await this.majRetour(collectId, (x) => ({ ...x, etat: 'demande', refundRef: reponse.refundRef }));
         } else if (reponse.reason === 'timeout') {
           plusTot(Date.now() + Math.min(3_600_000, 60_000 * 2 ** Math.min(r.essais, 6)));
+          await this.nonLivre(RETOURS_KEY, r.essais, { reason: 'timeout' });
         } else {
           r = await this.majRetour(collectId, (x) => ({ ...x, etat: 'refuse', motifRefus: reponse.reason }));
+          if (r !== undefined) await this.nonLivre(RETOURS_KEY, r.essais, { reason: 'refused' });
         }
         if (r === undefined) continue;
       }
