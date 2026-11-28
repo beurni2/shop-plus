@@ -1398,6 +1398,18 @@
   "screenClass": "status"
  },
  {
+  "key": "cl.remboursement.paiement_corps",
+  "fr": "Le paiement n’a pas abouti. Votre argent revient sur le numéro qui a payé.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.remboursement.paiement_fait_corps",
+  "fr": "Le paiement n’avait pas abouti. L’argent est revenu sur le numéro qui a payé.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
   "key": "cl.remboursement.frais_gardes",
   "fr": "La livraison ({D}\u202fFCFA) reste payée\u00a0: le livreur est bien venu jusqu’à vous.",
   "register": "money",
@@ -2402,6 +2414,30 @@
  {
   "key": "cl.refus.pay_at_door_not_eligible.libelle",
   "fr": "Tout payer maintenant",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.refus.paiement_rembourse.overline",
+  "fr": "LE PAIEMENT",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.refus.paiement_rembourse.titre",
+  "fr": "Votre argent vous revient.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.refus.paiement_rembourse.phrase",
+  "fr": "Le paiement n’a pas abouti, et votre argent revient sur le numéro qui a payé. Rien de plus ne sera pris pour cette commande.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.refus.paiement_rembourse.libelle",
+  "fr": "Voir la boutique",
   "register": "money",
   "screenClass": "label"
  },

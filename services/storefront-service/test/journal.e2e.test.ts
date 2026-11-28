@@ -430,7 +430,8 @@ describe('a delivery that fails writes ONE line per attempt — and nothing abou
   it('no alarm re-arm failure is dropped without its line, in the order and payment-group objects', () => {
     // One level of nested parentheses inside the call: `setAlarm(Date.now())`.
     const appelArme = String.raw`setAlarm\((?:[^()]|\([^()]*\))*\)`;
-    for (const [file, sites] of [['worker/order-do.ts', 16], ['worker/payment-group-do.ts', 1]] as const) {
+    // order-do.ts 18: SP6 added two — the first late delivery's refund opening and the duplicate-branch recovery.
+    for (const [file, sites] of [['worker/order-do.ts', 18], ['worker/payment-group-do.ts', 1]] as const) {
       const src = readFileSync(file, 'utf8');
       expect(src.match(new RegExp(`${appelArme}\\.catch\\(\\(\\) => undefined\\)`, 'g')) ?? [], file).toEqual([]);
       expect((src.match(new RegExp(`${appelArme}\\.catch\\(\\(e\\) => this\\.rearmeEchoue\\(e\\)\\)`, 'g')) ?? []).length, file).toBe(sites);

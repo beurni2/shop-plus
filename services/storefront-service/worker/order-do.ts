@@ -2538,6 +2538,11 @@ export class OrderDO {
     ) {
       return grouped !== undefined ? this.repondreAuGroupe() : Response.json(results[commandId]);
     }
+    // SP6 — her money for this order is being given back: her own holder hears
+    // that before any freshness check, whose names all say nothing was paid.
+    if (await this.rembourseApresEchec(origin, receipt, quoteId, holderRef)) {
+      return Response.json({ ok: false, reason: 'paiement_rembourse' }, { status: 409 });
+    }
     // Everything past here can MOVE something, so the WHOLE gate runs — quote
     // and hold freshness included. A cached command under the WRONG holder
     // falls through to be refused by name here, never served.
@@ -2750,6 +2755,11 @@ export class OrderDO {
       logLu = existingLog;
       const existingAttempts = (await this.state.storage.get<AttemptRecord[]>(ATTEMPTS_KEY)) ?? [];
       const spine = rebuildOrderSpine(quote, origin, existingLog);
+      // SP6 — and again under the log this command will write: a late
+      // confirmation can land while the attribution lock is being asked.
+      if (spine.paidAfterFailure) {
+        return Response.json({ ok: false, reason: 'paiement_rembourse' }, { status: 409 });
+      }
       if (spine.journey.state !== 'payment_failed') {
         /**
          * AN ORDER ALREADY EXISTS AND ITS PAYMENT HAS NOT FAILED. A second
@@ -3042,6 +3052,10 @@ export class OrderDO {
       return Response.json({ ok: false, reason: 'order_in_other_payment' }, { status: 409 });
     }
     const receipt = await this.state.storage.get<ReservationReceipt>(RECEIPT_KEY);
+    // SP6 — as in `create`: the refund speaks before any freshness check.
+    if (await this.rembourseApresEchec(origin, receipt, quoteId, holderRef)) {
+      return Response.json({ ok: false, reason: 'paiement_rembourse' }, { status: 409 });
+    }
     const decision = decideCreateOrder({
       quoteBytes: origin?.quoteBytes ?? wireQuoteBytes,
       quoteId,
@@ -3059,7 +3073,10 @@ export class OrderDO {
     let etat: 'nouvelle' | 'echouee' | 'en_cours' = 'nouvelle';
     if (origin !== undefined) {
       const log = (await this.state.storage.get<OrderInput[]>(LOG_KEY)) ?? [];
-      etat = rebuildOrderSpine(quote, origin, log).journey.state === 'payment_failed' ? 'echouee' : 'en_cours';
+      const spine = rebuildOrderSpine(quote, origin, log);
+      // SP6 — a panier whose failed charge the provider collected is refunded, never charged again.
+      if (spine.paidAfterFailure) return Response.json({ ok: false, reason: 'paiement_rembourse' }, { status: 409 });
+      etat = spine.journey.state === 'payment_failed' ? 'echouee' : 'en_cours';
     }
     return Response.json({
       ok: true,
@@ -4332,6 +4349,33 @@ export class OrderDO {
       // RAPPROCHEMENT-1 (audit B4): a Contract-§6 contradiction refusal
       // carries its alert — SUNK durably before the refusal is answered.
       if (outcome.alert !== undefined) await this.sinkReconAlerts([outcome.alert]);
+      /**
+       * SP6 (founder ruling 2026-11-28) — THE PROVIDER COLLECTED A CHARGE THIS
+       * ORDER HAD ALREADY FAILED. The vault records that money against this
+       * order, for exactly the amount its Quote asked, and the order stays
+       * failed: it opens her refund in full and answers. Nothing below this
+       * branch runs for it — no confirmation, no wire to the supplier or to
+       * Séra, no custody, no row in her reseller's feed — because this money
+       * never pays the order. Any other amount or charge keeps the refusal
+       * and the alert above.
+       */
+      if (outcome.reason === 'out_of_order') {
+        const tardif: OrderInput = {
+          kind: 'provider_apres_echec',
+          event,
+          expectedProviderKey: chkLegKey,
+          ...(origin.groupe !== undefined ? { groupe: origin.groupe } : {}),
+        };
+        const garde = applyOrderInput(spine, tardif);
+        if (garde.applied) {
+          if (!garde.duplicate) await this.state.storage.put(LOG_KEY, [...log, tardif]);
+          await this.ouvrirRemboursementAvec({ nature: 'paiement_apres_echec' }, null);
+          if (await this.remboursementADemander()) {
+            await this.state.storage.setAlarm(Date.now()).catch((e) => this.rearmeEchoue(e));
+          }
+          return Response.json({ ok: true, status: garde.duplicate ? 'duplicate' : 'applied', state: spine.journey.state });
+        }
+      }
       return Response.json({ ok: false, reason: outcome.reason }, { status: statusForWebhook(outcome.reason) });
     }
     if (outcome.duplicate) {
@@ -4379,6 +4423,13 @@ export class OrderDO {
        */
       if (spine.journey.state === 'confirmed') {
         await this.registerForReseller(quote.attributionResellerId, origin.orderId);
+      }
+      // SP6 — and a late payment's refund, if the write after its log entry was lost.
+      if (spine.paidAfterFailure) {
+        await this.ouvrirRemboursementAvec({ nature: 'paiement_apres_echec' }, null);
+        if (await this.remboursementADemander()) {
+          await this.state.storage.setAlarm(Date.now()).catch((e) => this.rearmeEchoue(e));
+        }
       }
       return Response.json({ ok: true, status: 'duplicate', state: spine.journey.state });
     }
@@ -4985,12 +5036,15 @@ export class OrderDO {
         // rider refused at the supplier's never left, so it did not « come
         // back »: B6.1 makes that check the supplier's refusal after « prêt ».
         // COLIS-PERDU-1 — a parcel lost on the road neither came back nor was unavailable.
+        // SP6 — a payment that failed and was collected anyway sent no parcel at all.
         const motif =
           r.refus?.nature === 'refus_fournisseur' || r.refus?.nature === 'refus_enlevement'
             ? ('indisponible' as const)
             : r.refus?.nature === 'colis_perdu'
               ? ('perdu' as const)
-              : ('retour' as const);
+              : r.refus?.nature === 'paiement_apres_echec'
+                ? ('paiement' as const)
+                : ('retour' as const);
         const montant = r.lignes.reduce((somme, l) => somme + l.amount, 0);
         if (montant === 0) {
           return r.retenu > 0 ? { remboursement: { etat: 'rien' as const, montant: 0, fraisGardes: r.retenu, motif } } : {};
@@ -5021,6 +5075,24 @@ export class OrderDO {
       parsed.success ? lireRefusCourse(parsed.data.payload) : undefined,
       parsed.success ? parsed.data.envelope.command_id : null,
     );
+  }
+
+  /**
+   * SP6 — is this order, asked for by its own holder, one whose failed charge
+   * the provider collected? Read off the order's frozen quote and log only, so
+   * an expired quote or hold cannot hide it.
+   */
+  private async rembourseApresEchec(
+    origin: StoredOrigin | undefined,
+    receipt: ReservationReceipt | undefined,
+    quoteId: string,
+    holderRef: string,
+  ): Promise<boolean> {
+    if (origin === undefined || receipt === undefined || receipt.quoteId !== quoteId || receipt.holderRef !== holderRef) return false;
+    const quote = parseStoredQuote(origin.quoteBytes);
+    if (quote === undefined) return false;
+    const log = (await this.state.storage.get<OrderInput[]>(LOG_KEY)) ?? [];
+    return rebuildOrderSpine(quote, origin, log).paidAfterFailure;
   }
 
   /**
@@ -5485,6 +5557,8 @@ export function statusForRefusal(reason: string): number {
   if (reason === 'quote_unknown' || reason === 'unknown_order' || reason === 'not_found') return 404;
   // Someone else holds this quote: a STATE, spoken plainly, with no money on it.
   if (reason === 'reservation_held_by_another' || reason === 'retry_refused') return 409;
+  // SP6 — her money for this order is being given back: a state, never a new charge.
+  if (reason === 'paiement_rembourse') return 409;
   // PAYER-TOUT-1 — an order already bound to one payment road, and a group
   // still finishing its last attempt: states, spoken plainly, never money.
   if (reason === 'order_in_group' || reason === 'order_in_other_payment') return 409;
@@ -5794,7 +5868,8 @@ export default {
         // said (`quote_expired` off the origin bytes, `quote_unknown` when no
         // order was ever born): the router's own read established `expired`,
         // and that is the sentence the buyer's screen already understands.
-        return refuse(quoteExpiree ? 'expired' : (decided.reason ?? 'not_found'));
+        // SP6 — except her refund: « Rien n'a été payé » would be false there.
+        return refuse(quoteExpiree && decided.reason !== 'paiement_rembourse' ? 'expired' : (decided.reason ?? 'not_found'));
       }
       // THE BOUNDARY. Only the object's own projection ever reaches a buyer —
       // plus TWO create-only facts: what became of her voice note, and

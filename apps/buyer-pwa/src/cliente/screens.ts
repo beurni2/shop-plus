@@ -1434,6 +1434,18 @@ const REFUS: Readonly<Record<string, RefusVue>> = {
     action: 'payer-tout',
     libelle: t('cl.refus.pay_at_door_not_eligible.libelle'),
   },
+  // SP6 — the one refusal where money DID move: the provider collected a
+  // payment that had failed, and it is being given back. So not « Rien n'a été
+  // payé » but where her money goes, and that nothing more will be taken; no
+  // pay action (paying again is exactly what the service refuses), the way
+  // out is the boutique. Her refund card follows it from « Ma commande ».
+  paiement_rembourse: {
+    overline: t('cl.refus.paiement_rembourse.overline'),
+    titre: t('cl.refus.paiement_rembourse.titre'),
+    phrase: t('cl.refus.paiement_rembourse.phrase'),
+    action: 'voir-boutique',
+    libelle: t('cl.refus.paiement_rembourse.libelle'),
+  },
 };
 
 /* ═══════════════════ COPY-LINT REGION · messages ═════════════════════════ */
@@ -2579,7 +2591,7 @@ export interface C7State {
         readonly etat: 'en_cours' | 'fait' | 'rien';
         readonly montant: number;
         readonly fraisGardes?: number | undefined;
-        readonly motif?: 'retour' | 'indisponible' | 'perdu' | undefined;
+        readonly motif?: 'retour' | 'indisponible' | 'perdu' | 'paiement' | undefined;
       }
     | undefined;
 }
@@ -2599,6 +2611,8 @@ const REMBOURSEMENT = {
   indisponibleFaitCorps: t('cl.remboursement.indisponible_fait_corps'),
   perduCorps: t('cl.remboursement.perdu_corps'),
   perduFaitCorps: t('cl.remboursement.perdu_fait_corps'),
+  paiementCorps: t('cl.remboursement.paiement_corps'),
+  paiementFaitCorps: t('cl.remboursement.paiement_fait_corps'),
 };
 
 /**
@@ -2616,11 +2630,13 @@ function renderRemboursement(r: NonNullable<C7State['remboursement']>): string {
   // COLIS-PERDU-1 — lost on the road: nothing is coming back to the seller,
   // and every franc, the delivery included, comes back to her.
   const perdu = r.motif === 'perdu';
+  // SP6 — her payment failed and was collected anyway: no parcel ever left.
+  const paiement = r.motif === 'paiement';
   const corps = rien
     ? REMBOURSEMENT.rienCorps
     : fait
-      ? indisponible ? REMBOURSEMENT.indisponibleFaitCorps : perdu ? REMBOURSEMENT.perduFaitCorps : REMBOURSEMENT.faitCorps
-      : indisponible ? REMBOURSEMENT.indisponibleCorps : perdu ? REMBOURSEMENT.perduCorps : REMBOURSEMENT.enCoursCorps;
+      ? indisponible ? REMBOURSEMENT.indisponibleFaitCorps : perdu ? REMBOURSEMENT.perduFaitCorps : paiement ? REMBOURSEMENT.paiementFaitCorps : REMBOURSEMENT.faitCorps
+      : indisponible ? REMBOURSEMENT.indisponibleCorps : perdu ? REMBOURSEMENT.perduCorps : paiement ? REMBOURSEMENT.paiementCorps : REMBOURSEMENT.enCoursCorps;
   return [
     `<div class="cl-rembourse" data-role="remboursement" data-etat="${rien ? 'rien' : fait ? 'fait' : 'en-cours'}">`,
     `<div class="cl-rembourse-overline">${rien ? REMBOURSEMENT.rienOverline : REMBOURSEMENT.overline}</div>`,

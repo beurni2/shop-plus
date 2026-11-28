@@ -238,6 +238,13 @@ beforeAll(async () => {
   await postWebhook(genuine);
   roles['paye_apres_echec'] = tard.orderId;
 
+  // A timed-out charge, then the provider's confirmation for one franc more
+  // than the order asked: taken by nothing, so nothing is refunded.
+  const fauxTard = await echouee('0110');
+  const k10 = await leg(fauxTard.orderId);
+  expect((await postWebhook(webhook(fauxTard.orderId, k10, (fauxTard.amount ?? 0) + 1, `whk-late-faux-${fauxTard.orderId}`))).status).toBe(409);
+  roles['montant_faux_apres_echec'] = fauxTard.orderId;
+
   // A payment left pending past the limit.
   const pendante = await enAttente('0103');
   roles['paiement_en_attente'] = pendante.orderId;
@@ -270,6 +277,12 @@ beforeAll(async () => {
   await jusqua(pendante.orderId, (a) => a.stuck != null, STUCK_TTL_MS + 12_000);
   await jusqua(pleine.orderId, (a) => a.stuck != null, STUCK_TTL_MS + 12_000);
   await jusqua(doctored.orderId, (a) => a.stuck != null, STUCK_TTL_MS + 12_000);
+  // The late payment's refund, asked and never confirmed, past the same limit.
+  await jusqua(
+    tard.orderId,
+    (a) => ((a as { remboursement?: { lignes?: { alerteLe?: string }[] } | null }).remboursement?.lignes ?? []).some((l) => l.alerteLe !== undefined),
+    STUCK_TTL_MS + 12_000,
+  );
 
   // The supplier's door goes down until the last test puts it back.
   porte.supplier = true;
@@ -315,7 +328,8 @@ describe('each order row says what there is to check, and nothing else', () => {
     const tenu = async (role: string) =>
       ((await audit(roles[role]!)).reconAlerts ?? []).map((a) => (a.name === 'saga.stuck.v1' ? `stuck:${String(a.payload['stuck_in'])}` : String(a.payload['alert'])));
     expect(await tenu('montant_faux')).toContain('provider_amount_contradicts_quote');
-    expect(await tenu('paye_apres_echec')).toEqual(['genuine_webhook_after_local_failure']);
+    expect(await tenu('paye_apres_echec')).toEqual(['genuine_webhook_after_local_failure', 'stuck:refund']);
+    expect(await tenu('montant_faux_apres_echec')).toEqual(['genuine_webhook_after_local_failure']);
     expect(await tenu('paiement_en_attente')).toEqual(['stuck:payment_pending']);
     expect(await tenu('propre')).toEqual([]);
     expect(await tenu('remboursement_bloque')).toEqual(['refusal_fact_unreadable']);
@@ -325,15 +339,36 @@ describe('each order row says what there is to check, and nothing else', () => {
   it('a doctored-amount confirmation, a late genuine payment and a payment pending past its limit each show their class; a clean order shows nothing', async () => {
     const rows = await lignes();
     expect(classes(rows.get(roles['montant_faux']!))).toContain('provider_amount_contradicts_quote');
-    expect(classes(rows.get(roles['paye_apres_echec']!))).toEqual(['genuine_webhook_after_local_failure']);
+    expect(classes(rows.get(roles['paye_apres_echec']!))).toEqual(['genuine_webhook_after_local_failure', 'stuck_remboursement']);
+    expect(classes(rows.get(roles['montant_faux_apres_echec']!))).toEqual(['genuine_webhook_after_local_failure']);
     expect(classes(rows.get(roles['paiement_en_attente']!))).toEqual(['stuck_paiement']);
     expect(rows.get(roles['propre']!)?.['aVerifier']).toBeNull();
   });
 
   it('a redelivered alert shows once, at the time the provider sent it', async () => {
-    const row = (await lignes()).get(roles['paye_apres_echec']!);
-    expect(row?.['aVerifier']).toEqual({ elements: [{ classe: 'genuine_webhook_after_local_failure', le: T_WEBHOOK }], coupees: 0 });
+    const rows = await lignes();
+    const tard = rows.get(roles['paye_apres_echec']!)?.['aVerifier'] as { elements: { classe: string; le: string }[]; coupees: number };
+    expect(tard.elements.filter((e) => e.classe === 'genuine_webhook_after_local_failure')).toEqual([
+      { classe: 'genuine_webhook_after_local_failure', le: T_WEBHOOK },
+    ]);
+    expect(tard.coupees).toBe(0);
+    expect(rows.get(roles['montant_faux_apres_echec']!)?.['aVerifier']).toEqual({
+      elements: [{ classe: 'genuine_webhook_after_local_failure', le: T_WEBHOOK }],
+      coupees: 0,
+    });
   });
+
+  it('a late payment for the price asked carries its refund on the row; one franc off carries none', async () => {
+    const rows = await lignes();
+    const tard = rows.get(roles['paye_apres_echec']!);
+    expect(tard?.['state']).toBe('payment_failed');
+    expect(tard?.['remboursement']).toEqual({ etat: 'bloque', raison: 'sans_confirmation' });
+    expect(tard?.['contact']).toBeNull();
+    const faux = rows.get(roles['montant_faux_apres_echec']!);
+    expect(faux?.['state']).toBe('payment_failed');
+    expect(faux?.['remboursement']).toBeNull();
+    expect(faux?.['contact']).toBeNull();
+  }, 60_000);
 
   it('a blocked refund keeps its refund status exactly, and its alert is on the row beside it', async () => {
     const row = (await lignes()).get(roles['remboursement_bloque']!);
@@ -426,7 +461,10 @@ describe('the Boutik+ console reads it through its own port', () => {
     const cls = (role: string) =>
       ((par.get(roles[role]!)?.aVerifier as { elements?: { classe: string }[] } | undefined)?.elements ?? []).map((e) => e.classe);
     expect(cls('montant_faux')).toContain('provider_amount_contradicts_quote');
-    expect(cls('paye_apres_echec')).toEqual(['genuine_webhook_after_local_failure']);
+    expect(cls('paye_apres_echec')).toEqual(['genuine_webhook_after_local_failure', 'stuck_remboursement']);
+    expect(par.get(roles['paye_apres_echec']!)?.remboursement).toEqual({ etat: 'bloque', raison: 'sans_confirmation' });
+    expect(cls('montant_faux_apres_echec')).toEqual(['genuine_webhook_after_local_failure']);
+    expect(par.get(roles['montant_faux_apres_echec']!)?.remboursement).toBeUndefined();
     expect(cls('paiement_en_attente')).toEqual(['stuck_paiement']);
     expect(par.get(roles['propre']!)?.aVerifier).toBeUndefined();
     expect(par.get(roles['remboursement_bloque']!)?.remboursement).toEqual({ etat: 'bloque', raison: 'refus_illisible' });

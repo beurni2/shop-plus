@@ -2365,7 +2365,11 @@ describe('RAPPROCHEMENT-1 — reconciliation alerts are SUNK durably (audit B4 c
     expect(alerts.map((a) => a.payload['alert'])).toContain('door_confirmation_without_door_pending_order');
   });
 
-  it('a GENUINE webhook after a LOCALLY FAILED charge refuses out_of_order 409 AND genuine_webhook_after_local_failure is sunk', async () => {
+  // Shop+ SP6 (founder ruling 2026-11-28): money the provider confirms for an
+  // order whose payment already failed here is refunded in full — so the
+  // genuine confirmation is now TAKEN (200) and held for the refund, while the
+  // founder's alert is sunk exactly as before.
+  it('a GENUINE webhook after a LOCALLY FAILED charge, for the amount the order asked, is taken 200 and refunded — AND genuine_webhook_after_local_failure is sunk', async () => {
     const m = slowMf();
     const { orderId, created } = await orderedQuote(m, '9403');
     // The slow runtime's certified provider timed out the first charge — the
@@ -2373,9 +2377,9 @@ describe('RAPPROCHEMENT-1 — reconciliation alerts are SUNK durably (audit B4 c
     expect(created.json['state']).toBe('payment_failed');
 
     const genuine = await trueWebhookEvent(m, orderId, 12_500);
-    const refused = await postWebhook(m, genuine);
-    expect(refused.status).toBe(409);
-    expect(refused.json['error']).toBe('out_of_order');
+    const taken = await postWebhook(m, genuine);
+    expect(taken.status, taken.text).toBe(200);
+    expect(taken.json['status']).toBe('applied');
 
     const alerts = await alertsOf(m, orderId);
     expect(alerts).toHaveLength(1);
@@ -2384,7 +2388,32 @@ describe('RAPPROCHEMENT-1 — reconciliation alerts are SUNK durably (audit B4 c
       local_failure_reason: 'charge_timeout',
       leg: 'checkout',
     });
-  });
+
+    const record = (await audit(m, orderId)) as Awaited<ReturnType<typeof audit>> & {
+      remboursement?: { lignes: { legType: string; amount: number; collectRef: string; refundKey: string }[] } | null;
+    };
+    expect(record.state, 'that money never pays the order').toBe('payment_failed');
+    expect(record.escrow?.paymentLegs).toEqual([expect.objectContaining({ legType: 'checkout', amount: 12_500 })]);
+    const collectRef = record.escrow!.paymentLegs[0]!.collectRef;
+    expect(record.remboursement?.lignes).toEqual([expect.objectContaining({ legType: 'checkout', amount: 12_500, collectRef })]);
+  }, 60_000);
+
+  it('a GENUINE webhook after a LOCALLY FAILED charge, for ANY OTHER amount, still refuses out_of_order 409, sinks the alert, and opens no refund', async () => {
+    const m = slowMf();
+    const { orderId, created } = await orderedQuote(m, '9405');
+    expect(created.json['state']).toBe('payment_failed');
+
+    const refused = await postWebhook(m, await trueWebhookEvent(m, orderId, 12_501));
+    expect(refused.status).toBe(409);
+    expect(refused.json['error']).toBe('out_of_order');
+
+    const alerts = await alertsOf(m, orderId);
+    expect(alerts).toHaveLength(1);
+    expect(alerts[0]!.payload).toMatchObject({ alert: 'genuine_webhook_after_local_failure', provider_amount: 12_501, leg: 'checkout' });
+    const record = (await audit(m, orderId)) as Awaited<ReturnType<typeof audit>> & { remboursement?: unknown };
+    expect(record.escrow ?? null).toBeNull();
+    expect(record.remboursement ?? null).toBeNull();
+  }, 60_000);
 
   it('/entry/reconcile: a CLEAN confirmed order answers clean:true with no alerts and sinks nothing — and the pass is INTERNAL only', async () => {
     const { orderId } = await orderedQuote(mf, '9404');

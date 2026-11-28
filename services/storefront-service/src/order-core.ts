@@ -506,6 +506,20 @@ export type OrderInput =
       readonly groupe: GroupPaymentShares;
     }
   /**
+   * SP6 — the provider collected a charge this order had ALREADY failed. The
+   * money is recorded so it can be given back in full, and the order never
+   * becomes paid. Logged only when applied, so a replay rebuilds the same
+   * escrow and the same « refund, never charge again » flag. `groupe` is
+   * present when the order belongs to a grouped collection: it is then judged
+   * on its own share only.
+   */
+  | {
+      readonly kind: 'provider_apres_echec';
+      readonly event: unknown;
+      readonly expectedProviderKey: string | null;
+      readonly groupe?: GroupPaymentShares;
+    }
+  /**
    * SP4.2a — THE DOOR LEG'S PROVIDER TRUTH, and it is a SEPARATE KIND from
    * `provider` on purpose.
    *
@@ -726,6 +740,19 @@ export function applyOrderInput(
             ...(outcome.alert !== undefined ? { alert: outcome.alert } : {}),
           };
     }
+    case 'provider_apres_echec': {
+      const outcome =
+        input.groupe !== undefined
+          ? spine.onGroupProviderPaymentAfterFailure(input.event, input.expectedProviderKey, input.groupe)
+          : spine.onProviderPaymentAfterFailure(input.event, input.expectedProviderKey);
+      return outcome.applied
+        ? { applied: true, duplicate: outcome.duplicate }
+        : {
+            applied: false,
+            reason: outcome.reason,
+            ...(outcome.alert !== undefined ? { alert: outcome.alert } : {}),
+          };
+    }
     case 'refund_provider': {
       const outcome = spine.onProviderRefundEvent(input.event, input.attendus);
       return outcome.applied
@@ -892,9 +919,10 @@ export interface BuyerOrderView {
    * is smaller than what she paid. `rien` (montant 0): the refusal left
    * nothing to give back but that fee — the delivery still ended. `motif`
    * (REMBOURSEMENT-2) is why: the parcel came back, or the article could not
-   * be supplied, or (COLIS-PERDU-1) the parcel was lost on the road.
+   * be supplied, or (COLIS-PERDU-1) the parcel was lost on the road, or
+   * (SP6) the payment had failed and the provider collected it anyway.
    */
-  readonly remboursement?: { readonly etat: 'en_cours' | 'fait' | 'rien'; readonly montant: number; readonly fraisGardes?: number; readonly motif?: 'retour' | 'indisponible' | 'perdu' };
+  readonly remboursement?: { readonly etat: 'en_cours' | 'fait' | 'rien'; readonly montant: number; readonly fraisGardes?: number; readonly motif?: 'retour' | 'indisponible' | 'perdu' | 'paiement' };
 }
 
 export function toBuyerOrderView(args: {
@@ -912,7 +940,7 @@ export function toBuyerOrderView(args: {
     readonly arrivedAt?: string;
     readonly livree?: boolean;
   };
-  readonly remboursement?: { readonly etat: 'en_cours' | 'fait' | 'rien'; readonly montant: number; readonly fraisGardes?: number; readonly motif?: 'retour' | 'indisponible' | 'perdu' };
+  readonly remboursement?: { readonly etat: 'en_cours' | 'fait' | 'rien'; readonly montant: number; readonly fraisGardes?: number; readonly motif?: 'retour' | 'indisponible' | 'perdu' | 'paiement' };
 }): BuyerOrderView {
   const suivi = args.suivi ?? {};
   return {
