@@ -6,6 +6,7 @@ import { promisify } from 'node:util';
 import { Miniflare } from 'miniflare';
 import { afterAll, describe, expect, it } from 'vitest';
 import { OPS_SECRET, seance, boutiqueDe } from './seance';
+import { composeSandboxConfirmation } from '../../../scripts/sandbox-payment-confirm.mjs';
 
 /**
  * ═══ SANDBOX-PAY-1 — the founder's tool, run EXACTLY as the workflow runs it ═══
@@ -37,6 +38,8 @@ const persist = mkdtempSync(join(tmpdir(), 'sandbox-pay-'));
 const T0 = '2026-08-08T08:00:00.000Z';
 
 const WEBHOOK_SECRET = 'test-payment-webhook-secret-sp001';
+/** The founder's tool holds its OWN key — never the provider's. */
+const SANDBOX_SECRET = 'test-sandbox-confirm-secret-sp001';
 const PROGRESS_SECRET = 'test-progress-write-secret-sp001';
 
 const SUPPLY = [
@@ -85,6 +88,7 @@ const mf = new Miniflare({
   durableObjectsPersist: persist,
   bindings: {
     PAYMENT_WEBHOOK_SECRET: WEBHOOK_SECRET,
+    SANDBOX_CONFIRM_SECRET: SANDBOX_SECRET,
     CHECKOUT_OPS_SECRET: OPS_SECRET,
     PROGRESS_WRITE_SECRET: PROGRESS_SECRET,
   },
@@ -188,16 +192,26 @@ async function publicState(orderId: string): Promise<{ state: string; body: Reco
   return { state: String(body['state'] ?? `http-${res.status}`), body };
 }
 
-/** The founder's dispatch, verbatim: the script, three env vars, an exit code. */
+/**
+ * The founder's dispatch, verbatim: the script, three env vars, an exit code.
+ * The tool's key rides `SANDBOX_CONFIRM_SECRET` (`undefined` leaves it unset);
+ * `autres` adds what else the run's environment holds. Neither key is ever
+ * inherited from the machine running the suite.
+ */
 async function runScript(
   orderId: string,
-  secret: string,
+  secret: string | undefined,
+  autres: Record<string, string> = {},
 ): Promise<{ code: number; stdout: string; stderr: string }> {
   const base = String(await mf.ready);
+  const env: Record<string, string | undefined> = { ...process.env, STOREFRONT_BASE: base, ORDER_ID: orderId };
+  delete env['PAYMENT_WEBHOOK_SECRET'];
+  delete env['SANDBOX_CONFIRM_SECRET'];
+  delete env['SANDBOX_CONFIRM_SECRET_NEXT'];
+  if (secret !== undefined) env['SANDBOX_CONFIRM_SECRET'] = secret;
+  Object.assign(env, autres);
   try {
-    const out = await execFileAsync(process.execPath, [CONFIRM_SCRIPT], {
-      env: { ...process.env, STOREFRONT_BASE: base, ORDER_ID: orderId, PAYMENT_WEBHOOK_SECRET: secret },
-    });
+    const out = await execFileAsync(process.execPath, [CONFIRM_SCRIPT], { env });
     return { code: 0, stdout: out.stdout, stderr: out.stderr };
   } catch (err) {
     const e = err as { code?: number; stdout?: string; stderr?: string };
@@ -220,9 +234,9 @@ describe('SANDBOX-PAY-1 — the founder plays the provider against the real Work
     const { orderId } = await realOrder('0001');
     expect((await publicState(orderId)).state).toBe('payment_pending');
 
-    const run = await runScript(orderId, 'not-the-webhook-secret');
+    const run = await runScript(orderId, 'not-the-sandbox-key');
     expect(run.code, run.stdout + run.stderr).not.toBe(0);
-    expect(run.stderr).toContain('KEY READ REFUSED 401 — PAYMENT_WEBHOOK_SECRET here does not match the deployed Worker. Re-run the payment-webhook-secret workflow, then this one.');
+    expect(run.stderr).toContain('KEY READ REFUSED 401 — SANDBOX_CONFIRM_SECRET here does not match the deployed Worker. Re-run the payment-webhook-secret workflow, then this one.');
     expect((await publicState(orderId)).state, 'a refused webhook must move nothing').toBe(
       'payment_pending',
     );
@@ -237,7 +251,7 @@ describe('SANDBOX-PAY-1 — the founder plays the provider against the real Work
     const amount = Number(before.body['amountPaidAtCheckout']);
     expect(amount).toBeGreaterThan(0);
 
-    const run = await runScript(orderId, WEBHOOK_SECRET);
+    const run = await runScript(orderId, SANDBOX_SECRET);
     expect(run.code, run.stdout + run.stderr).toBe(0);
     expect(run.stdout).toContain('CONFIRMED');
 
@@ -262,9 +276,9 @@ describe('SANDBOX-PAY-1 — the founder plays the provider against the real Work
 
   it('a second dispatch is a no-op that says so — a double-tap cannot double-confirm', async () => {
     const { orderId } = await realOrder('0003');
-    expect((await runScript(orderId, WEBHOOK_SECRET)).code).toBe(0);
+    expect((await runScript(orderId, SANDBOX_SECRET)).code).toBe(0);
 
-    const again = await runScript(orderId, WEBHOOK_SECRET);
+    const again = await runScript(orderId, SANDBOX_SECRET);
     expect(again.code, again.stdout + again.stderr).toBe(0);
     expect(again.stdout).toContain('ALREADY CONFIRMED');
     expect((await publicState(orderId)).state).toBe('confirmed');
@@ -326,22 +340,55 @@ describe('SANDBOX-PAY-1 — the founder plays the provider against the real Work
     for (const c of (group['commandes'] ?? []) as { orderId: string; buyerRef: string }[]) jetons.set(c.orderId, c.buyerRef);
 
     // The founder pastes ONE article's order id, as he sees it on his board.
-    const run = await runScript(orderIds[1]!, WEBHOOK_SECRET);
+    const run = await runScript(orderIds[1]!, SANDBOX_SECRET);
     expect(run.code, run.stdout + run.stderr).toBe(0);
     expect(run.stdout).toContain(`grouped payment #${(await import('node:crypto')).createHash('sha256').update(String(group['groupId'])).digest('hex').slice(0, 8)}`);
     expect(run.stdout).toContain('CONFIRMED');
     for (const id of orderIds) expect((await publicState(id)).state).toBe('confirmed');
 
     // Pasting the group id afterwards is the redelivery a double-tap is.
-    const again = await runScript(String(group['groupId']), WEBHOOK_SECRET);
+    const again = await runScript(String(group['groupId']), SANDBOX_SECRET);
     expect(again.code, again.stdout + again.stderr).toBe(0);
     expect(again.stdout).toContain('ALREADY CONFIRMED');
   }, 60_000);
 
   it('a typo’d order id fails BY NAME, and nothing is sent', async () => {
-    const run = await runScript('ord-does-not-exist', WEBHOOK_SECRET);
+    const run = await runScript('ord-does-not-exist', SANDBOX_SECRET);
     expect(run.code).not.toBe(0);
     expect(run.stderr).toContain('NO SUCH ORDER');
+  }, 60_000);
+
+  it('the tool holds only its own key: without SANDBOX_CONFIRM_SECRET it stops by name, even beside the right provider key, and nothing moves', async () => {
+    const { orderId } = await realOrder('0030');
+    const run = await runScript(orderId, undefined, { PAYMENT_WEBHOOK_SECRET: WEBHOOK_SECRET });
+    expect(run.code, run.stdout + run.stderr).toBe(2);
+    expect(run.stderr).toContain('missing STOREFRONT_BASE, ORDER_ID or SANDBOX_CONFIRM_SECRET');
+    expect((await publicState(orderId)).state, 'the provider key in its environment must open nothing for it').toBe('payment_pending');
+  }, 60_000);
+
+  it('the tool sends its own key and no other: a wrong provider key beside it changes nothing, the order is confirmed', async () => {
+    const { orderId } = await realOrder('0031');
+    const run = await runScript(orderId, SANDBOX_SECRET, { PAYMENT_WEBHOOK_SECRET: 'not-the-provider-key' });
+    expect(run.code, run.stdout + run.stderr).toBe(0);
+    expect(run.stdout).toContain('CONFIRMED');
+    expect((await publicState(orderId)).state).toBe('confirmed');
+  }, 60_000);
+
+  it("the provider's key still opens the money door: the tool's own composition, sent with PAYMENT_WEBHOOK_SECRET, confirms a real order", async () => {
+    const { orderId } = await realOrder('0032');
+    const before = await publicState(orderId);
+    const amount = Number(before.body['amountPaidAtCheckout']);
+    const signe = { 'X-Payment-Webhook-Key': WEBHOOK_SECRET, 'Content-Type': 'application/json' };
+    const key = await mf.dispatchFetch(`http://c/checkout/webhook/leg-key/${encodeURIComponent(orderId)}?leg=checkout`, { headers: signe });
+    const legKey = String(safeJson(await key.text())['legKey']);
+    expect(key.status).toBe(200);
+    const sent = await mf.dispatchFetch('http://c/checkout/webhook/payment', {
+      method: 'POST',
+      headers: signe,
+      body: JSON.stringify(composeSandboxConfirmation(orderId, amount, new Date().toISOString(), legKey)),
+    });
+    expect(sent.status, await sent.clone().text()).toBe(200);
+    expect((await publicState(orderId)).state).toBe('confirmed');
   }, 60_000);
 });
 
@@ -358,7 +405,7 @@ describe('RB-3 — the gains read serves the FROZEN waterfall, franc-exact, foun
     expect(before.some((g) => g.orderId === orderId)).toBe(false);
 
     // ── confirm through the founder's own tool (the real webhook road) ─────
-    expect((await runScript(orderId, WEBHOOK_SECRET)).code).toBe(0);
+    expect((await runScript(orderId, SANDBOX_SECRET)).code).toBe(0);
 
     const read = await mf.dispatchFetch('http://c/checkout/gains', {
       headers: { Authorization: `Bearer ${OPS_SECRET}` },
@@ -444,7 +491,7 @@ describe('SE-LIVE-5b — the delivered order settles, copied from the frozen quo
 
   it('confirm → validated signal → exactly two Eligible obligations, franc-exact, once — and the buyer view leaks none of it', async () => {
     const { orderId } = await realOrder('0011');
-    expect((await runScript(orderId, WEBHOOK_SECRET)).code).toBe(0);
+    expect((await runScript(orderId, SANDBOX_SECRET)).code).toBe(0);
 
     const res = await progress(validatedEvent(orderId), PROGRESS_SECRET);
     const body = (safeJson(await res.text())) as { ok?: boolean; status?: string; obligations?: number };
@@ -502,7 +549,7 @@ describe('SE-LIVE-5b — the delivered order settles, copied from the frozen quo
 
   it('the spine refuses by NAME: wrong correlation, and an order never confirmed', async () => {
     const { orderId: paid } = await realOrder('0012');
-    expect((await runScript(paid, WEBHOOK_SECRET)).code).toBe(0);
+    expect((await runScript(paid, SANDBOX_SECRET)).code).toBe(0);
     const wrong = await progress(validatedEvent(paid, { correlation_id: 'corr-autre' }), PROGRESS_SECRET);
     expect(wrong.status, 'a foreign correlation is refused loudly').toBe(409);
     expect(((safeJson(await wrong.text())) as { reason?: string }).reason).toBe('wrong_correlation');
@@ -515,7 +562,7 @@ describe('SE-LIVE-5b — the delivered order settles, copied from the frozen quo
 
   it('the door: wrong secret is a 401 and records nothing', async () => {
     const { orderId } = await realOrder('0014');
-    expect((await runScript(orderId, WEBHOOK_SECRET)).code).toBe(0);
+    expect((await runScript(orderId, SANDBOX_SECRET)).code).toBe(0);
     expect((await progress(validatedEvent(orderId), 'mauvaise-cle')).status).toBe(401);
     const gains = await mf.dispatchFetch('http://c/checkout/gains', {
       headers: { Authorization: `Bearer ${OPS_SECRET}` },

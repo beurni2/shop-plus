@@ -9,7 +9,9 @@
  * dispatches it (via `.github/workflows/sandbox-payment.yml`) with an order id,
  * and it does exactly what a real aggregator's callback would do — POST a
  * canon-shaped `payment.checkout_leg_confirmed.v1` to the ONE route that can
- * declare money received, holding the ONE secret that opens it.
+ * declare money received, holding the tool's OWN key, `SANDBOX_CONFIRM_SECRET`.
+ * It never reads the provider's key (`PAYMENT_WEBHOOK_SECRET`), and the Worker
+ * accepts the tool's key only while it charges through the sandbox (auth.ts).
  *
  * WHAT IT DOES NOT DO. It does not touch the Worker, the vault, the canon, or
  * the money waterfall — the webhook route, its secret, and every franc-exact
@@ -139,14 +141,14 @@ const codeErreur = (body) => {
 /** The header the webhook gate reads (`auth.ts` PAYMENT_WEBHOOK_KEY_HEADER). */
 export const WEBHOOK_KEY_HEADER = 'X-Payment-Webhook-Key';
 /** What the founder reads when the secret here is not the deployed one — every secret-gated read says the same. */
-const SECRET_REFUSE = 'KEY READ REFUSED 401 — PAYMENT_WEBHOOK_SECRET here does not match the deployed Worker. Re-run the payment-webhook-secret workflow, then this one.';
+const SECRET_REFUSE = 'KEY READ REFUSED 401 — SANDBOX_CONFIRM_SECRET here does not match the deployed Worker. Re-run the payment-webhook-secret workflow, then this one.';
 
 async function main() {
   const base = (process.env.STOREFRONT_BASE ?? '').trim().replace(/\/+$/, '');
   const pasted = (process.env.ORDER_ID ?? '').trim();
-  const secret = process.env.PAYMENT_WEBHOOK_SECRET ?? '';
+  const secret = process.env.SANDBOX_CONFIRM_SECRET ?? '';
   if (base === '' || pasted === '' || secret === '') {
-    console.error('missing STOREFRONT_BASE, ORDER_ID or PAYMENT_WEBHOOK_SECRET');
+    console.error('missing STOREFRONT_BASE, ORDER_ID or SANDBOX_CONFIRM_SECRET');
     process.exit(2);
   }
 
@@ -172,7 +174,7 @@ async function main() {
 
   const view = async () => {
     // An order's own view answers only its buyer, so the founder reads its
-    // state behind the webhook secret; a group's view is read as before.
+    // state behind the tool's key; a group's view is read as before.
     const res = groupe
       ? await fetch(`${base}/checkout/group/${encodeURIComponent(orderId)}`)
       : await fetch(`${base}/checkout/webhook/order/${encodeURIComponent(orderId)}`, { headers: { [WEBHOOK_KEY_HEADER]: secret } });
@@ -233,7 +235,7 @@ async function main() {
   });
   const answer = await res.json().catch(() => ({}));
   if (res.status === 401) {
-    console.error('WEBHOOK REFUSED 401 — PAYMENT_WEBHOOK_SECRET here does not match the deployed Worker. Re-run the payment-webhook-secret workflow, then this one.');
+    console.error('WEBHOOK REFUSED 401 — SANDBOX_CONFIRM_SECRET here does not match the deployed Worker. Re-run the payment-webhook-secret workflow, then this one.');
     process.exit(1);
   }
   if (res.status !== 200) {
@@ -254,8 +256,8 @@ async function main() {
 }
 
 /**
- * REMBOURSEMENT-1 — the provider's refund half. It reads, behind the webhook
- * secret, ONLY the refunds this order asked of the provider (a refused
+ * REMBOURSEMENT-1 — the provider's refund half. It reads, behind the tool's
+ * key, ONLY the refunds this order asked of the provider (a refused
  * delivery opens them; nothing else can), confirms each, and reads the
  * order's own view after: `refunded` is the vault's word, not this script's.
  */
@@ -269,7 +271,7 @@ async function rembourser(base, orderId, secret) {
   });
   const body = await probe.json().catch(() => ({}));
   if (probe.status === 401) {
-    console.error('KEY READ REFUSED 401 — PAYMENT_WEBHOOK_SECRET here does not match the deployed Worker.');
+    console.error('KEY READ REFUSED 401 — SANDBOX_CONFIRM_SECRET here does not match the deployed Worker.');
     process.exit(1);
   }
   if (probe.status !== 200 || !Array.isArray(body.remboursements)) {
